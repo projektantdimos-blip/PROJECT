@@ -18,7 +18,7 @@
   --blue:#1f5c99;--blue-d:#164a7d;--blue-l:#e8f0f8;--orange:#ee9264;
   --ink:#1d2733;--muted:#66717e;--line:#d6dde5;--bg:#f3f6f9;--card:#fff;--card2:#f8fafc;
   --ok:#1e7b46;--ok-l:#e3f2e9;--bad:#c0392b;--bad-l:#fbe8e5;--warn:#a86a00;--warn-l:#fbf0da;
-  --st1:#7f93ab;--st2:#1f5c99;--st3:#d9782f;--st4:#7a55a8;--st5:#1e7b46;
+  --st1:#7f93ab;--st2:#2b8a9a;--st3:#1f5c99;--st4:#d9782f;--st5:#7a55a8;--st6:#1e7b46;
   --shadow:0 1px 2px rgba(20,40,70,.06),0 4px 14px rgba(20,40,70,.06);
   --radius:14px;--on:#fff;--head:#1f5c99;
   --nav-h:64px;
@@ -28,7 +28,7 @@
     --blue:#6aa6e3;--blue-d:#8cbcec;--blue-l:#1a2c42;--orange:#f0a47e;
     --ink:#e4eaf1;--muted:#95a3b3;--line:#2a3848;--bg:#0e151e;--card:#16202c;--card2:#1b2734;
     --ok:#52c386;--ok-l:#153427;--bad:#f07a6c;--bad-l:#3a1d1b;--warn:#e3aa45;--warn-l:#3a2c12;
-    --st1:#8fa2b8;--st2:#6aa6e3;--st3:#f0a060;--st4:#a88ad6;--st5:#52c386;
+    --st1:#8fa2b8;--st2:#5cc0cf;--st3:#6aa6e3;--st4:#f0a060;--st5:#a88ad6;--st6:#52c386;
     --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);--on:#0b1620;--head:#15304d;
   }
 }
@@ -36,7 +36,7 @@
   --blue:#6aa6e3;--blue-d:#8cbcec;--blue-l:#1a2c42;--orange:#f0a47e;
   --ink:#e4eaf1;--muted:#95a3b3;--line:#2a3848;--bg:#0e151e;--card:#16202c;--card2:#1b2734;
   --ok:#52c386;--ok-l:#153427;--bad:#f07a6c;--bad-l:#3a1d1b;--warn:#e3aa45;--warn-l:#3a2c12;
-  --st1:#8fa2b8;--st2:#6aa6e3;--st3:#f0a060;--st4:#a88ad6;--st5:#52c386;
+  --st1:#8fa2b8;--st2:#5cc0cf;--st3:#6aa6e3;--st4:#f0a060;--st5:#a88ad6;--st6:#52c386;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);--on:#0b1620;--head:#15304d;
 }
 *{box-sizing:border-box}
@@ -189,6 +189,53 @@ svg{flex:none}
 .nodates{margin-top:12px;font-size:13px;color:var(--muted)}
 .nodates button{border:0;background:none;color:var(--blue);padding:0;text-decoration:underline;text-underline-offset:2px}
 
+/* ---------- логотип ---------- */
+.logo{border-radius:50%;flex:none;display:block;background:#fff}
+.side .logo{box-shadow:0 0 0 2px rgba(255,255,255,.9)}
+.top-logo{box-shadow:0 0 0 2px rgba(255,255,255,.9)}
+
+/* ---------- план на неделю ---------- */
+.mode-seg{margin-bottom:14px}
+.mode-seg button{height:38px;padding:0 16px;font-size:14px}
+.tl-nav .lbl small{display:block;font-weight:400;color:var(--muted);font-size:13px}
+.wk-sum{display:flex;flex-wrap:wrap;gap:8px 18px;margin:2px 2px 14px;font-size:14px;color:var(--muted)}
+.wk-sum b{color:var(--ink);font-size:17px}.wk-sum .bad,.wk-sum .bad b{color:var(--bad)}
+.wk-grid{display:grid;gap:12px}
+@media (min-width:1100px){.wk-grid{grid-template-columns:repeat(2,1fr)}}
+.wk-card{padding:0;overflow:hidden}
+.wk-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--card2)}
+.wk-head .ava{width:34px;height:34px;font-size:15px}
+.wk-head .nm{font-weight:700;font-size:16px}.wk-head .st{font-size:13px;color:var(--muted)}
+.wk-head .over{color:var(--bad);font-weight:600}
+.wk-daysrow{display:flex;justify-content:flex-end;padding:8px 14px 0}
+.wk-cells{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;width:196px;flex:none}
+.wk-cells span{height:10px;border-radius:3px;background:var(--card2);border:1px solid var(--line)}
+.wk-cells span.we{opacity:.6}
+.wk-cells span.on{background:var(--blue);border-color:var(--blue)}
+.wk-cells span.bad{background:var(--bad);border-color:var(--bad)}
+.wk-cells span.due{box-shadow:0 0 0 2px var(--orange);position:relative;z-index:1}
+.wk-cells span.today:not(.on):not(.bad){border-color:var(--orange)}
+.wk-cells.head span{height:auto;background:none;border:0;font-size:11px;color:var(--muted);text-align:center;line-height:1.1}
+.wk-cells.head span b{display:block;font-size:13px;color:var(--ink)}
+.wk-cells.head span.today b{color:var(--orange)}
+.wk-item{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:11px 14px}
+.wk-item:last-of-type{border-bottom:0}
+.wk-item:hover{background:var(--blue-l)}
+.wk-top{display:flex;align-items:baseline;gap:10px;min-width:0}
+.wk-top .num{font-size:22px;font-weight:800;line-height:1.05;color:var(--blue);white-space:nowrap;font-variant-numeric:tabular-nums}
+.wk-top .num small{font-size:13px;font-weight:700;opacity:.6}
+.wk-top .num.none{font-size:15px;color:var(--muted)}
+.wk-title{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wk-bot{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+.wk-start{font-size:13px;font-weight:600;color:var(--ink);margin-right:auto;white-space:nowrap}
+.wk-start::before{content:"▶";font-size:10px;color:var(--blue);margin-right:6px}
+.wk-bot .pill{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.wk-empty{padding:16px 14px;color:var(--muted);font-size:14px}
+.wk-lg{display:inline-block;width:14px;height:10px;border-radius:3px;background:var(--card2);border:1px solid var(--line)}
+.wk-lg.on{background:var(--blue);border-color:var(--blue)}.wk-lg.bad{background:var(--bad);border-color:var(--bad)}
+.wk-lg.due{box-shadow:0 0 0 2px var(--orange)}.wk-lg.today{border-color:var(--orange)}
+@media (max-width:420px){.wk-cells{width:100%}.wk-bot .pill{margin-right:0}}
+
 /* ---------- шторка ---------- */
 .scrim{position:fixed;inset:0;background:rgba(10,20,35,.45);z-index:50;opacity:0;pointer-events:none;transition:opacity .2s}
 .scrim.on{opacity:1;pointer-events:auto}
@@ -269,8 +316,8 @@ svg{flex:none}
 <script>
 /* ================== константы ================== */
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1bQ1oqvq2W_HIo4m2-ax-NktWJoeOsUa-qCvE6mr-8gE/edit#gid=1374929430';
-const STAGES = ['Сбор данных','В проектировании','На согласовании','Корректировка','Сдано'];
-const STAGE_VAR = {'Сбор данных':'--st1','В проектировании':'--st2','На согласовании':'--st3','Корректировка':'--st4','Сдано':'--st5'};
+const STAGES = ['Сбор данных','Готов к проектированию','В проектировании','На согласовании','Корректировка','Сдано'];
+const STAGE_VAR = {'Сбор данных':'--st1','Готов к проектированию':'--st2','В проектировании':'--st3','На согласовании':'--st4','Корректировка':'--st5','Сдано':'--st6'};
 const STAFF = ['Иван','Ольга','Кристина','Дмитрий'];
 const AVA_COLORS = ['#1f5c99','#d9782f','#7a55a8','#1e7b46','#b0406a','#2b8a9a','#6b7b2a'];
 const PRIO = {1:{c:'var(--bad)',t:'Высокий'},2:{c:'var(--orange)',t:'Повышенный'},3:{c:'var(--blue)',t:'Обычный'},4:{c:'var(--muted)',t:'Низкий'}};
@@ -511,18 +558,18 @@ function renderOverview() {
     {k:'active', n:act.length, l:'В работе', c:'var(--blue)'},
     {k:'overdue', n:cnt('overdue'), l:'Просрочено', c:'var(--bad)'},
     {k:'hot', n:cnt('hot'), l:'Горят (≤ 2 дн.)', c:'var(--orange)'},
-    {k:'review', n:rows.filter(r => r.stage === 'На согласовании').length, l:'На согласовании', c:'var(--st3)'},
-    {k:'edits', n:rows.reduce((s, r) => s + (r.edits || 0), 0), l:'Правок от заказчиков', c:'var(--st4)'}
+    {k:'review', n:rows.filter(r => r.stage === 'На согласовании').length, l:'На согласовании', c:'var(--st4)'},
+    {k:'edits', n:rows.reduce((s, r) => s + (r.edits || 0), 0), l:'Правок от заказчиков', c:'var(--st5)'}
   ];
-  const byStage = STAGES.map(s => ({s, n: rows.filter(r => r.stage === s).length}));
-  const noStage = rows.filter(r => !r.stage).length;
-  const total = rows.length || 1;
+  const byStage = STAGES.filter(s => s !== 'Сдано').map(s => ({s, n: rows.filter(r => r.stage === s).length}));
+  const noStage = act.filter(r => !r.stage).length;
+  const total = act.length || 1; // «Сдано» — архив, в диаграмму не входит
   const list = filtered();
   const f = S.f;
   $('#v-overview').innerHTML = `
     <div class="tiles">${tiles.map(t => `<button class="tile ${f.tile === t.k ? 'on' : ''}" data-tile="${t.k}" style="--c:${t.c}"><div class="n">${t.n}</div><div class="l">${t.l}</div></button>`).join('')}</div>
     <div class="card" style="padding:14px 16px;margin-top:14px">
-      <div style="display:flex;justify-content:space-between;font-weight:600">Проекты по стадиям<span style="color:var(--muted);font-weight:400">${rows.length} всего</span></div>
+      <div style="display:flex;justify-content:space-between;font-weight:600">Проекты по стадиям<span style="color:var(--muted);font-weight:400">${act.length} в работе</span></div>
       <div class="stagebar">${byStage.map(x => x.n ? `<span style="width:${x.n / total * 100}%;background:${stageColor(x.s)}" title="${x.s}: ${x.n}"></span>` : '').join('')}${noStage ? `<span style="width:${noStage / total * 100}%;background:var(--line)" title="Без стадии: ${noStage}"></span>` : ''}</div>
       <div class="legend">${byStage.map(x => `<span><i class="dot" style="background:${stageColor(x.s)}"></i>${x.s} <b>${x.n}</b></span>`).join('')}${noStage ? `<span><i class="dot" style="background:var(--line)"></i>Без стадии <b>${noStage}</b></span>` : ''}</div>
     </div>
@@ -562,7 +609,7 @@ function renderKanban() {
 const DAY_W = 34, LANE_H = 30;
 const WD = ['вс','пн','вт','ср','чт','пт','сб'];
 
-// период задачи: от постановки до срока (или договора)
+// период задачи: от начала работы до срока (или договора)
 function span(r) {
   const a = pd(r.assigned), b = pd(r.due) || pd(r.contract);
   if (!a && !b) return null;
@@ -648,7 +695,7 @@ function renderWeek() {
         ${p.items.map(x => `
           <button class="wk-item" data-open="${x.r.id}">
             <span class="wk-top">${x.r.num ? `<span class="num"><small>№</small>${esc(x.r.num)}</span>` : '<span class="num none">без №</span>'}<span class="wk-title">${esc(x.r.object || x.r.client || '(без названия)')}</span></span>
-            <span class="wk-bot"><span class="pill ${x.tag.tone}">${esc(x.tag.t)}</span><span class="wk-cells">${cells(x)}</span></span>
+            <span class="wk-bot"><span class="pill ${x.tag.tone}">${esc(x.tag.t)}</span><span class="wk-start">${x.r.assigned ? 'Начало ' + fd(x.r.assigned, 1) : 'Начало не задано'}</span><span class="wk-cells">${cells(x)}</span></span>
           </button>`).join('') || '<div class="wk-empty">На эту неделю задач по срокам нет</div>'}
         ${p.noDate.length ? `<div class="nodates" style="padding:0 14px 12px">Без дат: ${p.noDate.map(r => `<button data-open="${r.id}">№${esc(r.num || '—')}</button>`).join(', ')}</div>` : ''}
       </div>`).join('')}
@@ -734,7 +781,7 @@ function renderTimeline() {
       ${showToday ? `<div class="todayline" style="left:${todayLeft}px"></div>` : ''}
     </div></div>
     <div class="legend" style="margin-top:10px">
-      <span><i class="dot" style="background:var(--st2)"></i>В работе</span><span><i class="dot" style="background:var(--orange)"></i>Горит</span>
+      <span><i class="dot" style="background:var(--st3)"></i>В работе</span><span><i class="dot" style="background:var(--orange)"></i>Горит</span>
       <span><i class="dot" style="background:var(--bad)"></i>Просрочено</span><span><i class="dot" style="background:var(--ok)"></i>Сдано</span>
       <span>Полоска снизу — число задач в день (красная ≥ 3)</span>
     </div>
@@ -781,7 +828,7 @@ function drawSheet() {
       <div class="fld"><label for="f-object">Объект (адрес)</label><textarea id="f-object" data-f="object" rows="2">${esc(d.object)}</textarea></div>
       <div class="fld"><label>Приоритет</label><div class="seg" data-seg="priority">${[1,2,3,4].map(p => `<button type="button" data-v="${p}" class="${d.priority === p ? 'on' : ''}"><span class="dot" style="background:${d.priority === p ? 'currentColor' : PRIO[p].c}"></span>${p} · ${PRIO[p].t}</button>`).join('')}</div></div>
       <div class="grid2">
-        ${dateF('assigned', 'Дата постановки')}
+        ${dateF('assigned', 'Дата начала работы')}
         ${dateF('due', 'Срок', true)}
         ${dateF('contract', 'Крайняя по договору', true)}
         ${dateF('submitted', 'Первичная сдача')}
