@@ -154,6 +154,31 @@ svg{flex:none}
 .col .task.dragging{opacity:.4}
 .col .task .title{margin-bottom:8px}
 
+/* ---------- крайняя дата по договору на карточке ---------- */
+.task .contract{display:flex;align-items:center;gap:6px;margin:-4px 0 8px;font-size:13px;font-weight:600;color:var(--muted)}
+.task .contract svg{width:14px;height:14px}
+.task .contract.none{font-weight:400;opacity:.75}
+.task .contract.warn{color:var(--warn)}.task .contract.bad{color:var(--bad)}
+
+/* ---------- срочные работы ---------- */
+.task.urgent,.col .task.urgent{border-color:var(--bad);background:var(--bad-l);box-shadow:0 0 0 1px var(--bad) inset}
+.task.urgent .prio{background:var(--bad)!important;width:7px}
+.task.urgent .num{color:var(--bad)}
+.task.urgent .pill.bad{background:var(--card);border:1px solid var(--bad)}
+.urgent-pill{background:var(--bad);color:var(--on);gap:4px;height:22px;padding:0 8px}
+.wk-item.urgent{background:var(--bad-l);box-shadow:inset 4px 0 0 var(--bad)}
+.wk-item.urgent:hover{filter:brightness(.97);background:var(--bad-l)}
+.wk-item.urgent .wk-top .num{color:var(--bad)}
+.urgent-tgl{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:14px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.urgent-tgl:disabled{opacity:.55;cursor:not-allowed}
+.urgent-tgl>span{flex:1;min-width:0}
+.urgent-tgl small{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+.urgent-tgl .sw{width:40px;height:24px;border-radius:12px;background:var(--line);position:relative;flex:none;transition:background .15s}
+.urgent-tgl .sw::after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}
+.urgent-tgl.on{border-color:var(--bad);background:var(--bad-l);color:var(--bad)}
+.urgent-tgl.on small{color:inherit;opacity:.85}
+.urgent-tgl.on .sw{background:var(--bad)}.urgent-tgl.on .sw::after{left:19px}
+
 /* ---------- занятость ---------- */
 .people{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px}
 .person{padding:10px 12px;display:flex;gap:10px;align-items:center;min-width:0}
@@ -277,6 +302,73 @@ svg{flex:none}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .toast.err{background:var(--bad)}
 @media (min-width:900px){.toast{bottom:24px}}
+
+/* ---------- чат ---------- */
+img.ava{object-fit:cover;background:var(--card2)}
+.bnav button,.side nav button{position:relative}
+.nb{position:absolute;top:10px;left:calc(50% + 6px);width:10px;height:10px;border-radius:50%;background:var(--orange);border:2px solid var(--card)}
+@media (min-width:900px){.nb{top:50%;left:auto;right:12px;margin-top:-5px;border-color:var(--blue-d)}}
+.view-chat .fab{display:none}
+.chat{display:grid;grid-template-columns:1fr;height:calc(100vh - 172px);height:calc(100dvh - 172px);min-height:380px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.ch-list,.ch-conv{display:flex;flex-direction:column;min-height:0;min-width:0}
+.chat:not(.show-conv) .ch-conv{display:none}
+.chat.show-conv .ch-list{display:none}
+@media (min-width:900px){
+  .chat{grid-template-columns:290px 1fr;height:calc(100vh - 150px)}
+  .chat:not(.show-conv) .ch-conv,.chat.show-conv .ch-list{display:flex}
+  .ch-back{display:none!important}
+}
+.ch-list{border-right:1px solid var(--line);background:var(--card2)}
+.ch-me{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--card)}
+.ch-me .ava{width:36px;height:36px;font-size:15px}
+.ch-me .nm{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-me .nm small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.ch-items{flex:1;overflow-y:auto}
+.ch-item{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:10px 14px}
+.ch-item:hover{background:var(--blue-l)}
+.ch-item.on{background:var(--blue-l);box-shadow:inset 3px 0 0 var(--blue)}
+.ch-ic{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--blue);color:var(--on);font-weight:700;font-size:13px;flex:none}
+.ch-ic.gen{background:var(--orange)}
+.ch-item .tx{flex:1;min-width:0}
+.ch-item .t1{display:flex;gap:8px;align-items:baseline;font-weight:600}
+.ch-item .t1 span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-item .t1 small{flex:none;font-weight:400;color:var(--muted);font-size:12px}
+.ch-item .t2{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-item .unr{width:10px;height:10px;border-radius:50%;background:var(--orange);flex:none}
+.ch-add{padding:10px 12px;border-top:1px solid var(--line)}
+.ch-add .sel{width:100%}
+.ch-head{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--line);min-height:58px}
+.ch-head .tt{flex:1;min-width:0;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-head .tt small{display:block;font-weight:400;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis}
+.ch-back{width:36px;height:36px;border-radius:10px;border:0;background:var(--card2);color:var(--muted);display:grid;place-items:center;flex:none}
+.ch-msgs{flex:1;min-height:0;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column}
+.ch-day{align-self:center;font-size:12px;color:var(--muted);background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:2px 10px;margin:12px 0 6px}
+.ch-msg{display:flex;gap:10px;padding:1px 0;position:relative}
+.ch-msg.first{margin-top:10px}
+.ch-msg .ava,.ch-msg .sp{width:34px;height:34px;font-size:14px;flex:none}
+.ch-msg .bd{min-width:0;flex:1}
+.ch-msg .who{font-weight:600;font-size:14px}
+.ch-msg .who small{font-weight:400;color:var(--muted);margin-left:6px;font-size:12px}
+.ch-msg .tx{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.4}
+.ch-msg .tx a{color:var(--blue)}
+.ch-msg.pending .tx{opacity:.6}
+.ch-msg .del{position:absolute;right:0;top:0;width:28px;height:28px;border:0;border-radius:8px;background:var(--card);color:var(--muted);display:grid;place-items:center;opacity:0}
+.ch-msg:hover .del,.ch-msg .del:focus{opacity:1}
+@media (hover:none){.ch-msg .del{opacity:.5}}
+.ch-empty{margin:auto;text-align:center;color:var(--muted);padding:20px}
+.ch-compose{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line);align-items:flex-end}
+.ch-compose textarea{flex:1;min-width:0;height:42px;max-height:140px;resize:none;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:10px 12px;outline:none;line-height:1.35}
+.ch-compose textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-l)}
+.ch-compose button{width:44px;height:42px;border-radius:12px;border:0;background:var(--blue);color:var(--on);display:grid;place-items:center;flex:none}
+.ch-auth{max-width:440px;margin:24px auto;padding:22px}
+.ch-auth h2{margin:0 0 6px;font-size:20px}
+.ch-auth p{color:var(--muted);margin:6px 0 14px}
+.ch-auth ol{margin:8px 0 14px;padding-left:20px;color:var(--muted)}
+.ch-auth .btn{width:100%;justify-content:center;height:44px;font-weight:600;margin-top:4px}
+.ch-auth .link{border:0;background:none;color:var(--blue);padding:8px 0;text-decoration:underline;text-underline-offset:2px;width:100%}
+.ava-big{width:84px!important;height:84px!important;font-size:34px!important}
+.pf-ava{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.pf-ava .btns{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
 </style>
 </head>
 <body>
@@ -303,6 +395,7 @@ svg{flex:none}
     <section class="view" id="v-overview"></section>
     <section class="view" id="v-kanban"></section>
     <section class="view" id="v-load"></section>
+    <section class="view" id="v-chat"></section>
   </div>
 </div>
 
@@ -318,6 +411,23 @@ svg{flex:none}
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1bQ1oqvq2W_HIo4m2-ax-NktWJoeOsUa-qCvE6mr-8gE/edit#gid=1374929430';
 const STAGES = ['Сбор данных','Готов к проектированию','В проектировании','На согласовании','Корректировка','Сдано'];
 const STAGE_VAR = {'Сбор данных':'--st1','Готов к проектированию':'--st2','В проектировании':'--st3','На согласовании':'--st4','Корректировка':'--st5','Сдано':'--st6'};
+// Настройки Firebase для чата. Вставьте сюда объект firebaseConfig из консоли Firebase (инструкция: firebase/README.md).
+// Это не секрет: защита данных — в правилах firebase/firestore.rules.
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyD8e8r_S4DIsSunECf-gCZLRyPS6dLla40",
+  authDomain: "projekt-135fc.firebaseapp.com",
+  projectId: "projekt-135fc",
+  storageBucket: "projekt-135fc.firebasestorage.app",
+  messagingSenderId: "262017734397",
+  appId: "1:262017734397:web:52efedd5b90420431a9094"
+};
+/* пример:
+const FIREBASE_CONFIG = {
+  apiKey: "AIza...", authDomain: "имя-проекта.firebaseapp.com", projectId: "имя-проекта",
+  storageBucket: "имя-проекта.appspot.com", messagingSenderId: "123", appId: "1:123:web:abc"
+};
+*/
+const URGENT_STAGE ='Готов к проектированию'; // только на этой стадии можно поставить «Срочная»
 const STAFF = ['Иван','Ольга','Кристина','Дмитрий'];
 const AVA_COLORS = ['#1f5c99','#d9782f','#7a55a8','#1e7b46','#b0406a','#2b8a9a','#6b7b2a'];
 const PRIO = {1:{c:'var(--bad)',t:'Высокий'},2:{c:'var(--orange)',t:'Повышенный'},3:{c:'var(--blue)',t:'Обычный'},4:{c:'var(--muted)',t:'Низкий'}};
@@ -372,12 +482,18 @@ const IC = {
   chat:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
   ext:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
   l:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>',
-  r:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg>'
+  r:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg>',
+  chatNav:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M8.5 11h7M8.5 14h4"/></svg>',
+  send:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>',
+  trash:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  bolt:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>',
+  cal:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>'
 };
 const VIEWS = [
   {id:'overview', t:'Обзор', ic:IC.overview},
   {id:'kanban', t:'Канбан', ic:IC.kanban},
-  {id:'load', t:'Занятость', ic:IC.load}
+  {id:'load', t:'Занятость', ic:IC.load},
+  {id:'chat', t:'Чат', ic:IC.chatNav}
 ];
 
 /* ================== вычисления ================== */
@@ -405,6 +521,21 @@ function info(r) {
   return res;
 }
 const isActive = r => r.stage !== 'Сдано';
+// «Срочная» подсвечивается, пока работа не сдана
+const isUrgent = r => !!r.urgent && isActive(r);
+
+// Строка «Договор до …» для карточки: красная — срок прошёл, жёлтая — осталось ≤ 7 дней
+function contractLine(r) {
+  const con = pd(r.contract);
+  if (!con) return r.stage === 'Сдано' ? '' : `<span class="contract none" title="Крайняя дата по договору не указана">${IC.cal}Договор: дата не указана</span>`;
+  const left = diff(con, today());
+  let tone = '', hint = '';
+  if (isActive(r)) {
+    hint = left < 0 ? ` (прошло ${-left} дн.)` : left === 0 ? ' (сегодня)' : ` (через ${left} дн.)`;
+    if (!pd(r.submitted)) tone = left < 0 ? 'bad' : left <= 7 ? 'warn' : '';
+  }
+  return `<span class="contract ${tone}" title="Крайняя дата по договору: ${fd(r.contract, 1)}${hint}">${IC.cal}Договор до ${fd(r.contract, 1)}</span>`;
+}
 
 /* ================== состояние и API ================== */
 const S = {
@@ -467,7 +598,7 @@ async function saveRow(id, fields) {
 async function createRow(fields) {
   if (S.mode === 'demo') {
     const id = Math.max(2, ...S.rows.map(r => r.id)) + 1;
-    S.rows.push({id, num:'', client:'', object:'', contract:null, stage:'', owner:'', assigned:null, due:null, comment:'', submitted:null, edits:null, priority:null, ...fields});
+    S.rows.push({id, num:'', client:'', object:'', contract:null, stage:'', owner:'', assigned:null, due:null, comment:'', submitted:null, edits:null, priority:null, urgent:false, ...fields});
     lsSet(LS.demo, S.rows); renderAll(); toast('Проект добавлен (демо)'); return true;
   }
   try {
@@ -478,7 +609,8 @@ async function createRow(fields) {
 
 /* ================== рендер: каркас ================== */
 function renderNav() {
-  const html = VIEWS.map(v => `<button data-view="${v.id}" class="${S.view === v.id ? 'on' : ''}">${v.ic}<span>${v.t}</span></button>`).join('');
+  const html = VIEWS.map(v => `<button data-view="${v.id}" class="${S.view === v.id ? 'on' : ''}">${v.ic}<span>${v.t}</span>${v.id === 'chat' && chatUnread() ? '<i class="nb" title="Есть непрочитанные"></i>' : ''}</button>`).join('');
+  document.body.classList.toggle('view-chat', S.view === 'chat');
   $('#sideNav').innerHTML = html;
   $('#bottomNav').innerHTML = html;
   document.querySelectorAll('.view').forEach(el => el.classList.toggle('on', el.id === 'v-' + S.view));
@@ -497,17 +629,19 @@ function renderAll() {
   if (S.view === 'overview') renderOverview();
   if (S.view === 'kanban') renderKanban();
   if (S.view === 'load') renderLoad();
+  if (S.view === 'chat') renderChat();
 }
 
 function taskCard(r, opts = {}) {
-  const inf = info(r), p = PRIO[r.priority];
+  const inf = info(r), p = PRIO[r.priority], urg = isUrgent(r);
   const title = r.object || r.client || '(без названия)';
-  return `<button class="task" data-open="${r.id}" ${opts.drag ? 'draggable="true"' : ''}>
+  return `<button class="task${urg ? ' urgent' : ''}" data-open="${r.id}" ${opts.drag ? 'draggable="true"' : ''}>
     <span class="prio" style="background:${p ? p.c : 'var(--line)'}" title="${p ? 'Приоритет ' + r.priority + ' — ' + p.t : 'Приоритет не задан'}"></span>
     <span class="body">
       <span class="row1">${r.num ? `<span class="num"><small>№</small>${esc(r.num)}</span>` : '<span class="num none">без №</span>'}<span class="cl">${esc(r.client || 'Заказчик не указан')}</span>
-        <span class="flags">${inf.contractWarn ? `<span class="warn-ic" title="${esc(inf.contractWarn)}">${IC.warn}</span>` : ''}${r.edits ? `<span title="Правок от заказчика">${IC.edit} ${r.edits}</span>` : ''}${r.comment ? `<span title="${esc(r.comment)}">${IC.chat}</span>` : ''}</span></span>
+        <span class="flags">${urg ? `<span class="pill urgent-pill" title="Срочная работа">${IC.bolt}Срочно</span>` : ''}${inf.contractWarn ? `<span class="warn-ic" title="${esc(inf.contractWarn)}">${IC.warn}</span>` : ''}${r.edits ? `<span title="Правок от заказчика">${IC.edit} ${r.edits}</span>` : ''}${r.comment ? `<span title="${esc(r.comment)}">${IC.chat}</span>` : ''}</span></span>
       <span class="title">${esc(title)}</span>
+      ${contractLine(r)}
       <span class="meta">
         <span class="own">${ava(r.owner)}${esc(r.owner || 'Не назначен')}</span>
         ${opts.stage && r.stage ? `<span class="pill muted"><span class="dot" style="background:${stageColor(r.stage)}"></span>${esc(r.stage)}</span>` : ''}
@@ -522,7 +656,7 @@ function urgencyRank(r) {
   const k = info(r).key;
   const order = {overdue:0, hot:1, work:2, nodue:3, submitted:4, late:4, ontime:5, done:6};
   const d = pd(r.due);
-  return [order[k] ?? 3, d ? d.getTime() : 9e15];
+  return [isUrgent(r) ? -1 : (order[k] ?? 3), d ? d.getTime() : 9e15]; // срочные — всегда наверху
 }
 function filtered() {
   const f = S.f, q = f.q.trim().toLowerCase();
@@ -693,8 +827,8 @@ function renderWeek() {
           ${p.items.length >= 5 || p.dues >= 3 ? '<span class="pill warn">плотная неделя</span>' : ''}</div>
         ${p.items.length ? `<div class="wk-daysrow"><span></span><div class="wk-cells head">${days.map(d => `<span class="${+d === +t ? 'today' : ''}">${WD[d.getDay()]}<b>${d.getDate()}</b></span>`).join('')}</div></div>` : ''}
         ${p.items.map(x => `
-          <button class="wk-item" data-open="${x.r.id}">
-            <span class="wk-top">${x.r.num ? `<span class="num"><small>№</small>${esc(x.r.num)}</span>` : '<span class="num none">без №</span>'}<span class="wk-title">${esc(x.r.object || x.r.client || '(без названия)')}</span></span>
+          <button class="wk-item${isUrgent(x.r) ? ' urgent' : ''}" data-open="${x.r.id}">
+            <span class="wk-top">${isUrgent(x.r) ? `<span class="pill urgent-pill" title="Срочная работа">${IC.bolt}Срочно</span>` : ''}${x.r.num ? `<span class="num"><small>№</small>${esc(x.r.num)}</span>` : '<span class="num none">без №</span>'}<span class="wk-title">${esc(x.r.object || x.r.client || '(без названия)')}</span></span>
             <span class="wk-bot"><span class="pill ${x.tag.tone}">${esc(x.tag.t)}</span><span class="wk-start">${x.r.assigned ? 'Начало ' + fd(x.r.assigned, 1) : 'Начало не задано'}</span><span class="wk-cells">${cells(x)}</span></span>
           </button>`).join('') || '<div class="wk-empty">На эту неделю задач по срокам нет</div>'}
         ${p.noDate.length ? `<div class="nodates" style="padding:0 14px 12px">Без дат: ${p.noDate.map(r => `<button data-open="${r.id}">№${esc(r.num || '—')}</button>`).join(', ')}</div>` : ''}
@@ -797,7 +931,7 @@ let editing = null; // {id|null, draft}
 function openSheet(id) {
   const r = id != null ? S.rows.find(x => x.id === id) : null;
   if (id != null && !r) return;
-  editing = {id, orig: r, draft: r ? {...r} : {num:'', client:'', object:'', contract:null, stage:'Сбор данных', owner:'', assigned:iso(today()), due:null, comment:'', submitted:null, edits:null, priority:3}};
+  editing = {id, orig: r, draft: r ? {...r, urgent: !!r.urgent} : {num:'', client:'', object:'', contract:null, stage:'Сбор данных', owner:'', assigned:iso(today()), due:null, comment:'', submitted:null, edits:null, priority:3, urgent:false}};
   drawSheet();
   $('#scrim').classList.add('on'); $('#sheet').classList.add('on');
 }
@@ -811,12 +945,13 @@ function drawSheet() {
     <div class="grab"></div>
     <div class="sh-head">
       <div style="flex:1;min-width:0"><h2>${isNew ? 'Новый проект' : '№' + esc(d.num || '—') + (d.client ? ' · ' + esc(d.client) : '')}</h2>
-      ${!isNew ? `<div class="sub">Строка ${editing.id} листа «Реестр» · <a class="sheetlink" href="${SHEET_URL}&range=A${editing.id}" target="_blank" rel="noopener">открыть в таблице ${IC.ext}</a></div>` : ''}</div>
+      ${!isNew ? `<div class="sub">Строка ${editing.id} листа «Реестр» · <a class="sheetlink" href="${SHEET_URL}&range=A${editing.id}" target="_blank" rel="noopener">открыть в таблице ${IC.ext}</a>${CHAT.on ? ` · <button type="button" class="sheetlink" style="border:0;background:none;padding:0;cursor:pointer" data-ch="project" data-id="${editing.id}">${IC.chat} обсудить в чате</button>` : ''}</div>` : ''}</div>
       <button class="x" data-act="close" aria-label="Закрыть">${IC.x}</button>
     </div>
     <div class="sh-body">
       <div class="banner ${inf.tone}"><b>${esc(inf.label)}</b>${inf.dev != null && inf.key !== 'overdue' ? `<span style="margin-left:auto">отклонение ${inf.dev > 0 ? '+' : ''}${inf.dev} дн.</span>` : ''}</div>
       ${inf.contractWarn ? `<div class="banner warn">${IC.warn}${esc(inf.contractWarn)}</div>` : ''}
+      <button type="button" class="urgent-tgl ${d.urgent ? 'on' : ''}" data-toggle="urgent" role="switch" aria-checked="${!!d.urgent}" ${!d.urgent && d.stage !== URGENT_STAGE ? 'disabled' : ''}>${IC.bolt}<span><b>Срочная работа</b><small>${!d.urgent && d.stage !== URGENT_STAGE ? `Можно отметить только на стадии «${URGENT_STAGE}»` : 'Карточка станет красной и поднимется наверх списка'}</small></span><i class="sw"></i></button>
       <div class="fld"><label>Стадия</label><div class="seg" data-seg="stage">${STAGES.map(s => `<button type="button" data-v="${s}" class="${d.stage === s ? 'on' : ''}"><span class="dot" style="background:${d.stage === s ? 'currentColor' : stageColor(s)}"></span>${s}</button>`).join('')}</div></div>
       <div class="grid2">
         <div class="fld"><label for="f-num">№ задачи</label><input id="f-num" data-f="num" value="${esc(d.num)}" inputmode="decimal"></div>
@@ -857,11 +992,13 @@ async function saveSheet() {
   if (editing.id == null) {
     if (!d.num && !d.object && !d.client) { toast('Заполните номер, заказчика или объект', true); return; }
     const fields = {}; keys.forEach(k => { if (d[k] != null && d[k] !== '') fields[k] = d[k]; });
+    if (d.urgent) fields.urgent = true;
     if (await createRow(fields)) closeSheet();
     return;
   }
   const o = editing.orig, fields = {};
   keys.forEach(k => { if ((o[k] ?? null) !== (d[k] ?? null) && !(o[k] == null && d[k] === '')) fields[k] = d[k]; });
+  if (!!o.urgent !== !!d.urgent) fields.urgent = !!d.urgent;
   const id = editing.id;
   closeSheet();
   if (Object.keys(fields).length) saveRow(id, fields);
@@ -900,8 +1037,10 @@ function toast(msg, err) {
 
 /* ================== события ================== */
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-view],[data-open],[data-act],[data-tile],[data-stage],[data-tl],[data-lmode],[data-week],[data-seg] button,[data-step]');
+  const t = e.target.closest('[data-view],[data-open],[data-act],[data-tile],[data-stage],[data-tl],[data-lmode],[data-week],[data-seg] button,[data-step],[data-toggle],[data-ch]');
   if (!t) { return; }
+  if (t.dataset.ch) { chatAction(t); return; }
+  if (t.dataset.toggle) { readDraft(); editing.draft[t.dataset.toggle] = !editing.draft[t.dataset.toggle]; const sc = $('#sheet .sh-body').scrollTop; drawSheet(); $('#sheet .sh-body').scrollTop = sc; return; }
   if (t.dataset.view) { S.view = t.dataset.view; lsSet(LS.view, S.view); renderAll(); window.scrollTo(0, 0); return; }
   if (t.dataset.open) { openSheet(+t.dataset.open); return; }
   if (t.dataset.tile) { S.f.tile = S.f.tile === t.dataset.tile ? '' : t.dataset.tile; renderOverview(); return; }
@@ -916,6 +1055,8 @@ document.addEventListener('click', e => {
     readDraft();
     const v = seg === 'priority' ? +t.dataset.v : t.dataset.v;
     editing.draft[seg] = editing.draft[seg] === v ? (seg === 'priority' ? null : '') : v;
+    // новую отметку «Срочная» снимаем, если стадию сменили с «Готов к проектированию»
+    if (seg === 'stage' && editing.draft.urgent && !editing.orig?.urgent && editing.draft.stage !== URGENT_STAGE) editing.draft.urgent = false;
     const scroll = $('#sheet .sh-body').scrollTop; drawSheet(); $('#sheet .sh-body').scrollTop = scroll;
     return;
   }
@@ -934,12 +1075,19 @@ $('#scrim').addEventListener('click', closeSheet);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
 $('#btnRefresh').addEventListener('click', () => load());
 $('#btnSettings').addEventListener('click', openSettings);
+document.addEventListener('submit', e => { if (e.target.id === 'chLogin') { e.preventDefault(); chatLogin(); } });
+document.addEventListener('keydown', e => {
+  if (e.target.id === 'chText' && e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(pointer:fine)').matches) { e.preventDefault(); chatSend(); }
+});
 document.addEventListener('input', e => {
+  if (e.target.id === 'chText') { CHAT.drafts[CHAT.cid] = e.target.value; e.target.style.height = '42px'; e.target.style.height = Math.min(140, e.target.scrollHeight) + 'px'; }
   if (e.target.id === 'q') { S.f.q = e.target.value; const pos = e.target.selectionStart; renderOverview(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); }
 });
 document.addEventListener('change', e => {
   if (e.target.id === 'fOwner') { S.f.owner = e.target.value; renderOverview(); }
   if (e.target.id === 'fSort') { S.f.sort = e.target.value; renderOverview(); }
+  if (e.target.id === 'chPick' && e.target.value) chatOpen('p' + e.target.value);
+  if (e.target.id === 'pf-file' && e.target.files[0]) profilePhoto(e.target.files[0]);
   if (e.target.matches('#sheet input[type=date]') && editing) { readDraft(); const sc = $('#sheet .sh-body').scrollTop; drawSheet(); $('#sheet .sh-body').scrollTop = sc; }
 });
 
@@ -957,8 +1105,312 @@ document.addEventListener('drop', e => {
 
 // автообновление раз в минуту, если вкладка активна и шторка закрыта
 setInterval(() => { if (S.cfg.url && !document.hidden && !$('#sheet').classList.contains('on') && !S.busy) load(true); }, 60000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden && S.cfg.url) load(true); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.cfg.url) load(true); chatMarkRead(); });
 
+/* ================== Чат (Firebase: вход, Firestore) ================== */
+// Данные: users/{uid} — профиль (имя, аватар); channels/{id} — «Общий» и по проектам (p<строка>);
+// channels/{id}/messages/{id} — сообщения (uid, text, at). Правила доступа — в firebase/firestore.rules.
+const FB_V = '10.14.1';
+const CHAT = {on: !!FIREBASE_CONFIG, be: null, user: null, authKnown: false, usersLoaded: false, users: {}, channels: {}, cid: 'general',
+  msgs: [], msgsFor: null, unsubs: [], unsubMsgs: null, conv: false, err: '', read: null, drafts: {}, loginErr: '', loginInfo: '', loginEmail: '', busy: false, prompted: false};
+const isDesk = () => matchMedia('(min-width:900px)').matches;
+
+async function fbCreate(cfg) {
+  const base = `https://www.gstatic.com/firebasejs/${FB_V}/`;
+  const [{initializeApp}, A, F] = await Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')]);
+  const app = initializeApp(cfg), auth = A.getAuth(app), db = F.getFirestore(app);
+  const est = d => d.data({serverTimestamps: 'estimate'});
+  const ms = t => t ? t.toMillis() : 0;
+  return {
+    onAuth: cb => A.onAuthStateChanged(auth, u => cb(u ? {uid: u.uid, email: u.email} : null)),
+    signIn: (e, p) => A.signInWithEmailAndPassword(auth, e, p),
+    reset: e => A.sendPasswordResetEmail(auth, e),
+    signOut: () => A.signOut(auth),
+    saveProfile: (uid, p) => F.setDoc(F.doc(db, 'users', uid), {...p, updatedAt: F.serverTimestamp()}, {merge: true}),
+    watchUsers: (cb, err) => F.onSnapshot(F.collection(db, 'users'), s => { const o = {}; s.forEach(d => o[d.id] = d.data()); cb(o); }, err),
+    watchChannels: (cb, err) => F.onSnapshot(F.collection(db, 'channels'), s => {
+      const o = {}; s.forEach(d => { const v = est(d); o[d.id] = {lastAt: ms(v.lastAt), lastBy: v.lastBy || '', lastText: v.lastText || ''}; }); cb(o);
+    }, err),
+    watchMessages: (cid, cb, err) => F.onSnapshot(F.query(F.collection(db, 'channels', cid, 'messages'), F.orderBy('at', 'desc'), F.limit(150)), s => {
+      const a = []; s.forEach(d => { const v = est(d); a.push({id: d.id, uid: v.uid, text: v.text, at: ms(v.at) || Date.now(), pending: d.metadata.hasPendingWrites}); }); cb(a.reverse());
+    }, err),
+    send: async (cid, uid, text) => {
+      const b = F.writeBatch(db);
+      b.set(F.doc(F.collection(db, 'channels', cid, 'messages')), {uid, text, at: F.serverTimestamp()});
+      b.set(F.doc(db, 'channels', cid), {lastAt: F.serverTimestamp(), lastBy: uid, lastText: text.slice(0, 80)}, {merge: true});
+      await b.commit();
+    },
+    del: (cid, id) => F.deleteDoc(F.doc(db, 'channels', cid, 'messages', id))
+  };
+}
+
+async function chatInit() {
+  if (!CHAT.on) return;
+  try { CHAT.be = await fbCreate(FIREBASE_CONFIG); }
+  catch (e) { CHAT.err = 'load'; renderChatAll(); return; }
+  CHAT.be.onAuth(chatAuth);
+}
+function chatStop() {
+  CHAT.unsubs.forEach(f => f()); CHAT.unsubs = [];
+  if (CHAT.unsubMsgs) CHAT.unsubMsgs(); CHAT.unsubMsgs = null; CHAT.msgsFor = null;
+  CHAT.users = {}; CHAT.channels = {}; CHAT.msgs = []; CHAT.usersLoaded = false; CHAT.read = null; CHAT.prompted = false;
+}
+function chatAuth(u) {
+  chatStop();
+  CHAT.authKnown = true; CHAT.user = u; CHAT.err = '';
+  if (u) {
+    const bad = e => { CHAT.err = e.code || String(e); renderChatAll(); };
+    CHAT.unsubs.push(
+      CHAT.be.watchUsers(us => { CHAT.users = us; CHAT.usersLoaded = true; renderChatAll(); }, bad),
+      CHAT.be.watchChannels(cs => { CHAT.channels = cs; chatReadInit(); renderChatAll(); }, bad));
+  }
+  renderChatAll();
+}
+function renderChatAll() { renderNav(); if (S.view === 'chat') renderChat(); }
+
+/* --- непрочитанное: хранится в этом браузере --- */
+const readKey = () => 'mpb-chat-read-' + (CHAT.user ? CHAT.user.uid : '');
+function chatReadInit() {
+  if (CHAT.read || !CHAT.user) return;
+  CHAT.read = lsGet(readKey(), null);
+  if (!CHAT.read) { CHAT.read = {}; for (const k in CHAT.channels) CHAT.read[k] = CHAT.channels[k].lastAt; lsSet(readKey(), CHAT.read); }
+}
+function chatUnread() {
+  if (!CHAT.user || !CHAT.read) return 0;
+  return Object.keys(CHAT.channels).filter(k => { const c = CHAT.channels[k]; return c.lastBy !== CHAT.user.uid && c.lastAt > (CHAT.read[k] || 0); }).length;
+}
+function chatMarkRead() {
+  if (!CHAT.user || !CHAT.read || S.view !== 'chat' || document.hidden || (!isDesk() && !CHAT.conv)) return;
+  const c = CHAT.channels[CHAT.cid];
+  if (c && c.lastAt > (CHAT.read[CHAT.cid] || 0)) { CHAT.read[CHAT.cid] = c.lastAt; lsSet(readKey(), CHAT.read); renderNav(); chatFillList(); }
+}
+
+/* --- вспомогательное --- */
+const hm = t => new Date(t).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+function dayLabel(t) { const d = new Date(t); d.setHours(0, 0, 0, 0); const n = diff(today(), d); return n === 0 ? 'Сегодня' : n === 1 ? 'Вчера' : d.toLocaleDateString('ru-RU', {day: 'numeric', month: 'long'}); }
+function shortTime(t) { if (!t) return ''; const d = new Date(t); return diff(today(), new Date(new Date(t).setHours(0, 0, 0, 0))) === 0 ? hm(t) : String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0'); }
+function userName(uid) { return CHAT.users[uid]?.name || 'Сотрудник'; }
+function userAva(uid, cls) {
+  const u = CHAT.users[uid], n = u?.name || '?', a = u?.avatar;
+  if (a && String(a).startsWith('data:image/')) return `<img class="ava ${cls || ''}" src="${esc(a)}" alt="">`;
+  return `<span class="ava ${cls || ''}" style="background:${avaColor(n)}">${esc(initials(n))}</span>`;
+}
+function chTitle(cid) {
+  if (cid === 'general') return {t: 'Общий чат', s: 'Весь проектный отдел', ic: '#', gen: true};
+  const id = +cid.slice(1), r = S.rows.find(x => x.id === id);
+  if (!r) return {t: 'Проект (строка ' + id + ')', s: '', ic: 'П'};
+  return {t: (r.num ? '№' + r.num : 'без №') + (r.client ? ' · ' + r.client : ''), s: [r.stage, r.object].filter(Boolean).join(' · '), ic: r.num ? String(r.num).slice(0, 3) : 'П', pid: id};
+}
+function linkify(s) { return esc(s).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'); }
+function authMsg(e) {
+  const m = {'auth/invalid-credential': 'Неверная почта или пароль', 'auth/wrong-password': 'Неверная почта или пароль', 'auth/user-not-found': 'Неверная почта или пароль',
+    'auth/invalid-email': 'Некорректный адрес почты', 'auth/too-many-requests': 'Слишком много попыток, попробуйте позже', 'auth/network-request-failed': 'Нет связи с интернетом',
+    'auth/user-disabled': 'Аккаунт отключён администратором'};
+  return m[e.code] || 'Не удалось войти: ' + (e.code || e.message);
+}
+
+/* --- экраны --- */
+function chatCard(mode) {
+  const c = CHAT;
+  if (mode === 'off') return `<div class="card ch-auth"><h2>Чат ещё не подключён</h2><p>Чат работает на Firebase и подключается один раз:</p>
+    <ol><li>Создайте проект Firebase и включите вход по e-mail и базу Firestore.</li><li>Вставьте объект <b>firebaseConfig</b> в <b>index.html</b> (константа <b>FIREBASE_CONFIG</b>).</li><li>Опубликуйте правила из <b>firestore.rules</b> и добавьте почты сотрудников.</li></ol>
+    <p>Пошаговая инструкция — в файле <b>firebase/README.md</b>.</p></div>`;
+  if (mode === 'loaderr') return `<div class="card ch-auth"><h2>Чат не загрузился</h2><p>Не удалось подключиться к Firebase. Проверьте интернет и обновите страницу.</p></div>`;
+  if (mode === 'wait') return `<div class="card ch-auth"><p style="text-align:center;margin:0">Подключение к чату…</p></div>`;
+  if (mode === 'err') return `<div class="card ch-auth"><h2>${c.err === 'permission-denied' ? 'Нет доступа к чату' : 'Ошибка чата'}</h2>
+    <p>${c.err === 'permission-denied' ? 'Вашей почты нет в списке доступа. Попросите администратора добавить её и войдите заново.' : 'Код ошибки: ' + esc(c.err)}</p>
+    <button class="btn" data-ch="logout">Выйти из аккаунта</button></div>`;
+  if (mode === 'profile') return `<div class="card ch-auth"><h2>Представьтесь</h2><p>Вы вошли как ${esc(c.user.email)}. Укажите имя и, если хотите, фото — так вас увидят коллеги.</p>
+    <button class="btn primary" data-ch="profile">Заполнить профиль</button><button class="link" data-ch="logout">Выйти</button></div>`;
+  return `<form class="card ch-auth" id="chLogin" autocomplete="on"><h2>Вход в чат</h2><p>Используйте почту и пароль, которые выдал администратор.</p>
+    ${c.loginErr ? `<div class="banner bad">${esc(c.loginErr)}</div>` : ''}${c.loginInfo ? `<div class="banner ok">${esc(c.loginInfo)}</div>` : ''}
+    <div class="fld"><label for="chEmail">Почта</label><input id="chEmail" type="email" autocomplete="username" value="${esc(c.loginEmail)}" required></div>
+    <div class="fld"><label for="chPw">Пароль</label><input id="chPw" type="password" autocomplete="current-password"></div>
+    <button class="btn primary" type="submit" ${c.busy ? 'disabled' : ''}>${c.busy ? 'Входим…' : 'Войти'}</button>
+    <button class="link" type="button" data-ch="reset">Первый вход или забыли пароль</button></form>`;
+}
+
+function renderChat() {
+  const el = $('#v-chat'), c = CHAT;
+  let mode;
+  if (!c.on) mode = 'off';
+  else if (c.err === 'load') mode = 'loaderr';
+  else if (!c.authKnown) mode = 'wait';
+  else if (!c.user) mode = 'login';
+  else if (c.err) mode = 'err';
+  else if (!c.usersLoaded) mode = 'wait';
+  else if (!c.users[c.user.uid]) mode = 'profile';
+  else mode = 'chat';
+
+  if (mode !== 'chat') {
+    const sig = [mode, c.loginErr, c.loginInfo, c.busy, c.err].join('|');
+    if (el.dataset.sig !== sig) { el.innerHTML = chatCard(mode); el.dataset.sig = sig; }
+    if (mode === 'profile' && !c.prompted && !$('#sheet').classList.contains('on')) { c.prompted = true; openProfile(); }
+    return;
+  }
+  const sig = 'chat|' + c.cid + '|' + c.conv;
+  if (el.dataset.sig !== sig) {
+    el.dataset.sig = sig;
+    const pick = S.rows.filter(isActive).sort((a, b) => (parseFloat(b.num) || 0) - (parseFloat(a.num) || 0));
+    el.innerHTML = `<div class="chat ${c.conv ? 'show-conv' : ''}">
+      <div class="ch-list">
+        <div class="ch-me" id="chMe"></div>
+        <div class="ch-items" id="chItems"></div>
+        <div class="ch-add"><select class="sel" id="chPick"><option value="">+ Чат по проекту…</option>${pick.map(r => `<option value="${r.id}">${esc((r.num ? '№' + r.num : 'без №') + (r.client ? ' · ' + r.client : '') + (r.object ? ' — ' + r.object.slice(0, 30) : ''))}</option>`).join('')}</select></div>
+      </div>
+      <div class="ch-conv">
+        <div class="ch-head" id="chHead"></div>
+        <div class="ch-msgs" id="chMsgs" data-fresh="1"></div>
+        <div class="ch-compose"><textarea id="chText" rows="1" placeholder="Сообщение…" maxlength="4000"></textarea><button data-ch="send" aria-label="Отправить">${IC.send}</button></div>
+      </div></div>`;
+    $('#chText').value = c.drafts[c.cid] || '';
+  }
+  chatEnsureMsgs();
+  chatFillMe(); chatFillList(); chatFillHead(); chatFillMsgs(); chatMarkRead();
+}
+
+function chatFillMe() {
+  const me = $('#chMe'); if (!me) return;
+  const u = CHAT.user;
+  me.innerHTML = `${userAva(u.uid)}<div class="nm">${esc(userName(u.uid))}<small>${esc(u.email || '')}</small></div><button class="icon-btn" style="background:var(--blue-l);color:var(--blue)" data-ch="profile" title="Мой профиль" aria-label="Мой профиль">${IC.edit}</button>`;
+}
+function chatFillList() {
+  const box = $('#chItems'); if (!box) return;
+  const ids = ['general', ...Object.keys(CHAT.channels).filter(k => k !== 'general').sort((a, b) => CHAT.channels[b].lastAt - CHAT.channels[a].lastAt)];
+  if (!ids.includes(CHAT.cid)) ids.push(CHAT.cid);
+  box.innerHTML = ids.map(k => {
+    const t = chTitle(k), c = CHAT.channels[k];
+    const unr = c && c.lastBy !== CHAT.user.uid && c.lastAt > (CHAT.read?.[k] || 0) && !(k === CHAT.cid && (isDesk() || CHAT.conv));
+    const last = c && c.lastText ? (c.lastBy === CHAT.user.uid ? 'Вы: ' : userName(c.lastBy).split(' ')[0] + ': ') + c.lastText : 'Пока нет сообщений';
+    return `<button class="ch-item ${k === CHAT.cid ? 'on' : ''}" data-ch="open" data-cid="${esc(k)}"><span class="ch-ic ${t.gen ? 'gen' : ''}">${esc(t.ic)}</span>
+      <span class="tx"><span class="t1"><span>${esc(t.t)}</span><small>${c ? shortTime(c.lastAt) : ''}</small></span><span class="t2" style="display:block">${esc(last)}</span></span>${unr ? '<i class="unr"></i>' : ''}</button>`;
+  }).join('');
+}
+function chatFillHead() {
+  const h = $('#chHead'); if (!h) return;
+  const t = chTitle(CHAT.cid);
+  h.innerHTML = `<button class="ch-back" data-ch="back" aria-label="К списку чатов">${IC.l}</button>
+    <div class="tt">${esc(t.t)}${t.s ? `<small>${esc(t.s)}</small>` : ''}</div>
+    ${t.pid ? `<button class="btn" data-open="${t.pid}">Карточка</button>` : ''}`;
+}
+function chatEnsureMsgs() {
+  if (CHAT.msgsFor === CHAT.cid || !CHAT.be) return;
+  if (CHAT.unsubMsgs) CHAT.unsubMsgs();
+  const cid = CHAT.cid; CHAT.msgsFor = cid; CHAT.msgs = [];
+  CHAT.unsubMsgs = CHAT.be.watchMessages(cid, a => {
+    if (CHAT.cid !== cid) return;
+    CHAT.msgs = a;
+    if (S.view === 'chat' && CHAT.user) { chatFillMsgs(); chatMarkRead(); }
+  }, e => { CHAT.err = e.code || 'error'; renderChatAll(); });
+}
+function chatFillMsgs() {
+  const box = $('#chMsgs'); if (!box) return;
+  const near = box.dataset.fresh === '1' || box.scrollHeight - box.scrollTop - box.clientHeight < 100;
+  let html = '', prev = null;
+  CHAT.msgs.forEach(m => {
+    const day = dayLabel(m.at);
+    if (!prev || dayLabel(prev.at) !== day) html += `<div class="ch-day">${esc(day)}</div>`;
+    const first = !prev || prev.uid !== m.uid || m.at - prev.at > 5 * 60000 || dayLabel(prev.at) !== day;
+    html += `<div class="ch-msg ${first ? 'first' : ''} ${m.pending ? 'pending' : ''}">${first ? userAva(m.uid) : '<span class="sp"></span>'}
+      <div class="bd">${first ? `<div class="who">${esc(userName(m.uid))}<small>${hm(m.at)}</small></div>` : ''}<div class="tx">${linkify(m.text)}</div></div>
+      ${m.uid === CHAT.user.uid && !m.pending ? `<button class="del" data-ch="del" data-id="${esc(m.id)}" title="Удалить сообщение" aria-label="Удалить сообщение">${IC.trash}</button>` : ''}</div>`;
+    prev = m;
+  });
+  box.innerHTML = html || `<div class="ch-empty">Сообщений пока нет.<br>Напишите первым.</div>`;
+  if (near) { box.scrollTop = box.scrollHeight; box.dataset.fresh = ''; }
+}
+
+/* --- действия --- */
+function chatOpen(cid) {
+  S.view = 'chat'; lsSet(LS.view, S.view);
+  CHAT.cid = cid; CHAT.conv = true;
+  renderAll(); window.scrollTo(0, 0);
+}
+async function chatSend() {
+  const ta = $('#chText'); if (!ta || !CHAT.be) return;
+  const text = ta.value.trim(); if (!text) return;
+  const cid = CHAT.cid;
+  ta.value = ''; ta.style.height = '42px'; CHAT.drafts[cid] = '';
+  try { await CHAT.be.send(cid, CHAT.user.uid, text); }
+  catch (e) { toast('Не отправлено: ' + (e.code === 'permission-denied' ? 'нет доступа' : e.message), true); if (CHAT.cid === cid && !ta.value) { ta.value = text; CHAT.drafts[cid] = text; } }
+  ta.focus();
+}
+async function chatLogin() {
+  const email = $('#chEmail').value.trim().toLowerCase(), pw = $('#chPw').value;
+  CHAT.loginEmail = email; CHAT.loginInfo = '';
+  if (!email || !pw) { CHAT.loginErr = 'Введите почту и пароль'; renderChat(); return; }
+  CHAT.busy = true; CHAT.loginErr = ''; renderChat();
+  try { await CHAT.be.signIn(email, pw); } catch (e) { CHAT.loginErr = authMsg(e); }
+  CHAT.busy = false; renderChat();
+}
+async function chatReset() {
+  const email = ($('#chEmail')?.value || '').trim().toLowerCase();
+  CHAT.loginEmail = email; CHAT.loginErr = ''; CHAT.loginInfo = '';
+  if (!email) { CHAT.loginErr = 'Введите почту — на неё придёт письмо для установки пароля'; renderChat(); return; }
+  try { await CHAT.be.reset(email); CHAT.loginInfo = 'Если почта есть в списке, на неё отправлено письмо со ссылкой для установки пароля.'; }
+  catch (e) { CHAT.loginErr = authMsg(e); }
+  renderChat();
+}
+function chatAction(t) {
+  const a = t.dataset.ch;
+  if (a === 'open') { CHAT.cid = t.dataset.cid; CHAT.conv = true; renderChat(); }
+  else if (a === 'back') { CHAT.conv = false; renderChat(); }
+  else if (a === 'send') chatSend();
+  else if (a === 'project') { closeSheet(); chatOpen('p' + t.dataset.id); }
+  else if (a === 'reset') chatReset();
+  else if (a === 'profile') openProfile();
+  else if (a === 'profsave') profileSave();
+  else if (a === 'photodel') { profDraft.avatar = null; drawProfile(); }
+  else if (a === 'logout') { closeSheet(); CHAT.be.signOut(); }
+  else if (a === 'del') { if (confirm('Удалить сообщение?')) CHAT.be.del(CHAT.cid, t.dataset.id).catch(e => toast('Не удалено: ' + e.message, true)); }
+}
+
+/* --- профиль --- */
+let profDraft = null;
+function openProfile() {
+  if (!CHAT.user) return;
+  editing = null;
+  const u = CHAT.users[CHAT.user.uid] || {};
+  profDraft = {name: u.name || (CHAT.user.email || '').split('@')[0], avatar: u.avatar || null};
+  drawProfile();
+  $('#scrim').classList.add('on'); $('#sheet').classList.add('on');
+}
+function drawProfile() {
+  const d = profDraft, n = d.name || '?';
+  const av = d.avatar && String(d.avatar).startsWith('data:image/') ? `<img class="ava ava-big" src="${esc(d.avatar)}" alt="">` : `<span class="ava ava-big" style="background:${avaColor(n)}">${esc(initials(n))}</span>`;
+  $('#sheet').innerHTML = `
+    <div class="grab"></div>
+    <div class="sh-head"><div style="flex:1"><h2>Мой профиль</h2><div class="sub">${esc(CHAT.user.email || '')}</div></div><button class="x" data-act="close" aria-label="Закрыть">${IC.x}</button></div>
+    <div class="sh-body">
+      <div class="pf-ava">${av}<div class="btns">
+        <label class="btn" for="pf-file" style="cursor:pointer">Загрузить фото</label><input type="file" id="pf-file" accept="image/*" hidden>
+        ${d.avatar ? '<button class="btn ghost" type="button" data-ch="photodel">Убрать фото</button>' : ''}</div></div>
+      <div class="fld"><label for="pf-name">Имя в чате</label><input id="pf-name" maxlength="40" value="${esc(d.name)}" placeholder="Например, Иван Петров"></div>
+      <button class="btn" type="button" data-ch="logout">Выйти из аккаунта</button>
+    </div>
+    <div class="sh-foot"><button class="btn" data-act="close">Отмена</button><button class="btn primary" data-ch="profsave">Сохранить</button></div>`;
+  $('#pf-name').addEventListener('input', e => { profDraft.name = e.target.value; });
+}
+async function profilePhoto(file) {
+  try {
+    const img = await createImageBitmap(file);
+    const s = Math.min(img.width, img.height), cv = document.createElement('canvas'); cv.width = cv.height = 160;
+    const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 160, 160);
+    g.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 160, 160);
+    profDraft.avatar = cv.toDataURL('image/jpeg', 0.85);
+    drawProfile();
+  } catch { toast('Не удалось прочитать картинку', true); }
+}
+async function profileSave() {
+  const name = (profDraft.name || '').trim();
+  if (!name) { toast('Укажите имя', true); return; }
+  try {
+    await CHAT.be.saveProfile(CHAT.user.uid, {name: name.slice(0, 40), avatar: profDraft.avatar || null, email: CHAT.user.email || ''});
+    closeSheet(); toast('Профиль сохранён');
+  } catch (e) { toast('Не сохранено: ' + (e.code === 'permission-denied' ? 'нет доступа' : e.message), true); }
+}
+
+chatInit();
 load();
 </script>
 </body>
