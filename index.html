@@ -1291,9 +1291,10 @@ function chatRemoteNotify(uids, text, cid) {
   const us = uids.map(u => CHAT.users[u]).filter(Boolean);
   const to = us.filter(u => u.email && u.emailNotify !== false).map(u => u.email);
   const tg = us.filter(u => u.tg).map(u => String(u.tg).trim());
-  if (!to.length && !tg.length) return;
+  const mx = us.filter(u => u.max).map(u => String(u.max).trim());
+  if (!to.length && !tg.length && !mx.length) return;
   fetch(url, {method: 'POST', redirect: 'follow', headers: {'Content-Type': 'text/plain;charset=utf-8'},
-    body: JSON.stringify({action: 'notify', key, to, tg, from: userName(CHAT.user.uid), channel: chTitle(cid).t, text, url: location.href.split('#')[0]})})
+    body: JSON.stringify({action: 'notify', key, to, tg, mx, from: userName(CHAT.user.uid), channel: chTitle(cid).t, text, url: location.href.split('#')[0]})})
     .then(r => r.json()).then(d => { if (!d.ok) toast('Оповещение не отправлено: ' + d.error, true); else if (!d.sent) toast('Оповещение не отправлено: адреса не подошли (проверьте NOTIFY_ALLOWED)', true); }).catch(() => {});
 }
 
@@ -1523,7 +1524,7 @@ function openProfile() {
   if (!CHAT.user) return;
   editing = null;
   const u = CHAT.users[CHAT.user.uid] || {};
-  profDraft = {name: u.name || (CHAT.user.email || '').split('@')[0], avatar: u.avatar || null, emailNotify: u.emailNotify !== false, tg: u.tg || '', position: u.position || ''};
+  profDraft = {name: u.name || (CHAT.user.email || '').split('@')[0], avatar: u.avatar || null, emailNotify: u.emailNotify !== false, tg: u.tg || '', max: u.max || '', position: u.position || ''};
   drawProfile();
   $('#scrim').classList.add('on'); $('#sheet').classList.add('on');
 }
@@ -1548,12 +1549,15 @@ function drawProfile() {
       <label class="pf-chk"><input type="checkbox" id="pf-mail" ${d.emailNotify ? 'checked' : ''}>Присылать на почту, когда меня упомянули</label>
       <div class="fld"><label for="pf-tg">Telegram ID (оповещения в телефон)</label><input id="pf-tg" inputmode="numeric" maxlength="20" value="${esc(d.tg)}" placeholder="например 123456789">
         <p style="font-size:12px;color:var(--muted);margin:6px 0 0"><b>Оповещения приходят от бота @proekty_ds_bot.</b><br>1. Откройте в Telegram бота <b>@proekty_ds_bot</b> и нажмите <b>Start</b>.<br>2. Напишите боту <b>@userinfobot</b>: он ответит вашим числовым Id. Вставьте его сюда.</p></div>
+      <div class="fld"><label for="pf-max">MAX ID (оповещения в мессенджер MAX)</label><input id="pf-max" inputmode="numeric" maxlength="20" value="${esc(d.max)}" placeholder="например 123456789">
+        <p style="font-size:12px;color:var(--muted);margin:6px 0 0">Найдите в MAX бота отдела и напишите ему <b>/start</b> (или нажмите «Начать»). Бот ответит вашим числовым ID (ответ приходит в течение минуты). Вставьте число сюда.</p></div>
       <button class="btn" type="button" data-ch="logout">Выйти из аккаунта</button>
     </div>
     <div class="sh-foot"><button class="btn" data-act="close">Отмена</button><button class="btn primary" data-ch="profsave">Сохранить</button></div>`;
   $('#pf-name').addEventListener('input', e => { profDraft.name = e.target.value; });
   $('#pf-mail').addEventListener('change', e => { profDraft.emailNotify = e.target.checked; });
   $('#pf-pos').addEventListener('input', e => { profDraft.position = e.target.value; });
+  $('#pf-max').addEventListener('input', e => { profDraft.max = e.target.value.replace(/\D/g, ''); });
   $('#pf-tg').addEventListener('input', e => { profDraft.tg = e.target.value.replace(/\D/g, ''); });
 }
 async function profilePhoto(file) {
@@ -1570,7 +1574,7 @@ async function profileSave() {
   const name = (profDraft.name || '').trim();
   if (!name) { toast('Укажите имя', true); return; }
   try {
-    await CHAT.be.saveProfile(CHAT.user.uid, {name: name.slice(0, 40), avatar: profDraft.avatar || null, email: CHAT.user.email || '', emailNotify: !!profDraft.emailNotify, tg: profDraft.tg || '', position: (profDraft.position || '').trim().slice(0, 60)});
+    await CHAT.be.saveProfile(CHAT.user.uid, {name: name.slice(0, 40), avatar: profDraft.avatar || null, email: CHAT.user.email || '', emailNotify: !!profDraft.emailNotify, tg: profDraft.tg || '', max: profDraft.max || '', position: (profDraft.position || '').trim().slice(0, 60)});
     closeSheet(); toast('Профиль сохранён');
   } catch (e) { toast('Не сохранено: ' + (e.code === 'permission-denied' ? 'нет доступа' : e.message), true); }
 }
