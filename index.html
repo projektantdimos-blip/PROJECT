@@ -306,8 +306,18 @@ svg{flex:none}
 /* ---------- чат ---------- */
 img.ava{object-fit:cover;background:var(--card2)}
 .bnav button,.side nav button{position:relative}
-.nb{position:absolute;top:10px;left:calc(50% + 6px);width:10px;height:10px;border-radius:50%;background:var(--orange);border:2px solid var(--card)}
-@media (min-width:900px){.nb{top:50%;left:auto;right:12px;margin-top:-5px;border-color:var(--blue-d)}}
+.nb{position:absolute;top:6px;left:calc(50% + 4px);min-width:20px;height:20px;padding:0 4px;border-radius:10px;background:var(--orange);color:#fff;border:2px solid var(--card);font-size:11px;font-weight:700;font-style:normal;line-height:16px;text-align:center}
+@media (min-width:900px){.nb{top:50%;left:auto;right:12px;margin-top:-10px;border-color:var(--blue-d)}}
+.ch-item.unread{background:var(--warn-l);box-shadow:inset 4px 0 0 var(--orange)}
+.ch-item.unread .t1>span{font-weight:800}
+.ch-item.unread .t1 small{color:var(--orange);font-weight:700}
+.ch-item.unread .t2{color:var(--ink);font-weight:600}
+.ch-item .unr{width:14px;height:14px}
+.ch-msg .who .pos{font-weight:400;font-size:12px;color:var(--muted);background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:0 7px;margin-left:8px}
+.mem{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:10px 4px}
+.mem:hover{background:var(--blue-l)}
+.mem .ava{width:44px;height:44px;font-size:19px}
+.mem small{display:block;color:var(--muted);font-size:13px}
 .view-chat .fab{display:none}
 .chat{display:grid;grid-template-columns:1fr;height:calc(100vh - 172px);height:calc(100dvh - 172px);min-height:380px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
 .ch-list,.ch-conv{display:flex;flex-direction:column;min-height:0;min-width:0}
@@ -623,7 +633,7 @@ async function createRow(fields) {
 
 /* ================== рендер: каркас ================== */
 function renderNav() {
-  const html = VIEWS.map(v => `<button data-view="${v.id}" class="${S.view === v.id ? 'on' : ''}">${v.ic}<span>${v.t}</span>${v.id === 'chat' && chatUnread() ? `<i class="nb ${chatUnreadMentions() ? 'm' : ''}" title="Есть непрочитанные"></i>` : ''}</button>`).join('');
+  const html = VIEWS.map(v => `<button data-view="${v.id}" class="${S.view === v.id ? 'on' : ''}">${v.ic}<span>${v.t}</span>${v.id === 'chat' && chatUnread() ? `<i class="nb ${chatUnreadMentions() ? 'm' : ''}" title="Непрочитанные диалоги">${chatUnread()}</i>` : ''}</button>`).join('');
   const un = chatUnread(); document.title = (un ? `(${un}) ` : '') + 'Проекты DS';
   document.body.classList.toggle('view-chat', S.view === 'chat');
   $('#sideNav').innerHTML = html;
@@ -1284,7 +1294,7 @@ function chatRemoteNotify(uids, text, cid) {
   if (!to.length && !tg.length) return;
   fetch(url, {method: 'POST', redirect: 'follow', headers: {'Content-Type': 'text/plain;charset=utf-8'},
     body: JSON.stringify({action: 'notify', key, to, tg, from: userName(CHAT.user.uid), channel: chTitle(cid).t, text, url: location.href.split('#')[0]})})
-    .then(r => r.json()).then(d => { if (!d.ok) toast('Оповещение не отправлено: ' + d.error, true); }).catch(() => {});
+    .then(r => r.json()).then(d => { if (!d.ok) toast('Оповещение не отправлено: ' + d.error, true); else if (!d.sent) toast('Оповещение не отправлено: адреса не подошли (проверьте NOTIFY_ALLOWED)', true); }).catch(() => {});
 }
 
 function chatMarkRead() {
@@ -1390,7 +1400,7 @@ function renderChat() {
 function chatFillMe() {
   const me = $('#chMe'); if (!me) return;
   const u = CHAT.user;
-  me.innerHTML = `${userAva(u.uid)}<div class="nm">${esc(userName(u.uid))}<small>${esc(u.email || '')}</small></div><button class="icon-btn" style="background:var(--blue-l);color:var(--blue)" data-ch="profile" title="Мой профиль" aria-label="Мой профиль">${IC.edit}</button>`;
+  me.innerHTML = `${userAva(u.uid)}<div class="nm">${esc(userName(u.uid))}<small>${esc(CHAT.users[u.uid]?.position || u.email || '')}</small></div><button class="icon-btn" style="background:var(--blue-l);color:var(--blue)" data-ch="members" title="Участники" aria-label="Участники">${IC.load}</button><button class="icon-btn" style="background:var(--blue-l);color:var(--blue)" data-ch="profile" title="Мой профиль" aria-label="Мой профиль">${IC.edit}</button>`;
 }
 function chatFillList() {
   const box = $('#chItems'); if (!box) return;
@@ -1400,7 +1410,7 @@ function chatFillList() {
     const t = chTitle(k), c = CHAT.channels[k];
     const unr = c && c.lastBy !== CHAT.user.uid && c.lastAt > (CHAT.read?.[k] || 0) && !(k === CHAT.cid && (isDesk() || CHAT.conv));
     const last = c && c.lastText ? (c.lastBy === CHAT.user.uid ? 'Вы: ' : userName(c.lastBy).split(' ')[0] + ': ') + c.lastText : 'Пока нет сообщений';
-    return `<button class="ch-item ${k === CHAT.cid ? 'on' : ''}" data-ch="open" data-cid="${esc(k)}"><span class="ch-ic ${t.gen ? 'gen' : ''}">${esc(t.ic)}</span>
+    return `<button class="ch-item ${k === CHAT.cid ? 'on' : ''} ${unr ? 'unread' : ''}" data-ch="open" data-cid="${esc(k)}"><span class="ch-ic ${t.gen ? 'gen' : ''}">${esc(t.ic)}</span>
       <span class="tx"><span class="t1"><span>${esc(t.t)}</span><small>${c ? shortTime(c.lastAt) : ''}</small></span><span class="t2" style="display:block">${esc(last)}</span></span>${unr ? (c.lastMentions.includes(CHAT.user.uid) ? '<i class="unr m" title="Вас упомянули">@</i>' : '<i class="unr"></i>') : ''}</button>`;
   }).join('');
 }
@@ -1430,7 +1440,7 @@ function chatFillMsgs() {
     if (!prev || dayLabel(prev.at) !== day) html += `<div class="ch-day">${esc(day)}</div>`;
     const first = !prev || prev.uid !== m.uid || m.at - prev.at > 5 * 60000 || dayLabel(prev.at) !== day;
     html += `<div class="ch-msg ${first ? 'first' : ''} ${m.pending ? 'pending' : ''} ${m.mentions.includes(CHAT.user.uid) ? 'ment' : ''}">${first ? userAva(m.uid) : '<span class="sp"></span>'}
-      <div class="bd">${first ? `<div class="who">${esc(userName(m.uid))}<small>${hm(m.at)}</small></div>` : ''}<div class="tx">${msgHtml(m)}</div></div>
+      <div class="bd">${first ? `<div class="who">${esc(userName(m.uid))}${CHAT.users[m.uid]?.position ? `<span class="pos">${esc(CHAT.users[m.uid].position)}</span>` : ''}<small>${hm(m.at)}</small></div>` : ''}<div class="tx">${msgHtml(m)}</div></div>
       ${m.uid === CHAT.user.uid && !m.pending ? `<button class="del" data-ch="del" data-id="${esc(m.id)}" title="Удалить сообщение" aria-label="Удалить сообщение">${IC.trash}</button>` : ''}</div>`;
     prev = m;
   });
@@ -1479,11 +1489,32 @@ function chatAction(t) {
   else if (a === 'profile') openProfile();
   else if (a === 'profsave') profileSave();
   else if (a === 'mpick') chatMentionPick(+t.dataset.i);
+  else if (a === 'members') openMembers();
+  else if (a === 'mem') chatMentionUser(t.dataset.uid);
   else if (a === 'nmode') { lsSet(NOTE_KEY, t.dataset.v); drawProfile(); }
   else if (a === 'nperm') Notification.requestPermission().then(() => drawProfile());
   else if (a === 'photodel') { profDraft.avatar = null; drawProfile(); }
   else if (a === 'logout') { closeSheet(); CHAT.be.signOut(); }
   else if (a === 'del') { if (confirm('Удалить сообщение?')) CHAT.be.del(CHAT.cid, t.dataset.id).catch(e => toast('Не удалено: ' + e.message, true)); }
+}
+
+/* --- участники --- */
+function openMembers() {
+  editing = null;
+  const me = CHAT.user.uid, ids = Object.keys(CHAT.users).sort((a, b) => userName(a).localeCompare(userName(b), 'ru'));
+  $('#sheet').innerHTML = `
+    <div class="grab"></div>
+    <div class="sh-head"><div style="flex:1"><h2>Участники</h2><div class="sub">${ids.length} в чате · нажмите на человека, чтобы упомянуть его</div></div><button class="x" data-act="close" aria-label="Закрыть">${IC.x}</button></div>
+    <div class="sh-body">${ids.map(u => `<button class="mem" data-ch="mem" data-uid="${esc(u)}">${userAva(u)}<span><b>${esc(userName(u))}${u === me ? ' (вы)' : ''}</b><small>${esc(CHAT.users[u].position || 'Должность не указана')}</small></span></button>`).join('')}</div>`;
+  $('#scrim').classList.add('on'); $('#sheet').classList.add('on');
+}
+function chatMentionUser(uid) {
+  closeSheet();
+  if (uid === CHAT.user.uid) return;
+  const cur = CHAT.drafts[CHAT.cid] || '';
+  CHAT.drafts[CHAT.cid] = cur + (cur && !/\s$/.test(cur) ? ' ' : '') + '@' + userName(uid) + ' ';
+  CHAT.conv = true; CHAT.mn = null; renderChat();
+  const ta = $('#chText'); if (ta) { ta.value = CHAT.drafts[CHAT.cid]; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
 }
 
 /* --- профиль --- */
@@ -1492,7 +1523,7 @@ function openProfile() {
   if (!CHAT.user) return;
   editing = null;
   const u = CHAT.users[CHAT.user.uid] || {};
-  profDraft = {name: u.name || (CHAT.user.email || '').split('@')[0], avatar: u.avatar || null, emailNotify: u.emailNotify !== false, tg: u.tg || ''};
+  profDraft = {name: u.name || (CHAT.user.email || '').split('@')[0], avatar: u.avatar || null, emailNotify: u.emailNotify !== false, tg: u.tg || '', position: u.position || ''};
   drawProfile();
   $('#scrim').classList.add('on'); $('#sheet').classList.add('on');
 }
@@ -1507,6 +1538,8 @@ function drawProfile() {
         <label class="btn" for="pf-file" style="cursor:pointer">Загрузить фото</label><input type="file" id="pf-file" accept="image/*" hidden>
         ${d.avatar ? '<button class="btn ghost" type="button" data-ch="photodel">Убрать фото</button>' : ''}</div></div>
       <div class="fld"><label for="pf-name">Имя в чате</label><input id="pf-name" maxlength="40" value="${esc(d.name)}" placeholder="Например, Иван Петров"></div>
+      <div class="fld"><label for="pf-pos">Должность</label><input id="pf-pos" maxlength="60" list="dl-pos" value="${esc(d.position)}" placeholder="Например, ГИП, инженер-проектировщик">
+        <datalist id="dl-pos"><option value="Руководитель проектного отдела"><option value="ГИП"><option value="Инженер-проектировщик"><option value="Ведущий инженер"><option value="Проектировщик СПС/СОУЭ"><option value="Менеджер проектов"></datalist></div>
       <div class="pf-sec">Уведомления на этом устройстве</div>
       <div class="seg">${[['all', 'Все сообщения'], ['mentions', 'Только @упоминания'], ['off', 'Выключены']].map(([v, t]) => `<button type="button" data-ch="nmode" data-v="${v}" class="${noteMode() === v ? 'on' : ''}">${t}</button>`).join('')}</div>
       ${'Notification' in window ? (Notification.permission === 'granted' ? '<p style="font-size:13px;color:var(--ok);margin:8px 0 0">Уведомления браузера разрешены (приходят, когда вкладка свёрнута).</p>'
@@ -1514,12 +1547,13 @@ function drawProfile() {
         : '<button class="btn" type="button" data-ch="nperm" style="margin-top:8px">Разрешить уведомления браузера</button>') : ''}
       <label class="pf-chk"><input type="checkbox" id="pf-mail" ${d.emailNotify ? 'checked' : ''}>Присылать на почту, когда меня упомянули</label>
       <div class="fld"><label for="pf-tg">Telegram ID (оповещения в телефон)</label><input id="pf-tg" inputmode="numeric" maxlength="20" value="${esc(d.tg)}" placeholder="например 123456789">
-        <p style="font-size:12px;color:var(--muted);margin:6px 0 0">Как узнать: в Telegram напишите боту @userinfobot, он ответит вашим Id. Затем нажмите Start у бота отдела (его имя скажет администратор).</p></div>
+        <p style="font-size:12px;color:var(--muted);margin:6px 0 0"><b>Оповещения приходят от бота @proekty_ds_bot.</b><br>1. Откройте в Telegram бота <b>@proekty_ds_bot</b> и нажмите <b>Start</b>.<br>2. Напишите боту <b>@userinfobot</b>: он ответит вашим числовым Id. Вставьте его сюда.</p></div>
       <button class="btn" type="button" data-ch="logout">Выйти из аккаунта</button>
     </div>
     <div class="sh-foot"><button class="btn" data-act="close">Отмена</button><button class="btn primary" data-ch="profsave">Сохранить</button></div>`;
   $('#pf-name').addEventListener('input', e => { profDraft.name = e.target.value; });
   $('#pf-mail').addEventListener('change', e => { profDraft.emailNotify = e.target.checked; });
+  $('#pf-pos').addEventListener('input', e => { profDraft.position = e.target.value; });
   $('#pf-tg').addEventListener('input', e => { profDraft.tg = e.target.value.replace(/\D/g, ''); });
 }
 async function profilePhoto(file) {
@@ -1536,7 +1570,7 @@ async function profileSave() {
   const name = (profDraft.name || '').trim();
   if (!name) { toast('Укажите имя', true); return; }
   try {
-    await CHAT.be.saveProfile(CHAT.user.uid, {name: name.slice(0, 40), avatar: profDraft.avatar || null, email: CHAT.user.email || '', emailNotify: !!profDraft.emailNotify, tg: profDraft.tg || ''});
+    await CHAT.be.saveProfile(CHAT.user.uid, {name: name.slice(0, 40), avatar: profDraft.avatar || null, email: CHAT.user.email || '', emailNotify: !!profDraft.emailNotify, tg: profDraft.tg || '', position: (profDraft.position || '').trim().slice(0, 60)});
     closeSheet(); toast('Профиль сохранён');
   } catch (e) { toast('Не сохранено: ' + (e.code === 'permission-denied' ? 'нет доступа' : e.message), true); }
 }
