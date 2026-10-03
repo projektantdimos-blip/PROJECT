@@ -366,6 +366,20 @@ img.ava{object-fit:cover;background:var(--card2)}
 .ch-auth ol{margin:8px 0 14px;padding-left:20px;color:var(--muted)}
 .ch-auth .btn{width:100%;justify-content:center;height:44px;font-weight:600;margin-top:4px}
 .ch-auth .link{border:0;background:none;color:var(--blue);padding:8px 0;text-decoration:underline;text-underline-offset:2px;width:100%}
+.ch-conv{position:relative}
+.ch-mn{position:absolute;left:12px;right:12px;bottom:66px;z-index:5;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);max-height:240px;overflow-y:auto}
+.ch-mn[hidden]{display:none}
+.ch-mn button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;text-align:left;padding:8px 12px}
+.ch-mn button.on,.ch-mn button:hover{background:var(--blue-l)}
+.ch-mn .ava{width:28px;height:28px;font-size:13px}
+.mention{color:var(--blue);background:var(--blue-l);border-radius:5px;padding:0 3px;font-weight:600}
+.mention.me{color:var(--on);background:var(--orange)}
+.ch-msg.ment{background:var(--warn-l);border-radius:8px;box-shadow:-10px 0 0 var(--warn-l),inset 3px 0 0 var(--orange);padding-left:6px;margin-left:-6px}
+.nb.m,.ch-item .unr.m{background:var(--bad)}
+.ch-item .unr.m{width:auto;height:18px;min-width:18px;border-radius:9px;color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center;padding:0 4px}
+.pf-sec{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin:4px 0 6px}
+.pf-chk{display:flex;gap:10px;align-items:center;margin:10px 0 14px;font-size:14px}
+.pf-chk input{width:18px;height:18px}
 .ava-big{width:84px!important;height:84px!important;font-size:34px!important}
 .pf-ava{display:flex;align-items:center;gap:14px;margin-bottom:16px}
 .pf-ava .btns{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
@@ -609,7 +623,8 @@ async function createRow(fields) {
 
 /* ================== рендер: каркас ================== */
 function renderNav() {
-  const html = VIEWS.map(v => `<button data-view="${v.id}" class="${S.view === v.id ? 'on' : ''}">${v.ic}<span>${v.t}</span>${v.id === 'chat' && chatUnread() ? '<i class="nb" title="Есть непрочитанные"></i>' : ''}</button>`).join('');
+  const html = VIEWS.map(v => `<button data-view="${v.id}" class="${S.view === v.id ? 'on' : ''}">${v.ic}<span>${v.t}</span>${v.id === 'chat' && chatUnread() ? `<i class="nb ${chatUnreadMentions() ? 'm' : ''}" title="Есть непрочитанные"></i>` : ''}</button>`).join('');
+  const un = chatUnread(); document.title = (un ? `(${un}) ` : '') + 'Проекты DS';
   document.body.classList.toggle('view-chat', S.view === 'chat');
   $('#sideNav').innerHTML = html;
   $('#bottomNav').innerHTML = html;
@@ -1077,10 +1092,16 @@ $('#btnRefresh').addEventListener('click', () => load());
 $('#btnSettings').addEventListener('click', openSettings);
 document.addEventListener('submit', e => { if (e.target.id === 'chLogin') { e.preventDefault(); chatLogin(); } });
 document.addEventListener('keydown', e => {
+  if (e.target.id === 'chText' && CHAT.mn) {
+    const n = CHAT.mn.items.length;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); CHAT.mn.idx = (CHAT.mn.idx + (e.key === 'ArrowDown' ? 1 : n - 1)) % n; chatMentionDraw(); return; }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); chatMentionPick(CHAT.mn.idx); return; }
+    if (e.key === 'Escape') { e.preventDefault(); chatMentionClose(); return; }
+  }
   if (e.target.id === 'chText' && e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(pointer:fine)').matches) { e.preventDefault(); chatSend(); }
 });
 document.addEventListener('input', e => {
-  if (e.target.id === 'chText') { CHAT.drafts[CHAT.cid] = e.target.value; e.target.style.height = '42px'; e.target.style.height = Math.min(140, e.target.scrollHeight) + 'px'; }
+  if (e.target.id === 'chText') { CHAT.drafts[CHAT.cid] = e.target.value; e.target.style.height = '42px'; e.target.style.height = Math.min(140, e.target.scrollHeight) + 'px'; chatMentionUpdate(e.target); }
   if (e.target.id === 'q') { S.f.q = e.target.value; const pos = e.target.selectionStart; renderOverview(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); }
 });
 document.addEventListener('change', e => {
@@ -1112,7 +1133,9 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && S.
 // channels/{id}/messages/{id} — сообщения (uid, text, at). Правила доступа — в firebase/firestore.rules.
 const FB_V = '10.14.1';
 const CHAT = {on: !!FIREBASE_CONFIG, be: null, user: null, authKnown: false, usersLoaded: false, users: {}, channels: {}, cid: 'general',
-  msgs: [], msgsFor: null, unsubs: [], unsubMsgs: null, conv: false, err: '', read: null, drafts: {}, loginErr: '', loginInfo: '', loginEmail: '', busy: false, prompted: false};
+  msgs: [], msgsFor: null, unsubs: [], unsubMsgs: null, conv: false, err: '', read: null, drafts: {}, loginErr: '', loginInfo: '', loginEmail: '', busy: false, prompted: false, mn: null, chLoaded: false};
+const NOTE_KEY = 'mpb-chat-notify'; // all | mentions | off — на каждом устройстве свой выбор
+const noteMode = () => lsGet(NOTE_KEY, 'mentions');
 const isDesk = () => matchMedia('(min-width:900px)').matches;
 
 async function fbCreate(cfg) {
@@ -1129,15 +1152,15 @@ async function fbCreate(cfg) {
     saveProfile: (uid, p) => F.setDoc(F.doc(db, 'users', uid), {...p, updatedAt: F.serverTimestamp()}, {merge: true}),
     watchUsers: (cb, err) => F.onSnapshot(F.collection(db, 'users'), s => { const o = {}; s.forEach(d => o[d.id] = d.data()); cb(o); }, err),
     watchChannels: (cb, err) => F.onSnapshot(F.collection(db, 'channels'), s => {
-      const o = {}; s.forEach(d => { const v = est(d); o[d.id] = {lastAt: ms(v.lastAt), lastBy: v.lastBy || '', lastText: v.lastText || ''}; }); cb(o);
+      const o = {}; s.forEach(d => { const v = est(d); o[d.id] = {lastAt: ms(v.lastAt), lastBy: v.lastBy || '', lastText: v.lastText || '', lastMentions: v.lastMentions || []}; }); cb(o);
     }, err),
     watchMessages: (cid, cb, err) => F.onSnapshot(F.query(F.collection(db, 'channels', cid, 'messages'), F.orderBy('at', 'desc'), F.limit(150)), s => {
-      const a = []; s.forEach(d => { const v = est(d); a.push({id: d.id, uid: v.uid, text: v.text, at: ms(v.at) || Date.now(), pending: d.metadata.hasPendingWrites}); }); cb(a.reverse());
+      const a = []; s.forEach(d => { const v = est(d); a.push({id: d.id, uid: v.uid, text: v.text, mentions: v.mentions || [], at: ms(v.at) || Date.now(), pending: d.metadata.hasPendingWrites}); }); cb(a.reverse());
     }, err),
-    send: async (cid, uid, text) => {
+    send: async (cid, uid, text, mentions) => {
       const b = F.writeBatch(db);
-      b.set(F.doc(F.collection(db, 'channels', cid, 'messages')), {uid, text, at: F.serverTimestamp()});
-      b.set(F.doc(db, 'channels', cid), {lastAt: F.serverTimestamp(), lastBy: uid, lastText: text.slice(0, 80)}, {merge: true});
+      b.set(F.doc(F.collection(db, 'channels', cid, 'messages')), {uid, text, mentions, at: F.serverTimestamp()});
+      b.set(F.doc(db, 'channels', cid), {lastAt: F.serverTimestamp(), lastBy: uid, lastText: text.slice(0, 80), lastMentions: mentions}, {merge: true});
       await b.commit();
     },
     del: (cid, id) => F.deleteDoc(F.doc(db, 'channels', cid, 'messages', id))
@@ -1153,7 +1176,7 @@ async function chatInit() {
 function chatStop() {
   CHAT.unsubs.forEach(f => f()); CHAT.unsubs = [];
   if (CHAT.unsubMsgs) CHAT.unsubMsgs(); CHAT.unsubMsgs = null; CHAT.msgsFor = null;
-  CHAT.users = {}; CHAT.channels = {}; CHAT.msgs = []; CHAT.usersLoaded = false; CHAT.read = null; CHAT.prompted = false;
+  CHAT.users = {}; CHAT.channels = {}; CHAT.msgs = []; CHAT.usersLoaded = false; CHAT.read = null; CHAT.prompted = false; CHAT.chLoaded = false; CHAT.mn = null;
 }
 function chatAuth(u) {
   chatStop();
@@ -1162,7 +1185,7 @@ function chatAuth(u) {
     const bad = e => { CHAT.err = e.code || String(e); renderChatAll(); };
     CHAT.unsubs.push(
       CHAT.be.watchUsers(us => { CHAT.users = us; CHAT.usersLoaded = true; renderChatAll(); }, bad),
-      CHAT.be.watchChannels(cs => { CHAT.channels = cs; chatReadInit(); renderChatAll(); }, bad));
+      CHAT.be.watchChannels(cs => { const prev = CHAT.channels; CHAT.channels = cs; chatReadInit(); if (CHAT.chLoaded) chatNotifyDiff(prev, cs); CHAT.chLoaded = true; renderChatAll(); }, bad));
   }
   renderChatAll();
 }
@@ -1179,6 +1202,84 @@ function chatUnread() {
   if (!CHAT.user || !CHAT.read) return 0;
   return Object.keys(CHAT.channels).filter(k => { const c = CHAT.channels[k]; return c.lastBy !== CHAT.user.uid && c.lastAt > (CHAT.read[k] || 0); }).length;
 }
+function chatUnreadMentions() {
+  if (!CHAT.user || !CHAT.read) return 0;
+  return Object.keys(CHAT.channels).filter(k => { const c = CHAT.channels[k]; return c.lastBy !== CHAT.user.uid && c.lastAt > (CHAT.read[k] || 0) && c.lastMentions.includes(CHAT.user.uid); }).length;
+}
+
+/* --- упоминания через @ --- */
+// uid всех, кого упомянули в тексте (@Имя). Сначала длинные имена, чтобы «Иван Петров» не принимался за «Иван».
+function mentionsOf(text) {
+  let rest = text.toLowerCase();
+  const list = Object.keys(CHAT.users).filter(u => u !== CHAT.user.uid && CHAT.users[u].name).sort((a, b) => CHAT.users[b].name.length - CHAT.users[a].name.length);
+  const res = [];
+  list.forEach(u => { const tag = '@' + CHAT.users[u].name.toLowerCase(); if (rest.includes(tag)) { res.push(u); rest = rest.split(tag).join(' '); } });
+  return res;
+}
+function chatMentionUpdate(ta) {
+  const before = ta.value.slice(0, ta.selectionStart), m = before.match(/(^|\s)@([^\s@]*)$/);
+  if (!m) { chatMentionClose(); return; }
+  const q = m[2].toLowerCase();
+  const items = Object.keys(CHAT.users).filter(u => u !== CHAT.user.uid && CHAT.users[u].name && (!q || CHAT.users[u].name.toLowerCase().split(/\s+/).some(w => w.startsWith(q)) || CHAT.users[u].name.toLowerCase().startsWith(q))).slice(0, 8);
+  if (!items.length) { chatMentionClose(); return; }
+  CHAT.mn = {items, idx: 0, start: ta.selectionStart - m[2].length - 1, end: ta.selectionStart};
+  chatMentionDraw();
+}
+function chatMentionDraw() {
+  const box = $('#chMn'); if (!box || !CHAT.mn) return;
+  box.hidden = false;
+  box.innerHTML = CHAT.mn.items.map((u, i) => `<button type="button" class="${i === CHAT.mn.idx ? 'on' : ''}" data-ch="mpick" data-i="${i}">${userAva(u)}<span>${esc(userName(u))}</span></button>`).join('');
+}
+function chatMentionClose() { CHAT.mn = null; const b = $('#chMn'); if (b) { b.hidden = true; b.innerHTML = ''; } }
+function chatMentionPick(i) {
+  const ta = $('#chText'), mn = CHAT.mn; if (!ta || !mn) return;
+  const name = userName(mn.items[i]);
+  ta.value = ta.value.slice(0, mn.start) + '@' + name + ' ' + ta.value.slice(mn.end);
+  const pos = mn.start + name.length + 2; ta.setSelectionRange(pos, pos);
+  CHAT.drafts[CHAT.cid] = ta.value; chatMentionClose(); ta.focus();
+}
+
+/* --- уведомления --- */
+// Сравниваем каналы до и после обновления: если пришло чужое сообщение, показываем уведомление.
+function chatNotifyDiff(prev, next) {
+  const mode = noteMode(); if (mode === 'off') return;
+  for (const cid in next) {
+    const c = next[cid], p = prev[cid];
+    if (c.lastBy === CHAT.user.uid || c.lastAt <= (p ? p.lastAt : 0)) continue;
+    const mention = c.lastMentions.includes(CHAT.user.uid);
+    if (mode === 'mentions' && !mention) continue;
+    const watching = S.view === 'chat' && cid === CHAT.cid && !document.hidden && (isDesk() || CHAT.conv);
+    if (watching) continue;
+    const title = (mention ? 'Вас упомянули · ' : '') + chTitle(cid).t;
+    const body = userName(c.lastBy) + ': ' + c.lastText;
+    if (!document.hidden) toast(title + ' — ' + body);
+    if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+      try {
+        const n = new Notification(title, {body, tag: cid, icon: 'icon-180.png'});
+        n.onclick = () => { window.focus(); chatOpen(cid); n.close(); };
+      } catch {}
+    }
+    chatBeep();
+  }
+}
+let beepCtx;
+function chatBeep() {
+  try {
+    beepCtx = beepCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = beepCtx.createOscillator(), g = beepCtx.createGain();
+    o.frequency.value = 880; g.gain.setValueAtTime(.12, beepCtx.currentTime); g.gain.exponentialRampToValueAtTime(.001, beepCtx.currentTime + .25);
+    o.connect(g); g.connect(beepCtx.destination); o.start(); o.stop(beepCtx.currentTime + .25);
+  } catch {}
+}
+// Письмо тому, кого упомянули: уходит через Apps Script (работает, даже если приложение у него закрыто)
+function chatEmailMentions(uids, text, cid) {
+  if (!S.cfg.url || !S.cfg.key) return;
+  const to = uids.filter(u => CHAT.users[u]?.email && CHAT.users[u].emailNotify !== false).map(u => CHAT.users[u].email);
+  if (!to.length) return;
+  fetch(S.cfg.url, {method: 'POST', redirect: 'follow', headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify({action: 'notify', key: S.cfg.key, to, from: userName(CHAT.user.uid), channel: chTitle(cid).t, text, url: location.href.split('#')[0]})}).catch(() => {});
+}
+
 function chatMarkRead() {
   if (!CHAT.user || !CHAT.read || S.view !== 'chat' || document.hidden || (!isDesk() && !CHAT.conv)) return;
   const c = CHAT.channels[CHAT.cid];
@@ -1202,6 +1303,15 @@ function chTitle(cid) {
   return {t: (r.num ? '№' + r.num : 'без №') + (r.client ? ' · ' + r.client : ''), s: [r.stage, r.object].filter(Boolean).join(' · '), ic: r.num ? String(r.num).slice(0, 3) : 'П', pid: id};
 }
 function linkify(s) { return esc(s).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'); }
+// текст сообщения: экранирование, подсветка @упоминаний, ссылки
+function msgHtml(m) {
+  let h = esc(m.text);
+  m.mentions.filter(u => CHAT.users[u]?.name).sort((a, b) => CHAT.users[b].name.length - CHAT.users[a].name.length).forEach(u => {
+    const tag = esc('@' + CHAT.users[u].name);
+    h = h.split(tag).join(`<span class="mention ${u === CHAT.user.uid ? 'me' : ''}">${tag}</span>`);
+  });
+  return h.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+}
 function authMsg(e) {
   const m = {'auth/invalid-credential': 'Неверная почта или пароль', 'auth/wrong-password': 'Неверная почта или пароль', 'auth/user-not-found': 'Неверная почта или пароль',
     'auth/invalid-email': 'Некорректный адрес почты', 'auth/too-many-requests': 'Слишком много попыток, попробуйте позже', 'auth/network-request-failed': 'Нет связи с интернетом',
@@ -1259,6 +1369,7 @@ function renderChat() {
         <div class="ch-add"><select class="sel" id="chPick"><option value="">+ Чат по проекту…</option>${pick.map(r => `<option value="${r.id}">${esc((r.num ? '№' + r.num : 'без №') + (r.client ? ' · ' + r.client : '') + (r.object ? ' — ' + r.object.slice(0, 30) : ''))}</option>`).join('')}</select></div>
       </div>
       <div class="ch-conv">
+        <div class="ch-mn" id="chMn" hidden></div>
         <div class="ch-head" id="chHead"></div>
         <div class="ch-msgs" id="chMsgs" data-fresh="1"></div>
         <div class="ch-compose"><textarea id="chText" rows="1" placeholder="Сообщение…" maxlength="4000"></textarea><button data-ch="send" aria-label="Отправить">${IC.send}</button></div>
@@ -1283,7 +1394,7 @@ function chatFillList() {
     const unr = c && c.lastBy !== CHAT.user.uid && c.lastAt > (CHAT.read?.[k] || 0) && !(k === CHAT.cid && (isDesk() || CHAT.conv));
     const last = c && c.lastText ? (c.lastBy === CHAT.user.uid ? 'Вы: ' : userName(c.lastBy).split(' ')[0] + ': ') + c.lastText : 'Пока нет сообщений';
     return `<button class="ch-item ${k === CHAT.cid ? 'on' : ''}" data-ch="open" data-cid="${esc(k)}"><span class="ch-ic ${t.gen ? 'gen' : ''}">${esc(t.ic)}</span>
-      <span class="tx"><span class="t1"><span>${esc(t.t)}</span><small>${c ? shortTime(c.lastAt) : ''}</small></span><span class="t2" style="display:block">${esc(last)}</span></span>${unr ? '<i class="unr"></i>' : ''}</button>`;
+      <span class="tx"><span class="t1"><span>${esc(t.t)}</span><small>${c ? shortTime(c.lastAt) : ''}</small></span><span class="t2" style="display:block">${esc(last)}</span></span>${unr ? (c.lastMentions.includes(CHAT.user.uid) ? '<i class="unr m" title="Вас упомянули">@</i>' : '<i class="unr"></i>') : ''}</button>`;
   }).join('');
 }
 function chatFillHead() {
@@ -1311,8 +1422,8 @@ function chatFillMsgs() {
     const day = dayLabel(m.at);
     if (!prev || dayLabel(prev.at) !== day) html += `<div class="ch-day">${esc(day)}</div>`;
     const first = !prev || prev.uid !== m.uid || m.at - prev.at > 5 * 60000 || dayLabel(prev.at) !== day;
-    html += `<div class="ch-msg ${first ? 'first' : ''} ${m.pending ? 'pending' : ''}">${first ? userAva(m.uid) : '<span class="sp"></span>'}
-      <div class="bd">${first ? `<div class="who">${esc(userName(m.uid))}<small>${hm(m.at)}</small></div>` : ''}<div class="tx">${linkify(m.text)}</div></div>
+    html += `<div class="ch-msg ${first ? 'first' : ''} ${m.pending ? 'pending' : ''} ${m.mentions.includes(CHAT.user.uid) ? 'ment' : ''}">${first ? userAva(m.uid) : '<span class="sp"></span>'}
+      <div class="bd">${first ? `<div class="who">${esc(userName(m.uid))}<small>${hm(m.at)}</small></div>` : ''}<div class="tx">${msgHtml(m)}</div></div>
       ${m.uid === CHAT.user.uid && !m.pending ? `<button class="del" data-ch="del" data-id="${esc(m.id)}" title="Удалить сообщение" aria-label="Удалить сообщение">${IC.trash}</button>` : ''}</div>`;
     prev = m;
   });
@@ -1329,9 +1440,9 @@ function chatOpen(cid) {
 async function chatSend() {
   const ta = $('#chText'); if (!ta || !CHAT.be) return;
   const text = ta.value.trim(); if (!text) return;
-  const cid = CHAT.cid;
-  ta.value = ''; ta.style.height = '42px'; CHAT.drafts[cid] = '';
-  try { await CHAT.be.send(cid, CHAT.user.uid, text); }
+  const cid = CHAT.cid, mentions = mentionsOf(text);
+  ta.value = ''; ta.style.height = '42px'; CHAT.drafts[cid] = ''; chatMentionClose();
+  try { await CHAT.be.send(cid, CHAT.user.uid, text, mentions); if (mentions.length) chatEmailMentions(mentions, text, cid); }
   catch (e) { toast('Не отправлено: ' + (e.code === 'permission-denied' ? 'нет доступа' : e.message), true); if (CHAT.cid === cid && !ta.value) { ta.value = text; CHAT.drafts[cid] = text; } }
   ta.focus();
 }
@@ -1360,6 +1471,9 @@ function chatAction(t) {
   else if (a === 'reset') chatReset();
   else if (a === 'profile') openProfile();
   else if (a === 'profsave') profileSave();
+  else if (a === 'mpick') chatMentionPick(+t.dataset.i);
+  else if (a === 'nmode') { lsSet(NOTE_KEY, t.dataset.v); drawProfile(); }
+  else if (a === 'nperm') Notification.requestPermission().then(() => drawProfile());
   else if (a === 'photodel') { profDraft.avatar = null; drawProfile(); }
   else if (a === 'logout') { closeSheet(); CHAT.be.signOut(); }
   else if (a === 'del') { if (confirm('Удалить сообщение?')) CHAT.be.del(CHAT.cid, t.dataset.id).catch(e => toast('Не удалено: ' + e.message, true)); }
@@ -1371,7 +1485,7 @@ function openProfile() {
   if (!CHAT.user) return;
   editing = null;
   const u = CHAT.users[CHAT.user.uid] || {};
-  profDraft = {name: u.name || (CHAT.user.email || '').split('@')[0], avatar: u.avatar || null};
+  profDraft = {name: u.name || (CHAT.user.email || '').split('@')[0], avatar: u.avatar || null, emailNotify: u.emailNotify !== false};
   drawProfile();
   $('#scrim').classList.add('on'); $('#sheet').classList.add('on');
 }
@@ -1386,10 +1500,17 @@ function drawProfile() {
         <label class="btn" for="pf-file" style="cursor:pointer">Загрузить фото</label><input type="file" id="pf-file" accept="image/*" hidden>
         ${d.avatar ? '<button class="btn ghost" type="button" data-ch="photodel">Убрать фото</button>' : ''}</div></div>
       <div class="fld"><label for="pf-name">Имя в чате</label><input id="pf-name" maxlength="40" value="${esc(d.name)}" placeholder="Например, Иван Петров"></div>
+      <div class="pf-sec">Уведомления на этом устройстве</div>
+      <div class="seg">${[['all', 'Все сообщения'], ['mentions', 'Только @упоминания'], ['off', 'Выключены']].map(([v, t]) => `<button type="button" data-ch="nmode" data-v="${v}" class="${noteMode() === v ? 'on' : ''}">${t}</button>`).join('')}</div>
+      ${'Notification' in window ? (Notification.permission === 'granted' ? '<p style="font-size:13px;color:var(--ok);margin:8px 0 0">Уведомления браузера разрешены (приходят, когда вкладка свёрнута).</p>'
+        : Notification.permission === 'denied' ? '<p style="font-size:13px;color:var(--muted);margin:8px 0 0">Уведомления браузера запрещены в настройках сайта. Остаются звук, плашка и значок на вкладке.</p>'
+        : '<button class="btn" type="button" data-ch="nperm" style="margin-top:8px">Разрешить уведомления браузера</button>') : ''}
+      <label class="pf-chk"><input type="checkbox" id="pf-mail" ${d.emailNotify ? 'checked' : ''}>Присылать на почту, когда меня упомянули</label>
       <button class="btn" type="button" data-ch="logout">Выйти из аккаунта</button>
     </div>
     <div class="sh-foot"><button class="btn" data-act="close">Отмена</button><button class="btn primary" data-ch="profsave">Сохранить</button></div>`;
   $('#pf-name').addEventListener('input', e => { profDraft.name = e.target.value; });
+  $('#pf-mail').addEventListener('change', e => { profDraft.emailNotify = e.target.checked; });
 }
 async function profilePhoto(file) {
   try {
@@ -1405,7 +1526,7 @@ async function profileSave() {
   const name = (profDraft.name || '').trim();
   if (!name) { toast('Укажите имя', true); return; }
   try {
-    await CHAT.be.saveProfile(CHAT.user.uid, {name: name.slice(0, 40), avatar: profDraft.avatar || null, email: CHAT.user.email || ''});
+    await CHAT.be.saveProfile(CHAT.user.uid, {name: name.slice(0, 40), avatar: profDraft.avatar || null, email: CHAT.user.email || '', emailNotify: !!profDraft.emailNotify});
     closeSheet(); toast('Профиль сохранён');
   } catch (e) { toast('Не сохранено: ' + (e.code === 'permission-denied' ? 'нет доступа' : e.message), true); }
 }
