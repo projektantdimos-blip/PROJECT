@@ -1295,7 +1295,7 @@ function chatRemoteNotify(uids, text, cid) {
   const mx = us.filter(u => u.max && (u.notifyMax ?? true)).map(u => String(u.max).trim());
   if (!to.length && !tg.length && !mx.length) return;
   fetch(url, {method: 'POST', redirect: 'follow', headers: {'Content-Type': 'text/plain;charset=utf-8'},
-    body: JSON.stringify({action: 'notify', key, to, tg, mx, from: userName(CHAT.user.uid), channel: chTitle(cid).t, text, url: location.href.split('#')[0] + '#chat=' + cid})})
+    body: JSON.stringify({action: 'notify', key, to, tg, mx, from: userName(CHAT.user.uid), channel: chTitle(cid).t, text, url: chatLink(cid)})})
     .then(r => r.json()).then(d => { if (!d.ok) toast('Оповещение не отправлено: ' + d.error, true); else if (!d.sent) toast('Оповещение не отправлено: адреса не подошли (проверьте NOTIFY_ALLOWED)', true); }).catch(() => {});
 }
 
@@ -1494,7 +1494,7 @@ function chatAction(t) {
   else if (a === 'mpick') chatMentionPick(+t.dataset.i);
   else if (a === 'members') openMembers();
   else if (a === 'copylink') {
-    const link = location.href.split('#')[0] + '#chat=' + CHAT.cid;
+    const link = chatLink(CHAT.cid);
     (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(() => toast('Ссылка скопирована'), () => prompt('Скопируйте ссылку:', link));
   }
   else if (a === 'mem') chatMentionUser(t.dataset.uid);
@@ -1592,10 +1592,13 @@ async function profileSave() {
 }
 
 // Ссылка вида …/index.html#chat=p6 открывает нужный диалог (general — общий чат, p<номер> — чат проекта)
+// Основной вид ссылки: …/index.html?chat=p6 (параметр не теряется в мессенджерах), также понимаем старый …#chat=p6
+const chatLink = cid => location.origin + location.pathname + '?chat=' + cid;
 function chatApplyHash() {
-  const m = location.hash.match(/^#chat=(general|p\d+)$/); if (!m) return false;
-  CHAT.cid = m[1]; CHAT.conv = true; S.view = 'chat'; lsSet(LS.view, S.view);
-  history.replaceState(null, '', location.pathname + location.search);
+  const m = new URLSearchParams(location.search).get('chat') || (location.hash.match(/^#chat=(.+)$/) || [])[1];
+  if (!m || !/^(general|p\d+)$/.test(m)) return false;
+  CHAT.cid = m; CHAT.conv = true; S.view = 'chat'; lsSet(LS.view, S.view);
+  history.replaceState(null, '', location.pathname);
   return true;
 }
 window.addEventListener('hashchange', () => { if (chatApplyHash()) renderAll(); });
