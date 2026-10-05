@@ -210,6 +210,10 @@ svg{flex:none}
 .tl-bg span{flex:none;height:100%}
 .tl-bg span.we{background:var(--card2)}
 .bar{position:absolute;height:24px;border-radius:7px;font-size:12px;font-weight:600;color:var(--on);padding:0 8px;display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:0;z-index:1}
+.bar.un{background:var(--line);background:color-mix(in srgb,var(--muted) 45%,transparent);color:var(--ink);border:1px dashed var(--muted);font-weight:700;padding:0 6px}
+.tl-row.un-row{border-top:2px solid var(--line)}
+.tl-name.un-name{flex-direction:column;align-items:flex-start;justify-content:center;gap:0;color:var(--muted)}
+.tl-name.un-name small{font-weight:400;font-size:11px}
 .bar.open-end{background-image:linear-gradient(90deg,transparent 70%,rgba(255,255,255,.35))}
 .bar:hover{filter:brightness(1.08)}
 .load{position:absolute;left:0;bottom:3px;height:4px;display:flex}
@@ -900,7 +904,7 @@ function renderTimeline() {
   }
   const bg = Array.from({length: days}, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); const we = d.getDay() === 0 || d.getDay() === 6; return `<span class="${we ? 'we' : ''}" style="width:${DAY_W}px"></span>`; }).join('');
 
-  const rowsHtml = summary.map(({o, mine}) => {
+  const rowsHtml = summary.filter(x => x.o !== '').map(({o, mine}) => {
     const items = mine.map(r => ({r, sp: span(r)})).filter(x => x.sp && x.sp.e >= start && x.sp.s <= end).sort((a, b) => a.sp.s - b.sp.s);
     const lanes = [];
     items.forEach(x => { let l = lanes.findIndex(e => e < x.sp.s); if (l < 0) { l = lanes.length; lanes.push(0); } lanes[l] = x.sp.e; x.lane = l; });
@@ -924,6 +928,35 @@ function renderTimeline() {
     </div>`;
   }).join('');
 
+  // Не назначенные задачи: серые полоски от даты постановки (или сегодня) до последнего дня договора
+  const unPool = act.filter(r => !r.owner && r.stage === 'Готов к проектированию'); // только готовые к проектированию
+  const unAll = unPool.map(r => {
+    const a = pd(r.assigned), c = pd(r.contract) || pd(r.due);
+    if (!c) return null;
+    const s = a || t;
+    return {r, s, e: c >= s ? c : s, noStart: !a, c};
+  }).filter(Boolean);
+  const unNoContract = unPool.filter(r => !pd(r.contract) && !pd(r.due));
+  const unItems = unAll.filter(x => x.e >= start && x.s <= end).sort((a, b) => a.s - b.s || a.e - b.e);
+  const unLanes = [];
+  unItems.forEach(x => { let l = unLanes.findIndex(e => e < x.s); if (l < 0) { l = unLanes.length; unLanes.push(0); } unLanes[l] = x.e; x.lane = l; });
+  const unBars = unItems.map(x => {
+    const s = x.s < start ? start : x.s, e = x.e > end ? end : x.e;
+    const left = diff(s, start) * DAY_W + 2, width = (diff(e, s) + 1) * DAY_W - 4;
+    const tip = `№${x.r.num || '—'} ${x.r.client || ''} ${x.r.object || ''} — не назначена. ${x.noStart ? 'Дата постановки не указана (с сегодняшнего дня)' : 'С ' + fd(x.r.assigned, 1)} до ${fd(iso(x.c), 1)} (последний день договора)`;
+    return `<button class="bar un" data-open="${x.r.id}" style="left:${left}px;top:${x.lane * LANE_H + 5}px;width:${width}px" title="${esc(tip)}">${esc(x.r.num || '—')}</button>`;
+  }).join('');
+  const unLoad = Array.from({length: days}, (_, i) => {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const n = unAll.filter(x => x.s <= d && d <= x.e).length;
+    const c = n >= 3 ? 'var(--bad)' : n === 2 ? 'var(--blue)' : n === 1 ? 'var(--st1)' : 'transparent';
+    return `<span style="width:${DAY_W - 2}px;background:${c};opacity:${n === 1 ? .45 : 1}" title="Не назначенных задач в этот день: ${n}"></span>`;
+  }).join('');
+  const unHtml = unAll.length ? `<div class="tl-row un-row" style="height:${Math.max(1, unLanes.length) * LANE_H + 14}px">
+      <div class="tl-name un-name" style="width:${NAME_W}px"><span>Не назначены</span><small>готовы к проект. · ${unAll.length} шт.</small></div>
+      <div class="tl-lane" style="width:${days * DAY_W}px"><div class="tl-bg">${bg}</div>${unBars}<div class="load">${unLoad}</div></div>
+    </div>` : '';
+
   const todayLeft = NAME_W + diff(t, start) * DAY_W + DAY_W / 2 - 1;
   const showToday = t >= start && t <= end;
   const noDates = act.filter(r => !span(r));
@@ -943,13 +976,16 @@ function renderTimeline() {
     <div class="card tl"><div class="tl-inner" style="width:${NAME_W + days * DAY_W}px">
       <div class="tl-head"><div class="tl-name" style="width:${NAME_W}px;color:var(--muted);font-weight:400;font-size:12px">Сотрудник</div>${head.join('')}</div>
       ${rowsHtml}
+      ${unHtml}
       ${showToday ? `<div class="todayline" style="left:${todayLeft}px"></div>` : ''}
     </div></div>
     <div class="legend" style="margin-top:10px">
       <span><i class="dot" style="background:var(--st3)"></i>В работе</span><span><i class="dot" style="background:var(--orange)"></i>Горит</span>
       <span><i class="dot" style="background:var(--bad)"></i>Просрочено</span><span><i class="dot" style="background:var(--ok)"></i>Сдано</span>
+      <span><i class="dot" style="background:var(--muted);opacity:.6"></i>Серые — не назначены, на стадии «Готов к проектированию»: от даты постановки до последнего дня договора</span>
       <span>Полоска снизу — число задач в день (красная ≥ 3)</span>
     </div>
+    ${unNoContract.length ? `<div class="nodates">Не назначены и без даты договора (не на шкале): ${unNoContract.map(r => `<button data-open="${r.id}">№${esc(r.num || '—')}</button>`).join(', ')}</div>` : ''}
     ${noDates.length ? `<div class="nodates">Без дат (не на шкале): ${noDates.map(r => `<button data-open="${r.id}">№${esc(r.num || '—')}${r.owner ? ' · ' + esc(r.owner) : ''}</button>`).join(', ')}</div>` : ''}`;
 
   // при первом показе прокрутить к «сегодня»
