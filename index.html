@@ -1188,6 +1188,9 @@ const FB_V = '10.14.1';
 const CHAT = {on: !!FIREBASE_CONFIG, be: null, user: null, authKnown: false, usersLoaded: false, users: {}, channels: {}, cid: 'general',
   msgs: [], msgsFor: null, unsubs: [], unsubMsgs: null, conv: false, err: '', read: null, drafts: {}, loginErr: '', loginInfo: '', loginEmail: '', busy: false, prompted: false, mn: null, chLoaded: false};
 // Куда отправлять письма и Telegram об упоминаниях (веб-приложение Apps Script). Ключ — отдельный NOTIFY_KEY, см. firebase/README.md
+// Публичный ключ Web Push (Firebase → Cloud Messaging → Web Push certificates)
+const VAPID_KEY = 'BGMKdlUvwDmoEhVZHEg6C9rvCfwXhNi05dSQEhODGOQlobJ5PeU47IyhmUCa4q3LjxZ7hN9X8Vi7SF7mKwX_-kE';
+const PUSH_LS = 'mpb-push-token';
 const NOTIFY = {url: 'https://script.google.com/macros/s/AKfycbzhpY5ygXFmaQhGCUEUMwF4aF3Ypi8ZrCopk-xNZTSanEV-D3422fIOfoWdAiIkEuQR/exec', key: 'notify-2026-proekty'};
 const NOTE_KEY ='mpb-chat-notify'; // all | mentions | off — на каждом устройстве свой выбор
 const noteMode = () => lsGet(NOTE_KEY, 'mentions');
@@ -1218,7 +1221,22 @@ async function fbCreate(cfg) {
       b.set(F.doc(db, 'channels', cid), {lastAt: F.serverTimestamp(), lastBy: uid, lastText: text.slice(0, 80), lastMentions: mentions}, {merge: true});
       await b.commit();
     },
-    del: (cid, id) => F.deleteDoc(F.doc(db, 'channels', cid, 'messages', id))
+    del: (cid, id) => F.deleteDoc(F.doc(db, 'channels', cid, 'messages', id)),
+    // push на этом устройстве: регистрируем обработчик и сохраняем токен в профиле
+    enablePush: async (uid, vapid) => {
+      const M = await import(base + 'firebase-messaging.js');
+      if (!(await M.isSupported())) throw new Error('Браузер не поддерживает push');
+      const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+      await navigator.serviceWorker.ready;
+      const token = await M.getToken(M.getMessaging(app), {vapidKey: vapid, serviceWorkerRegistration: reg});
+      if (!token) throw new Error('Не удалось получить токен');
+      await F.setDoc(F.doc(db, 'users', uid), {pushTokens: F.arrayUnion(token)}, {merge: true});
+      return token;
+    },
+    disablePush: async (uid, token) => {
+      await F.setDoc(F.doc(db, 'users', uid), {pushTokens: F.arrayRemove(token)}, {merge: true});
+      try { const M = await import(base + 'firebase-messaging.js'); await M.deleteToken(M.getMessaging(app)); } catch {}
+    }
   };
 }
 
@@ -1335,9 +1353,10 @@ function chatRemoteNotify(uids, text, cid) {
   const to = us.filter(u => u.email && u.emailNotify !== false).map(u => u.email);
   const tg = us.filter(u => u.tg && (u.notifyTg ?? true)).map(u => String(u.tg).trim());
   const mx = us.filter(u => u.max && (u.notifyMax ?? true)).map(u => String(u.max).trim());
-  if (!to.length && !tg.length && !mx.length) return;
+  const push = [...new Set(us.flatMap(u => u.pushTokens || []))].slice(0, 20);
+  if (!to.length && !tg.length && !mx.length && !push.length) return;
   fetch(url, {method: 'POST', redirect: 'follow', headers: {'Content-Type': 'text/plain;charset=utf-8'},
-    body: JSON.stringify({action: 'notify', key, to, tg, mx, from: userName(CHAT.user.uid), channel: chTitle(cid).t, text, url: chatLink(cid)})})
+    body: JSON.stringify({action: 'notify', key, to, tg, mx, push, from: userName(CHAT.user.uid), channel: chTitle(cid).t, text, url: chatLink(cid)})})
     .then(r => r.json()).then(d => { if (!d.ok) toast('Оповещение не отправлено: ' + d.error, true); else if (!d.sent) toast('Оповещение не отправлено: адреса не подошли (проверьте NOTIFY_ALLOWED)', true); }).catch(() => {});
 }
 
@@ -1548,7 +1567,24 @@ function chatAction(t) {
   else if (a === 'nmode') { lsSet(NOTE_KEY, t.dataset.v); drawProfile(); }
   else if (a === 'nperm') Notification.requestPermission().then(() => drawProfile());
   else if (a === 'photodel') { profDraft.avatar = null; drawProfile(); }
-  else if (a === 'logout') { closeSheet(); CHAT.be.signOut(); }
+  else if (a === 'pushon') {
+    // запрос разрешения должен идти сразу по нажатию (требование iOS)
+    Notification.requestPermission().then(async perm => {
+      if (perm !== 'granted') { toast('Уведомления не разрешены', true); drawProfile(); return; }
+      try { lsSet(PUSH_LS, await CHAT.be.enablePush(CHAT.user.uid, VAPID_KEY)); toast('Уведомления включены'); }
+      catch (e) { toast('Не удалось включить: ' + (e.message || e.code), true); }
+      drawProfile();
+    });
+  }
+  else if (a === 'pushoff') {
+    const tok = lsGet(PUSH_LS, null); lsDel(PUSH_LS);
+    (tok ? CHAT.be.disablePush(CHAT.user.uid, tok) : Promise.resolve()).catch(() => {}).finally(() => { toast('Уведомления отключены'); drawProfile(); });
+  }
+  else if (a === 'logout') {
+    closeSheet();
+    const tok = lsGet(PUSH_LS, null); lsDel(PUSH_LS);   // чтобы уведомления прежнего пользователя не шли на этот телефон
+    (tok ? CHAT.be.disablePush(CHAT.user.uid, tok).catch(() => {}) : Promise.resolve()).finally(() => CHAT.be.signOut());
+  }
   else if (a === 'del') { if (confirm('Удалить сообщение?')) CHAT.be.del(CHAT.cid, t.dataset.id).catch(e => toast('Не удалено: ' + e.message, true)); }
 }
 
@@ -1569,6 +1605,22 @@ function chatMentionUser(uid) {
   CHAT.drafts[CHAT.cid] = cur + (cur && !/\s$/.test(cur) ? ' ' : '') + '@' + userName(uid) + ' ';
   CHAT.conv = true; CHAT.mn = null; renderChat();
   const ta = $('#chText'); if (ta) { ta.value = CHAT.drafts[CHAT.cid]; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+}
+
+/* --- push-уведомления на телефон --- */
+function pushBlock() {
+  const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+  const tok = lsGet(PUSH_LS, null);
+  const p = t => `<p style="font-size:13px;color:var(--muted);margin:6px 0 0">${t}</p>`;
+  let h = '<div class="pf-sec" style="margin-top:14px">Push-уведомления на этом телефоне</div>';
+  if (ios && !standalone) h += p('На iPhone уведомления работают только в приложении с экрана «Домой». Нажмите в Safari «Поделиться» → «На экран Домой», откройте иконку приложения и включите уведомления здесь.');
+  else if (!supported) h += p('Этот браузер не поддерживает push-уведомления.');
+  else if (Notification.permission === 'denied') h += p('Уведомления запрещены. Разрешите их в настройках телефона (Настройки → Уведомления → это приложение) и вернитесь сюда.');
+  else if (tok && Notification.permission === 'granted') h += `<p style="font-size:13px;color:var(--ok);margin:6px 0 8px">Включены на этом устройстве. Приходят, когда вас упомянули через @.</p><button class="btn" type="button" data-ch="pushoff">Отключить на этом устройстве</button>`;
+  else h += `<button class="btn primary" type="button" data-ch="pushon" style="margin-top:6px">Включить уведомления на телефоне</button>${p('Придёт запрос на разрешение: нажмите «Разрешить». Уведомления приходят, когда вас упомянули через @.')}`;
+  return h;
 }
 
 /* --- профиль --- */
@@ -1607,7 +1659,8 @@ function drawProfile() {
       <label class="pf-chk"><input type="checkbox" id="pf-maxon" ${d.maxOn ? 'checked' : ''}>MAX</label>
       ${d.maxOn ? `<div class="fld"><label for="pf-max">MAX ID</label><input id="pf-max" inputmode="numeric" maxlength="20" value="${esc(d.max)}" placeholder="например 123456789">
         <p style="font-size:13px;color:var(--muted);margin:6px 0 0"><b>Как подключить:</b><br>1. Найдите в MAX бота <b>id420591350788_bot</b> (через поиск) и нажмите «Начать» или напишите ему <b>/start</b>.<br>2. В течение минуты бот ответит вашим числовым ID.<br>3. Вставьте это число в поле выше и нажмите «Сохранить».</p></div>` : ''}
-      <button class="btn" type="button" data-ch="logout">Выйти из аккаунта</button>
+      ${pushBlock()}
+      <button class="btn" type="button" data-ch="logout" style="margin-top:14px">Выйти из аккаунта</button>
     </div>
     <div class="sh-foot"><button class="btn" data-act="close">Отмена</button><button class="btn primary" data-ch="profsave">Сохранить</button></div>`;
   $('#pf-name').addEventListener('input', e => { profDraft.name = e.target.value; });
