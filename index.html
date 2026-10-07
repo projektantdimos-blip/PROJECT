@@ -322,6 +322,14 @@ img.ava{object-fit:cover;background:var(--card2)}
 .ch-item.unread .t2{color:var(--ink);font-weight:600}
 .ch-item .unr{width:14px;height:14px}
 .ch-msg .who .pos{font-weight:400;font-size:12px;color:var(--muted);background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:0 7px;margin-left:8px}
+.mem-row{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}
+.mem-row .mem{border-bottom:0;flex:1;min-width:0}
+.ch-ico{font-weight:700}
+.ava-btn{border:0;background:none;padding:0;cursor:pointer;border-radius:50%;flex:none;display:block;height:44px}
+.ch-msg .ava-btn .ava{display:grid}
+.ch-item .ch-av{width:46px;height:46px;font-size:19px}
+.ch-sec{padding:10px 14px 4px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;background:var(--card2)}
+.ch-hint{padding:8px 14px 12px;font-size:13px;color:var(--muted)}
 .mem{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:10px 4px}
 .mem:hover{background:var(--blue-l)}
 .mem .ava{width:44px;height:44px;font-size:19px}
@@ -1168,6 +1176,7 @@ document.addEventListener('change', e => {
   if (e.target.id === 'fOwner') { S.f.owner = e.target.value; renderOverview(); }
   if (e.target.id === 'fSort') { S.f.sort = e.target.value; renderOverview(); }
   if (e.target.id === 'chPick' && e.target.value) chatOpen('p' + e.target.value);
+  if (e.target.id === 'chPickUser' && e.target.value) chatOpen(dmCid(e.target.value));
   if (e.target.id === 'pf-file' && e.target.files[0]) profilePhoto(e.target.files[0]);
   if (e.target.matches('#sheet input[type=date]') && editing) { readDraft(); const sc = $('#sheet .sh-body').scrollTop; drawSheet(); $('#sheet .sh-body').scrollTop = sc; }
 });
@@ -1193,7 +1202,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && S.
 // channels/{id}/messages/{id} — сообщения (uid, text, at). Правила доступа — в firebase/firestore.rules.
 const FB_V = '10.14.1';
 const CHAT = {on: !!FIREBASE_CONFIG, be: null, user: null, authKnown: false, usersLoaded: false, users: {}, channels: {}, cid: 'general',
-  msgs: [], msgsFor: null, unsubs: [], unsubMsgs: null, conv: false, err: '', read: null, drafts: {}, loginErr: '', loginInfo: '', loginEmail: '', busy: false, prompted: false, mn: null, chLoaded: false};
+  msgs: [], msgsFor: null, unsubs: [], unsubMsgs: null, conv: false, err: '', read: null, drafts: {}, loginErr: '', loginInfo: '', loginEmail: '', busy: false, prompted: false, mn: null, chLoaded: false, dmErr: false};
 // Куда отправлять письма и Telegram об упоминаниях (веб-приложение Apps Script). Ключ — отдельный NOTIFY_KEY, см. firebase/README.md
 // Публичный ключ Web Push (Firebase → Cloud Messaging → Web Push certificates)
 const VAPID_KEY = 'BGMKdlUvwDmoEhVZHEg6C9rvCfwXhNi05dSQEhODGOQlobJ5PeU47IyhmUCa4q3LjxZ7hN9X8Vi7SF7mKwX_-kE';
@@ -1208,6 +1217,7 @@ async function fbCreate(cfg) {
   const [{initializeApp}, A, F] = await Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')]);
   const app = initializeApp(cfg), auth = A.getAuth(app), db = F.getFirestore(app);
   const est = d => d.data({serverTimestamps: 'estimate'});
+  const cpath = cid => cid.startsWith('d_') ? ['dms', cid.slice(2)] : ['channels', cid];
   const ms = t => t ? t.toMillis() : 0;
   return {
     onAuth: cb => A.onAuthStateChanged(auth, u => cb(u ? {uid: u.uid, email: u.email} : null)),
@@ -1216,19 +1226,25 @@ async function fbCreate(cfg) {
     signOut: () => A.signOut(auth),
     saveProfile: (uid, p) => F.setDoc(F.doc(db, 'users', uid), {...p, updatedAt: F.serverTimestamp()}, {merge: true}),
     watchUsers: (cb, err) => F.onSnapshot(F.collection(db, 'users'), s => { const o = {}; s.forEach(d => o[d.id] = d.data()); cb(o); }, err),
-    watchChannels: (cb, err) => F.onSnapshot(F.collection(db, 'channels'), s => {
-      const o = {}; s.forEach(d => { const v = est(d); o[d.id] = {lastAt: ms(v.lastAt), lastBy: v.lastBy || '', lastText: v.lastText || '', lastMentions: v.lastMentions || []}; }); cb(o);
-    }, err),
-    watchMessages: (cid, cb, err) => F.onSnapshot(F.query(F.collection(db, 'channels', cid, 'messages'), F.orderBy('at', 'desc'), F.limit(150)), s => {
+    // «Общий» и чаты проектов — коллекция channels; личные переписки (cid вида d_<uid1>_<uid2>) — коллекция dms
+    watchChannels: (cb, err, uid, dmErr) => {
+      let pub = {}, dms = {};
+      const meta = d => { const v = est(d); return {lastAt: ms(v.lastAt), lastBy: v.lastBy || '', lastText: v.lastText || '', lastMentions: v.lastMentions || []}; };
+      const u1 = F.onSnapshot(F.collection(db, 'channels'), s => { pub = {}; s.forEach(d => { pub[d.id] = meta(d); }); cb({...pub, ...dms}); }, err);
+      const u2 = F.onSnapshot(F.query(F.collection(db, 'dms'), F.where('members', 'array-contains', uid)), s => { dms = {}; s.forEach(d => { dms['d_' + d.id] = meta(d); }); cb({...pub, ...dms}); }, dmErr || err);
+      return () => { u1(); u2(); };
+    },
+    watchMessages: (cid, cb, err) => F.onSnapshot(F.query(F.collection(db, ...cpath(cid), 'messages'), F.orderBy('at', 'desc'), F.limit(150)), s => {
       const a = []; s.forEach(d => { const v = est(d); a.push({id: d.id, uid: v.uid, text: v.text, mentions: v.mentions || [], at: ms(v.at) || Date.now(), pending: d.metadata.hasPendingWrites}); }); cb(a.reverse());
     }, err),
     send: async (cid, uid, text, mentions) => {
-      const b = F.writeBatch(db);
-      b.set(F.doc(F.collection(db, 'channels', cid, 'messages')), {uid, text, mentions, at: F.serverTimestamp()});
-      b.set(F.doc(db, 'channels', cid), {lastAt: F.serverTimestamp(), lastBy: uid, lastText: text.slice(0, 80), lastMentions: mentions}, {merge: true});
+      const b = F.writeBatch(db), meta = {lastAt: F.serverTimestamp(), lastBy: uid, lastText: text.slice(0, 80), lastMentions: mentions};
+      if (cid.startsWith('d_')) meta.members = cid.slice(2).split('_');
+      b.set(F.doc(F.collection(db, ...cpath(cid), 'messages')), {uid, text, mentions, at: F.serverTimestamp()});
+      b.set(F.doc(db, ...cpath(cid)), meta, {merge: true});
       await b.commit();
     },
-    del: (cid, id) => F.deleteDoc(F.doc(db, 'channels', cid, 'messages', id)),
+    del: (cid, id) => F.deleteDoc(F.doc(db, ...cpath(cid), 'messages', id)),
     // push на этом устройстве: регистрируем обработчик и сохраняем токен в профиле
     enablePush: async (uid, vapid) => {
       const M = await import(base + 'firebase-messaging.js');
@@ -1256,7 +1272,7 @@ async function chatInit() {
 function chatStop() {
   CHAT.unsubs.forEach(f => f()); CHAT.unsubs = [];
   if (CHAT.unsubMsgs) CHAT.unsubMsgs(); CHAT.unsubMsgs = null; CHAT.msgsFor = null;
-  CHAT.users = {}; CHAT.channels = {}; CHAT.msgs = []; CHAT.usersLoaded = false; CHAT.read = null; CHAT.prompted = false; CHAT.chLoaded = false; CHAT.mn = null;
+  CHAT.users = {}; CHAT.channels = {}; CHAT.msgs = []; CHAT.usersLoaded = false; CHAT.read = null; CHAT.prompted = false; CHAT.chLoaded = false; CHAT.mn = null; CHAT.dmErr = false;
 }
 function chatAuth(u) {
   chatStop();
@@ -1265,7 +1281,7 @@ function chatAuth(u) {
     const bad = e => { CHAT.err = e.code || String(e); renderChatAll(); };
     CHAT.unsubs.push(
       CHAT.be.watchUsers(us => { CHAT.users = us; CHAT.usersLoaded = true; renderChatAll(); }, bad),
-      CHAT.be.watchChannels(cs => { const prev = CHAT.channels; CHAT.channels = cs; chatReadInit(); if (CHAT.chLoaded) chatNotifyDiff(prev, cs); CHAT.chLoaded = true; renderChatAll(); }, bad));
+      CHAT.be.watchChannels(cs => { const prev = CHAT.channels; CHAT.channels = cs; chatReadInit(); if (CHAT.chLoaded) chatNotifyDiff(prev, cs); CHAT.chLoaded = true; renderChatAll(); }, bad, u.uid, () => { CHAT.dmErr = true; renderChatAll(); }));
   }
   renderChatAll();
 }
@@ -1330,7 +1346,7 @@ function chatNotifyDiff(prev, next) {
     if (mode === 'mentions' && !mention) continue;
     const watching = S.view === 'chat' && cid === CHAT.cid && !document.hidden && (isDesk() || CHAT.conv);
     if (watching) continue;
-    const title = (mention ? 'Вас упомянули · ' : '') + chTitle(cid).t;
+    const title = isDm(cid) ? 'Личное сообщение · ' + chTitle(cid).t : (mention ? 'Вас упомянули · ' : '') + chTitle(cid).t;
     const body = userName(c.lastBy) + ': ' + c.lastText;
     if (!document.hidden) toast(title + ' — ' + body);
     if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
@@ -1381,7 +1397,7 @@ function chatRemoteNotify(uids, text, cid) {
   const push = [...new Set(us.flatMap(u => u.pushTokens || []))].slice(0, 20);
   if (!to.length && !tg.length && !mx.length && !push.length) return;
   fetch(url, {method: 'POST', redirect: 'follow', headers: {'Content-Type': 'text/plain;charset=utf-8'},
-    body: JSON.stringify({action: 'notify', key, to, tg, mx, push, from: userName(CHAT.user.uid), channel: chTitle(cid).t, text, url: chatLink(cid)})})
+    body: JSON.stringify({action: 'notify', key, to, tg, mx, push, kind: isDm(cid) ? 'dm' : 'mention', from: userName(CHAT.user.uid), channel: isDm(cid) ? userName(CHAT.user.uid) : chTitle(cid).t, text, url: chatLink(cid)})})
     .then(r => r.json()).then(d => { if (!d.ok) toast('Оповещение не отправлено: ' + d.error, true); else if (!d.sent) toast('Оповещение не отправлено: адреса не подошли (проверьте NOTIFY_ALLOWED)', true); }).catch(() => {});
 }
 
@@ -1401,7 +1417,12 @@ function userAva(uid, cls) {
   if (a && String(a).startsWith('data:image/')) return `<img class="ava ${cls || ''}" src="${esc(a)}" alt="">`;
   return `<span class="ava ${cls || ''}" style="background:${avaColor(n)}">${esc(initials(n))}</span>`;
 }
+// личные сообщения: id чата = d_<uid1>_<uid2> (uid по алфавиту, одинаковый у обоих)
+const isDm = cid => cid.startsWith('d_');
+const dmCid = other => 'd_' + [CHAT.user.uid, other].sort().join('_');
+const dmOther = cid => cid.slice(2).split('_').find(u => u !== CHAT.user.uid) || CHAT.user.uid;
 function chTitle(cid) {
+  if (isDm(cid)) { const o = dmOther(cid); return {t: userName(o), s: CHAT.users[o]?.position || 'Личные сообщения', ic: initials(userName(o)), dm: o}; }
   if (cid === 'general') return {t: 'Общий чат', s: 'Весь проектный отдел', ic: '#', gen: true};
   const id = +cid.slice(1), r = S.rows.find(x => x.id === id);
   if (!r) return {t: 'Проект (строка ' + id + ')', s: '', ic: 'П'};
@@ -1463,6 +1484,7 @@ function renderChat() {
     if (mode === 'profile' && !c.prompted && !$('#sheet').classList.contains('on')) { c.prompted = true; openProfile(); }
     return;
   }
+  if (isDm(c.cid) && !c.cid.slice(2).split('_').includes(c.user.uid)) c.cid = 'general';   // чужой личный диалог не открываем
   const sig = 'chat|' + c.cid + '|' + c.conv;
   if (el.dataset.sig !== sig) {
     el.dataset.sig = sig;
@@ -1471,7 +1493,8 @@ function renderChat() {
       <div class="ch-list">
         <div class="ch-me" id="chMe"></div>
         <div class="ch-items" id="chItems"></div>
-        <div class="ch-add"><select class="sel" id="chPick"><option value="">+ Чат по проекту…</option>${pick.map(r => `<option value="${r.id}">${esc((r.num ? '№' + r.num : 'без №') + (r.client ? ' · ' + r.client : '') + (r.object ? ' — ' + r.object.slice(0, 30) : ''))}</option>`).join('')}</select></div>
+        <div class="ch-add"><select class="sel" id="chPickUser" style="margin-bottom:8px"><option value="">+ Написать сотруднику…</option>${Object.keys(c.users).filter(u => u !== c.user.uid && c.users[u].name).sort((a, b) => userName(a).localeCompare(userName(b), 'ru')).map(u => `<option value="${esc(u)}">${esc(userName(u) + (c.users[u].position ? ' — ' + c.users[u].position : ''))}</option>`).join('')}</select>
+        <select class="sel" id="chPick"><option value="">+ Чат по проекту…</option>${pick.map(r => `<option value="${r.id}">${esc((r.num ? '№' + r.num : 'без №') + (r.client ? ' · ' + r.client : '') + (r.object ? ' — ' + r.object.slice(0, 30) : ''))}</option>`).join('')}</select></div>
       </div>
       <div class="ch-conv">
         <div class="ch-mn" id="chMn" hidden></div>
@@ -1492,15 +1515,23 @@ function chatFillMe() {
 }
 function chatFillList() {
   const box = $('#chItems'); if (!box) return;
-  const ids = ['general', ...Object.keys(CHAT.channels).filter(k => k !== 'general').sort((a, b) => CHAT.channels[b].lastAt - CHAT.channels[a].lastAt)];
-  if (!ids.includes(CHAT.cid)) ids.push(CHAT.cid);
-  box.innerHTML = ids.map(k => {
-    const t = chTitle(k), c = CHAT.channels[k];
+  const byTime = (a, b) => CHAT.channels[b].lastAt - CHAT.channels[a].lastAt;
+  const keys = Object.keys(CHAT.channels).filter(k => k !== 'general');
+  const dms = keys.filter(isDm).sort(byTime), projects = keys.filter(k => !isDm(k)).sort(byTime);
+  if (isDm(CHAT.cid) && !dms.includes(CHAT.cid)) dms.unshift(CHAT.cid);
+  if (!isDm(CHAT.cid) && CHAT.cid !== 'general' && !projects.includes(CHAT.cid)) projects.unshift(CHAT.cid);
+  const item = k => {
+    const t = chTitle(k), c = CHAT.channels[k], dm = isDm(k);
     const unr = c && c.lastBy !== CHAT.user.uid && c.lastAt > (CHAT.read?.[k] || 0) && !(k === CHAT.cid && (isDesk() || CHAT.conv));
-    const last = c && c.lastText ? (c.lastBy === CHAT.user.uid ? 'Вы: ' : userName(c.lastBy).split(' ')[0] + ': ') + c.lastText : 'Пока нет сообщений';
-    return `<button class="ch-item ${k === CHAT.cid ? 'on' : ''} ${unr ? 'unread' : ''}" data-ch="open" data-cid="${esc(k)}"><span class="ch-ic ${t.gen ? 'gen' : ''}">${esc(t.ic)}</span>
-      <span class="tx"><span class="t1"><span>${esc(t.t)}</span><small>${c ? shortTime(c.lastAt) : ''}</small></span><span class="t2" style="display:block">${esc(last)}</span></span>${unr ? (c.lastMentions.includes(CHAT.user.uid) ? '<i class="unr m" title="Вас упомянули">@</i>' : '<i class="unr"></i>') : ''}</button>`;
-  }).join('');
+    const last = c && c.lastText ? (c.lastBy === CHAT.user.uid ? 'Вы: ' : (dm ? '' : userName(c.lastBy).split(' ')[0] + ': ')) + c.lastText : 'Пока нет сообщений';
+    const icon = dm ? userAva(t.dm, 'ch-av') : `<span class="ch-ic ${t.gen ? 'gen' : ''}">${esc(t.ic)}</span>`;
+    return `<button class="ch-item ${k === CHAT.cid ? 'on' : ''} ${unr ? 'unread' : ''}" data-ch="open" data-cid="${esc(k)}">${icon}
+      <span class="tx"><span class="t1"><span>${esc(t.t)}</span><small>${c ? shortTime(c.lastAt) : ''}</small></span><span class="t2" style="display:block">${esc(last)}</span></span>${unr ? (!dm && c.lastMentions.includes(CHAT.user.uid) ? '<i class="unr m" title="Вас упомянули">@</i>' : '<i class="unr"></i>') : ''}</button>`;
+  };
+  const head = t => `<div class="ch-sec">${t}</div>`;
+  box.innerHTML = item('general')
+    + head('Личные сообщения') + (dms.map(item).join('') || `<div class="ch-hint">${CHAT.dmErr ? 'Личные сообщения пока недоступны: администратору нужно опубликовать правила Firestore (инструкция в firebase/README.md).' : 'Напишите коллеге: кнопка «Участники» или список «Написать сотруднику…» внизу.'}</div>`)
+    + (projects.length ? head('Чаты проектов') + projects.map(item).join('') : '');
 }
 function chatFillHead() {
   const h = $('#chHead'); if (!h) return;
@@ -1518,7 +1549,10 @@ function chatEnsureMsgs() {
     if (CHAT.cid !== cid) return;
     CHAT.msgs = a;
     if (S.view === 'chat' && CHAT.user) { chatFillMsgs(); chatMarkRead(); }
-  }, e => { CHAT.err = e.code || 'error'; renderChatAll(); });
+  }, e => {
+    if (isDm(cid)) { toast('Личные сообщения недоступны: ' + (e.code === 'permission-denied' ? 'нет доступа или не опубликованы правила Firestore' : e.message), true); CHAT.dmErr = true; CHAT.cid = 'general'; CHAT.msgsFor = null; renderChatAll(); return; }
+    CHAT.err = e.code || 'error'; renderChatAll();
+  });
 }
 function chatFillMsgs() {
   const box = $('#chMsgs'); if (!box) return;
@@ -1528,7 +1562,7 @@ function chatFillMsgs() {
     const day = dayLabel(m.at);
     if (!prev || dayLabel(prev.at) !== day) html += `<div class="ch-day">${esc(day)}</div>`;
     const first = !prev || prev.uid !== m.uid || m.at - prev.at > 5 * 60000 || dayLabel(prev.at) !== day;
-    html += `<div class="ch-msg ${first ? 'first' : ''} ${m.pending ? 'pending' : ''} ${m.mentions.includes(CHAT.user.uid) ? 'ment' : ''}">${first ? userAva(m.uid) : '<span class="sp"></span>'}
+    html += `<div class="ch-msg ${first ? 'first' : ''} ${m.pending ? 'pending' : ''} ${!isDm(CHAT.cid) && m.mentions.includes(CHAT.user.uid) ? 'ment' : ''}">${first ? (m.uid !== CHAT.user.uid ? `<button class="ava-btn" data-ch="dm" data-uid="${esc(m.uid)}" title="Написать в личные сообщения">${userAva(m.uid)}</button>` : userAva(m.uid)) : '<span class="sp"></span>'}
       <div class="bd">${first ? `<div class="who">${esc(userName(m.uid))}${CHAT.users[m.uid]?.position ? `<span class="pos">${esc(CHAT.users[m.uid].position)}</span>` : ''}<small>${hm(m.at)}</small></div>` : ''}<div class="tx">${msgHtml(m)}</div></div>
       ${m.uid === CHAT.user.uid && !m.pending ? `<button class="del" data-ch="del" data-id="${esc(m.id)}" title="Удалить сообщение" aria-label="Удалить сообщение">${IC.trash}</button>` : ''}</div>`;
     prev = m;
@@ -1546,7 +1580,7 @@ function chatOpen(cid) {
 async function chatSend() {
   const ta = $('#chText'); if (!ta || !CHAT.be) return;
   const text = ta.value.trim(); if (!text) return;
-  const cid = CHAT.cid, mentions = mentionsOf(text);
+  const cid = CHAT.cid, mentions = isDm(cid) ? [dmOther(cid)] : mentionsOf(text);   // в личных сообщениях адресат — собеседник
   ta.value = ''; ta.style.height = '42px'; CHAT.drafts[cid] = ''; chatMentionClose();
   try { await CHAT.be.send(cid, CHAT.user.uid, text, mentions); if (mentions.length) chatRemoteNotify(mentions, text, cid); }
   catch (e) { toast('Не отправлено: ' + (e.code === 'permission-denied' ? 'нет доступа' : e.message), true); if (CHAT.cid === cid && !ta.value) { ta.value = text; CHAT.drafts[cid] = text; } }
@@ -1589,6 +1623,7 @@ function chatAction(t) {
     (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(() => toast('Ссылка скопирована'), () => prompt('Скопируйте ссылку:', link));
   }
   else if (a === 'mem') chatMentionUser(t.dataset.uid);
+  else if (a === 'dm') { closeSheet(); if (t.dataset.uid && t.dataset.uid !== CHAT.user.uid) chatOpen(dmCid(t.dataset.uid)); }
   else if (a === 'nmode') { lsSet(NOTE_KEY, t.dataset.v); drawProfile(); }
   else if (a === 'nperm') Notification.requestPermission().then(() => drawProfile());
   else if (a === 'photodel') { profDraft.avatar = null; drawProfile(); }
@@ -1629,8 +1664,10 @@ function openMembers() {
   const me = CHAT.user.uid, ids = Object.keys(CHAT.users).sort((a, b) => userName(a).localeCompare(userName(b), 'ru'));
   $('#sheet').innerHTML = `
     <div class="grab"></div>
-    <div class="sh-head"><div style="flex:1"><h2>Участники</h2><div class="sub">${ids.length} в чате · нажмите на человека, чтобы упомянуть его</div></div><button class="x" data-act="close" aria-label="Закрыть">${IC.x}</button></div>
-    <div class="sh-body">${ids.map(u => `<button class="mem" data-ch="mem" data-uid="${esc(u)}">${userAva(u)}<span><b>${esc(userName(u))}${u === me ? ' (вы)' : ''}</b><small>${esc(CHAT.users[u].position || 'Должность не указана')}</small></span></button>`).join('')}</div>`;
+    <div class="sh-head"><div style="flex:1"><h2>Участники</h2><div class="sub">${ids.length} в чате · нажмите на человека, чтобы написать ему лично</div></div><button class="x" data-act="close" aria-label="Закрыть">${IC.x}</button></div>
+    <div class="sh-body">${ids.map(u => u === me
+      ? `<div class="mem-row"><div class="mem">${userAva(u)}<span><b>${esc(userName(u))} (вы)</b><small>${esc(CHAT.users[u].position || 'Должность не указана')}</small></span></div></div>`
+      : `<div class="mem-row"><button class="mem" data-ch="dm" data-uid="${esc(u)}" title="Написать лично">${userAva(u)}<span><b>${esc(userName(u))}</b><small>${esc(CHAT.users[u].position || 'Должность не указана')}</small></span></button><button class="ch-ico" data-ch="mem" data-uid="${esc(u)}" title="Упомянуть в текущем чате" aria-label="Упомянуть">@</button></div>`).join('')}</div>`;
   $('#scrim').classList.add('on'); $('#sheet').classList.add('on');
 }
 function chatMentionUser(uid) {
@@ -1735,7 +1772,7 @@ async function profileSave() {
 const chatLink = cid => location.origin + location.pathname + '?chat=' + cid;
 function chatApplyHash() {
   const m = new URLSearchParams(location.search).get('chat') || (location.hash.match(/^#chat=(.+)$/) || [])[1];
-  if (!m || !/^(general|p\d+)$/.test(m)) return false;
+  if (!m || !/^(general|p\d+|d_[A-Za-z0-9]+_[A-Za-z0-9]+)$/.test(m)) return false;
   CHAT.cid = m; CHAT.conv = true; S.view = 'chat'; lsSet(LS.view, S.view);
   history.replaceState(null, '', location.pathname);
   return true;
