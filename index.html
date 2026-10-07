@@ -397,6 +397,8 @@ img.ava{object-fit:cover;background:var(--card2)}
 .ch-conv.drop::after{content:"Отпустите, чтобы отправить файл";position:absolute;inset:0;z-index:6;display:grid;place-items:center;background:rgba(31,92,153,.14);border:3px dashed var(--blue);border-radius:var(--radius);color:var(--blue);font-weight:700;font-size:18px;pointer-events:none}
 .ch-up{padding:6px 14px;font-size:13px;color:var(--blue);background:var(--blue-l);border-top:1px solid var(--line)}
 .ch-up[hidden]{display:none}
+.ch-up .up-bar{display:block;height:4px;margin-top:5px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--blue),transparent);background-size:40% 100%;background-repeat:no-repeat;animation:upbar 1.1s linear infinite}
+@keyframes upbar{from{background-position:-40% 0}to{background-position:140% 0}}
 .ch-up.err{color:var(--bad);background:var(--bad-l);cursor:pointer;font-weight:600}
 .ch-compose .ch-ico{align-self:flex-end;height:42px;width:42px;border-radius:12px;background:var(--card2);color:var(--muted);border:1px solid var(--line)}
 .att{margin-top:6px;max-width:420px}
@@ -700,7 +702,7 @@ function renderSync() {
   el.className = 'sync ' + (S.mode === 'demo' ? 'demo' : S.mode === 'offline' ? 'off' : '');
   const time = S.updated ? S.updated.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'}) : '';
   $('span', el).textContent = S.mode === 'demo' ? 'Демо-данные' : S.mode === 'offline' ? 'Офлайн' + (time ? ' · ' + time : '') : 'Таблица · ' + time;
-  $('#sideFoot').textContent = S.mode === 'demo' ? 'Подключите таблицу в настройках' : 'Лист «Реестр» · ' + S.rows.length + ' строк';
+  $('#sideFoot').textContent = (S.mode === 'demo' ? 'Подключите таблицу в настройках' : 'Лист «Реестр» · ' + S.rows.length + ' строк') + ' · версия ' + APP_VERSION;
 }
 function setBusy(b) { S.busy = b; $('#btnRefresh').classList.toggle('spin', b); }
 function renderAll() {
@@ -1247,6 +1249,7 @@ const RX = {up: '👍', ok: '✅', eyes: '👀', warn: '❗', heart: '❤️'};
 // Публичный ключ Web Push (Firebase → Cloud Messaging → Web Push certificates)
 const VAPID_KEY = 'BGMKdlUvwDmoEhVZHEg6C9rvCfwXhNi05dSQEhODGOQlobJ5PeU47IyhmUCa4q3LjxZ7hN9X8Vi7SF7mKwX_-kE';
 const PUSH_LS = 'mpb-push-token';
+const APP_VERSION = '07.10.2026 · 3';   // показывается в профиле и внизу меню: так видно, обновилась ли страница
 const NOTIFY = {url: 'https://script.google.com/macros/s/AKfycbzhpY5ygXFmaQhGCUEUMwF4aF3Ypi8ZrCopk-xNZTSanEV-D3422fIOfoWdAiIkEuQR/exec', key: 'notify-2026-proekty'};
 const NOTE_KEY ='mpb-chat-notify'; // all | mentions | off — на каждом устройстве свой выбор
 const noteMode = () => lsGet(NOTE_KEY, 'mentions');
@@ -1672,7 +1675,7 @@ async function chatUploadOne(file, url) {
   return d.file;
 }
 let upErrT;
-function chatUpStatus() { const el = $('#chUp'); if (!el || el.classList.contains('err')) return; el.hidden = !CHAT.uploads; el.textContent = CHAT.uploads ? 'Загружаю файлы: осталось ' + CHAT.uploads + '…' : ''; }
+function chatUpStatus() { const el = $('#chUp'); if (!el || el.classList.contains('err')) return; el.hidden = !CHAT.uploads; el.innerHTML = CHAT.uploads ? `<span>Загружаю файлы: осталось ${CHAT.uploads}…</span><i class="up-bar"></i>` : ''; }
 // ошибка загрузки остаётся на экране, пока её не закроют или не пройдёт 15 секунд
 function chatUpError(msg) {
   const el = $('#chUp'); if (!el) { toast(msg, true); return; }
@@ -1916,6 +1919,7 @@ function drawProfile() {
         <p style="font-size:13px;color:var(--muted);margin:6px 0 0"><b>Как подключить:</b><br>1. Найдите в MAX бота <b>id420591350788_bot</b> (через поиск) и нажмите «Начать» или напишите ему <b>/start</b>.<br>2. В течение минуты бот ответит вашим числовым ID.<br>3. Вставьте это число в поле выше и нажмите «Сохранить».</p></div>` : ''}
       ${pushBlock()}
       <button class="btn" type="button" data-ch="logout" style="margin-top:14px">Выйти из аккаунта</button>
+      <p style="font-size:12px;color:var(--muted);margin:14px 0 0">Версия приложения: ${APP_VERSION}</p>
     </div>
     <div class="sh-foot"><button class="btn" data-act="close">Отмена</button><button class="btn primary" data-ch="profsave">Сохранить</button></div>`;
   $('#pf-name').addEventListener('input', e => { profDraft.name = e.target.value; });
