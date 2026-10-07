@@ -397,6 +397,7 @@ img.ava{object-fit:cover;background:var(--card2)}
 .ch-conv.drop::after{content:"Отпустите, чтобы отправить файл";position:absolute;inset:0;z-index:6;display:grid;place-items:center;background:rgba(31,92,153,.14);border:3px dashed var(--blue);border-radius:var(--radius);color:var(--blue);font-weight:700;font-size:18px;pointer-events:none}
 .ch-up{padding:6px 14px;font-size:13px;color:var(--blue);background:var(--blue-l);border-top:1px solid var(--line)}
 .ch-up[hidden]{display:none}
+.ch-up.err{color:var(--bad);background:var(--bad-l);cursor:pointer;font-weight:600}
 .ch-compose .ch-ico{align-self:flex-end;height:42px;width:42px;border-radius:12px;background:var(--card2);color:var(--muted);border:1px solid var(--line)}
 .att{margin-top:6px;max-width:420px}
 .att-img img{display:block;max-width:100%;max-height:300px;border-radius:10px;border:1px solid var(--line);background:var(--card2)}
@@ -406,10 +407,15 @@ img.ava{object-fit:cover;background:var(--card2)}
 .att-nm{flex:1;min-width:120px}.att-nm b{display:block;font-size:14px;overflow-wrap:anywhere}.att-nm small{color:var(--muted);font-size:12px}
 .att-file .btn{height:32px;font-size:13px;text-decoration:none;padding:0 10px}
 .rxs{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
-.rx{height:26px;padding:0 8px;border-radius:13px;border:1px solid var(--line);background:var(--card2);font-size:13px;display:inline-flex;align-items:center;gap:4px}
+.rx{height:32px;padding:0 11px;border-radius:16px;border:1px solid var(--line);background:var(--card2);font-size:15px;display:inline-flex;align-items:center;gap:5px}
+.rx-add{height:32px;min-width:40px;padding:0 10px;border-radius:16px;border:1px dashed var(--muted);background:none;color:var(--muted);font-size:20px;line-height:1;opacity:.55;display:inline-flex;align-items:center;justify-content:center}
+.rx-add:hover,.rx-add:focus{opacity:1;border-color:var(--blue);color:var(--blue);background:var(--blue-l)}
+.ch-msg:hover .rx-add{opacity:1}
+@media (hover:none){.rx-add{opacity:1}}
 .rx.on{background:var(--blue-l);border-color:var(--blue);color:var(--blue);font-weight:700}
 .rx-pick{display:inline-flex;gap:4px;margin-top:6px;padding:4px 6px;border:1px solid var(--line);border-radius:18px;background:var(--card);box-shadow:var(--shadow)}
-.rx-pick button{width:34px;height:34px;border:0;border-radius:50%;background:none;font-size:20px}
+.rx-pick{padding:5px 8px;gap:6px}
+.rx-pick button{width:44px;height:44px;border:0;border-radius:50%;background:none;font-size:26px;line-height:1}
 .rx-pick button:hover{background:var(--blue-l)}
 .react{position:absolute;right:32px;top:0;width:28px;height:28px;border:0;border-radius:8px;background:var(--card);color:var(--muted);font-size:16px;display:grid;place-items:center;opacity:0}
 .ch-msg:hover .react,.ch-msg .react:focus{opacity:1}
@@ -1210,6 +1216,7 @@ const hasFiles = e => e.dataTransfer && [...(e.dataTransfer.types || [])].includ
 document.addEventListener('dragover', e => { const c = e.target.closest?.('.ch-conv'); if (c && hasFiles(e)) { e.preventDefault(); c.classList.add('drop'); } });
 document.addEventListener('dragleave', e => { if (!e.relatedTarget || !e.relatedTarget.closest?.('.ch-conv')) document.querySelectorAll('.ch-conv.drop').forEach(c => c.classList.remove('drop')); });
 document.addEventListener('drop', e => { const c = e.target.closest?.('.ch-conv'); if (c && hasFiles(e)) { e.preventDefault(); c.classList.remove('drop'); chatUploadFiles(e.dataTransfer.files); } });
+document.addEventListener('click', e => { const u = e.target.closest?.('#chUp.err'); if (u) { u.classList.remove('err'); chatUpStatus(); } });
 document.addEventListener('paste', e => { if (e.target.id === 'chText' && e.clipboardData?.files?.length) { e.preventDefault(); chatUploadFiles(e.clipboardData.files); } });
 
 // перетаскивание в канбане
@@ -1619,13 +1626,11 @@ function chatFillMsgs() {
     if (!prev || dayLabel(prev.at) !== day) html += `<div class="ch-day">${esc(day)}</div>`;
     const first = !prev || prev.uid !== m.uid || m.at - prev.at > 5 * 60000 || dayLabel(prev.at) !== day;
     html += `<div class="ch-msg ${first ? 'first' : ''} ${m.pending ? 'pending' : ''} ${!isDm(CHAT.cid) && m.mentions.includes(CHAT.user.uid) ? 'ment' : ''}">${first ? (m.uid !== CHAT.user.uid ? `<button class="ava-btn" data-ch="dm" data-uid="${esc(m.uid)}" title="Написать в личные сообщения">${userAva(m.uid)}</button>` : userAva(m.uid)) : '<span class="sp"></span>'}
-      <div class="bd">${first ? `<div class="who">${esc(userName(m.uid))}${CHAT.users[m.uid]?.position ? `<span class="pos">${esc(CHAT.users[m.uid].position)}</span>` : ''}<small>${hm(m.at)}</small></div>` : ''}${m.text ? `<div class="tx">${msgHtml(m)}</div>` : ''}${filesHtml(m.files)}${rxHtml(m, rxBy[m.id])}${m.id === lastMineId ? readLine(m) : ''}</div>
-      ${m.pending ? '' : `<button class="react" data-ch="rxpick" data-mid="${esc(m.id)}" title="Поставить реакцию" aria-label="Реакция">☺</button>`}
-      ${m.uid === CHAT.user.uid && !m.pending ? `<button class="del" data-ch="del" data-id="${esc(m.id)}" title="Удалить сообщение" aria-label="Удалить сообщение">${IC.trash}</button>` : ''}</div>`;
+      <div class="bd">${first ? `<div class="who">${esc(userName(m.uid))}${CHAT.users[m.uid]?.position ? `<span class="pos">${esc(CHAT.users[m.uid].position)}</span>` : ''}<small>${hm(m.at)}</small></div>` : ''}${m.text ? `<div class="tx">${msgHtml(m)}</div>` : ''}${filesHtml(m.files)}${rxHtml(m, rxBy[m.id])}${m.id === lastMineId ? readLine(m) : ''}</div>      ${m.uid === CHAT.user.uid && !m.pending ? `<button class="del" data-ch="del" data-id="${esc(m.id)}" title="Удалить сообщение" aria-label="Удалить сообщение">${IC.trash}</button>` : ''}</div>`;
     prev = m;
   });
   box.innerHTML = html || `<div class="ch-empty">Сообщений пока нет.<br>Напишите первым.</div>`;
-  const mUp = $('#chUp'); if (mUp) mUp.hidden = !CHAT.uploads;
+  const mUp = $('#chUp'); if (mUp && !mUp.classList.contains('err')) mUp.hidden = !CHAT.uploads;
   if (S.view === 'chat' && !document.hidden && (isDesk() || CHAT.conv)) chatPushRead();   // диалог на экране: отмечаем «прочитано»
   if (near) { box.scrollTop = box.scrollHeight; box.dataset.fresh = ''; }
 }
@@ -1661,11 +1666,19 @@ async function chatUploadOne(file, url) {
   const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = () => rej(new Error('не удалось прочитать файл')); r.readAsDataURL(blob); });
   const resp = await fetch(url, {method: 'POST', redirect: 'follow', headers: {'Content-Type': 'text/plain;charset=utf-8'},
     body: JSON.stringify({action: 'upload', idToken: await CHAT.be.idToken(), name: upName(file, blob), mime: blob.type || file.type || 'application/octet-stream', data})});
-  const d = await resp.json();
-  if (!d.ok) throw new Error(d.error || 'ошибка сервера');
+  const raw = await resp.text();
+  let d; try { d = JSON.parse(raw); } catch { throw new Error('скрипт вернул не тот ответ. Скорее всего, в Apps Script не выполнена функция authorize или не сделана новая версия развёртывания'); }
+  if (!d.ok) throw new Error(/Неверный ключ|Неизвестное действие/.test(d.error || '') ? 'в Apps Script старая версия кода: вставьте новый Code.gs и сделайте новую версию развёртывания (' + d.error + ')' : (d.error || 'ошибка сервера'));
   return d.file;
 }
-function chatUpStatus() { const el = $('#chUp'); if (!el) return; el.hidden = !CHAT.uploads; el.textContent = CHAT.uploads ? 'Загружаю файлы: осталось ' + CHAT.uploads + '…' : ''; }
+let upErrT;
+function chatUpStatus() { const el = $('#chUp'); if (!el || el.classList.contains('err')) return; el.hidden = !CHAT.uploads; el.textContent = CHAT.uploads ? 'Загружаю файлы: осталось ' + CHAT.uploads + '…' : ''; }
+// ошибка загрузки остаётся на экране, пока её не закроют или не пройдёт 15 секунд
+function chatUpError(msg) {
+  const el = $('#chUp'); if (!el) { toast(msg, true); return; }
+  el.classList.add('err'); el.hidden = false; el.textContent = '⚠ ' + msg + '  (нажмите, чтобы закрыть)';
+  clearTimeout(upErrT); upErrT = setTimeout(() => { el.classList.remove('err'); chatUpStatus(); }, 15000);
+}
 // файл выбран, перетащен или вставлен: загружаем и сразу отправляем сообщением (текст из поля становится подписью)
 async function chatUploadFiles(files) {
   files = [...files].slice(0, 10);
@@ -1678,12 +1691,12 @@ async function chatUploadFiles(files) {
   const done = [];
   for (const f of files) {
     try { done.push(await chatUploadOne(f, url)); }
-    catch (e) { toast('Не загружено «' + f.name + '»: ' + e.message, true); }
+    catch (e) { chatUpError('Не загружено «' + f.name + '»: ' + e.message); }
     CHAT.uploads--; chatUpStatus();
   }
   if (!done.length) { if (ta && caption && CHAT.cid === cid) ta.value = caption; return; }
   try { await chatPost(cid, caption, done); }
-  catch (e) { toast('Не отправлено: ' + (e.code === 'permission-denied' ? 'нет доступа' : e.message), true); }
+  catch (e) { chatUpError('Файлы загружены, но сообщение не отправлено: ' + (e.code === 'permission-denied' ? 'нет доступа (опубликуйте новые правила Firestore)' : e.message)); }
 }
 async function chatPost(cid, text, files) {
   const mentions = isDm(cid) ? [dmOther(cid)] : mentionsOf(text);   // в личных сообщениях адресат — собеседник
@@ -1694,11 +1707,12 @@ async function chatPost(cid, text, files) {
 
 /* --- реакции и статус прочтения --- */
 function rxHtml(m, by) {
-  let h = '';
-  if (by) h += '<div class="rxs">' + Object.keys(RX).filter(k => by[k]).map(k => {
+  by = by || {};
+  // реакции и кнопка «добавить реакцию» стоят сразу под текстом
+  let h = '<div class="rxs">' + Object.keys(RX).filter(k => by[k]).map(k => {
     const us = by[k], mine = us.includes(CHAT.user.uid);
     return `<button class="rx ${mine ? 'on' : ''}" data-ch="rx" data-mid="${esc(m.id)}" data-k="${k}" title="${esc(us.map(userName).join(', '))}">${RX[k]} ${us.length}</button>`;
-  }).join('') + '</div>';
+  }).join('') + (m.pending ? '' : `<button class="rx-add" data-ch="rxpick" data-mid="${esc(m.id)}" title="Поставить реакцию" aria-label="Поставить реакцию">☺</button>`) + '</div>';
   if (CHAT.rxOpen === m.id) h += '<div class="rx-pick">' + Object.keys(RX).map(k => `<button data-ch="rx" data-mid="${esc(m.id)}" data-k="${k}">${RX[k]}</button>`).join('') + '</div>';
   return h;
 }
