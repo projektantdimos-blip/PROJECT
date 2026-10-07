@@ -394,6 +394,28 @@ img.ava{object-fit:cover;background:var(--card2)}
 .ch-auth .btn{width:100%;justify-content:center;height:44px;font-weight:600;margin-top:4px}
 .ch-auth .link{border:0;background:none;color:var(--blue);padding:8px 0;text-decoration:underline;text-underline-offset:2px;width:100%}
 .ch-conv{position:relative}
+.ch-conv.drop::after{content:"Отпустите, чтобы отправить файл";position:absolute;inset:0;z-index:6;display:grid;place-items:center;background:rgba(31,92,153,.14);border:3px dashed var(--blue);border-radius:var(--radius);color:var(--blue);font-weight:700;font-size:18px;pointer-events:none}
+.ch-up{padding:6px 14px;font-size:13px;color:var(--blue);background:var(--blue-l);border-top:1px solid var(--line)}
+.ch-up[hidden]{display:none}
+.ch-compose .ch-ico{align-self:flex-end;height:42px;width:42px;border-radius:12px;background:var(--card2);color:var(--muted);border:1px solid var(--line)}
+.att{margin-top:6px;max-width:420px}
+.att-img img{display:block;max-width:100%;max-height:300px;border-radius:10px;border:1px solid var(--line);background:var(--card2)}
+.att-dl{display:inline-block;margin-top:3px;font-size:12px;color:var(--blue)}
+.att-file{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:var(--card2);flex-wrap:wrap}
+.att-ic{color:var(--muted);flex:none;display:grid}
+.att-nm{flex:1;min-width:120px}.att-nm b{display:block;font-size:14px;overflow-wrap:anywhere}.att-nm small{color:var(--muted);font-size:12px}
+.att-file .btn{height:32px;font-size:13px;text-decoration:none;padding:0 10px}
+.rxs{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.rx{height:26px;padding:0 8px;border-radius:13px;border:1px solid var(--line);background:var(--card2);font-size:13px;display:inline-flex;align-items:center;gap:4px}
+.rx.on{background:var(--blue-l);border-color:var(--blue);color:var(--blue);font-weight:700}
+.rx-pick{display:inline-flex;gap:4px;margin-top:6px;padding:4px 6px;border:1px solid var(--line);border-radius:18px;background:var(--card);box-shadow:var(--shadow)}
+.rx-pick button{width:34px;height:34px;border:0;border-radius:50%;background:none;font-size:20px}
+.rx-pick button:hover{background:var(--blue-l)}
+.react{position:absolute;right:32px;top:0;width:28px;height:28px;border:0;border-radius:8px;background:var(--card);color:var(--muted);font-size:16px;display:grid;place-items:center;opacity:0}
+.ch-msg:hover .react,.ch-msg .react:focus{opacity:1}
+@media (hover:none){.react{opacity:.5}}
+.ch-read{margin-top:4px;font-size:12px;color:var(--muted)}
+.ch-read.ok{color:var(--ok)}
 .ch-mn{position:absolute;left:12px;right:12px;bottom:66px;z-index:5;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);max-height:240px;overflow-y:auto}
 .ch-mn[hidden]{display:none}
 .ch-mn button{font-size:16px;display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;text-align:left;padding:8px 12px}
@@ -524,6 +546,7 @@ const IC = {
   ext:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
   l:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>',
   r:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg>',
+  clip:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 11-9 9a5.5 5.5 0 0 1-7.8-7.8l9.2-9.2a3.7 3.7 0 0 1 5.2 5.2l-9.2 9.2a1.8 1.8 0 0 1-2.6-2.6l8.5-8.5"/></svg>',
   folder:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>',
   chatNav:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M8.5 11h7M8.5 14h4"/></svg>',
   send:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>',
@@ -1177,9 +1200,17 @@ document.addEventListener('change', e => {
   if (e.target.id === 'fSort') { S.f.sort = e.target.value; renderOverview(); }
   if (e.target.id === 'chPick' && e.target.value) chatOpen('p' + e.target.value);
   if (e.target.id === 'chPickUser' && e.target.value) chatOpen(dmCid(e.target.value));
+  if (e.target.id === 'chFile') { chatUploadFiles(e.target.files); e.target.value = ''; }
   if (e.target.id === 'pf-file' && e.target.files[0]) profilePhoto(e.target.files[0]);
   if (e.target.matches('#sheet input[type=date]') && editing) { readDraft(); const sc = $('#sheet .sh-body').scrollTop; drawSheet(); $('#sheet .sh-body').scrollTop = sc; }
 });
+
+// файлы в чат: перетащить на окно диалога или вставить из буфера (Ctrl+V)
+const hasFiles = e => e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
+document.addEventListener('dragover', e => { const c = e.target.closest?.('.ch-conv'); if (c && hasFiles(e)) { e.preventDefault(); c.classList.add('drop'); } });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget || !e.relatedTarget.closest?.('.ch-conv')) document.querySelectorAll('.ch-conv.drop').forEach(c => c.classList.remove('drop')); });
+document.addEventListener('drop', e => { const c = e.target.closest?.('.ch-conv'); if (c && hasFiles(e)) { e.preventDefault(); c.classList.remove('drop'); chatUploadFiles(e.dataTransfer.files); } });
+document.addEventListener('paste', e => { if (e.target.id === 'chText' && e.clipboardData?.files?.length) { e.preventDefault(); chatUploadFiles(e.clipboardData.files); } });
 
 // перетаскивание в канбане
 let dragId = null;
@@ -1202,7 +1233,9 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && S.
 // channels/{id}/messages/{id} — сообщения (uid, text, at). Правила доступа — в firebase/firestore.rules.
 const FB_V = '10.14.1';
 const CHAT = {on: !!FIREBASE_CONFIG, be: null, user: null, authKnown: false, usersLoaded: false, users: {}, channels: {}, cid: 'general',
-  msgs: [], msgsFor: null, unsubs: [], unsubMsgs: null, conv: false, err: '', read: null, drafts: {}, loginErr: '', loginInfo: '', loginEmail: '', busy: false, prompted: false, mn: null, chLoaded: false, dmErr: false};
+  msgs: [], msgsFor: null, unsubs: [], unsubMsgs: null, conv: false, err: '', read: null, drafts: {}, loginErr: '', loginInfo: '', loginEmail: '', busy: false, prompted: false, mn: null, chLoaded: false, dmErr: false,
+  reads: {}, readSent: {}, rx: [], rxOpen: null, unsubExtra: [], uploads: 0};
+const RX = {up: '👍', ok: '✅', eyes: '👀', warn: '❗', heart: '❤️'};
 // Куда отправлять письма и Telegram об упоминаниях (веб-приложение Apps Script). Ключ — отдельный NOTIFY_KEY, см. firebase/README.md
 // Публичный ключ Web Push (Firebase → Cloud Messaging → Web Push certificates)
 const VAPID_KEY = 'BGMKdlUvwDmoEhVZHEg6C9rvCfwXhNi05dSQEhODGOQlobJ5PeU47IyhmUCa4q3LjxZ7hN9X8Vi7SF7mKwX_-kE';
@@ -1235,14 +1268,26 @@ async function fbCreate(cfg) {
       return () => { u1(); u2(); };
     },
     watchMessages: (cid, cb, err) => F.onSnapshot(F.query(F.collection(db, ...cpath(cid), 'messages'), F.orderBy('at', 'desc'), F.limit(150)), s => {
-      const a = []; s.forEach(d => { const v = est(d); a.push({id: d.id, uid: v.uid, text: v.text, mentions: v.mentions || [], at: ms(v.at) || Date.now(), pending: d.metadata.hasPendingWrites}); }); cb(a.reverse());
+      const a = []; s.forEach(d => { const v = est(d); a.push({id: d.id, uid: v.uid, text: v.text || '', mentions: v.mentions || [], files: v.files || [], at: ms(v.at) || Date.now(), pending: d.metadata.hasPendingWrites}); }); cb(a.reverse());
     }, err),
-    send: async (cid, uid, text, mentions) => {
-      const b = F.writeBatch(db), meta = {lastAt: F.serverTimestamp(), lastBy: uid, lastText: text.slice(0, 80), lastMentions: mentions};
+    send: async (cid, uid, text, mentions, files, preview) => {
+      const b = F.writeBatch(db), meta = {lastAt: F.serverTimestamp(), lastBy: uid, lastText: (preview || text).slice(0, 80), lastMentions: mentions};
       if (cid.startsWith('d_')) meta.members = cid.slice(2).split('_');
-      b.set(F.doc(F.collection(db, ...cpath(cid), 'messages')), {uid, text, mentions, at: F.serverTimestamp()});
+      const msg = {uid, text, mentions, at: F.serverTimestamp()};
+      if (files && files.length) msg.files = files;
+      b.set(F.doc(F.collection(db, ...cpath(cid), 'messages')), msg);
       b.set(F.doc(db, ...cpath(cid)), meta, {merge: true});
       await b.commit();
+    },
+    idToken: () => auth.currentUser.getIdToken(),
+    // «прочитано»: момент, до которого каждый участник прочёл этот чат
+    watchReads: (cid, cb, err) => F.onSnapshot(F.collection(db, ...cpath(cid), 'reads'), s => { const o = {}; s.forEach(d => { o[d.id] = ms(est(d).at); }); cb(o); }, err),
+    markRead: (cid, uid) => F.setDoc(F.doc(db, ...cpath(cid), 'reads', uid), {at: F.serverTimestamp()}),
+    // реакции: по одной записи на (сообщение, человек, реакция)
+    watchReactions: (cid, cb, err) => F.onSnapshot(F.collection(db, ...cpath(cid), 'reactions'), s => { const a = []; s.forEach(d => { const v = d.data(); a.push({mid: v.mid, uid: v.uid, key: v.key}); }); cb(a); }, err),
+    toggleReaction: (cid, mid, uid, key, on) => {
+      const ref = F.doc(db, ...cpath(cid), 'reactions', mid + '_' + uid + '_' + key);
+      return on ? F.setDoc(ref, {mid, uid, key}) : F.deleteDoc(ref);
     },
     del: (cid, id) => F.deleteDoc(F.doc(db, ...cpath(cid), 'messages', id)),
     // push на этом устройстве: регистрируем обработчик и сохраняем токен в профиле
@@ -1272,6 +1317,7 @@ async function chatInit() {
 function chatStop() {
   CHAT.unsubs.forEach(f => f()); CHAT.unsubs = [];
   if (CHAT.unsubMsgs) CHAT.unsubMsgs(); CHAT.unsubMsgs = null; CHAT.msgsFor = null;
+  CHAT.unsubExtra.forEach(f => f()); CHAT.unsubExtra = []; CHAT.reads = {}; CHAT.rx = []; CHAT.readSent = {};
   CHAT.users = {}; CHAT.channels = {}; CHAT.msgs = []; CHAT.usersLoaded = false; CHAT.read = null; CHAT.prompted = false; CHAT.chLoaded = false; CHAT.mn = null; CHAT.dmErr = false;
 }
 function chatAuth(u) {
@@ -1403,6 +1449,7 @@ function chatRemoteNotify(uids, text, cid) {
 
 function chatMarkRead() {
   if (!CHAT.user || !CHAT.read || S.view !== 'chat' || document.hidden || (!isDesk() && !CHAT.conv)) return;
+  chatPushRead();
   const c = CHAT.channels[CHAT.cid];
   if (c && c.lastAt > (CHAT.read[CHAT.cid] || 0)) { CHAT.read[CHAT.cid] = c.lastAt; lsSet(readKey(), CHAT.read); renderNav(); chatFillList(); }
 }
@@ -1500,7 +1547,8 @@ function renderChat() {
         <div class="ch-mn" id="chMn" hidden></div>
         <div class="ch-head" id="chHead"></div>
         <div class="ch-msgs" id="chMsgs" data-fresh="1"></div>
-        <div class="ch-compose"><textarea id="chText" rows="1" placeholder="Сообщение…" maxlength="4000"></textarea><button data-ch="send" aria-label="Отправить">${IC.send}</button></div>
+        <div class="ch-up" id="chUp" hidden></div>
+        <div class="ch-compose"><button class="ch-ico" data-ch="attach" title="Прикрепить файл или фото (можно перетащить или вставить Ctrl+V)" aria-label="Прикрепить">${IC.clip}</button><input type="file" id="chFile" multiple hidden><textarea id="chText" rows="1" placeholder="Сообщение… (файлы можно перетащить сюда)" maxlength="4000"></textarea><button data-ch="send" aria-label="Отправить">${IC.send}</button></div>
       </div></div>`;
     $('#chText').value = c.drafts[c.cid] || '';
   }
@@ -1544,7 +1592,12 @@ function chatFillHead() {
 function chatEnsureMsgs() {
   if (CHAT.msgsFor === CHAT.cid || !CHAT.be) return;
   if (CHAT.unsubMsgs) CHAT.unsubMsgs();
+  CHAT.unsubExtra.forEach(f => f()); CHAT.unsubExtra = []; CHAT.reads = {}; CHAT.rx = [];
   const cid = CHAT.cid; CHAT.msgsFor = cid; CHAT.msgs = [];
+  // «прочитано» и реакции: сбой (например, не опубликованы правила) не должен ломать чат
+  CHAT.unsubExtra.push(
+    CHAT.be.watchReads(cid, o => { if (CHAT.cid === cid) { CHAT.reads = o; if (S.view === 'chat' && CHAT.user) chatFillMsgs(); } }, () => {}),
+    CHAT.be.watchReactions(cid, a => { if (CHAT.cid === cid) { CHAT.rx = a; if (S.view === 'chat' && CHAT.user) chatFillMsgs(); } }, () => {}));
   CHAT.unsubMsgs = CHAT.be.watchMessages(cid, a => {
     if (CHAT.cid !== cid) return;
     CHAT.msgs = a;
@@ -1558,17 +1611,117 @@ function chatFillMsgs() {
   const box = $('#chMsgs'); if (!box) return;
   const near = box.dataset.fresh === '1' || box.scrollHeight - box.scrollTop - box.clientHeight < 100;
   let html = '', prev = null;
+  const rxBy = {};   // сообщение -> реакция -> [uid]
+  CHAT.rx.forEach(r => { ((rxBy[r.mid] = rxBy[r.mid] || {})[r.key] = (rxBy[r.mid][r.key] || [])).push(r.uid); });
+  const lastMine = [...CHAT.msgs].reverse().find(m => m.uid === CHAT.user.uid && !m.pending), lastMineId = lastMine ? lastMine.id : null;
   CHAT.msgs.forEach(m => {
     const day = dayLabel(m.at);
     if (!prev || dayLabel(prev.at) !== day) html += `<div class="ch-day">${esc(day)}</div>`;
     const first = !prev || prev.uid !== m.uid || m.at - prev.at > 5 * 60000 || dayLabel(prev.at) !== day;
     html += `<div class="ch-msg ${first ? 'first' : ''} ${m.pending ? 'pending' : ''} ${!isDm(CHAT.cid) && m.mentions.includes(CHAT.user.uid) ? 'ment' : ''}">${first ? (m.uid !== CHAT.user.uid ? `<button class="ava-btn" data-ch="dm" data-uid="${esc(m.uid)}" title="Написать в личные сообщения">${userAva(m.uid)}</button>` : userAva(m.uid)) : '<span class="sp"></span>'}
-      <div class="bd">${first ? `<div class="who">${esc(userName(m.uid))}${CHAT.users[m.uid]?.position ? `<span class="pos">${esc(CHAT.users[m.uid].position)}</span>` : ''}<small>${hm(m.at)}</small></div>` : ''}<div class="tx">${msgHtml(m)}</div></div>
+      <div class="bd">${first ? `<div class="who">${esc(userName(m.uid))}${CHAT.users[m.uid]?.position ? `<span class="pos">${esc(CHAT.users[m.uid].position)}</span>` : ''}<small>${hm(m.at)}</small></div>` : ''}${m.text ? `<div class="tx">${msgHtml(m)}</div>` : ''}${filesHtml(m.files)}${rxHtml(m, rxBy[m.id])}${m.id === lastMineId ? readLine(m) : ''}</div>
+      ${m.pending ? '' : `<button class="react" data-ch="rxpick" data-mid="${esc(m.id)}" title="Поставить реакцию" aria-label="Реакция">☺</button>`}
       ${m.uid === CHAT.user.uid && !m.pending ? `<button class="del" data-ch="del" data-id="${esc(m.id)}" title="Удалить сообщение" aria-label="Удалить сообщение">${IC.trash}</button>` : ''}</div>`;
     prev = m;
   });
   box.innerHTML = html || `<div class="ch-empty">Сообщений пока нет.<br>Напишите первым.</div>`;
+  const mUp = $('#chUp'); if (mUp) mUp.hidden = !CHAT.uploads;
+  if (S.view === 'chat' && !document.hidden && (isDesk() || CHAT.conv)) chatPushRead();   // диалог на экране: отмечаем «прочитано»
   if (near) { box.scrollTop = box.scrollHeight; box.dataset.fresh = ''; }
+}
+
+/* --- вложения (хранятся на Google Диске владельца, загрузка через Apps Script) --- */
+const fmtSize = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' МБ' : Math.max(1, Math.round(n / 1024)) + ' КБ';
+function filesHtml(files) {
+  return (files || []).map(f => {
+    const id = encodeURIComponent(f.id || ''), view = 'https://drive.google.com/file/d/' + id + '/view', dl = 'https://drive.google.com/uc?export=download&id=' + id;
+    if (String(f.mime).startsWith('image/')) return `<div class="att"><a class="att-img" href="${view}" target="_blank" rel="noopener"><img loading="lazy" src="https://drive.google.com/thumbnail?id=${id}&sz=w800" alt="${esc(f.name)}"></a><a class="att-dl" href="${dl}">Скачать · ${esc(f.name)}</a></div>`;
+    return `<div class="att att-file"><span class="att-ic">${IC.clip}</span><span class="att-nm"><b>${esc(f.name)}</b><small>${fmtSize(f.size || 0)}</small></span><a class="btn" href="${view}" target="_blank" rel="noopener">Открыть</a><a class="btn" href="${dl}">Скачать</a></div>`;
+  }).join('');
+}
+async function prepUpload(file) {
+  if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.size < 400 * 1024) return file;
+  try {
+    const bmp = await createImageBitmap(file), k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const cv = document.createElement('canvas'); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+    const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(bmp, 0, 0, cv.width, cv.height);
+    const b = await new Promise(r => cv.toBlob(r, 'image/jpeg', .82));
+    return b && b.size < file.size ? b : file;
+  } catch { return file; }
+}
+function upName(file, blob) {
+  let n = file.name || 'файл';
+  if (/^image\.(png|jpe?g)$/i.test(n)) n = 'Скриншот_' + new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-') + '.png';   // вставка из буфера
+  if (blob.type === 'image/jpeg' && !/\.jpe?g$/i.test(n)) n = n.replace(/\.[^.]+$/, '') + '.jpg';
+  return n;
+}
+async function chatUploadOne(file, url) {
+  const blob = await prepUpload(file);
+  if (blob.size > 15 * 1048576) throw new Error('файл больше 15 МБ');
+  const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = () => rej(new Error('не удалось прочитать файл')); r.readAsDataURL(blob); });
+  const resp = await fetch(url, {method: 'POST', redirect: 'follow', headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify({action: 'upload', idToken: await CHAT.be.idToken(), name: upName(file, blob), mime: blob.type || file.type || 'application/octet-stream', data})});
+  const d = await resp.json();
+  if (!d.ok) throw new Error(d.error || 'ошибка сервера');
+  return d.file;
+}
+function chatUpStatus() { const el = $('#chUp'); if (!el) return; el.hidden = !CHAT.uploads; el.textContent = CHAT.uploads ? 'Загружаю файлы: осталось ' + CHAT.uploads + '…' : ''; }
+// файл выбран, перетащен или вставлен: загружаем и сразу отправляем сообщением (текст из поля становится подписью)
+async function chatUploadFiles(files) {
+  files = [...files].slice(0, 10);
+  const url = NOTIFY.url || S.cfg.url;
+  if (!CHAT.be || !files.length) return;
+  if (!url) { toast('Не задан адрес скрипта для файлов (NOTIFY.url)', true); return; }
+  const cid = CHAT.cid, ta = $('#chText'), caption = ta ? ta.value.trim() : '';
+  if (ta) { ta.value = ''; CHAT.drafts[cid] = ''; }
+  CHAT.uploads += files.length; chatUpStatus();
+  const done = [];
+  for (const f of files) {
+    try { done.push(await chatUploadOne(f, url)); }
+    catch (e) { toast('Не загружено «' + f.name + '»: ' + e.message, true); }
+    CHAT.uploads--; chatUpStatus();
+  }
+  if (!done.length) { if (ta && caption && CHAT.cid === cid) ta.value = caption; return; }
+  try { await chatPost(cid, caption, done); }
+  catch (e) { toast('Не отправлено: ' + (e.code === 'permission-denied' ? 'нет доступа' : e.message), true); }
+}
+async function chatPost(cid, text, files) {
+  const mentions = isDm(cid) ? [dmOther(cid)] : mentionsOf(text);   // в личных сообщениях адресат — собеседник
+  const preview = text || '📎 ' + files.map(f => f.name).join(', ');
+  await CHAT.be.send(cid, CHAT.user.uid, text, mentions, files, preview);
+  if (mentions.length) chatRemoteNotify(mentions, preview, cid);
+}
+
+/* --- реакции и статус прочтения --- */
+function rxHtml(m, by) {
+  let h = '';
+  if (by) h += '<div class="rxs">' + Object.keys(RX).filter(k => by[k]).map(k => {
+    const us = by[k], mine = us.includes(CHAT.user.uid);
+    return `<button class="rx ${mine ? 'on' : ''}" data-ch="rx" data-mid="${esc(m.id)}" data-k="${k}" title="${esc(us.map(userName).join(', '))}">${RX[k]} ${us.length}</button>`;
+  }).join('') + '</div>';
+  if (CHAT.rxOpen === m.id) h += '<div class="rx-pick">' + Object.keys(RX).map(k => `<button data-ch="rx" data-mid="${esc(m.id)}" data-k="${k}">${RX[k]}</button>`).join('') + '</div>';
+  return h;
+}
+function readLine(m) {
+  const me = CHAT.user.uid;
+  if (CHAT.users[me]?.showRead === false) return '';   // кто скрывает свой статус, чужие тоже не видит
+  const readBy = u => u !== me && CHAT.reads[u] >= m.at && CHAT.users[u]?.showRead !== false;
+  if (isDm(CHAT.cid)) {
+    const o = dmOther(CHAT.cid);
+    return readBy(o) ? `<div class="ch-read ok">✓✓ Прочитано · ${hm(CHAT.reads[o])}</div>` : '<div class="ch-read">✓ Отправлено</div>';
+  }
+  const names = Object.keys(CHAT.users).filter(readBy).map(u => userName(u).split(' ')[0]);
+  const total = Object.keys(CHAT.users).filter(u => u !== me).length;
+  if (!names.length) return '<div class="ch-read">Пока никто не прочитал</div>';
+  return `<div class="ch-read ok" title="${esc(names.join(', '))}">✓✓ Прочитали ${names.length} из ${total}: ${esc(names.slice(0, 4).join(', '))}${names.length > 4 ? ' и ещё ' + (names.length - 4) : ''}</div>`;
+}
+// запись «я прочитал этот чат до сих пор» (не чаще, чем появляются новые сообщения)
+function chatPushRead() {
+  if (!CHAT.be || !CHAT.msgs.length) return;
+  const latest = Math.max(...CHAT.msgs.filter(m => !m.pending).map(m => m.at), 0);
+  if (!latest || latest <= (CHAT.readSent[CHAT.cid] || 0)) return;
+  CHAT.readSent[CHAT.cid] = latest;
+  CHAT.be.markRead(CHAT.cid, CHAT.user.uid).catch(() => {});
 }
 
 /* --- действия --- */
@@ -1580,9 +1733,9 @@ function chatOpen(cid) {
 async function chatSend() {
   const ta = $('#chText'); if (!ta || !CHAT.be) return;
   const text = ta.value.trim(); if (!text) return;
-  const cid = CHAT.cid, mentions = isDm(cid) ? [dmOther(cid)] : mentionsOf(text);   // в личных сообщениях адресат — собеседник
+  const cid = CHAT.cid;
   ta.value = ''; ta.style.height = '42px'; CHAT.drafts[cid] = ''; chatMentionClose();
-  try { await CHAT.be.send(cid, CHAT.user.uid, text, mentions); if (mentions.length) chatRemoteNotify(mentions, text, cid); }
+  try { await chatPost(cid, text, []); }
   catch (e) { toast('Не отправлено: ' + (e.code === 'permission-denied' ? 'нет доступа' : e.message), true); if (CHAT.cid === cid && !ta.value) { ta.value = text; CHAT.drafts[cid] = text; } }
   ta.focus();
 }
@@ -1612,6 +1765,16 @@ function chatAction(t) {
   else if (a === 'profile') openProfile();
   else if (a === 'profsave') profileSave();
   else if (a === 'mpick') chatMentionPick(+t.dataset.i);
+  else if (a === 'attach') $('#chFile')?.click();
+  else if (a === 'rxpick') { CHAT.rxOpen = CHAT.rxOpen === t.dataset.mid ? null : t.dataset.mid; chatFillMsgs(); }
+  else if (a === 'rx') {
+    const mid = t.dataset.mid, k = t.dataset.k, me = CHAT.user.uid, cid = CHAT.cid;
+    const mine = CHAT.rx.some(r => r.mid === mid && r.uid === me && r.key === k);
+    CHAT.rxOpen = null;
+    CHAT.rx = mine ? CHAT.rx.filter(r => !(r.mid === mid && r.uid === me && r.key === k)) : [...CHAT.rx, {mid, uid: me, key: k}];
+    chatFillMsgs();   // сразу показываем, затем подтверждает сервер
+    CHAT.be.toggleReaction(cid, mid, me, k, !mine).catch(e => toast('Реакция не сохранена: ' + (e.code === 'permission-denied' ? 'не опубликованы правила Firestore' : e.message), true));
+  }
   else if (a === 'members') openMembers();
   else if (a === 'copyfolder') {
     const d = editing?.draft; if (!d) return;
@@ -1701,7 +1864,7 @@ function openProfile() {
   if (!CHAT.user) return;
   editing = null;
   const u = CHAT.users[CHAT.user.uid] || {};
-  profDraft = {name: u.name || (CHAT.user.email || '').split('@')[0], avatar: u.avatar || null, emailNotify: u.emailNotify !== false, tg: u.tg || '', max: u.max || '', tgOn: u.notifyTg ?? !!u.tg, maxOn: u.notifyMax ?? !!u.max, position: u.position || ''};
+  profDraft = {name: u.name || (CHAT.user.email || '').split('@')[0], avatar: u.avatar || null, emailNotify: u.emailNotify !== false, tg: u.tg || '', max: u.max || '', showRead: u.showRead !== false, tgOn: u.notifyTg ?? !!u.tg, maxOn: u.notifyMax ?? !!u.max, position: u.position || ''};
   drawProfile();
   $('#scrim').classList.add('on'); $('#sheet').classList.add('on');
 }
@@ -1727,6 +1890,8 @@ function drawProfile() {
       <div class="pf-sec" style="margin-top:14px">Звук оповещения в приложении</div>
       <div class="seg">${Object.entries(SOUNDS).map(([k, s]) => `<button type="button" data-ch="snd" data-v="${k}" class="${lsGet(SOUND_LS, 'chime') === k ? 'on' : ''}">${s.t}</button>`).join('')}</div>
       <p style="font-size:12px;color:var(--muted);margin:6px 0 0">Нажмите на звук, чтобы прослушать. Это звук внутри открытого приложения; звук уведомления на заблокированном телефоне настраивается в системе.</p>
+      <label class="pf-chk"><input type="checkbox" id="pf-read" ${d.showRead ? 'checked' : ''}>Показывать другим, что я прочитал(а) сообщение</label>
+      <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px">Если выключить, вы тоже не будете видеть, кто прочитал ваши сообщения.</p>
       <label class="pf-chk"><input type="checkbox" id="pf-mail" ${d.emailNotify ? 'checked' : ''}>Присылать на почту, когда меня упомянули</label>
       <div class="pf-sec" style="margin-top:14px">Получать оповещения в мессенджер</div>
       <label class="pf-chk"><input type="checkbox" id="pf-tgon" ${d.tgOn ? 'checked' : ''}>Telegram</label>
@@ -1741,6 +1906,7 @@ function drawProfile() {
     <div class="sh-foot"><button class="btn" data-act="close">Отмена</button><button class="btn primary" data-ch="profsave">Сохранить</button></div>`;
   $('#pf-name').addEventListener('input', e => { profDraft.name = e.target.value; });
   $('#pf-mail').addEventListener('change', e => { profDraft.emailNotify = e.target.checked; });
+  $('#pf-read').addEventListener('change', e => { profDraft.showRead = e.target.checked; });
   $('#pf-pos').addEventListener('input', e => { profDraft.position = e.target.value; });
   $('#pf-max')?.addEventListener('input', e => { profDraft.max = e.target.value.replace(/\D/g, ''); });
   $('#pf-tg')?.addEventListener('input', e => { profDraft.tg = e.target.value.replace(/\D/g, ''); });
@@ -1762,7 +1928,7 @@ async function profileSave() {
   const name = (profDraft.name || '').trim();
   if (!name) { toast('Укажите имя', true); return; }
   try {
-    await CHAT.be.saveProfile(CHAT.user.uid, {name: name.slice(0, 40), avatar: profDraft.avatar || null, email: CHAT.user.email || '', emailNotify: !!profDraft.emailNotify, tg: profDraft.tg || '', max: profDraft.max || '', notifyTg: !!profDraft.tgOn, notifyMax: !!profDraft.maxOn, position: (profDraft.position || '').trim().slice(0, 60)});
+    await CHAT.be.saveProfile(CHAT.user.uid, {name: name.slice(0, 40), avatar: profDraft.avatar || null, email: CHAT.user.email || '', emailNotify: !!profDraft.emailNotify, showRead: !!profDraft.showRead, tg: profDraft.tg || '', max: profDraft.max || '', notifyTg: !!profDraft.tgOn, notifyMax: !!profDraft.maxOn, position: (profDraft.position || '').trim().slice(0, 60)});
     closeSheet(); toast('Профиль сохранён');
   } catch (e) { toast('Не сохранено: ' + (e.code === 'permission-denied' ? 'нет доступа' : e.message), true); }
 }
