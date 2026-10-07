@@ -584,7 +584,7 @@ async function load(silent) {
   if (!S.cfg.url) {
     S.mode = 'demo';
     S.rows = lsGet(LS.demo, null) || structuredClone(DEMO);
-    S.updated = null; renderAll(); return;
+    S.updated = null; renderAll(); openPendingTask(); return;
   }
   setBusy(true);
   try {
@@ -598,11 +598,18 @@ async function load(silent) {
     if (c) { S.rows = c.rows; S.updated = new Date(c.updated); }
     S.mode = 'offline';
     if (!silent) toast('Нет связи с таблицей: ' + e.message, true);
-  } finally { setBusy(false); renderAll(); }
+  } finally { setBusy(false); renderAll(); openPendingTask(); }
+}
+
+// Ссылка …/index.html?task=12 открывает карточку задачи (строка 12 реестра)
+function openPendingTask() {
+  if (!S.pendingTask) return;
+  const id = S.pendingTask; S.pendingTask = null;
+  if (S.rows.some(r => r.id === id)) openSheet(id);
 }
 
 async function api(body) {
-  const res = await fetch(S.cfg.url, {method:'POST', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({...body, key: S.cfg.key})});
+  const res = await fetch(S.cfg.url, {method:'POST', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({...body, key: S.cfg.key, app: location.origin + location.pathname, actor: CHAT.user ? {uid: CHAT.user.uid, name: userName(CHAT.user.uid)} : null})});
   const data = await res.json();
   if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
   return data.row;
@@ -1673,7 +1680,8 @@ function drawProfile() {
         ${d.avatar ? '<button class="btn ghost" type="button" data-ch="photodel">Убрать фото</button>' : ''}</div></div>
       <div class="fld"><label for="pf-name">Имя в чате</label><input id="pf-name" maxlength="40" value="${esc(d.name)}" placeholder="Например, Иван Петров"></div>
       <div class="fld"><label for="pf-pos">Должность</label><input id="pf-pos" maxlength="60" list="dl-pos" value="${esc(d.position)}" placeholder="Например, ГИП, инженер-проектировщик">
-        <datalist id="dl-pos"><option value="Руководитель проектного отдела"><option value="ГИП"><option value="Инженер-проектировщик"><option value="Ведущий инженер"><option value="Проектировщик СПС/СОУЭ"><option value="Менеджер проектов"></datalist></div>
+        <datalist id="dl-pos"><option value="Руководитель проектного отдела"><option value="ГИП"><option value="Инженер-проектировщик"><option value="Ведущий инженер"><option value="Проектировщик СПС/СОУЭ"><option value="Менеджер проектов"></datalist>
+        <p style="font-size:12px;color:var(--muted);margin:6px 0 0">Менеджеры проектов и руководитель отдела получают оповещения о смене стадии задач, руководитель ещё и о «Срочных» задачах. Исполнителю приходит оповещение, когда ему ставят задачу (имя в реестре должно совпадать с вашим именем или первым словом: «Иван» ↔ «Иван Петров»).</p></div>
       <div class="pf-sec">Уведомления на этом устройстве</div>
       <div class="seg">${[['all', 'Все сообщения'], ['mentions', 'Только @упоминания'], ['off', 'Выключены']].map(([v, t]) => `<button type="button" data-ch="nmode" data-v="${v}" class="${noteMode() === v ? 'on' : ''}">${t}</button>`).join('')}</div>
       ${'Notification' in window ? (Notification.permission === 'granted' ? '<p style="font-size:13px;color:var(--ok);margin:8px 0 0">Уведомления браузера разрешены (приходят, когда вкладка свёрнута).</p>'
@@ -1734,6 +1742,10 @@ function chatApplyHash() {
 }
 window.addEventListener('hashchange', () => { if (chatApplyHash()) renderAll(); });
 chatApplyHash();
+(() => {
+  const t = new URLSearchParams(location.search).get('task');
+  if (t && /^\d+$/.test(t)) { S.pendingTask = +t; S.view = 'overview'; history.replaceState(null, '', location.pathname); }
+})();
 chatInit();
 load();
 </script>
