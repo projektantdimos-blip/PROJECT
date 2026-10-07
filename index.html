@@ -1335,15 +1335,33 @@ function chatNotifyDiff(prev, next) {
     chatBeep();
   }
 }
+// Звук оповещения внутри приложения (когда оно открыто). Звук push-уведомления на телефоне задаёт сама система, его приложение изменить не может.
+const SOUNDS = {
+  chime: {t: 'Колокольчик', seq: [[880, 0, .16], [1175, .17, .3]]},
+  ding:  {t: 'Динь', seq: [[1320, 0, .5]]},
+  pop:   {t: 'Короткий', seq: [[520, 0, .09]], type: 'triangle'},
+  triple:{t: 'Три сигнала', seq: [[700, 0, .12], [700, .18, .12], [700, .36, .12]], type: 'square', vol: .06},
+  off:   {t: 'Без звука', seq: []}
+};
+const SOUND_LS = 'mpb-chat-sound';
 let beepCtx;
-function chatBeep() {
+function chatBeep(kind) {
+  const s = SOUNDS[kind || lsGet(SOUND_LS, 'chime')] || SOUNDS.chime;
+  if (!s.seq.length) return;
   try {
     beepCtx = beepCtx || new (window.AudioContext || window.webkitAudioContext)();
-    const o = beepCtx.createOscillator(), g = beepCtx.createGain();
-    o.frequency.value = 880; g.gain.setValueAtTime(.12, beepCtx.currentTime); g.gain.exponentialRampToValueAtTime(.001, beepCtx.currentTime + .25);
-    o.connect(g); g.connect(beepCtx.destination); o.start(); o.stop(beepCtx.currentTime + .25);
+    if (beepCtx.state === 'suspended') beepCtx.resume();
+    const t0 = beepCtx.currentTime;
+    s.seq.forEach(([f, at, d]) => {
+      const o = beepCtx.createOscillator(), g = beepCtx.createGain();
+      o.type = s.type || 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(s.vol || .14, t0 + at); g.gain.exponentialRampToValueAtTime(.001, t0 + at + d);
+      o.connect(g); g.connect(beepCtx.destination); o.start(t0 + at); o.stop(t0 + at + d + .02);
+    });
   } catch {}
 }
+// браузер разрешает звук только после первого касания страницы
+document.addEventListener('click', () => { try { beepCtx = beepCtx || new (window.AudioContext || window.webkitAudioContext)(); if (beepCtx.state === 'suspended') beepCtx.resume(); } catch {} }, {once: true});
 // Письмо тому, кого упомянули: уходит через Apps Script (работает, даже если приложение у него закрыто)
 // Адрес и ключ берутся из NOTIFY (общие для всех), иначе из «Настроек» этого устройства.
 function chatRemoteNotify(uids, text, cid) {
@@ -1576,6 +1594,16 @@ function chatAction(t) {
       drawProfile();
     });
   }
+  else if (a === 'snd') { lsSet(SOUND_LS, t.dataset.v); chatBeep(t.dataset.v); drawProfile(); }
+  else if (a === 'pushtest') {
+    const tok = lsGet(PUSH_LS, null), url = NOTIFY.url || S.cfg.url, key = NOTIFY.key || S.cfg.key;
+    if (!tok || !url || !key) { toast('Нет токена или адреса скрипта оповещений', true); return; }
+    toast('Отправляю тестовое уведомление…');
+    fetch(url, {method: 'POST', redirect: 'follow', headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify({action: 'notify', key, push: [tok], from: 'Проекты DS', channel: 'Проверка', text: 'Тестовое уведомление. Если вы это видите, push работает.', url: chatLink('general')})})
+      .then(r => r.json()).then(d => toast(d.ok ? 'Отправлено (доставлено: ' + d.sent + '). Заблокируйте телефон и подождите несколько секунд.' : 'Ошибка: ' + d.error, !d.ok))
+      .catch(e => toast('Нет связи со скриптом: ' + e.message, true));
+  }
   else if (a === 'pushoff') {
     const tok = lsGet(PUSH_LS, null); lsDel(PUSH_LS);
     (tok ? CHAT.be.disablePush(CHAT.user.uid, tok) : Promise.resolve()).catch(() => {}).finally(() => { toast('Уведомления отключены'); drawProfile(); });
@@ -1618,7 +1646,7 @@ function pushBlock() {
   if (ios && !standalone) h += p('На iPhone уведомления работают только в приложении с экрана «Домой». Нажмите в Safari «Поделиться» → «На экран Домой», откройте иконку приложения и включите уведомления здесь.');
   else if (!supported) h += p('Этот браузер не поддерживает push-уведомления.');
   else if (Notification.permission === 'denied') h += p('Уведомления запрещены. Разрешите их в настройках телефона (Настройки → Уведомления → это приложение) и вернитесь сюда.');
-  else if (tok && Notification.permission === 'granted') h += `<p style="font-size:13px;color:var(--ok);margin:6px 0 8px">Включены на этом устройстве. Приходят, когда вас упомянули через @.</p><button class="btn" type="button" data-ch="pushoff">Отключить на этом устройстве</button>`;
+  else if (tok && Notification.permission === 'granted') h += `<p style="font-size:13px;color:var(--ok);margin:6px 0 8px">Включены на этом устройстве. Приходят, когда вас упомянули через @.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-ch="pushtest">Отправить тестовое уведомление</button><button class="btn" type="button" data-ch="pushoff">Отключить на этом устройстве</button></div>`;
   else h += `<button class="btn primary" type="button" data-ch="pushon" style="margin-top:6px">Включить уведомления на телефоне</button>${p('Придёт запрос на разрешение: нажмите «Разрешить». Уведомления приходят, когда вас упомянули через @.')}`;
   return h;
 }
@@ -1651,6 +1679,9 @@ function drawProfile() {
       ${'Notification' in window ? (Notification.permission === 'granted' ? '<p style="font-size:13px;color:var(--ok);margin:8px 0 0">Уведомления браузера разрешены (приходят, когда вкладка свёрнута).</p>'
         : Notification.permission === 'denied' ? '<p style="font-size:13px;color:var(--muted);margin:8px 0 0">Уведомления браузера запрещены в настройках сайта. Остаются звук, плашка и значок на вкладке.</p>'
         : '<button class="btn" type="button" data-ch="nperm" style="margin-top:8px">Разрешить уведомления браузера</button>') : ''}
+      <div class="pf-sec" style="margin-top:14px">Звук оповещения в приложении</div>
+      <div class="seg">${Object.entries(SOUNDS).map(([k, s]) => `<button type="button" data-ch="snd" data-v="${k}" class="${lsGet(SOUND_LS, 'chime') === k ? 'on' : ''}">${s.t}</button>`).join('')}</div>
+      <p style="font-size:12px;color:var(--muted);margin:6px 0 0">Нажмите на звук, чтобы прослушать. Это звук внутри открытого приложения; звук уведомления на заблокированном телефоне настраивается в системе.</p>
       <label class="pf-chk"><input type="checkbox" id="pf-mail" ${d.emailNotify ? 'checked' : ''}>Присылать на почту, когда меня упомянули</label>
       <div class="pf-sec" style="margin-top:14px">Получать оповещения в мессенджер</div>
       <label class="pf-chk"><input type="checkbox" id="pf-tgon" ${d.tgOn ? 'checked' : ''}>Telegram</label>
