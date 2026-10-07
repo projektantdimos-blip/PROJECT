@@ -396,6 +396,18 @@ img.ava{object-fit:cover;background:var(--card2)}
 .ch-conv{position:relative}
 .ch-conv.drop::after{content:"Отпустите, чтобы отправить файл";position:absolute;inset:0;z-index:6;display:grid;place-items:center;background:rgba(31,92,153,.14);border:3px dashed var(--blue);border-radius:var(--radius);color:var(--blue);font-weight:700;font-size:18px;pointer-events:none}
 .ch-up{padding:6px 14px;font-size:13px;color:var(--blue);background:var(--blue-l);border-top:1px solid var(--line)}
+.ch-reply{display:flex;align-items:center;gap:8px;padding:6px 14px;border-top:1px solid var(--line);background:var(--card2);border-left:4px solid var(--blue)}
+.ch-reply[hidden]{display:none}
+.rp-txt{flex:1;min-width:0;font-size:13px}
+.rp-txt b{display:block;color:var(--blue)}
+.rp-txt span{display:block;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rp-x{width:30px;height:30px;border:0;border-radius:8px;background:none;color:var(--muted);display:grid;place-items:center;flex:none}
+.quote{margin:2px 0 4px;padding:4px 10px;border-left:3px solid var(--blue);background:var(--blue-l);border-radius:0 8px 8px 0;font-size:13px;cursor:pointer;max-width:520px}
+.quote b{display:block;color:var(--blue)}
+.quote span{display:block;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-msg.flash{animation:flash 1.6s ease}
+@keyframes flash{0%,60%{background:var(--warn-l)}100%{background:transparent}}
+.rx-add.rp{font-size:13px;font-weight:600}
 .ch-up[hidden]{display:none}
 .ch-up .up-bar{display:block;height:4px;margin-top:5px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--blue),transparent);background-size:40% 100%;background-repeat:no-repeat;animation:upbar 1.1s linear infinite}
 @keyframes upbar{from{background-position:-40% 0}to{background-position:140% 0}}
@@ -1243,13 +1255,13 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && S.
 const FB_V = '10.14.1';
 const CHAT = {on: !!FIREBASE_CONFIG, be: null, user: null, authKnown: false, usersLoaded: false, users: {}, channels: {}, cid: 'general',
   msgs: [], msgsFor: null, unsubs: [], unsubMsgs: null, conv: false, err: '', read: null, drafts: {}, loginErr: '', loginInfo: '', loginEmail: '', busy: false, prompted: false, mn: null, chLoaded: false, dmErr: false,
-  reads: {}, readSent: {}, rx: [], rxOpen: null, unsubExtra: [], uploads: 0};
+  reads: {}, readSent: {}, rx: [], rxOpen: null, unsubExtra: [], uploads: 0, reply: null};
 const RX = {up: '👍', ok: '✅', eyes: '👀', warn: '❗', heart: '❤️'};
 // Куда отправлять письма и Telegram об упоминаниях (веб-приложение Apps Script). Ключ — отдельный NOTIFY_KEY, см. firebase/README.md
 // Публичный ключ Web Push (Firebase → Cloud Messaging → Web Push certificates)
 const VAPID_KEY = 'BGMKdlUvwDmoEhVZHEg6C9rvCfwXhNi05dSQEhODGOQlobJ5PeU47IyhmUCa4q3LjxZ7hN9X8Vi7SF7mKwX_-kE';
 const PUSH_LS = 'mpb-push-token';
-const APP_VERSION = '07.10.2026 · 3';   // показывается в профиле и внизу меню: так видно, обновилась ли страница
+const APP_VERSION = '07.10.2026 · 4';   // показывается в профиле и внизу меню: так видно, обновилась ли страница
 const NOTIFY = {url: 'https://script.google.com/macros/s/AKfycbzhpY5ygXFmaQhGCUEUMwF4aF3Ypi8ZrCopk-xNZTSanEV-D3422fIOfoWdAiIkEuQR/exec', key: 'notify-2026-proekty'};
 const NOTE_KEY ='mpb-chat-notify'; // all | mentions | off — на каждом устройстве свой выбор
 const noteMode = () => lsGet(NOTE_KEY, 'mentions');
@@ -1278,13 +1290,14 @@ async function fbCreate(cfg) {
       return () => { u1(); u2(); };
     },
     watchMessages: (cid, cb, err) => F.onSnapshot(F.query(F.collection(db, ...cpath(cid), 'messages'), F.orderBy('at', 'desc'), F.limit(150)), s => {
-      const a = []; s.forEach(d => { const v = est(d); a.push({id: d.id, uid: v.uid, text: v.text || '', mentions: v.mentions || [], files: v.files || [], at: ms(v.at) || Date.now(), pending: d.metadata.hasPendingWrites}); }); cb(a.reverse());
+      const a = []; s.forEach(d => { const v = est(d); a.push({id: d.id, uid: v.uid, text: v.text || '', mentions: v.mentions || [], files: v.files || [], reply: v.replyTo || null, at: ms(v.at) || Date.now(), pending: d.metadata.hasPendingWrites}); }); cb(a.reverse());
     }, err),
-    send: async (cid, uid, text, mentions, files, preview) => {
+    send: async (cid, uid, text, mentions, files, preview, reply) => {
       const b = F.writeBatch(db), meta = {lastAt: F.serverTimestamp(), lastBy: uid, lastText: (preview || text).slice(0, 80), lastMentions: mentions};
       if (cid.startsWith('d_')) meta.members = cid.slice(2).split('_');
       const msg = {uid, text, mentions, at: F.serverTimestamp()};
       if (files && files.length) msg.files = files;
+      if (reply) msg.replyTo = {id: reply.id, uid: reply.uid, text: reply.text};
       b.set(F.doc(F.collection(db, ...cpath(cid), 'messages')), msg);
       b.set(F.doc(db, ...cpath(cid)), meta, {merge: true});
       await b.commit();
@@ -1443,7 +1456,7 @@ function chatBeep(kind) {
 document.addEventListener('click', () => { try { beepCtx = beepCtx || new (window.AudioContext || window.webkitAudioContext)(); if (beepCtx.state === 'suspended') beepCtx.resume(); } catch {} }, {once: true});
 // Письмо тому, кого упомянули: уходит через Apps Script (работает, даже если приложение у него закрыто)
 // Адрес и ключ берутся из NOTIFY (общие для всех), иначе из «Настроек» этого устройства.
-function chatRemoteNotify(uids, text, cid) {
+function chatRemoteNotify(uids, text, cid, forceKind) {
   const url = NOTIFY.url || S.cfg.url, key = NOTIFY.key || S.cfg.key;
   if (!url || !key) return;
   const us = uids.map(u => CHAT.users[u]).filter(Boolean);
@@ -1453,7 +1466,7 @@ function chatRemoteNotify(uids, text, cid) {
   const push = [...new Set(us.flatMap(u => u.pushTokens || []))].slice(0, 20);
   if (!to.length && !tg.length && !mx.length && !push.length) return;
   fetch(url, {method: 'POST', redirect: 'follow', headers: {'Content-Type': 'text/plain;charset=utf-8'},
-    body: JSON.stringify({action: 'notify', key, to, tg, mx, push, kind: isDm(cid) ? 'dm' : 'mention', from: userName(CHAT.user.uid), channel: isDm(cid) ? userName(CHAT.user.uid) : chTitle(cid).t, text, url: chatLink(cid)})})
+    body: JSON.stringify({action: 'notify', key, to, tg, mx, push, kind: forceKind || (isDm(cid) ? 'dm' : 'mention'), from: userName(CHAT.user.uid), channel: isDm(cid) ? userName(CHAT.user.uid) : chTitle(cid).t, text, url: chatLink(cid)})})
     .then(r => r.json()).then(d => { if (!d.ok) toast('Оповещение не отправлено: ' + d.error, true); else if (!d.sent) toast('Оповещение не отправлено: адреса не подошли (проверьте NOTIFY_ALLOWED)', true); }).catch(() => {});
 }
 
@@ -1557,13 +1570,14 @@ function renderChat() {
         <div class="ch-mn" id="chMn" hidden></div>
         <div class="ch-head" id="chHead"></div>
         <div class="ch-msgs" id="chMsgs" data-fresh="1"></div>
+        <div class="ch-reply" id="chReply" hidden></div>
         <div class="ch-up" id="chUp" hidden></div>
         <div class="ch-compose"><button class="ch-ico" data-ch="attach" title="Прикрепить файл или фото (можно перетащить или вставить Ctrl+V)" aria-label="Прикрепить">${IC.clip}</button><input type="file" id="chFile" multiple hidden><textarea id="chText" rows="1" placeholder="Сообщение… (файлы можно перетащить сюда)" maxlength="4000"></textarea><button data-ch="send" aria-label="Отправить">${IC.send}</button></div>
       </div></div>`;
     $('#chText').value = c.drafts[c.cid] || '';
   }
   chatEnsureMsgs();
-  chatFillMe(); chatFillList(); chatFillHead(); chatFillMsgs(); chatMarkRead();
+  chatFillMe(); chatFillList(); chatFillHead(); chatFillMsgs(); chatReplyBar(); chatMarkRead();
 }
 
 function chatFillMe() {
@@ -1628,8 +1642,8 @@ function chatFillMsgs() {
     const day = dayLabel(m.at);
     if (!prev || dayLabel(prev.at) !== day) html += `<div class="ch-day">${esc(day)}</div>`;
     const first = !prev || prev.uid !== m.uid || m.at - prev.at > 5 * 60000 || dayLabel(prev.at) !== day;
-    html += `<div class="ch-msg ${first ? 'first' : ''} ${m.pending ? 'pending' : ''} ${!isDm(CHAT.cid) && m.mentions.includes(CHAT.user.uid) ? 'ment' : ''}">${first ? (m.uid !== CHAT.user.uid ? `<button class="ava-btn" data-ch="dm" data-uid="${esc(m.uid)}" title="Написать в личные сообщения">${userAva(m.uid)}</button>` : userAva(m.uid)) : '<span class="sp"></span>'}
-      <div class="bd">${first ? `<div class="who">${esc(userName(m.uid))}${CHAT.users[m.uid]?.position ? `<span class="pos">${esc(CHAT.users[m.uid].position)}</span>` : ''}<small>${hm(m.at)}</small></div>` : ''}${m.text ? `<div class="tx">${msgHtml(m)}</div>` : ''}${filesHtml(m.files)}${rxHtml(m, rxBy[m.id])}${m.id === lastMineId ? readLine(m) : ''}</div>      ${m.uid === CHAT.user.uid && !m.pending ? `<button class="del" data-ch="del" data-id="${esc(m.id)}" title="Удалить сообщение" aria-label="Удалить сообщение">${IC.trash}</button>` : ''}</div>`;
+    html += `<div data-mid="${esc(m.id)}" class="ch-msg ${first ? 'first' : ''} ${m.pending ? 'pending' : ''} ${!isDm(CHAT.cid) && m.mentions.includes(CHAT.user.uid) ? 'ment' : ''}">${first ? (m.uid !== CHAT.user.uid ? `<button class="ava-btn" data-ch="dm" data-uid="${esc(m.uid)}" title="Написать в личные сообщения">${userAva(m.uid)}</button>` : userAva(m.uid)) : '<span class="sp"></span>'}
+      <div class="bd">${first ? `<div class="who">${esc(userName(m.uid))}${CHAT.users[m.uid]?.position ? `<span class="pos">${esc(CHAT.users[m.uid].position)}</span>` : ''}<small>${hm(m.at)}</small></div>` : ''}${m.reply ? `<div class="quote" data-ch="goto" data-mid="${esc(m.reply.id)}" title="Перейти к сообщению"><b>${esc(userName(m.reply.uid))}</b><span>${esc(m.reply.text)}</span></div>` : ''}${m.text ? `<div class="tx">${msgHtml(m)}</div>` : ''}${filesHtml(m.files)}${rxHtml(m, rxBy[m.id])}${m.id === lastMineId ? readLine(m) : ''}</div>      ${m.uid === CHAT.user.uid && !m.pending ? `<button class="del" data-ch="del" data-id="${esc(m.id)}" title="Удалить сообщение" aria-label="Удалить сообщение">${IC.trash}</button>` : ''}</div>`;
     prev = m;
   });
   box.innerHTML = html || `<div class="ch-empty">Сообщений пока нет.<br>Напишите первым.</div>`;
@@ -1702,10 +1716,27 @@ async function chatUploadFiles(files) {
   catch (e) { chatUpError('Файлы загружены, но сообщение не отправлено: ' + (e.code === 'permission-denied' ? 'нет доступа (опубликуйте новые правила Firestore)' : e.message)); }
 }
 async function chatPost(cid, text, files) {
-  const mentions = isDm(cid) ? [dmOther(cid)] : mentionsOf(text);   // в личных сообщениях адресат — собеседник
+  const me = CHAT.user.uid;
+  const reply = CHAT.reply && CHAT.reply.cid === cid ? CHAT.reply : null;
+  CHAT.reply = null; chatReplyBar();
+  let mentions = isDm(cid) ? [dmOther(cid)] : mentionsOf(text);   // в личных сообщениях адресат — собеседник
+  const replyUid = reply && reply.uid !== me && !isDm(cid) ? reply.uid : null;   // автору цитируемого сообщения тоже приходит оповещение
+  const others = mentions.slice();
+  if (replyUid && !mentions.includes(replyUid)) mentions = [...mentions, replyUid];
   const preview = text || '📎 ' + files.map(f => f.name).join(', ');
-  await CHAT.be.send(cid, CHAT.user.uid, text, mentions, files, preview);
-  if (mentions.length) chatRemoteNotify(mentions, preview, cid);
+  try { await CHAT.be.send(cid, me, text, mentions, files, preview, reply); }
+  catch (e) { if (reply) { CHAT.reply = reply; chatReplyBar(); } throw e; }   // не отправилось: ответ остаётся выбранным
+  const rest = replyUid ? others.filter(u => u !== replyUid) : others;
+  if (rest.length) chatRemoteNotify(rest, preview, cid);
+  if (replyUid) chatRemoteNotify([replyUid], preview, cid, 'reply');
+}
+// цитата: имя и начало текста (или названия файлов)
+const quoteText = m => (m.text || (m.files && m.files.length ? '📎 ' + m.files.map(f => f.name).join(', ') : '')).replace(/\s+/g, ' ').slice(0, 120);
+function chatReplyBar() {
+  const el = $('#chReply'); if (!el) return;
+  const r = CHAT.reply && CHAT.reply.cid === CHAT.cid ? CHAT.reply : null;
+  el.hidden = !r;
+  el.innerHTML = r ? `<div class="rp-txt"><b>Ответ: ${esc(userName(r.uid))}</b><span>${esc(r.text)}</span></div><button class="rp-x" data-ch="noreply" aria-label="Отменить ответ">${IC.x}</button>` : '';
 }
 
 /* --- реакции и статус прочтения --- */
@@ -1715,7 +1746,7 @@ function rxHtml(m, by) {
   let h = '<div class="rxs">' + Object.keys(RX).filter(k => by[k]).map(k => {
     const us = by[k], mine = us.includes(CHAT.user.uid);
     return `<button class="rx ${mine ? 'on' : ''}" data-ch="rx" data-mid="${esc(m.id)}" data-k="${k}" title="${esc(us.map(userName).join(', '))}">${RX[k]} ${us.length}</button>`;
-  }).join('') + (m.pending ? '' : `<button class="rx-add" data-ch="rxpick" data-mid="${esc(m.id)}" title="Поставить реакцию" aria-label="Поставить реакцию">☺</button>`) + '</div>';
+  }).join('') + (m.pending ? '' : `<button class="rx-add" data-ch="rxpick" data-mid="${esc(m.id)}" title="Поставить реакцию" aria-label="Поставить реакцию">☺</button><button class="rx-add rp" data-ch="reply" data-mid="${esc(m.id)}" title="Ответить на это сообщение" aria-label="Ответить">↩ Ответить</button>`) + '</div>';
   if (CHAT.rxOpen === m.id) h += '<div class="rx-pick">' + Object.keys(RX).map(k => `<button data-ch="rx" data-mid="${esc(m.id)}" data-k="${k}">${RX[k]}</button>`).join('') + '</div>';
   return h;
 }
@@ -1783,6 +1814,16 @@ function chatAction(t) {
   else if (a === 'profsave') profileSave();
   else if (a === 'mpick') chatMentionPick(+t.dataset.i);
   else if (a === 'attach') $('#chFile')?.click();
+  else if (a === 'reply') {
+    const m = CHAT.msgs.find(x => x.id === t.dataset.mid); if (!m) return;
+    CHAT.reply = {cid: CHAT.cid, id: m.id, uid: m.uid, text: quoteText(m)}; chatReplyBar(); $('#chText')?.focus();
+  }
+  else if (a === 'noreply') { CHAT.reply = null; chatReplyBar(); }
+  else if (a === 'goto') {
+    const el = document.querySelector(`#chMsgs .ch-msg[data-mid="${CSS.escape(t.dataset.mid)}"]`);
+    if (!el) { toast('Исходное сообщение не найдено (удалено или слишком старое)'); return; }
+    el.scrollIntoView({block: 'center', behavior: 'smooth'}); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1600);
+  }
   else if (a === 'rxpick') { CHAT.rxOpen = CHAT.rxOpen === t.dataset.mid ? null : t.dataset.mid; chatFillMsgs(); }
   else if (a === 'rx') {
     const mid = t.dataset.mid, k = t.dataset.k, me = CHAT.user.uid, cid = CHAT.cid;
