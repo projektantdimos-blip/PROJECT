@@ -1,15 +1,17 @@
 {
-  "name": "Проекты DS — услуги в области ПБ",
+  "name": "Проекты DS — CRM",
   "short_name": "Проекты DS",
-  "description": "Реестр проектных задач: стадии, сроки, занятость сотрудников",
+  "description": "Задачи, реестр КП и конструктор коммерческих предложений",
   "lang": "ru",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f3f6f9",
+  "background_color": "#ffffff",
   "theme_color": "#1f5c99",
   "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
     { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" }
   ]
 }
