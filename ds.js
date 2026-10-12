@@ -542,7 +542,8 @@
   var KP_MANUAL = ["Новое обращение", "КП отправлено", "Переговоры", "Согласование условий", "Отказ"];
   var PAYS = [["adv50", "Аванс 50%, остаток по акту"], ["adv30", "Аванс 30%, остаток по акту"], ["post100", "100% по акту"]];
   var PRICE = [["Обследование объекта", 40000], ["Проект СПС (адресная)", 180000], ["Проект СОУЭ 3 типа", 150000], ["Проект АУП", 170000], ["Проект ВПВ", 120000], ["Расчёт категорий помещений", 30000], ["Согласование с экспертизой", 60000]];
-  var CT_TYPES = ["Проектирование СПС, СОУЭ", "Проектирование АУП, ВПВ", "Проектирование (комплекс)", "Разработка исполнительной документации"];
+  var CT_TYPES = ["Проектирование СПС, СОУЭ", "Проектирование АУП, ВПВ", "Проектирование (комплекс)", "Обследование объекта", "Расчёт пожарного риска, категорирование", "Разработка исполнительной документации"];
+  function execName() { return (S.comp && S.comp.name) || "ИП Шубинов Д.А."; }
   function loadKp() { return api("/kp").then(function (k) { S.kp = k; }, function (e) { S.kp = []; S.err = String(e); }); }
   function kpIsLate(k) { return k.last_days != null && k.last_days > 5 && k.status !== "Оплачено" && k.status !== "Отказ"; }
   function kpScreen() {
@@ -600,7 +601,7 @@
       + '<div class="dbox"><small>Итого</small><b id="kTotal" style="font-size:1.3rem">' + money(total) + "</b>" + (adv ? "<div>Аванс " + money(adv) + ", остаток по акту " + money(total - adv) + "</div>" : "<div>Без аванса, оплата по акту</div>") + "</div>"
       + (f.err ? '<div class="err">' + E(f.err) + "</div>" : "")
       + '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" data-ksave="send">Выставить КП</button><button class="btn ghost" data-ksave="draft">Сохранить черновик</button></div></div>';
-    var paper = '<div class="paper"><h4>КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</h4><p class="c">ООО «Проекты ДС» · ' + new Date().toLocaleDateString("ru-RU") + "</p>"
+    var paper = '<div class="paper"><h4>ПРЕДЛОЖЕНИЕ ПО ПРОЕКТИРОВАНИЮ СИСТЕМ ПРОТИВОПОЖАРНОЙ ЗАЩИТЫ</h4><p class="c">' + E(execName()) + " · " + new Date().toLocaleDateString("ru-RU") + "</p>"
       + "<p><b>Заказчик:</b> " + E(cust ? cust.name : "—") + "</p><p><b>Объект:</b> " + E(f.object || "—") + "</p>"
       + "<table><tr><th>Услуга</th><th>Стоимость</th></tr>" + (on.map(function (i) { return "<tr><td>" + E(i.name) + "</td><td>" + money(+i.price || 0) + "</td></tr>"; }).join("") || '<tr><td colspan="2">Услуги не выбраны</td></tr>') + "</table>"
       + "<p><b>Итого: " + money(total) + "</b> (НДС не облагается)</p><p><b>Оплата:</b> " + E(pay[1]) + ".</p></div>";
@@ -625,15 +626,15 @@
     var due = new Date(); due.setDate(due.getDate() + (+c.days || 0));
     var numShown = k.contract_number || "—/" + String(new Date().getFullYear()).slice(2);
     var adv = k.has_adv;
-    var paper = '<h4>ДОГОВОР № ' + E(numShown) + '</h4><p class="c">на выполнение проектных работ<br>г. Санкт-Петербург · ' + new Date().toLocaleDateString("ru-RU") + "</p>"
-      + "<p><b>ООО «Проекты ДС»</b> (Исполнитель) и <b>" + E(k.customer) + "</b> (Заказчик) заключили настоящий договор:</p>"
-      + "<p><b>1. Предмет.</b> Исполнитель разрабатывает проектную документацию (" + E(c.type) + ") по объекту: «" + E(k.object) + "».</p>"
-      + "<p><b>2. Стоимость.</b> " + Number(k.amount).toLocaleString("ru-RU") + " руб.</p><p><b>3. Срок.</b> " + (+c.days || 0) + " календарных дней, до " + due.toLocaleDateString("ru-RU") + ".</p>"
-      + "<p><b>4. Оплата.</b> " + E(k.pay_label) + ".</p><p class=\"c\">Реквизиты сторон подставляются из карточки заказчика</p>";
+    var paper = '<h4>ДОГОВОР № ' + E(numShown) + '</h4><p class="c">на оказание услуг по проектированию<br>г. Санкт-Петербург · ' + new Date().toLocaleDateString("ru-RU") + "</p>"
+      + "<p><b>" + E(execName()) + "</b> (Исполнитель) и <b>" + E(k.customer) + "</b> (Заказчик) заключили настоящий договор:</p>"
+      + "<p><b>1. Предмет.</b> Исполнитель оказывает услуги (" + E(c.type) + ") по объекту: «" + E(k.object) + "».</p>"
+      + "<p><b>2. Стоимость.</b> " + Number(k.amount).toLocaleString("ru-RU") + " руб., НДС не облагается (УСН).</p><p><b>3. Срок.</b> " + (+c.days || 0) + " рабочих дней с даты аванса и исходных данных.</p>"
+      + "<p><b>4. Оплата.</b> " + E(k.pay_label) + ".</p><p class=\"c\">Полный текст договора (14 разделов, приложение с расчётом и графиком платежей) формируется в PDF/Word; реквизиты сторон подставляются автоматически</p>";
     var form = '<div class="panel pad"><h3>Данные договора</h3><p class="sub">Заказчик и условия подтянуты из КП</p>'
       + '<div class="fld"><label>КП</label><select data-ctpick="1">' + open.map(function (x) { return '<option value="' + x.id + '"' + (x.id === c.kid ? " selected" : "") + ">" + E(x.number + " · " + x.customer + " · " + money(x.amount)) + "</option>"; }).join("") + "</select></div>"
       + '<div class="fld"><label>Тип договора</label><select data-ctf="type">' + CT_TYPES.map(function (o) { return "<option" + (o === c.type ? " selected" : "") + ">" + o + "</option>"; }).join("") + "</select></div>"
-      + '<div class="g2f"><div class="fld"><label>Стоимость, ₽</label><input value="' + Number(k.amount).toLocaleString("ru-RU") + '" disabled></div><div class="fld"><label>Срок, дней</label><input type="number" min="1" data-ctf="days" value="' + (+c.days || 0) + '"></div></div>'
+      + '<div class="g2f"><div class="fld"><label>Стоимость, ₽</label><input value="' + Number(k.amount).toLocaleString("ru-RU") + '" disabled></div><div class="fld"><label>Срок, рабочих дней</label><input type="number" min="1" data-ctf="days" value="' + (+c.days || 0) + '"></div></div>'
       + '<div class="fld"><label>Оплата</label><input value="' + E(k.pay_label) + '" disabled></div>'
       + '<div class="dbox"><small>Что дальше</small>' + (adv ? "Предусмотрен аванс: после подписания задача создастся, но на «Сбор данных» уйдёт только после аванса. Бухгалтер получит «Выставить счёт на аванс»." : "Аванса нет: после подписания задача сразу уйдёт на «Сбор данных».") + "</div>"
       + (S.ct.err ? '<div class="err">' + E(S.ct.err) + "</div>" : "")
@@ -813,7 +814,7 @@
   function loadPrice() {
     return api("/price").then(function (p) { S.price = p; if (!S.pd) S.pd = JSON.parse(JSON.stringify(p.items)); }, function (e) { S.price = null; S.err = String(e); });
   }
-  function priceScreen() {
+  function priceServices() {
     var p = pos(), pr = S.price;
     if (!pr) return '<div class="head"><div><h1>Прайс</h1></div></div><div class="note">' + (S.err ? E(S.err) : "Прайс-лист недоступен для вашей роли.") + "</div>";
     var edit = pr.can_edit, rows = edit ? S.pd : pr.items;
@@ -831,6 +832,123 @@
       + (body || '<tr><td colspan="5">Пусто</td></tr>') + "</table></div>"
       + (edit ? '<button class="btn ghost" style="margin-top:12px" data-pradd="1">+ Позиция</button>' + (S.pdErr ? '<div class="err">' + E(S.pdErr) + "</div>" : "") : "") + companyBlock();
   }
+  /* вкладки прайса: Услуги · Калькулятор · Печать */
+  function f2(n) { return Number(n || 0).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function priceScreen() {
+    var pr = S.price;
+    if (!pr) return priceServices();
+    var tab = S.pt || "services";
+    var seg = '<div class="seg" style="margin-bottom:16px">' + [["services", "Услуги"], ["calc", "Калькулятор"], ["print", "Печать"]].map(function (x) {
+      return '<button data-pt="' + x[0] + '" class="' + (tab === x[0] ? "on" : "") + '">' + x[1] + "</button>";
+    }).join("") + "</div>";
+    return seg + (tab === "calc" ? priceCalc() : tab === "print" ? pricePrint() : priceServices());
+  }
+  /* ---- «Печать»: закупочные цены С-КОПИ + наценка; доставка отдельной строкой */
+  function ppInit() {
+    if (!S.pp && S.price && S.price.print) S.pp = JSON.parse(JSON.stringify(S.price.print));
+    return S.pp;
+  }
+  function pricePrint() {
+    var pr = S.price, pp = ppInit(), edit = pr.can_edit;
+    if (!pp) return '<div class="note">Прайс на печать недоступен.</div>';
+    var inp = 'style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:var(--surface);color:var(--ink)"';
+    var mk = +pp.markup || 0;
+    var head = '<div class="head"><div><h1>Печать документации</h1><p>Цены по прайсу типографии, плюс наценка ' + mk + "%. Доставка добавляется отдельной строкой: " + money(pp.delivery) + ".</p></div>"
+      + (edit ? '<div style="display:flex;gap:10px"><button class="btn ghost" data-ppreset="1">Отменить правки</button><button class="btn primary" data-ppsave="1">Сохранить</button></div>' : "") + "</div>";
+    var ctl = edit ? '<div class="panel pad" style="margin-bottom:14px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 14px">'
+      + '<div class="fld"><label>Наценка к ценам типографии, %</label><input type="number" min="0" data-ppf="markup" value="' + mk + '"></div>'
+      + '<div class="fld"><label>Доставка (отдельной строкой), ₽</label><input type="number" min="0" data-ppf="delivery" value="' + (+pp.delivery || 0) + '"></div></div></div>' : "";
+    var rows = pp.items.map(function (r, i) {
+      var our = (+r.base || 0) * (1 + mk / 100);
+      return edit ? "<tr><td>" + E(r.name) + "</td><td>" + E(r.unit) + '</td><td><input type="number" min="0" step="0.01" data-ppf="i.' + i + '.base" value="' + (+r.base || 0) + '" ' + inp + '></td><td class="r"><b data-ppour="' + i + '">' + f2(our) + " ₽</b></td></tr>"
+        : "<tr><td>" + E(r.name) + "</td><td>" + E(r.unit) + '</td><td class="r"><b>' + f2(our) + " ₽</b></td></tr>";
+    }).join("");
+    return head + ctl + '<div class="panel" style="overflow:auto"><table class="tbl"><tr><th>Услуга</th><th style="width:70px">Ед.</th>'
+      + (edit ? '<th style="width:150px">Закупка, ₽</th>' : "") + '<th style="width:150px">Цена, ₽</th></tr>' + rows
+      + '<tr><td><b>Доставка заказа</b></td><td>заказ</td>' + (edit ? "<td></td>" : "") + '<td class="r"><b>' + f2(pp.delivery) + " ₽</b></td></tr></table></div>"
+      + (S.ppErr ? '<div class="err">' + E(S.ppErr) + "</div>" : "");
+  }
+  function savePrint() {
+    S.ppErr = "";
+    var pp = S.pp;
+    api("/price/print", { markup: +pp.markup || 0, delivery: +pp.delivery || 0, items: pp.items.map(function (r) { return { name: r.name, unit: r.unit, base: +r.base || 0 }; }) }).then(function (r) {
+      S.price = Object.assign({}, S.price, { print: r }); S.pp = null; toast("Прайс на печать сохранён"); paint();
+    }, function (e) { S.ppErr = String(e); paint(); });
+  }
+  /* ---- «Калькулятор»: проектирование по площади + обследование + печать/сборка/доставка (без смет и экспертизы) */
+  function calcState() {
+    if (!S.calc) S.calc = { sys: "", area: "", survey: false, city: true, pump: false, stairs: -1, pr: [], deliv: false };
+    return S.calc;
+  }
+  function tierIdx(sys, area) {
+    var idx = 0;
+    for (var i = 0; i < sys.from.length; i++) if (area >= sys.from[i]) idx = i;
+    return idx;
+  }
+  function tierLabel(sys, i) {
+    var f = sys.from, n = f[i + 1];
+    if (n == null) return "более " + (f[i] - 1).toLocaleString("ru-RU") + " м²";
+    return (i === 0 ? "до " + (n - 1).toLocaleString("ru-RU") : "от " + f[i].toLocaleString("ru-RU") + " до " + (n - 1).toLocaleString("ru-RU")) + " м²";
+  }
+  function calcLines() {
+    var pr = S.price, cf = pr.calc, pp = pr.print, c = calcState(), lines = [], ask = false;
+    var sys = cf.systems.filter(function (s) { return s.id === c.sys; })[0], area = +c.area || 0;
+    if (sys && area > 0) {
+      var i = tierIdx(sys, area), v = sys.price[i];
+      if (v == null) ask = true;
+      lines.push({ name: sys.name + " (" + tierLabel(sys, i) + ")", price: v });
+    }
+    if (c.survey) {
+      lines.push({ name: "Обследование объекта", price: area > 3000 ? cf.survey.over3000 : cf.survey.to3000 });
+      if (!c.city) lines.push({ name: "Выезд на обследование вне города", price: cf.survey.out_of_city });
+    }
+    if (sys && sys.pump && c.pump) lines.push({ name: "Насосная станция (проектирование)", price: cf.pump });
+    if (c.stairs >= 0 && cf.stairs[c.stairs]) { var st = cf.stairs[c.stairs]; if (st[1] == null) ask = true; lines.push({ name: st[0], price: st[1] }); }
+    var prn = 0;
+    c.pr.forEach(function (r) { var it = pp.items[r.i]; if (it) prn += (+r.q || 0) * (it.base * (1 + (+pp.markup || 0) / 100)); });
+    if (prn > 0) lines.push({ name: "Печать и сборка комплекта документации", price: Math.max(1, Math.round(prn)) });   // в КП суммы в целых рублях
+    if (c.deliv) lines.push({ name: "Доставка комплекта документации", price: +pp.delivery || 0 });
+    return { lines: lines, ask: ask, total: lines.reduce(function (a, l) { return a + (l.price == null ? 0 : l.price); }, 0) };
+  }
+  function calcResHtml() {
+    var r = calcLines();
+    if (!r.lines.length) return '<div class="note">Выберите систему и укажите площадь</div>';
+    return "<table class=\"tbl\">" + r.lines.map(function (l) { return "<tr><td>" + E(l.name) + '</td><td class="r"><b>' + (l.price == null ? "по запросу" : f2(l.price) + " ₽") + "</b></td></tr>"; }).join("")
+      + '<tr><td><b>Итого</b></td><td class="r"><b style="font-size:1.15rem">' + f2(r.total) + " ₽</b></td></tr></table>"
+      + (r.ask ? '<div class="note">Часть позиций «по запросу»: стоимость согласуется индивидуально, в итог они не входят.</div>' : "");
+  }
+  function priceCalc() {
+    var pr = S.price, cf = pr.calc, pp = pr.print, c = calcState();
+    var sys = cf.systems.filter(function (s) { return s.id === c.sys; })[0];
+    var sel = 'style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface);color:var(--ink)"';
+    var chk = function (k, label, on) { return '<label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" data-ccb="' + k + '"' + (on ? " checked" : "") + "> " + label + "</label>"; };
+    var form = '<div class="panel pad"><h3>Расчёт стоимости</h3><p class="sub">' + E(cf.note) + "</p>"
+      + '<div class="fld"><label>Система</label><select data-cc="sys" ' + sel + '><option value="">— выберите —</option>'
+      + cf.systems.map(function (s) { return '<option value="' + s.id + '"' + (s.id === c.sys ? " selected" : "") + ">" + E(s.name) + "</option>"; }).join("") + "</select></div>"
+      + '<div class="fld"><label>Площадь объекта, м²</label><input type="number" min="0" data-cc="area" value="' + E(c.area) + '" placeholder="например 2500"></div>'
+      + chk("survey", "Требуется обследование", c.survey) + (c.survey ? chk("city", "Объект в городе (иначе +" + money(cf.survey.out_of_city) + " за выезд)", c.city) : "")
+      + (sys && sys.pump ? chk("pump", "Насосная станция (+" + money(cf.pump) + ")", c.pump) : "")
+      + '<div class="fld"><label>Лестницы (проектирование)</label><select data-cc="stairs" ' + sel + '><option value="-1">— не требуется —</option>'
+      + cf.stairs.map(function (s, i) { return '<option value="' + i + '"' + (i === c.stairs ? " selected" : "") + ">" + E(s[0]) + " — " + (s[1] == null ? "индивидуально" : money(s[1])) + "</option>"; }).join("") + "</select></div>"
+      + '<h3 style="margin-top:14px">Печать и сборка</h3><p class="sub">Позиции из вкладки «Печать»; цены с наценкой ' + (+pp.markup || 0) + "%</p>"
+      + c.pr.map(function (r, idx) {
+        return '<div class="dsv on"><select data-ccp="' + idx + '.i" ' + sel + ">" + pp.items.map(function (it, j) { return '<option value="' + j + '"' + (j === r.i ? " selected" : "") + ">" + E(it.name) + "</option>"; }).join("")
+          + '</select><input type="number" min="0" data-ccp="' + idx + '.q" value="' + (+r.q || 0) + '" style="width:90px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--surface)">'
+          + '<button class="btn ghost sm" data-ccdel="' + idx + '">✕</button></div>';
+      }).join("")
+      + '<button class="btn ghost sm" data-ccadd="1" style="margin:6px 0 10px">+ Позиция печати</button>'
+      + chk("deliv", "Доставка комплекта (" + money(pp.delivery) + " отдельной строкой)", c.deliv)
+      + "</div>";
+    var res = '<div class="panel pad"><h3>Итого</h3><div id="calcRes">' + calcResHtml() + "</div>"
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button class="btn primary" data-cckp="1">Создать КП из расчёта</button><button class="btn ghost" data-ccreset="1">Сбросить</button></div></div>';
+    return '<div class="head"><div><h1>Калькулятор стоимости</h1><p>Проектирование по площади, обследование, печать, сборка и доставка. Сметы и экспертиза не входят</p></div></div><div class="kpc">' + form + "<div>" + res + "</div></div>";
+  }
+  function calcToKp() {
+    var r = calcLines(), items = r.lines.filter(function (l) { return l.price != null && l.price > 0; }).map(function (l) { return { name: l.name, price: l.price, on: true, custom: true }; });
+    if (!items.length) return toast("Сначала выполните расчёт");
+    S.kpf = { id: 0, customer_id: 0, object: "", pay: "adv50", err: "", items: items };
+    location.hash = "#/kpc";
+  }
   function loadCompany() {
     return api("/settings/company").then(function (c) { S.comp = c; }, function () { S.comp = null; });
   }
@@ -840,9 +958,9 @@
     var f = function (k, label, ph) { return '<div class="fld"><label>' + label + '</label><input data-cmp="' + k + '" value="' + E(c[k] == null ? "" : c[k]) + '" placeholder="' + (ph || "") + '"' + ro + "></div>"; };
     return '<div class="panel pad" style="margin-top:16px"><h3>Реквизиты компании</h3><p class="sub">Подставляются в КП, договоры и подпись писем. ' + (c.can_edit ? "" : "Правит руководитель.") + "</p>"
       + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0 14px">'
-      + f("name", "Наименование", "ООО «…»") + f("city", "Город договора", "Санкт-Петербург") + f("position", "Должность подписанта", "Генеральный директор") + f("director", "ФИО подписанта", "Иванов И.И.")
-      + f("phone", "Телефон", "+7 …") + f("email", "E-mail", "info@…") + f("site", "Сайт", "https://…") + f("valid_days", "Срок действия КП, дней", "30") + "</div>"
-      + '<div class="fld"><label>Реквизиты (ИНН, КПП, банк, р/с)</label><textarea data-cmp="requisites" ' + ro + ">" + E(c.requisites || "") + "</textarea></div>"
+      + f("name", "Исполнитель (ИП)", "ИП Шубинов Д.А.") + f("city", "Город договора", "Санкт-Петербург") + f("position", "Должность подписанта", "Индивидуальный предприниматель") + f("director", "Подпись (инициалы, фамилия)", "Д.А. Шубинов")
+      + f("phone", "Телефон", "+7 …") + f("email", "E-mail", "info@…") + f("site", "Сайт", "https://…") + f("valid_days", "Срок действия КП, календарных дней", "10") + f("work_days", "Срок работ по КП и договору, рабочих дней", "30") + "</div>"
+      + '<div class="fld"><label>Реквизиты ИП (ОГРНИП, ИНН, юридический адрес, банк, БИК, р/с, к/с)</label><textarea data-cmp="requisites" ' + ro + ">" + E(c.requisites || "") + "</textarea></div>"
       + (S.compErr ? '<div class="err">' + E(S.compErr) + "</div>" : "")
       + (c.can_edit ? '<button class="btn primary" data-compsave="1">Сохранить реквизиты</button>' : "") + "</div>";
   }
@@ -860,7 +978,7 @@
   function savePrice() {
     S.pdErr = "";
     api("/price", { items: S.pd.map(function (r) { return { name: r.name, price: +r.price || 0, note: r.note || "", active: !!r.active }; }) }).then(function (r) {
-      S.price = { items: r.items, can_edit: true }; S.pd = JSON.parse(JSON.stringify(r.items)); S.kpf = null; toast("Прайс-лист сохранён"); paint();
+      S.price = Object.assign({}, S.price, { items: r.items, can_edit: true }); S.pd = JSON.parse(JSON.stringify(r.items)); S.kpf = null; toast("Прайс-лист сохранён"); paint();
     }, function (e) { S.pdErr = String(e); paint(); });
   }
 
@@ -964,7 +1082,7 @@
     if (!inModal && !(S.mount && S.mount.el && S.mount.el.contains(e.target))) return;
     var bg = e.target.getAttribute && e.target.getAttribute("data-bg");
     if (bg) { closeAll(); return; }
-    var t = e.target.closest("[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen]");
+    var t = e.target.closest("[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset]");
     if (!t) return;
     var d = t.dataset;
     if (d.close) return closeAll();
@@ -1001,6 +1119,13 @@
     if (d.aurun != null && t.hasAttribute("data-aurun")) return act2(api("/auto/run", {}).then(function (r) { var n = Object.keys(r.fired).reduce(function (a, k) { return a + r.fired[k]; }, 0); toast(n ? "Сработало правил: " + n : "Сейчас ничего не требует внимания"); return loadAuto(); }), false);
     if (d.doc) { var dd = d.doc.split(":"); return downloadDoc(+dd[0], dd[1], dd[2]); }
     if (d.compsave != null && t.hasAttribute("data-compsave")) return saveCompany();
+    if (d.pt) { S.pt = d.pt; return paint(); }
+    if (d.ppreset != null && t.hasAttribute("data-ppreset")) { S.pp = null; S.ppErr = ""; return paint(); }
+    if (d.ppsave != null && t.hasAttribute("data-ppsave")) return savePrint();
+    if (d.ccadd != null && t.hasAttribute("data-ccadd")) { calcState().pr.push({ i: 0, q: 1 }); return paint(); }
+    if (d.ccdel != null && t.hasAttribute("data-ccdel")) { calcState().pr.splice(+d.ccdel, 1); return paint(); }
+    if (d.cckp != null && t.hasAttribute("data-cckp")) return calcToKp();
+    if (d.ccreset != null && t.hasAttribute("data-ccreset")) { S.calc = null; return paint(); }
     if (d.pradd != null && t.hasAttribute("data-pradd")) { S.pd.push({ name: "", price: 0, note: "", active: true }); return paint(); }
     if (d.prdel != null && t.hasAttribute("data-prdel")) { S.pd.splice(+d.prdel, 1); return paint(); }
     if (d.prreset != null && t.hasAttribute("data-prreset")) { S.pd = JSON.parse(JSON.stringify(S.price.items)); S.pdErr = ""; return paint(); }
@@ -1046,6 +1171,17 @@
     if (sd && S.stgD) { S.stgD[sd] = e.target.value; return; }
     var cmp = e.target.dataset && e.target.dataset.cmp;
     if (cmp && S.comp) { S.comp[cmp] = e.target.value; return; }
+    var ppf = e.target.dataset && e.target.dataset.ppf;
+    if (ppf && S.pp) {
+      if (ppf === "markup" || ppf === "delivery") S.pp[ppf] = +e.target.value || 0;
+      else { var q1 = ppf.split("."); S.pp.items[+q1[1]].base = +e.target.value || 0; }
+      document.querySelectorAll("[data-ppour]").forEach(function (b) { var it = S.pp.items[+b.dataset.ppour]; if (it) b.textContent = f2((+it.base || 0) * (1 + (+S.pp.markup || 0) / 100)) + " ₽"; });
+      return;
+    }
+    var ccv = e.target.dataset && e.target.dataset.cc;
+    if (ccv === "area" && S.calc) { S.calc.area = e.target.value; var rs = document.getElementById("calcRes"); if (rs) rs.innerHTML = calcResHtml(); return; }
+    var ccp = e.target.dataset && e.target.dataset.ccp;
+    if (ccp && S.calc && ccp.split(".")[1] === "q") { S.calc.pr[+ccp.split(".")[0]].q = +e.target.value || 0; var rs2 = document.getElementById("calcRes"); if (rs2) rs2.innerHTML = calcResHtml(); return; }
     var prf = e.target.dataset && e.target.dataset.prf;
     if (prf && S.pd) { var pp = prf.split("."); var row = S.pd[+pp[0]]; row[pp[1]] = pp[1] === "price" ? (+e.target.value || 0) : e.target.value; return; }
     var kf = e.target.dataset && e.target.dataset.kf;
@@ -1070,6 +1206,10 @@
   });
   document.addEventListener("change", function (e) {
     if (e.target.id === "nfAdv" && S.form) { S.form.adv = e.target.checked; paint(); }
+    var cdt = e.target.dataset || {};
+    if (cdt.cc && S.calc && cdt.cc !== "area") { var cs_ = calcState(); cs_[cdt.cc] = cdt.cc === "stairs" ? +e.target.value : e.target.value; if (cdt.cc === "sys") cs_.pump = false; paint(); }
+    if (cdt.ccb && S.calc) { S.calc[cdt.ccb] = e.target.checked; paint(); }
+    if (cdt.ccp && S.calc && cdt.ccp.split(".")[1] === "i") { S.calc.pr[+cdt.ccp.split(".")[0]].i = +e.target.value; paint(); }
     if (e.target.dataset && (e.target.dataset.kf === "customer_id" || e.target.dataset.kf === "pay") && S.kpf) { S.kpf[e.target.dataset.kf] = e.target.dataset.kf === "pay" ? e.target.value : +e.target.value; paint(); }
     if (e.target.dataset && e.target.dataset.ctpick != null && S.ct) { S.ct = { kid: +e.target.value, type: S.ct.type, days: S.ct.days, made: false }; paint(); }
     if (e.target.dataset && e.target.dataset.kpstatus && S.kp) { var kid_ = +e.target.dataset.kpstatus; act2(api("/kp/" + kid_ + "/status", { status: e.target.value }).then(loadKp), false); }
