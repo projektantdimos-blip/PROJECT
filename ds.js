@@ -25,7 +25,15 @@
   function tone(o) { var l = o.left_days; return l == null ? "muted" : l < 0 ? "bad" : l <= 3 ? "warn" : "info"; }
   function dmy(iso) { var m = /^(\d{4})-(\d\d)-(\d\d)/.exec(iso || ""); return m ? m[3] + "." + m[2] + "." + m[1] : "—"; }
   function money(n) { return Number(n || 0).toLocaleString("ru-RU") + " ₽"; }
-  function ava(n, c) { n = n || "?"; return '<span class="ava ' + (c || "") + '" style="background:' + (COL[n] || "linear-gradient(135deg,#9aa6bd,#6f7d97)") + '">' + E(n[0]) + "</span>"; }
+  var PCOLORS = { "Ольга": "#e07a46", "Оля": "#e07a46", "Кристина": "#8a5fd0", "Иван": "#238a58", "Мария": "#2f6fbd", "Пётр": "#1f9a9a", "Елена": "#c2527f", "Дмитрий": "#b8892a" };
+  var PALETTE = ["#2f6fbd", "#238a58", "#8a5fd0", "#1f9a9a", "#c2527f", "#b8892a", "#5a6fd0", "#4c8f2f"];
+  function personColor(n) {
+    n = n || "?";
+    if (PCOLORS[n]) return PCOLORS[n];
+    var h = 0; for (var i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0;
+    return PALETTE[h % PALETTE.length];
+  }
+  function ava(n, c) { n = n || "?"; var col = COL[n] || ("linear-gradient(135deg," + personColor(n) + "," + personColor(n) + ")"); return '<span class="ava ' + (c || "") + '" style="background:' + col + '">' + E(n[0]) + "</span>"; }
   function pos() { return (C && C.me && (C.me.position || (C.me.role === "admin" ? "owner" : ""))) || ""; }
   function api(path, body) { return C.call("/../ds" + path, body ? { body: body } : {}); }
   function toast(m) { if (window.toast) window.toast(m); else alert(m); }
@@ -71,6 +79,7 @@
     if (kind === "week") need = need.then(loadWeek);
     if (kind === "kp" || kind === "kpc" || kind === "contract") need = need.then(loadKp);
     if (kind === "price" || kind === "kpc") need = need.then(loadPrice);
+    if (kind === "contract") need = need.then(loadPrice).then(loadContractDraft);
     if (kind === "price") need = need.then(loadCompany);
     if (kind === "stages") need = need.then(loadStages);
     if (kind === "flow") need = need.then(loadFlow);
@@ -85,6 +94,11 @@
   DS.mount = mount;
   DS.reload = function () { S.orders = null; S.history = null; if (S.mount) mount(S.mount.kind, S.mount.el); };
   /* ---------- экран «Задачи» ---------- */
+  function needPhone(o) {
+    if (!o.customer_id || !(S.customers || []).length) return false;
+    var cu = (S.customers || []).filter(function (c) { return c.id === o.customer_id; })[0];
+    return !!cu && !(cu.contacts || []).some(function (x) { return x.phone && String(x.phone).trim(); });
+  }
   function card(o, withStage) {
     var stage = o.stage, money_ = can("money") && o.amount != null;
     return '<button class="task ' + (o.urgent ? "urgent" : "") + '" data-open="' + o.id + '"><span class="stripe" style="--c:' + (o.urgent || (o.left_days != null && o.left_days < 0) ? "var(--bad)" : (STAGE_COLOR[stage] || "var(--brand)")) + '"></span><span class="body">'
@@ -92,6 +106,7 @@
       + '<span class="ttl" style="display:block">' + E(o.object) + "</span>"
       + '<span class="con ' + (o.left_days != null && o.left_days < 0 ? "bad" : "") + '" style="display:block">Договор до ' + dmy(o.due_date) + "</span>"
       + '<span class="meta">' + (o.executor ? ava(o.executor, "sm") + '<span style="font-size:.84rem;margin-right:auto">' + E(o.executor) + "</span>" : '<span class="pill muted" style="margin-right:auto">не назначен</span>')
+      + (needPhone(o) ? '<span class="pill bad" title="В карточке заказчика не указан сотовый телефон">Нет телефона</span>' : "")
       + (withStage ? '<span class="pill muted"><i class="dot" style="background:' + (STAGE_COLOR[stage] || "#999") + '"></i>' + E(stage) + "</span>" : "")
       + (money_ ? (o.post_paid ? '<span class="pill ok">₽ Оплачено</span>' : '<span class="pill warn">₽ Не оплачено</span>') : "")
       + '<span class="pill ' + tone(o) + '">' + E(leftText(o.left_days)) + "</span></span></span></button>";
@@ -99,8 +114,10 @@
   /* ---------- операционные задачи и продажи: сроки, ответственные, состояния ---------- */
   function taskTone(t) { return t.left_days == null ? "muted" : t.left_days < 0 ? "bad" : t.left_days <= 2 ? "warn" : "info"; }
   function taskCard(t) {
-    var tn = taskTone(t), kindName = t.kind === "acc" ? "Бухгалтерия" : t.kind === "ops" ? "Операционная" : "Продажи";
+    var tn = taskTone(t), kindName = t.kind === "acc" ? "Бухгалтерия" : t.kind === "ops" ? "Операционная" : t.kind === "chat" ? "Переписка" : t.kind === "design" ? "Проектный отдел" : "Продажи";
     var btns = [];
+    if (t.thread_id) btns.push('<button class="btn primary sm" data-chatopen="' + E(t.thread_id) + '">Открыть диалог</button>');
+    if (t.order_id && t.kind === "design") btns.push('<button class="btn primary sm" data-open="' + t.order_id + '">Открыть задачу</button>');
     if (t.state !== "work") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':work">В работу</button>');
     if (t.state !== "wait") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':wait">Ждём ответа</button>');
     btns.push('<button class="btn ok sm" data-tstate="' + t.id + ':done">Выполнено</button>');
@@ -120,7 +137,7 @@
       return '<div class="col"><div class="col-h"><b>' + c[1] + '</b><span class="n">' + arr.length + "</span></div>" + arr.map(taskCard).join("") + "</div>";
     }).join("") + "</div>";
   }
-  var KP_COLS = [["Новое обращение", "Обращение"], ["КП отправлено", "КП отправлено"], ["Переговоры", "Переговоры"], ["Согласование условий", "Согласование условий"], ["Договор подписан", "Договор подписан · ждём оплату"]];
+  var KP_COLS = [["Новое обращение", "Обращение"], ["КП отправлено", "КП отправлено"], ["Договор подписан", "Договор подписан · ждём оплату"]];
   function kpTone(k) { return k.last_days == null ? "muted" : k.last_days > 5 ? "bad" : k.last_days >= 3 ? "warn" : "info"; }
   function kpCard(k) {
     var tn = kpTone(k);
@@ -141,21 +158,30 @@
     return '<div class="board">' + cols + tcol + "</div>";
   }
   function screen() {
-    var p = pos(), canAll = p === "owner" || p === "sales" || p === "ops", kb = canAll ? S.kb : "p";
-    var seg = canAll ? '<div class="bar" style="margin-bottom:16px"><div class="seg">' + [["p", "Проектные"], ["o", "Операционные"], ["s", "Продажи"]].map(function (x) { return '<button data-kb="' + x[0] + '" class="' + (kb === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div></div>" : "";
+    var p = pos(), canAll = p === "owner" || p === "sales" || p === "ops", isAcc = p === "acc";
+    var TABS = canAll ? [["p", "Проектные"], ["o", "Операционные"], ["s", "Продажи"], ["a", "Бухгалтерия"]] : isAcc ? [["a", "Бухгалтерия"], ["p", "Проектные"]] : [];
+    var kb = TABS.length ? (TABS.some(function (x) { return x[0] === S.kb; }) ? S.kb : TABS[0][0]) : "p";
+    var seg = TABS.length ? '<div class="bar" style="margin-bottom:16px"><div class="seg">' + TABS.map(function (x) { return '<button data-kb="' + x[0] + '" class="' + (kb === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div></div>" : "";
     var body;
     if (kb === "p") {
       var stages = (S.meta.stages || []).filter(function (s) { return s !== "Закрыто"; });
-      body = '<div class="board">' + stages.map(function (st) {
+      var filled = stages.filter(function (st) { return S.orders.some(function (o) { return o.stage === st; }); });
+      var empty = stages.filter(function (st) { return filled.indexOf(st) < 0; });
+      body = '<div class="board">' + filled.map(function (st) {
         var items = S.orders.filter(function (o) { return o.stage === st; });
         return '<div class="col"><div class="col-h"><i class="dot" style="background:' + (STAGE_COLOR[st] || "#999") + '"></i><b>' + E(st) + '</b><span class="n">' + items.length + "</span></div>" + items.map(card).join("") + "</div>";
-      }).join("") + "</div>";
+      }).join("") + "</div>"
+        + (empty.length ? '<div class="empty-stages"><span>Пустые этапы:</span>' + empty.map(function (st) { return '<span class="pill muted"><i class="dot" style="background:' + (STAGE_COLOR[st] || "#999") + '"></i>' + E(st) + "</span>"; }).join("") + "</div>" : "");
+    } else if (kb === "s") {
+      body = salesBoard();
+    } else if (kb === "a") {
+      body = opsBoard((S.tasks || []).filter(function (x) { return x.kind === "acc"; }), "Бухгалтерских задач нет.");
     } else {
-      body = kb === "s" ? salesBoard() : opsBoard((S.tasks || []).filter(function (x) { return x.kind === "ops" || x.kind === "acc"; }), "Операционных задач нет.");
+      body = opsBoard((S.tasks || []).filter(function (x) { return x.kind === "ops"; }), "Операционных задач нет.");
     }
     var newBtn = (p === "owner" || p === "sales" || p === "ops") ? '<button class="btn accent" data-new="1">' + ic("plus") + "Новая задача</button>" : "";
-    return '<div class="ds dspage"><div class="head"><div><h1>Задачи</h1><p>' + (kb === "p" ? "Проекты по стадиям; нажмите на карточку, чтобы открыть окно задачи" : kb === "o" ? "Операционные: сбор данных, отправка проектов, постпродажа" : "Продажи: от обращения до аванса") + "</p></div>" + newBtn + "</div>"
-      + '<div class="rolebar">' + ic("lock") + "<span>" + E(ROLE_NAME[p] || "") + ". " + E(ROLE_NOTE[p] || "") + "</span></div>" + seg + body + "</div>";
+    return '<div class="ds dspage"><div class="head"><div><h1>Задачи</h1><p>' + (kb === "p" ? "Проекты по стадиям; нажмите на карточку, чтобы открыть окно задачи" : kb === "o" ? "Операционные: сбор данных, отправка проектов заказчику, постпродажа" : kb === "a" ? "Бухгалтерия: счета на аванс, акты, оплата" : "Продажи: от обращения до подписания договора") + "</p></div>" + newBtn + "</div>"
+      + "" + seg + body + "</div>";
   }
 
   /* ---------- окно задачи ---------- */
@@ -192,7 +218,11 @@
       + (designerView ? "" : "<span>Правок</span><span>" + (o.edits || 0) + "</span>") + "</div></div>";
     var cust = "";
     if (o.customer && !designerView) {
-      cust = '<div class="panel pad"><h3>Заказчик</h3><div class="kv" style="margin-top:10px"><span>Компания</span><span><b>' + E(o.customer) + "</b>" + (cu && cu.regular ? ' <span class="pill ok">постоянный</span>' : "") + "</span></div>"
+      var phoneOf = cu && cu.contacts ? (cu.contacts.filter(function (x) { return x.phone && String(x.phone).trim(); })[0] || {}) : {};
+      var phoneB = phoneOf.phone
+        ? '<div class="phoneb"><small>Сотовый телефон заказчика</small><b>' + E(phoneOf.phone) + (phoneOf.fio ? " · " + E(phoneOf.fio) : "") + "</b></div>"
+        : '<div class="phoneb bad"><b>⚠ Не указан сотовый телефон заказчика</b><small>Менеджер: заполните контактное лицо и номер в карточке заказчика — без него руководителю проектного отдела нельзя позвонить.</small><a class="btn primary sm" href="#/clients" style="text-decoration:none">Заполнить в карточке</a></div>';
+      cust = '<div class="panel pad"><h3>Заказчик</h3>' + phoneB + '<div class="kv" style="margin-top:10px"><span>Компания</span><span><b>' + E(o.customer) + "</b>" + (cu && cu.regular ? ' <span class="pill ok">постоянный</span>' : "") + "</span></div>"
         + (cu && cu.contacts ? cu.contacts.map(function (x) { return '<div class="ctt" style="margin-top:10px"><b>' + E(x.fio) + "</b><small>" + E(x.pos || "должность не указана") + "</small><div>" + E(x.phone || "—") + "</div></div>"; }).join("") : "")
         + (cu && cu.tz ? '<div class="kv"><span>Часовой пояс</span><span>' + E(cu.tz) + " · сейчас <b>" + nowIn(cu.tz) + "</b></span></div>" : "")
         + (cu && cu.comment ? '<div class="note">📝 Комментарий менеджера: ' + E(cu.comment) + "</div>" : "") + "</div>";
@@ -311,7 +341,7 @@
     var seg = canAll ? '<div class="bar" style="margin:0 0 16px"><div class="seg">' + [["p", "Проектные"], ["o", "Операционные"], ["s", "Продажи"]].map(function (x) { return '<button data-otype="' + x[0] + '" class="' + (type === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div></div>" : "";
     var newBtn = (p === "owner" || p === "sales" || p === "ops") ? '<button class="btn accent" data-new="1">' + ic("plus") + "Новая задача</button>" : "";
     var head = '<div class="head"><div><h1>Обзор</h1><p>Нажмите на показатель, чтобы увидеть именно эти задачи</p></div>' + newBtn + "</div>"
-      + '<div class="rolebar">' + ic("lock") + "<span>" + E(ROLE_NAME[p] || "") + ". " + E(ROLE_NOTE[p] || "") + "</span></div>" + seg;
+      + "" + seg;
     var search = '<div class="tools"><label class="search" style="flex:1;display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:10px 14px"><input id="dsQ" style="border:0;background:transparent;outline:0;width:100%" placeholder="Номер, заказчик, объект, исполнитель…" value="' + E(f.q) + '"></label></div>';
     var q = (f.q || "").toLowerCase();
     function tiles(arr) { return '<div class="tiles">' + arr.map(function (x) { return '<button class="tile ' + (f.tile === x[0] ? "on" : "") + '" data-tile="' + x[0] + '" style="--c:' + x[2] + '"><div class="n">' + x[3] + '</div><div class="l">' + x[1] + "</div></button>"; }).join("") + "</div>"; }
@@ -384,8 +414,8 @@
       return '<div class="panel person" style="display:flex;gap:12px;align-items:center;padding:13px 15px">' + ava(u.name, "lg") + "<div><b>" + E(u.name) + '</b><br><small style="color:var(--muted)">' + mine.length + " активн." + (late ? ' · <span style="color:var(--bad)">' + late + " просроч.</span>" : "") + "</small></div></div>";
     }).join("") + '<div class="panel person" style="display:flex;gap:12px;align-items:center;padding:13px 15px"><span class="ava lg" style="background:var(--line);color:var(--muted)">?</span><div><b>Не назначено</b><br><small style="color:var(--muted)">' + unassigned.length + " готовы к проектированию</small></div></div>";
     var head = '<div class="head"><div><h1>Занятость</h1><p>Кто чем занят. Серым показаны задачи без исполнителя, готовые к проектированию.' + (canEdit ? " Нажмите на любую полоску: можно назначить исполнителя и сроки прямо здесь." : "") + '</p></div>'
-      + '<div class="seg"><button data-ld="week" class="' + (S.ld === "week" ? "on" : "") + '">План на неделю</button><button data-ld="tl" class="' + (S.ld === "tl" ? "on" : "") + '">Шкала сроков</button></div></div>'
-      + '<div class="rolebar">' + ic("lock") + "<span>" + E(ROLE_NAME[p] || "") + ". " + E(ROLE_NOTE[p] || "") + "</span></div>"
+      + '<div class="seg"><button data-ld="week" class="' + (S.ld === "week" ? "on" : "") + '">План на неделю</button><button data-ld="tl" class="' + (S.ld === "tl" ? "on" : "") + '">Месяц</button></div></div>'
+      + ""
       + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">' + cards + "</div>";
     var open = canEdit ? "data-edit" : "data-open";
     if (S.ld === "week") {
@@ -402,26 +432,54 @@
           }).join("") || '<div class="note" style="padding:14px 15px;margin:0">Задач в плане нет</div>') + "</div>";
       }).join("") + "</div>";
     }
-    var days = []; for (var k = 0; k < 14; k++) days.push(addDays(mon, k));
-    var iso = days.map(isoDay);
-    function bar(o, un) {
-      var sp = span(o), a = sp[0] ? iso.indexOf(sp[0]) : 0, b = sp[1] ? iso.indexOf(sp[1]) : 13;
-      if (sp[0] && a < 0) a = sp[0] < iso[0] ? 0 : 13;
-      if (sp[1] && b < 0) b = sp[1] < iso[0] ? 0 : 13;
-      if (b < a) b = a;
-      var bg = un ? "" : "background:" + (o.left_days != null && o.left_days < 0 ? "var(--bad)" : (STAGE_COLOR[o.stage] || "var(--brand)")) + ";";
-      return '<div class="bar' + (un ? " un" : "") + '" ' + open + '="' + o.id + '" title="' + (canEdit ? "Нажмите, чтобы изменить исполнителя и сроки" : "Открыть задачу") + '" style="grid-column:' + (a + 2) + "/" + (b + 3) + ";grid-row:1;height:28px;margin:5px 2px;border-radius:8px;" + bg + 'color:' + (un ? "var(--ink)" : "#fff") + ';font-size:.76rem;font-weight:700;padding:0 9px;display:flex;align-items:center;white-space:nowrap;overflow:hidden;cursor:pointer;' + (un ? "border:1px dashed var(--muted);background:color-mix(in srgb,var(--muted) 40%,transparent);" : "") + '">№' + E(o.number) + " · " + E(un ? "назначить" : (o.object || "").split(",")[0]) + "</div>";
+    /* месяц: колонки по дням, выходные закрашены, у каждого сотрудника свой цвет, отмечен последний день загрузки */
+    var ym = S.ldm || today.slice(0, 7), y0 = +ym.slice(0, 4), m0 = +ym.slice(5, 7) - 1;
+    var dim = new Date(y0, m0 + 1, 0).getDate(), iso = [], dow = [];
+    for (var k = 1; k <= dim; k++) { var dd = new Date(y0, m0, k); iso.push(isoDay(dd)); dow.push((dd.getDay() + 6) % 7); }
+    var MN = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
+    var cols = "160px repeat(" + dim + ",minmax(30px,1fr))", minw = 160 + dim * 32;
+    var nav = '<div class="seg" style="margin-bottom:12px"><button data-ldn="-1">← ' + MN[(m0 + 11) % 12] + '</button><button data-ldn="0" class="on">' + MN[m0] + " " + y0 + '</button><button data-ldn="1">' + MN[(m0 + 1) % 12] + " →</button></div>";
+    function cellBg(i, row) {
+      var we = dow[i] >= 5, td = iso[i] === today;
+      return '<div style="grid-column:' + (i + 2) + ";grid-row:" + row + ";border-left:1px solid var(--line);" + (td ? "background:color-mix(in srgb,var(--accent) 18%,transparent);" : we ? "background:color-mix(in srgb,var(--bad) 10%,var(--surface-2));" : "") + '"></div>';
     }
-    var row = function (name, content, topLine) { return '<div style="display:grid;grid-template-columns:150px repeat(14,minmax(40px,1fr));border-bottom:1px solid var(--line);min-width:880px;' + (topLine ? "border-top:2px solid var(--line);" : "") + '"><div style="padding:8px 4px 8px 12px;font-weight:700;display:flex;gap:8px;align-items:center;' + (name ? "" : "color:var(--muted)") + '">' + name + "</div>" + content + "</div>"; };
-    var header = '<div style="display:grid;grid-template-columns:150px repeat(14,minmax(40px,1fr));background:var(--surface-2);color:var(--muted);min-width:880px;border-bottom:1px solid var(--line)"><div style="padding:8px 12px">Сотрудник</div>'
-      + days.map(function (d, i) { return '<div style="padding:8px 4px;text-align:center;font-size:.78rem;border-left:1px solid var(--line);' + (isoDay(d) === today ? "color:var(--accent);font-weight:800" : "") + '">' + WD[i % 7] + "<br><b>" + ("0" + d.getDate()).slice(-2) + "</b></div>"; }).join("") + "</div>";
-    var body = people.map(function (u) {
+    function bar(o, un, color, row, isLast) {
+      var sp = span(o), s0 = sp[0] || iso[0], e0 = sp[1] || iso[dim - 1];
+      if (e0 < iso[0] || s0 > iso[dim - 1]) return "";
+      var a = Math.max(0, iso.indexOf(s0)), b = iso.indexOf(e0);
+      if (s0 < iso[0]) a = 0;
+      if (b < 0) b = e0 > iso[dim - 1] ? dim - 1 : 0;
+      if (b < a) b = a;
+      var late = o.left_days != null && o.left_days < 0;
+      var bg = un ? "background:color-mix(in srgb,var(--muted) 35%,transparent);border:1px dashed var(--muted);color:var(--ink);" : "background:" + color + ";color:#fff;" + (late ? "outline:2px solid var(--bad);" : "");
+      return '<div ' + open + '="' + o.id + '" title="' + E("№" + o.number + " · " + (o.object || "") + " · " + dmy(s0) + " — " + dmy(e0)) + '" style="grid-column:' + (a + 2) + "/" + (b + 3) + ";grid-row:" + row + ";height:28px;margin:5px 2px;border-radius:8px;" + bg
+        + "font-size:.76rem;font-weight:700;padding:0 9px;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;cursor:pointer;position:relative;z-index:1;"
+        + (isLast ? "box-shadow:inset -5px 0 0 rgba(0,0,0,.35);" : "") + '">' + (late ? "⚠ " : "") + "№" + E(o.number) + " · " + E(un ? "назначить" : (o.object || "").split(",")[0]) + (isLast && sp[1] ? " · до " + dmy(sp[1]).slice(0, 5) : "") + "</div>";
+    }
+    var header = '<div style="display:grid;grid-template-columns:' + cols + ';background:var(--surface-2);color:var(--muted);min-width:' + minw + 'px;border-bottom:1px solid var(--line)"><div style="padding:8px 12px">Сотрудник</div>'
+      + iso.map(function (d, i) {
+        var we = dow[i] >= 5, td = d === today;
+        return '<div style="padding:6px 2px;text-align:center;font-size:.72rem;border-left:1px solid var(--line);' + (td ? "color:var(--accent);font-weight:800;background:color-mix(in srgb,var(--accent) 18%,transparent);" : we ? "color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,var(--surface-2));" : "") + '">' + WD[dow[i]] + "<br><b>" + ("0" + (i + 1)).slice(-2) + "</b></div>";
+      }).join("") + "</div>";
+    function block(u) {
+      var color = personColor(u.name);
       var mine = act_.filter(function (o) { return o.executor_id === u.id || o.executor === u.name; });
-      return mine.map(function (o, li) { return row(li === 0 ? ava(u.name, "sm") + E(u.name) : "", bar(o, false)); }).join("");
-    }).join("")
-      + unassigned.map(function (o, i) { return row(i === 0 ? "Не назначены" : "", bar(o, true), i === 0); }).join("");
-    return head + '<div class="panel" style="overflow:auto">' + header + (body || '<div class="note" style="padding:16px;margin:0">Задач в плане нет</div>') + "</div>"
-      + '<div class="note">Серые полоски: от даты постановки до последнего дня договора.' + (canEdit ? " Нажатие открывает окно: исполнитель, начало и срок." : "") + "</div>";
+      var ends = mine.map(function (o) { return span(o)[1]; }).filter(Boolean).sort();
+      var last = ends.length ? ends[ends.length - 1] : "";
+      var lastO = mine.filter(function (o) { return span(o)[1] === last; })[0];
+      var shown = mine.filter(function (o) { var sp = span(o); return !(sp[1] && sp[1] < iso[0]) && !(sp[0] && sp[0] > iso[dim - 1]); });
+      var nm = '<div style="padding:8px 6px 8px 12px;display:flex;gap:8px;align-items:flex-start;grid-row:1/span ' + Math.max(1, shown.length) + '">' + ava(u.name, "sm") + "<div><b>" + E(u.name) + '</b><br><small style="color:var(--muted)">' + mine.length + " в работе"
+        + (last ? '<br><span style="color:' + color + ';font-weight:700">загружен до ' + dmy(last).slice(0, 5) + "</span>" : "") + "</small></div></div>";
+      if (!shown.length) return '<div style="display:grid;grid-template-columns:' + cols + ';min-width:' + minw + 'px;border-bottom:1px solid var(--line);min-height:52px">' + nm + iso.map(function (d, i) { return cellBg(i, 1); }).join("") + "</div>";
+      return '<div style="display:grid;grid-template-columns:' + cols + ';min-width:' + minw + 'px;border-bottom:1px solid var(--line)">' + nm
+        + shown.map(function (o, r) { return iso.map(function (d, i) { return cellBg(i, r + 1); }).join("") + bar(o, false, color, r + 1, o === lastO); }).join("") + "</div>";
+    }
+    var body = people.map(block).join("")
+      + (unassigned.length ? '<div style="display:grid;grid-template-columns:' + cols + ';min-width:' + minw + 'px;border-top:2px solid var(--line)"><div style="padding:8px 12px;font-weight:700;color:var(--muted);grid-row:1/span ' + unassigned.length + '">Не назначены</div>'
+        + unassigned.map(function (o, r) { return iso.map(function (d, i) { return cellBg(i, r + 1); }).join("") + bar(o, true, "", r + 1, false); }).join("") + "</div>" : "");
+    return head + nav + '<div class="panel" style="overflow:auto">' + header + (body || '<div class="note" style="padding:16px;margin:0">Задач в плане нет</div>') + "</div>"
+      + '<div class="note">Каждому сотруднику свой цвет. Выходные закрашены красноватым, сегодня — оранжевым; жирный край полоски и подпись «до …» — последний день загрузки специалиста.'
+      + (canEdit ? " Нажатие на полоску открывает окно: исполнитель, начало и срок." : "") + "</div>";
   }
   function planHtml() {
     var o = find(S.edit); if (!o) return "";
@@ -446,12 +504,14 @@
     var title = p === "design" ? "Кому звонить" : "Заказчики";
     var head = '<div class="head"><div><h1>' + title + "</h1><p>" + (p === "design" ? "Заказчики ваших проектов: контакты, часовой пояс и комментарий менеджера. Звонки делаете вы." : "Компании, контактные лица, часовой пояс и комментарии менеджера") + "</p></div>"
       + (canEdit ? '<button class="btn accent" data-cnew="1">' + ic("plus") + "Новый заказчик</button>" : "") + "</div>"
-      + '<div class="rolebar">' + ic("lock") + "<span>" + E(ROLE_NAME[p] || "") + ". " + E(ROLE_NOTE[p] || "") + "</span></div>";
+      + "";
     var rows = list.map(function (c) {
       var m = (c.contacts && c.contacts[0]) || null;
       return '<button style="display:flex;gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);width:100%;text-align:left;' + (S.cu.sel === c.id ? "background:var(--brand-soft);box-shadow:inset 3px 0 0 var(--brand)" : "") + '" data-csel="' + c.id + '">'
         + ava(c.name, "lg") + '<div style="min-width:0"><b>' + E(c.name) + "</b> " + (c.regular ? '<span class="pill ok">постоянный</span>' : "") + '<div style="color:var(--muted);font-size:.86rem">' + (m && m.fio ? E(m.fio) + (m.pos ? " · " + E(m.pos) : "") : "контакт не указан") + "</div></div>"
-        + '<div style="margin-left:auto;text-align:right"><b style="font-size:1.25rem;display:block">' + (c.works || 0) + '</b><small style="color:var(--muted)">работ за всё время</small></div></button>';
+        + '<div style="margin-left:auto;text-align:right"><b style="font-size:1.25rem;display:block">' + (c.works || 0) + '</b><small style="color:var(--muted)">работ за всё время</small>'
+        + (c.fill != null ? '<div class="fillbar" title="Заполненность карточки: ' + c.fill + '%"><i style="width:' + c.fill + '%;background:' + (c.fill < 40 ? "var(--bad,#d33)" : c.fill < 75 ? "var(--warn,#e8a317)" : "var(--ok,#2a9d5c)") + '"></i></div><small style="color:var(--muted)">карточка ' + c.fill + "%</small>" : "")
+        + "</div></button>";
     }).join("") || '<div class="note" style="padding:16px;margin:0">Заказчиков пока нет</div>';
     var det;
     if (!d) det = '<div class="panel pad"><p class="sub" style="margin:0">Выберите заказчика слева</p></div>';
@@ -467,7 +527,7 @@
         + (d.contacts || []).map(function (c, i) {
           return '<div class="ctt" style="margin-top:10px"><div class="fld" style="margin-bottom:8px"><label>ФИО</label><input data-cf="c.' + i + '.fio" value="' + E(c.fio) + '"' + ro + "></div>"
             + '<div><div class="fld" style="margin-bottom:8px"><label>Должность</label><input data-cf="c.' + i + '.pos" value="' + E(c.pos) + '"' + ro + "></div>"
-            + '<div class="fld" style="margin-bottom:0"><label>Телефон</label><input data-cf="c.' + i + '.phone" value="' + E(c.phone) + '"' + ro + "></div></div>"
+            + '<div class="fld" style="margin-bottom:0"><label>Сотовый телефон <span style="color:var(--bad)">*</span></label><input data-cf="c.' + i + '.phone" value="' + E(c.phone) + '" placeholder="+7 …"' + (c.phone ? "" : ' style="border-color:var(--bad);background:var(--bad-soft)"') + ro + "></div></div>"
             + '<div class="fld" style="margin:8px 0 0"><label>E-mail (по нему диалоги привязываются к заказчику)</label><input data-cf="c.' + i + '.email" value="' + E(c.email || "") + '"' + ro + "></div>"
             + (canEdit && d.contacts.length > 1 ? '<button class="btn ghost sm" style="margin-top:8px" data-cdel="' + i + '">Убрать</button>' : "") + "</div>";
         }).join("")
@@ -513,14 +573,27 @@
   function act2(p, reloadWeek) {
     return p.then(function () { return reloadWeek ? loadWeek() : null; }).then(paint, function (e) { toast(String(e && e.message || e)); });
   }
+  /* «Мои задачи» руководителя проектного отдела: корректировки по замечаниям, переданные диалоги; рядом — план недели */
+  function myTasksScreen() {
+    var items = (S.tasks || []).slice().sort(function (a, b) { return (a.left_days == null ? 999 : a.left_days) - (b.left_days == null ? 999 : b.left_days); });
+    var head = '<div class="head"><div><h1>Мои задачи</h1><p>Личные задачи: корректировки по замечаниям заказчиков и диалоги, которые вам передали. Выполненные уходят из списка.</p></div></div>';
+    if (!items.length) return head + '<div class="panel pad"><p class="sub" style="margin:0">Личных задач пока нет.</p></div>';
+    return head + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">' + items.map(taskCard).join("") + "</div>";
+  }
   function weekScreen() {
+    if (pos() !== "design") return weekPlan();
+    var tab = S.mt || "tasks", n = (S.tasks || []).length;
+    var seg = '<div class="seg" style="margin-bottom:16px"><button data-mt="tasks" class="' + (tab === "tasks" ? "on" : "") + '">Мои задачи' + (n ? " · " + n : "") + '</button><button data-mt="week" class="' + (tab === "week" ? "on" : "") + '">План на неделю</button></div>';
+    return seg + (tab === "tasks" ? myTasksScreen() : weekPlan());
+  }
+  function weekPlan() {
     var p = pos(), me = C && C.me ? C.me.id : 0, days = (S.wk && S.wk.days) || [], today = isoDay(new Date());
     var mine = (S.orders || []).filter(function (o) { return o.executor_id === me && ACTIVE_WORK.indexOf(o.stage) >= 0; });
     var off = days.filter(function (d) { return d.off; }).length, done = days.filter(function (d) { return d.worked && !d.off; }).length, work = 7 - off;
     var lbl = days.length ? dmy(days[0].day).slice(0, 5) + " — " + dmy(days[6].day).slice(0, 5) : "";
     var head = '<div class="head"><div><h1>План на неделю</h1><p>Отмечайте отработанные дни, выходные назначаете сами. Комментарий под днём увидит руководитель в недельном отчёте.</p></div>'
       + '<div class="seg"><button data-wnav="-1">← Пред.</button><button data-wnav="0" class="on">' + lbl + '</button><button data-wnav="1">След. →</button></div></div>'
-      + '<div class="rolebar">' + ic("lock") + "<span>" + E(ROLE_NAME[p] || "") + ". " + E(ROLE_NOTE[p] || "") + "</span></div>"
+      + ""
       + '<div class="tiles" style="margin-bottom:16px"><div class="tile" style="--c:var(--ok)"><div class="n">' + done + " из " + work + '</div><div class="l">Рабочих дней отработано</div></div>'
       + '<div class="tile" style="--c:var(--accent)"><div class="n">' + off + '</div><div class="l">Отдыхал(а) на неделе, дн.</div></div>'
       + '<div class="tile" style="--c:var(--brand)"><div class="n">' + mine.length + '</div><div class="l">Проектов в работе</div></div></div>';
@@ -537,11 +610,11 @@
     }).join("") + "</div>";
   }
   /* ---------- реестр КП, конструктор КП, договор ---------- */
-  var KP_TONE = { "Новое обращение": "info", "КП отправлено": "info", "Переговоры": "warn", "Согласование условий": "org", "Договор подписан": "ok", "Оплачено": "paid", "Отказ": "bad" };
-  var KP_FUNNEL = ["Новое обращение", "КП отправлено", "Переговоры", "Согласование условий", "Договор подписан", "Оплачено"];
-  var KP_MANUAL = ["Новое обращение", "КП отправлено", "Переговоры", "Согласование условий", "Отказ"];
+  var KP_TONE = { "Новое обращение": "info", "КП отправлено": "info", "Договор подписан": "ok", "Оплачено": "paid", "Отказ": "bad" };
+  var KP_FUNNEL = ["Новое обращение", "КП отправлено", "Договор подписан", "Оплачено"];
+  var KP_MANUAL = ["Новое обращение", "КП отправлено", "Отказ"];
   var PAYS = [["adv50", "Аванс 50%, остаток по акту"], ["adv30", "Аванс 30%, остаток по акту"], ["post100", "100% по акту"]];
-  var PRICE = [["Обследование объекта", 40000], ["Проект СПС (адресная)", 180000], ["Проект СОУЭ 3 типа", 150000], ["Проект АУП", 170000], ["Проект ВПВ", 120000], ["Расчёт категорий помещений", 30000], ["Согласование с экспертизой", 60000]];
+  var PRICE = [];
   var CT_TYPES = ["Проектирование СПС, СОУЭ", "Проектирование АУП, ВПВ", "Проектирование (комплекс)", "Обследование объекта", "Расчёт пожарного риска, категорирование", "Разработка исполнительной документации"];
   function execName() { return (S.comp && S.comp.name) || "ИП Шубинов Д.А."; }
   function loadKp() { return api("/kp").then(function (k) { S.kp = k; }, function (e) { S.kp = []; S.err = String(e); }); }
@@ -550,7 +623,7 @@
     var p = pos(), canEdit = p === "owner" || p === "sales" || p === "ops", list = S.kp || [];
     var head = '<div class="head"><div><h1>Реестр КП</h1><p>Выставленные стоимости: аванс и постоплата отдельно. Красным выделены КП, по которым нет общения более 5 дней</p></div>'
       + (canEdit ? '<div style="display:flex;gap:10px"><a class="btn accent" href="#/kpc" style="text-decoration:none">' + ic("plus") + "Составить КП</a></div>" : "") + "</div>"
-      + '<div class="rolebar">' + ic("lock") + "<span>" + E(ROLE_NAME[p] || "") + ". " + E(ROLE_NOTE[p] || "") + "</span></div>";
+      + "";
     var funnel = '<div class="panel pad" style="margin-bottom:16px"><h3>Воронка</h3><p class="sub">Статус «Оплачено» ставится автоматически, когда вся оплата (аванс и постоплата) пришла из 1С</p><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
       + KP_FUNNEL.map(function (s, i) { var n = list.filter(function (k) { return k.status === s; }).length; return '<span class="pill ' + KP_TONE[s] + '" style="height:30px;padding:0 14px">' + E(s) + " · " + n + "</span>" + (i < KP_FUNNEL.length - 1 ? '<span style="color:var(--muted)">→</span>' : ""); }).join("") + "</div></div>";
     function advTxt(k) { if (!k.has_adv) return k.order_id ? "без аванса" : "—"; return money(k.adv_sum) + " · " + (k.adv_paid ? "оплачен " + dmy(k.adv_date).slice(0, 5) : (k.order_id ? "ждём" : "план")); }
@@ -559,7 +632,7 @@
       var late = kpIsLate(k);
       var st = canEdit && !k.order_id ? '<select data-kpstatus="' + k.id + '" style="min-width:150px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);padding:5px 8px">' + KP_MANUAL.map(function (s) { return "<option" + (s === k.status ? " selected" : "") + ">" + s + "</option>"; }).join("") + "</select>" : '<span class="pill ' + (KP_TONE[k.status] || "info") + '">' + E(k.status) + "</span>";
       var acts = canEdit && !k.order_id && k.status !== "Отказ" ? '<button class="btn ghost sm" data-kpcontract="' + k.id + '">Договор</button> ' : "";
-      if (canEdit && !k.order_id) acts += '<button class="btn ghost sm" data-kptouch="' + k.id + '">Был контакт</button> ';
+      if (canEdit && !k.order_id) acts += '<button class="btn ghost sm" data-kptouch="' + k.id + '">Был контакт</button> <button class="btn ghost sm" data-kpdel="' + k.id + '" title="Удалить КП из реестра" style="color:var(--bad)">Удалить</button> ';
       acts += docButtons(k);
       return '<tr class="' + (late ? "late" : "") + '"><td><b>' + E(k.number) + "</b></td><td>" + E(k.customer) + "</td><td>" + E(k.object) + "<br><small>" + E(k.services.map(function (s) { return s.name; }).join(", ")) + "</small></td>"
         + "<td>" + (k.issued_date ? dmy(k.issued_date) : "—") + "</td><td><b>" + money(k.amount) + "</b></td><td>" + st + "</td><td>" + advTxt(k) + "</td><td>" + postTxt(k) + "</td>"
@@ -576,8 +649,13 @@
   function kpTotal() { return (S.kpf ? S.kpf.items : []).reduce(function (a, i) { return a + (i.on ? (+i.price || 0) : 0); }, 0); }
   function kpcInit() {
     if (S.kpf) return;
-    var src = S.price && S.price.items ? S.price.items.filter(function (i) { return i.active; }).map(function (i) { return [i.name, i.price]; }) : PRICE;
-    S.kpf = { id: 0, customer_id: 0, object: "", pay: "adv50", err: "", items: src.map(function (x) { return { name: x[0], price: x[1], on: false }; }) };
+    S.kpf = { id: 0, customer_id: 0, object: "", pay: "adv50", err: "", items: [] };
+  }
+  /* строка в составе КП: добавить или обновить по названию */
+  function kpAddLine(name, price) {
+    kpcInit();
+    var ex = S.kpf.items.filter(function (i) { return i.name === name; })[0];
+    if (ex) { ex.on = true; if (price != null) ex.price = price; } else S.kpf.items.push({ name: name, price: price || 0, on: true, custom: true });
   }
   function kpcScreen() {
     var p = pos();
@@ -585,27 +663,38 @@
     kpcInit();
     var f = S.kpf, cs = S.customers || [], total = kpTotal(), pay = PAYS.filter(function (x) { return x[0] === f.pay; })[0] || PAYS[0];
     var pct = f.pay === "adv50" ? 0.5 : f.pay === "adv30" ? 0.3 : 0, adv = Math.round(total * pct);
-    var cust = cs.filter(function (c) { return c.id === f.customer_id; })[0];
-    var on = f.items.filter(function (i) { return i.on && i.name; });
-    var form = '<div class="panel pad"><h3>Состав КП</h3><p class="sub">Отметьте услуги и при необходимости поправьте цену</p>'
+    var inpS = 'style="border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink)"';
+    var lines = f.items.map(function (i, idx) {
+      return '<div class="dsv on" style="display:grid;grid-template-columns:1fr 112px auto;gap:6px;align-items:start">'
+        + '<textarea rows="2" data-kf="i.' + idx + '.name" placeholder="Наименование" ' + inpS + ">" + E(i.name) + "</textarea>"
+        + '<input type="number" min="0" data-kf="i.' + idx + '.price" value="' + (+i.price || 0) + '" ' + inpS + ">"
+        + '<button class="btn ghost sm" data-kdel="' + idx + '" title="Убрать из КП">✕</button></div>';
+    }).join("") || '<div class="note">Выберите услуги в прайсе справа или рассчитайте стоимость в калькуляторе</div>';
+    var form = '<div class="panel pad"><h3>Состав КП</h3><p class="sub">Услуги можно править: название и цену</p>'
       + '<div class="fld"><label>Заказчик (из базы заказчиков)</label><select data-kf="customer_id"><option value="0">— выберите —</option>' + cs.map(function (c) { return '<option value="' + c.id + '"' + (c.id === f.customer_id ? " selected" : "") + ">" + E(c.name) + "</option>"; }).join("") + "</select></div>"
       + '<div class="fld"><label>Объект</label><input data-kf="object" value="' + E(f.object) + '"></div>'
-      + f.items.map(function (i, idx) {
-        return '<div class="dsv ' + (i.on ? "on" : "") + '"><input type="checkbox" data-ksv="' + idx + '" ' + (i.on ? "checked" : "")+ ">"
-          + (i.custom ? '<input data-kf="i.' + idx + '.name" value="' + E(i.name) + '" placeholder="Название услуги" style="flex:1;border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--surface)">' : '<span style="flex:1">' + E(i.name) + "</span>")
-          + '<input type="number" min="0" data-kf="i.' + idx + '.price" value="' + (+i.price || 0) + '" style="width:110px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--surface)">'
-          + (i.custom ? '<button class="btn ghost sm" data-kdel="' + idx + '">✕</button>' : "") + "</div>";
-      }).join("")
-      + '<button class="btn ghost sm" data-kadd="1" style="margin-bottom:12px">+ Своя позиция</button>'
+      + lines
+      + '<button class="btn ghost sm" data-kadd="1" style="margin:6px 0 12px">+ Своя позиция</button>'
       + '<div class="fld"><label>Оплата</label><select data-kf="pay">' + PAYS.map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === f.pay ? " selected" : "") + ">" + E(x[1]) + "</option>"; }).join("") + "</select></div>"
       + '<div class="dbox"><small>Итого</small><b id="kTotal" style="font-size:1.3rem">' + money(total) + "</b>" + (adv ? "<div>Аванс " + money(adv) + ", остаток по акту " + money(total - adv) + "</div>" : "<div>Без аванса, оплата по акту</div>") + "</div>"
       + (f.err ? '<div class="err">' + E(f.err) + "</div>" : "")
       + '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" data-ksave="send">Выставить КП</button><button class="btn ghost" data-ksave="draft">Сохранить черновик</button></div></div>';
-    var paper = '<div class="paper"><h4>ПРЕДЛОЖЕНИЕ ПО ПРОЕКТИРОВАНИЮ СИСТЕМ ПРОТИВОПОЖАРНОЙ ЗАЩИТЫ</h4><p class="c">' + E(execName()) + " · " + new Date().toLocaleDateString("ru-RU") + "</p>"
-      + "<p><b>Заказчик:</b> " + E(cust ? cust.name : "—") + "</p><p><b>Объект:</b> " + E(f.object || "—") + "</p>"
-      + "<table><tr><th>Услуга</th><th>Стоимость</th></tr>" + (on.map(function (i) { return "<tr><td>" + E(i.name) + "</td><td>" + money(+i.price || 0) + "</td></tr>"; }).join("") || '<tr><td colspan="2">Услуги не выбраны</td></tr>') + "</table>"
-      + "<p><b>Итого: " + money(total) + "</b> (НДС не облагается)</p><p><b>Оплата:</b> " + E(pay[1]) + ".</p></div>";
-    return '<div class="head"><div><h1>Конструктор КП</h1><p>Услуги из прайса, цена, схема оплаты. «Выставить КП» вносит предложение в реестр с датой выставления</p></div></div><div class="kpc">' + form + "<div>" + paper + "</div></div>";
+    var tab = S.kt || "price";
+    var seg = '<div class="seg" style="margin-bottom:12px">' + [["price", "Услуги"], ["calc", "Калькулятор"], ["print", "Печать"]].map(function (x) {
+      return '<button data-kt="' + x[0] + '" class="' + (tab === x[0] ? "on" : "") + '">' + x[1] + "</button>";
+    }).join("") + "</div>";
+    var side;
+    if (!S.price) side = '<div class="note">Прайс-лист недоступен.</div>';
+    else if (tab === "calc") side = priceCalc(true);
+    else if (tab === "print") side = pricePrint(true);
+    else side = '<div class="panel pad"><h3>Прайс-лист</h3><p class="sub">Нажмите «+», чтобы добавить услугу в КП. Цену можно поправить слева</p>'
+      + S.price.items.filter(function (i) { return i.active; }).map(function (i, j) {
+        var inKp = f.items.some(function (x) { return x.name === i.name; });
+        return '<div class="dsv ' + (inKp ? "on" : "") + '" style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center"><span>' + E(i.name) + (i.note ? '<br><small style="color:var(--muted)">' + E(i.note) + "</small>" : "") + "</span>"
+          + "<b>" + money(i.price) + '</b><button class="btn ' + (inKp ? "ghost" : "primary") + ' sm" data-kpadd="' + j + '" title="Добавить в КП">' + (inKp ? "✓" : "+") + "</button></div>";
+      }).join("") + "</div>";
+    return '<div class="head"><div><h1>Конструктор КП</h1><p>Слева состав предложения, справа прайс, калькулятор и печать. «Выставить КП» вносит предложение в реестр с датой выставления</p></div></div>'
+      + '<div class="kpc kpc-wide"><div>' + form + "</div><div>" + seg + side + "</div></div>";
   }
   function saveKp(send) {
     var f = S.kpf;
@@ -616,39 +705,189 @@
       S.kpf = null; toast(send ? "КП выставлено и добавлено в реестр" : "Черновик сохранён в реестре"); location.hash = "#/kpreg/";
     }, function (er) { f.err = String(er); paint(); });
   }
+  /* ---------- конструктор договора (шаблон ИП: 15 разделов + приложения) ---------- */
+  function ctGet(path) {
+    var o = S.ct && S.ct.data, parts = path.split(".");
+    for (var i = 0; i < parts.length && o != null; i++) o = o[parts[i]];
+    return o == null ? "" : o;
+  }
+  function ctSetPath(path, val) {
+    var o = S.ct.data, parts = path.split(".");
+    for (var i = 0; i < parts.length - 1; i++) { if (o[parts[i]] == null) o[parts[i]] = {}; o = o[parts[i]]; }
+    o[parts[parts.length - 1]] = val;
+  }
+  function ctParty(cu) {
+    var head = String(cu.name_full || "").trim(), sh = String(cu.name_short || "").trim();
+    if (sh && sh !== head) head += " (" + sh + ")";
+    if (cu.type === "ip") return head + ", действующий на основании " + (cu.basis || "листа записи из ЕГРИП") + (cu.ogrn ? ", ОГРНИП № " + cu.ogrn : "");
+    if (cu.type === "person") return head + ", действующий от собственного имени";
+    return head + ", в лице " + (cu.position_gen || "Генерального директора") + " " + (cu.fio_gen || "____________________") + ", действующего на основании " + (cu.basis || "Устава");
+  }
+  function ctMissing(d) {
+    var m = [], cu = d.customer || {}, s = function (v) { return String(v == null ? "" : v).trim(); };
+    function need(ok, f, msg) { if (!ok) m.push([f, msg]); }
+    var inn = s(cu.inn).replace(/\D/g, "");
+    need(s(d.number), "number", "Номер договора");
+    need(/^\d{4}-\d\d-\d\d$/.test(s(d.date)), "date", "Дата договора");
+    need(s(d.city), "city", "Город");
+    need(s(cu.name_full), "customer.name_full", "Полное наименование заказчика");
+    need(s(cu.name_short), "customer.name_short", "Краткое наименование");
+    need(inn.length === 10 || inn.length === 12, "customer.inn", "ИНН заказчика");
+    if ((cu.type || "org") === "org") {
+      need(s(cu.position_gen), "customer.position_gen", "Должность подписанта (в родительном падеже)");
+      need(s(cu.fio_gen), "customer.fio_gen", "ФИО подписанта (в родительном падеже)");
+      need(s(cu.basis), "customer.basis", "Основание (Устав и т. п.)");
+      need(s(cu.position_sign), "customer.position_sign", "Должность подписанта для подписи");
+      if (inn.length === 10) need(s(cu.kpp).replace(/\D/g, "").length === 9, "customer.kpp", "КПП заказчика (9 цифр)");
+    }
+    need(s(cu.signer_fio), "customer.signer_fio", "Подписант: Фамилия И.О.");
+    need(s(cu.address), "customer.address", "Юридический адрес заказчика");
+    need(s(cu.rs), "customer.rs", "Расчётный счёт");
+    need(s(cu.bank), "customer.bank", "Банк");
+    need(s(cu.bik), "customer.bik", "БИК");
+    need(s(cu.ks), "customer.ks", "Корр. счёт");
+    need(s(cu.email) || s(cu.phone), "customer.phone", "Телефон или e-mail заказчика");
+    need(s(cu.party_text), "customer.party_text", "Текст о заказчике");
+    need(s(d.object_address), "object_address", "Адрес объекта");
+    need(+d.days >= 1, "days", "Срок оказания услуг");
+    need(+d.pay_days >= 1, "pay_days", "Срок оплаты");
+    need(d.adv_pct !== "" && +d.adv_pct >= 0 && +d.adv_pct <= 100, "adv_pct", "Аванс, %");
+    need(+d.warranty >= 1, "warranty", "Гарантия, мес.");
+    need(s(d.messengers), "messengers", "Мессенджеры рабочего чата");
+    if (d.tz) need(+d.tz_sheets >= 1, "tz_sheets", "Количество листов ТЗ");
+    if (d.paper) need(+d.paper_copies >= 1, "paper_copies", "Количество бумажных экземпляров");
+    var sv = d.services || [];
+    need(sv.length > 0, "services", "Добавьте хотя бы одну услугу");
+    sv.forEach(function (x, i) {
+      need(s(x.name), "services." + i + ".name", "Услуга " + (i + 1) + ": наименование");
+      need(+x.unit_price > 0, "services." + i + ".unit_price", "Услуга " + (i + 1) + ": цена");
+      need(+x.qty > 0, "services." + i + ".qty", "Услуга " + (i + 1) + ": количество");
+    });
+    return m;
+  }
+  function ctTotals(d) {
+    var amount = (d.services || []).reduce(function (a, x) { return a + (+x.unit_price || 0) * (+x.qty || 0); }, 0);
+    var adv = Math.round(amount * (+d.adv_pct || 0) / 100);
+    return { amount: amount, adv: adv, post: amount - adv };
+  }
+  function loadContractDraft() {
+    var open = (S.kp || []).filter(function (k) { return !k.order_id && k.status !== "Отказ"; });
+    if (!S.ct || !S.ct.kid) { if (!open.length) { S.ct = null; return Promise.resolve(); } S.ct = { kid: open[0].id }; }
+    var c = S.ct;
+    if (c.data && c.loadedFor === c.kid) return Promise.resolve();
+    return api("/kp/" + c.kid + "/contract/draft").then(function (r) {
+      c.data = r.data; c.exec = r.executor; c.saved = r.saved; c.signed = r.signed; c.types = r.customer_types; c.loadedFor = c.kid; c.err = ""; c.upd = false;
+    }, function (e) { c.data = null; c.err = String(e); c.loadedFor = c.kid; });
+  }
+  function ctField(path, label, o) {
+    o = o || {};
+    var bad = S.ct.miss && S.ct.miss.some(function (x) { return x[0] === path; });
+    var v = ctGet(path);
+    var st = bad ? ' style="border-color:var(--bad);background:var(--bad-soft)"' : "";
+    return '<div class="fld"' + (o.wide ? ' style="grid-column:1/-1"' : "") + "><label>" + label + (o.req === false ? "" : ' <span style="color:var(--bad)">*</span>') + "</label>"
+      + (o.area ? '<textarea data-ctp="' + path + '" rows="' + (o.rows || 3) + '"' + st + ">" + E(v) + "</textarea>"
+        : '<input ' + (o.type ? 'type="' + o.type + '" ' : "") + 'data-ctp="' + path + '" value="' + E(v) + '"' + (o.ph ? ' placeholder="' + E(o.ph) + '"' : "") + st + ">") + "</div>";
+  }
+  function ctPaper(d) {
+    var t = ctTotals(d), cu = d.customer || {};
+    return '<h4>ДОГОВОР № ' + E(d.number || "—") + '</h4><p class="c">г. ' + E(d.city || "—") + " · " + E(d.date ? dmy(d.date) : "—") + "</p>"
+      + "<p>" + E(cu.party_text || "—") + "; <b>" + E((S.ct.exec && S.ct.exec.name_short) || execName()) + "</b> (Исполнитель)</p>"
+      + "<p><b>Объект:</b> " + E(d.object_address || "—") + "</p>"
+      + "<table><tr><th>Услуга</th><th>Кол-во</th><th>Сумма</th></tr>" + (d.services || []).map(function (x) { return "<tr><td>" + E(x.name) + "</td><td>" + E(x.qty) + "</td><td>" + money((+x.unit_price || 0) * (+x.qty || 0)) + "</td></tr>"; }).join("") + "</table>"
+      + "<p><b>Итого: " + money(t.amount) + "</b> (НДС не облагается)</p>"
+      + "<p>Аванс " + (+d.adv_pct || 0) + "%: " + money(t.adv) + ", остаток " + money(t.post) + "; срок " + (+d.days || 0) + " раб. дн.; гарантия " + (+d.warranty || 0) + " мес.</p>"
+      + '<p class="c">Полный текст (15 разделов, приложения 1–3) формируется в Word и PDF</p>';
+  }
+  function ctMissHtml(m) {
+    return m.length ? '<div class="dbox" style="border-color:var(--bad);background:var(--bad-soft)"><small style="color:var(--bad)">Заполните, чтобы создать договор (' + m.length + ")</small>"
+      + '<div style="font-size:.86rem">' + m.slice(0, 12).map(function (x) { return "• " + E(x[1]); }).join("<br>") + (m.length > 12 ? "<br>…и ещё " + (m.length - 12) : "") + "</div></div>"
+      : '<div class="dbox sys"><small>Проверка</small>Все обязательные поля заполнены</div>';
+  }
+  function ctRefresh() {
+    var c = S.ct; if (!c || !c.data) return;
+    c.miss = ctMissing(c.data);
+    var mh = document.getElementById("ctMiss"); if (mh) mh.innerHTML = ctMissHtml(c.miss);
+    var pp = document.getElementById("ctPaper"); if (pp) pp.innerHTML = ctPaper(c.data);
+    var tot = document.getElementById("ctTotal"); if (tot) { var t = ctTotals(c.data); tot.textContent = money(t.amount) + " · аванс " + money(t.adv) + " · остаток " + money(t.post); }
+    var mk = document.getElementById("ctMake"); if (mk) { mk.disabled = c.miss.length > 0; mk.style.opacity = c.miss.length ? ".5" : ""; }
+    document.querySelectorAll("[data-ctp]").forEach(function (el) {
+      var bad = c.miss.some(function (x) { return x[0] === el.dataset.ctp; });
+      if (el.type === "checkbox") return;
+      el.style.borderColor = bad ? "var(--bad)" : ""; el.style.background = bad ? "var(--bad-soft)" : "";
+    });
+  }
   function contractScreen() {
     var p = pos();
     if (!(p === "owner" || p === "sales" || p === "ops")) return '<div class="head"><div><h1>Конструктор договора</h1></div></div><div class="note">Раздел недоступен для вашей роли.</div>';
-    var open = (S.kp || []).filter(function (k) { return !k.order_id && k.status !== "Отказ"; });
-    if (!S.ct) S.ct = { kid: open[0] ? open[0].id : 0, type: CT_TYPES[0], days: 30, made: false };
+    var open = (S.kp || []).filter(function (x) { return !x.order_id && x.status !== "Отказ"; });
+    var head = '<div class="head"><div><h1>Конструктор договора</h1><p>Договор на услуги ИП по вашему шаблону: заполняется из КП и карточки заказчика, без обязательных полей не создаётся</p></div></div>';
+    if (!S.ct || !S.ct.kid) return head + '<div class="note">Нет КП, по которым можно оформить договор. Сначала выставьте КП в «Конструкторе КП» (договор формируется из КП).</div>';
     var c = S.ct, k = (S.kp || []).filter(function (x) { return x.id === c.kid; })[0];
-    if (!k) return '<div class="head"><div><h1>Конструктор договора</h1><p>Из КП в договор одной кнопкой. После подписания задача, папка и чат проекта появляются сами</p></div></div><div class="note">Нет КП, по которым можно оформить договор. Сначала выставьте КП в «Конструкторе КП».</div>';
-    var due = new Date(); due.setDate(due.getDate() + (+c.days || 0));
-    var numShown = k.contract_number || "—/" + String(new Date().getFullYear()).slice(2);
-    var adv = k.has_adv;
-    var paper = '<h4>ДОГОВОР № ' + E(numShown) + '</h4><p class="c">на оказание услуг по проектированию<br>г. Санкт-Петербург · ' + new Date().toLocaleDateString("ru-RU") + "</p>"
-      + "<p><b>" + E(execName()) + "</b> (Исполнитель) и <b>" + E(k.customer) + "</b> (Заказчик) заключили настоящий договор:</p>"
-      + "<p><b>1. Предмет.</b> Исполнитель оказывает услуги (" + E(c.type) + ") по объекту: «" + E(k.object) + "».</p>"
-      + "<p><b>2. Стоимость.</b> " + Number(k.amount).toLocaleString("ru-RU") + " руб., НДС не облагается (УСН).</p><p><b>3. Срок.</b> " + (+c.days || 0) + " рабочих дней с даты аванса и исходных данных.</p>"
-      + "<p><b>4. Оплата.</b> " + E(k.pay_label) + ".</p><p class=\"c\">Полный текст договора (14 разделов, приложение с расчётом и графиком платежей) формируется в PDF/Word; реквизиты сторон подставляются автоматически</p>";
-    var form = '<div class="panel pad"><h3>Данные договора</h3><p class="sub">Заказчик и условия подтянуты из КП</p>'
-      + '<div class="fld"><label>КП</label><select data-ctpick="1">' + open.map(function (x) { return '<option value="' + x.id + '"' + (x.id === c.kid ? " selected" : "") + ">" + E(x.number + " · " + x.customer + " · " + money(x.amount)) + "</option>"; }).join("") + "</select></div>"
-      + '<div class="fld"><label>Тип договора</label><select data-ctf="type">' + CT_TYPES.map(function (o) { return "<option" + (o === c.type ? " selected" : "") + ">" + o + "</option>"; }).join("") + "</select></div>"
-      + '<div class="g2f"><div class="fld"><label>Стоимость, ₽</label><input value="' + Number(k.amount).toLocaleString("ru-RU") + '" disabled></div><div class="fld"><label>Срок, рабочих дней</label><input type="number" min="1" data-ctf="days" value="' + (+c.days || 0) + '"></div></div>'
-      + '<div class="fld"><label>Оплата</label><input value="' + E(k.pay_label) + '" disabled></div>'
-      + '<div class="dbox"><small>Что дальше</small>' + (adv ? "Предусмотрен аванс: после подписания задача создастся, но на «Сбор данных» уйдёт только после аванса. Бухгалтер получит «Выставить счёт на аванс»." : "Аванса нет: после подписания задача сразу уйдёт на «Сбор данных».") + "</div>"
-      + (S.ct.err ? '<div class="err">' + E(S.ct.err) + "</div>" : "")
-      + '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" data-ctmake="1">' + ic("file") + "Создать договор</button>"
-      + (k.contract_number ? '<button class="btn ok" data-ctsign="1">Договор подписан</button><button class="btn ghost" data-doc="' + k.id + ':contract:pdf">Скачать PDF</button><button class="btn ghost" data-doc="' + k.id + ':contract:docx">Скачать Word</button>' : "") + "</div>"
-      + (c.made || k.contract_number ? '<div class="autolist"><b>Договор №' + E(k.contract_number || numShown) + ' сформирован.</b><ul style="margin-top:8px"><li>Привязан к КП ' + E(k.number) + " и заказчику «" + E(k.customer) + "»</li>"
-        + "<li>После «Договор подписан» система сама создаст проектную задачу, папку на сервере и чат проекта</li>"
-        + "<li>" + (adv ? "Поставит паузу «Ждём аванс», бухгалтеру уйдёт задача на счёт" : "Переведёт на «Сбор данных»: операционный менеджер получит задачу") + "</li>"
-        + "<li>Срок, аванс и постоплата попадут в задачу и в реестр КП</li></ul></div>" : "") + "</div>";
-    return '<div class="head"><div><h1>Конструктор договора</h1><p>Из КП в договор одной кнопкой. После подписания задача, папка и чат проекта появляются сами</p></div></div><div class="kpc">' + form + '<div><div class="paper">' + paper + "</div></div></div>";
+    if (c.err || !c.data) return head + '<div class="err">' + E(c.err || "Не удалось загрузить данные договора") + "</div>";
+    var d = c.data, cu = d.customer || {}, t = ctTotals(d);
+    c.miss = ctMissing(d);
+    var sel = 'style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface);color:var(--ink)"';
+    var chk = function (path, label, on) { return '<label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" data-ctp="' + path + '"' + (on ? " checked" : "") + "> " + label + "</label>"; };
+    var kpPick = '<div class="fld"><label>КП</label><select data-ctpick="1">' + open.map(function (x) { return '<option value="' + x.id + '"' + (x.id === c.kid ? " selected" : "") + ">" + E(x.number + " · " + x.customer + " · " + money(x.amount)) + "</option>"; }).join("") + "</select></div>";
+    var priceOpts = (S.price && S.price.items ? S.price.items.filter(function (i) { return i.active; }) : []);
+    var f1 = '<div class="panel pad"><h3>1. Исполнитель</h3>' + kpPick
+      + '<div class="g2f"><div class="fld"><label>Тип договора</label><select disabled ' + sel + "><option>Договор на услуги (проектирование)</option></select></div>"
+      + '<div class="fld"><label>Исполнитель</label><input disabled value="' + E((c.exec && c.exec.name_short) || execName()) + '"></div></div>'
+      + '<p class="sub" style="margin:0">Договоры оформляются только от ИП; реквизиты исполнителя берутся из «Прайс → Реквизиты компании».</p></div>';
+    var f2 = '<div class="panel pad" style="margin-top:14px"><h3>2. Номер, дата, город</h3><div class="g2f">'
+      + ctField("number", "Номер договора") + ctField("date", "Дата договора", { type: "date" }) + "</div>" + ctField("city", "Город") + "</div>";
+    var f3 = '<div class="panel pad" style="margin-top:14px"><h3>3. Заказчик</h3>'
+      + '<div class="fld"><label>Тип заказчика</label><select data-ctp="customer.type" ' + sel + ">" + [["org", "Организация (ООО, АО и др.)"], ["ip", "Индивидуальный предприниматель"], ["person", "Физическое лицо"]]
+        .map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === (cu.type || "org") ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") + "</select></div>"
+      + '<div class="g2f">' + ctField("customer.name_full", "Полное наименование") + ctField("customer.name_short", "Краткое наименование") + "</div>"
+      + ((cu.type || "org") === "org" ? '<div class="g2f">' + ctField("customer.position_gen", "В лице (должность, род. падеж)", { ph: "Генерального директора" }) + ctField("customer.fio_gen", "ФИО в род. падеже", { ph: "Иванова Ивана Ивановича" }) + "</div>"
+        + '<div class="g2f">' + ctField("customer.basis", "Действует на основании", { ph: "Устава" }) + ctField("customer.kpp", "КПП") + "</div>"
+        + '<div class="g2f">' + ctField("customer.position_sign", "Должность подписанта (для подписи)", { ph: "Генеральный директор" }) + ctField("customer.org_sign", "Организация в подписи", { req: false }) + "</div>"
+        : '<div class="g2f">' + ctField("customer.basis", "Действует на основании", { ph: "листа записи из ЕГРИП" }) + ctField("customer.ogrn", "ОГРНИП", { req: false }) + "</div>")
+      + '<div class="g2f">' + ctField("customer.signer_fio", "Подписант: Фамилия И.О.", { ph: "Иванов И.И." }) + ctField("customer.inn", "ИНН") + "</div>"
+      + ctField("customer.address", "Юридический адрес", { wide: true })
+      + '<div class="g2f">' + ctField("customer.rs", "Расчётный счёт") + ctField("customer.bank", "Банк") + "</div>"
+      + '<div class="g2f">' + ctField("customer.bik", "БИК") + ctField("customer.ks", "Корр. счёт") + "</div>"
+      + '<div class="g2f">' + ctField("customer.email", "E-mail", { req: false }) + ctField("customer.phone", "Телефон (сотовый)", { ph: "+7 …" }) + "</div>"
+      + ctField("customer.party_text", "Текст о Заказчике в начале договора (собирается автоматически, можно править)", { area: true, rows: 3, wide: true })
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px"><button class="btn ghost sm" data-ctparty="1">Собрать текст заново</button></div>'
+      + chk("__upd", "Обновить реквизиты в карточке заказчика при создании договора", !!c.upd) + "</div>";
+    var f4 = '<div class="panel pad" style="margin-top:14px"><h3>4. Условия договора</h3>'
+      + ctField("object_address", "Адрес объекта (после «на объекте, по адресу»)", { wide: true })
+      + '<div class="g2f">' + ctField("days", "Срок оказания услуг, раб. дней", { type: "number" }) + ctField("pay_days", "Срок оплаты аванса и остатка, раб. дней", { type: "number" }) + "</div>"
+      + '<div class="g2f">' + ctField("adv_pct", "Аванс, %", { type: "number" }) + ctField("warranty", "Гарантия, мес.", { type: "number" }) + "</div>"
+      + ctField("messengers", "Мессенджеры рабочего чата", { wide: true })
+      + chk("survey", "Объём услуг включает обследование объекта (п. 1.4, 4.1.7)", d.survey)
+      + chk("paper", "С печатью документации (заказчику: PDF + бумажные экземпляры)", d.paper) + (d.paper ? ctField("paper_copies", "Бумажных экземпляров", { type: "number" }) : "")
+      + chk("tz", "Приложение № 3 «Техническое задание»", d.tz) + (d.tz ? ctField("tz_sheets", "ТЗ — количество листов", { type: "number" }) : "") + "</div>";
+    var rows = (d.services || []).map(function (x, i) {
+      var inpS = 'style="border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink);width:100%"';
+      return '<div class="dsv on" style="display:grid;grid-template-columns:1fr 70px 70px 110px 36px;gap:6px;align-items:center">'
+        + '<input data-ctp="services.' + i + '.name" value="' + E(x.name) + '" placeholder="Наименование услуги" ' + inpS + ">"
+        + '<input data-ctp="services.' + i + '.unit" value="' + E(x.unit) + '" placeholder="ед." ' + inpS + ">"
+        + '<input type="number" min="0" step="0.01" data-ctp="services.' + i + '.qty" value="' + E(x.qty) + '" ' + inpS + ">"
+        + '<input type="number" min="0" data-ctp="services.' + i + '.unit_price" value="' + E(x.unit_price) + '" ' + inpS + ">"
+        + '<button class="btn ghost sm" data-ctsvdel="' + i + '">✕</button></div>';
+    }).join("");
+    var f5 = '<div class="panel pad" style="margin-top:14px"><h3>5. Услуги (Приложение № 1)</h3><p class="sub">Наименование · ед. · кол-во · цена за единицу</p>' + rows
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0"><select data-ctsvadd="1" ' + sel + ' style="flex:1;min-width:220px"><option value="">+ добавить из прайса…</option>'
+      + priceOpts.map(function (i, j) { return '<option value="' + j + '">' + E(i.name) + " — " + money(i.price) + "</option>"; }).join("") + '</select>'
+      + '<button class="btn ghost sm" data-ctsvnew="1">+ Своя позиция</button></div>'
+      + '<div class="dbox"><small>Итого</small><b id="ctTotal" style="font-size:1.15rem">' + money(t.amount) + " · аванс " + money(t.adv) + " · остаток " + money(t.post) + "</b></div></div>";
+    var acts = '<div class="panel pad" style="margin-top:14px"><div id="ctMiss">' + ctMissHtml(c.miss) + "</div>"
+      + (c.err ? '<div class="err">' + E(c.err) + "</div>" : "")
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" id="ctMake" data-ctmake="1"' + (c.miss.length ? ' disabled style="opacity:.5"' : "") + ">" + ic("file") + (c.saved ? "Сохранить договор" : "Создать договор") + "</button>"
+      + (k && k.contract_number ? '<button class="btn ghost" data-doc="' + k.id + ':contract:docx">Скачать Word</button><button class="btn ghost" data-doc="' + k.id + ':contract:pdf">Скачать PDF</button><button class="btn ok" data-ctsign="1">Договор подписан</button>' : "") + "</div>"
+      + (k && k.contract_number ? '<div class="autolist"><b>Договор №' + E(k.contract_number) + " сформирован.</b><ul style=\"margin-top:8px\"><li>Привязан к КП " + E(k.number) + " и заказчику «" + E(k.customer) + "»</li>"
+        + "<li>После «Договор подписан» система создаст проектную задачу, папку на сервере и чат проекта</li>"
+        + "<li>" + (k.has_adv ? "Есть аванс: задача ждёт оплату, бухгалтеру уйдёт «Выставить счёт на аванс»" : "Аванса нет: задача сразу уйдёт на «Сбор данных»") + "</li></ul></div>" : "") + "</div>";
+    return head + '<div class="kpc"><div>' + f1 + f2 + f3 + f4 + f5 + acts + '</div><div><div class="paper" id="ctPaper" style="position:sticky;top:14px">' + ctPaper(d) + "</div></div></div>";
   }
   function makeContract() {
-    var c = S.ct; c.err = "";
-    api("/kp/" + c.kid + "/contract", { type: c.type, days: +c.days || 0 }).then(function () { c.made = true; return loadKp(); }).then(paint, function (e) { c.err = String(e); paint(); });
+    var c = S.ct; c.err = ""; c.miss = ctMissing(c.data);
+    if (c.miss.length) { c.err = "Заполните обязательные поля"; return paint(); }
+    api("/kp/" + c.kid + "/contract", { data: c.data, save_customer: !!c.upd }).then(function () { c.saved = true; c.loadedFor = null; return loadKp(); })
+      .then(function () { return loadContractDraft(); }).then(function () { toast("Договор сформирован"); paint(); }, function (e) { c.err = String(e); paint(); });
   }
   function signContract() {
     var c = S.ct;
@@ -677,7 +916,7 @@
     if (!r) return '<div class="head"><div><h1>Конвейер заказа</h1></div></div><div class="note">' + (S.err ? E(S.err) : "Нет данных") + "</div>";
     var head = '<div class="head"><div><h1>Конвейер заказа</h1><p>Заказ идёт слева направо и сверху вниз. Нажмите на шаг: под полосой откроется описание (что запускает, кто получает, что делает система).</p></div>'
       + '<div class="seg"><button data-fltab="map" class="' + (S.flTab === "map" ? "on" : "") + '">Схема</button><button data-fltab="path" class="' + (S.flTab === "path" ? "on" : "") + '">Путь заказа</button></div></div>'
-      + '<div class="rolebar">' + ic("lock") + "<span>" + E(ROLE_NAME[p] || "") + ". " + E(ROLE_NOTE[p] || "") + "</span></div>";
+      + "";
     if (S.flTab === "path") {
       var os = S.orders || [];
       var sel = '<div class="fld" style="max-width:520px"><label>Задача</label><select id="flOrder">' + os.map(function (o) { return '<option value="' + o.id + '"' + (o.id === S.flOrder ? " selected" : "") + ">№" + E(o.number) + " · " + E(o.customer || "") + " · " + E(o.object) + "</option>"; }).join("") + "</select></div>";
@@ -702,7 +941,9 @@
       return '<div class="lane ' + l.id + '"><div class="lane-h"><span>' + E(l.title) + "</span><small>" + E(l.sub) + "</small></div>"
         + '<div class="steps">' + l.steps.map(function (s, i) {
           var cnt = r.show_counts && counts[s.id] != null ? '<span class="cn">' + counts[s.id] + "</span>" : "";
-          return '<div class="stepbox"><button class="node ' + (S.flStep === s.id ? "on" : "") + '" data-flstep="' + s.id + '"><span class="no">' + s.n + "</span>" + cnt + "<b>" + E(s.title) + '</b><span class="ow">' + E(s.who) + "</span></button>" + (i < l.steps.length - 1 ? '<span class="arrow">→</span>' : "") + "</div>";
+          var term = s.days != null ? "срок " + s.days + " дн." : (s.label || "");
+          return '<div class="stepbox"><button class="node ' + (S.flStep === s.id ? "on" : "") + '" data-flstep="' + s.id + '"><span class="nh"><span class="no">' + s.n + "</span>" + cnt + "</span><b>" + E(s.title) + '</b><span class="ow">' + E(s.who) + "</span>"
+            + (term ? '<span class="tm">' + E(term) + "</span>" : "") + "</button></div>";
         }).join("") + "</div>" + detail + "</div>";
     }).join("");
     return head + lanes;
@@ -719,7 +960,7 @@
     var canEdit = p === "owner" || p === "ops";
     var tile = function (c, n, l) { return '<div class="tile" style="--c:' + c + '"><div class="n">' + n + '</div><div class="l">' + l + "</div></div>"; };
     return '<div class="head"><div><h1>Технические задания</h1><p>Что собрано по каждой задаче и где процесс встал. Когда все пункты закрыты, задача сама уходит руководителю проектного отдела</p></div></div>'
-      + '<div class="rolebar">' + ic("lock") + "<span>" + E(ROLE_NAME[p] || "") + ". " + E(ROLE_NOTE[p] || "") + "</span></div>"
+      + ""
       + '<div class="tiles" style="margin-bottom:16px">' + tile("var(--ok)", ok, "ТЗ утверждены") + tile("var(--brand)", r.length - ok - late, "В работе") + tile("var(--bad)", late, "Затянуты (5+ дней)") + "</div>"
       + '<div class="panel" style="overflow:auto"><table class="tbl"><tr><th>Задача</th><th>Заказчик</th><th>Стадия</th><th>Пункты ТЗ</th><th>Статус</th><th>Без движения</th><th></th></tr>'
       + (r.map(function (x) {
@@ -750,7 +991,7 @@
           + '<span style="flex:1">' + E(i.title) + "</span>" + (i.done && i.who ? '<small style="color:var(--muted)">' + E(i.who) + "</small>" : "")
           + (r.can_edit && i.custom ? ' <button class="btn ghost sm" data-tzdel="' + i.idx + '">✕</button>' : "") + "</div>";
       }).join("")
-      + (r.can_edit ? '<div style="display:flex;gap:8px;margin-top:12px"><input id="tzNew" placeholder="Свой пункт ТЗ…" style="flex:1;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface);color:var(--ink)"><button class="btn ghost" data-tzadd="1">Добавить</button></div>' : "")
+      + ""
       + (r.stage === "Сбор данных" && r.can_edit ? '<div class="note">Когда закрыты все пункты, задача сама перейдёт в «Готов к проектированию».</div>' : "") + "</div>";
   }
 
@@ -759,31 +1000,41 @@
   function loadStages() {
     return api("/stages").then(function (r) {
       S.stg = r; S.stgD = {};
-      r.lanes.forEach(function (l) { l.steps.forEach(function (s) { if (s.editable) S.stgD[s.id] = s.days; }); });
+      r.lanes.forEach(function (l) { l.steps.forEach(function (s) { S.stgD[s.id] = { title: s.title, who: s.who, days: s.days == null ? "" : s.days, label: s.label || "", auto: s.auto || "" }; }); });
     }, function (e) { S.stg = null; S.err = String(e); });
   }
+  var WHO_OPTS = ["Менеджер продаж", "Операционный менеджер", "Руководитель проектного отдела", "Проектировщик", "Бухгалтер", "Бухгалтер, 1С", "Система"];
   function stagesScreen() {
     var r = S.stg, p = pos();
     if (!r) return '<div class="head"><div><h1>Этапы и сроки</h1></div></div><div class="note">' + (S.err ? E(S.err) : "Нет данных") + "</div>";
-    var head = '<div class="head"><div><h1>Этапы и сроки</h1><p>Этапы конвейера, ответственные и сроки по умолчанию. ' + (r.can_edit ? "Сроки можно менять: они используются в напоминаниях «Стадия затянулась» и в подсказках." : "Сроки правит руководитель.") + "</p></div>"
-      + (r.can_edit ? '<button class="btn primary" data-stsave="1">Сохранить сроки</button>' : "") + "</div>"
-      + '<div class="rolebar">' + ic("lock") + "<span>" + E(ROLE_NAME[p] || "") + ". " + E(ROLE_NOTE[p] || "") + "</span></div>";
+    var ed = r.can_edit;
+    var head = '<div class="head"><div><h1>Этапы и сроки</h1><p>Этапы конвейера, ответственные и сроки. ' + (ed ? "Можно менять название этапа, ответственного, срок в днях, подпись срока и описание: изменения видны на схеме «Конвейер», в напоминаниях и подсказках. Пустое значение возвращает стандартное." : "Правит руководитель.") + "</p></div>"
+      + (ed ? '<button class="btn primary" data-stsave="1">Сохранить</button>' : "") + "</div>"
+      + "";
+    var inp = 'style="width:100%;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink);font:inherit"';
     var body = r.lanes.map(function (l) {
-      return '<div class="panel" style="margin-bottom:16px"><div style="padding:12px 18px;font-weight:800;color:#fff;background:' + LANE_BG[l.id] + '">' + E(l.title) + ' <span style="font-weight:500;opacity:.9;float:right">' + E(l.sub) + "</span></div>"
-        + '<table class="tbl"><tr><th style="width:40px">№</th><th>Этап</th><th>Ответственный</th><th style="width:150px">Срок</th><th>Что делает система</th></tr>'
+      return '<div class="panel" style="margin-bottom:16px;overflow:auto"><div style="padding:12px 18px;font-weight:800;color:#fff;background:' + LANE_BG[l.id] + '">' + E(l.title) + ' <span style="font-weight:500;opacity:.9;float:right">' + E(l.sub) + "</span></div>"
+        + '<table class="tbl"><tr><th style="width:36px">№</th><th style="min-width:180px">Этап</th><th style="min-width:190px">Ответственный</th><th style="width:210px">Срок</th><th style="min-width:260px">Что делает система</th></tr>'
         + l.steps.map(function (s) {
-          var term = s.editable
-            ? (r.can_edit ? '<input type="number" min="0" max="90" data-sd="' + s.id + '" value="' + (S.stgD[s.id] != null ? S.stgD[s.id] : s.days) + '" style="width:70px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--surface);color:var(--ink)"> дн.' : (s.days === 0 ? "в день" : s.days + " дн."))
-            : E(s.label || "—");
-          return "<tr><td>" + s.n + "</td><td><b>" + E(s.title) + "</b></td><td>" + E(s.who) + "</td><td>" + term + "</td><td><small>" + E(s.auto) + "</small></td></tr>";
+          var d = S.stgD[s.id] || {};
+          if (!ed) return "<tr><td>" + s.n + "</td><td><b>" + E(s.title) + "</b></td><td>" + E(s.who) + "</td><td>" + (s.days != null ? (s.days === 0 ? "в день" : s.days + " дн.") : E(s.label || "—")) + "</td><td><small>" + E(s.auto) + "</small></td></tr>";
+          return "<tr><td>" + s.n + '</td><td><input data-sd="' + s.id + '.title" value="' + E(d.title) + '" ' + inp + '></td>'
+            + '<td><input list="whoList" data-sd="' + s.id + '.who" value="' + E(d.who) + '" ' + inp + "></td>"
+            + '<td><div style="display:flex;gap:6px;align-items:center"><input type="number" min="0" max="90" data-sd="' + s.id + '.days" value="' + E(d.days) + '" placeholder="дн." style="width:70px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink)">'
+            + '<input data-sd="' + s.id + '.label" value="' + E(d.label) + '" placeholder="подпись срока" ' + inp + "></div></td>"
+            + '<td><textarea data-sd="' + s.id + '.auto" rows="2" ' + inp + ">" + E(d.auto) + "</textarea></td></tr>";
         }).join("") + "</table></div>";
     }).join("");
-    return head + body + (S.stgErr ? '<div class="err">' + E(S.stgErr) + "</div>" : "");
+    return head + (ed ? '<datalist id="whoList">' + WHO_OPTS.map(function (w) { return '<option value="' + E(w) + '">'; }).join("") + "</datalist>" : "") + body + (S.stgErr ? '<div class="err">' + E(S.stgErr) + "</div>" : "");
   }
   function saveStages() {
     S.stgErr = "";
-    var days = {}; Object.keys(S.stgD).forEach(function (k) { days[k] = +S.stgD[k] || 0; });
-    api("/stages", { days: days }).then(function (r) { S.stg = r; toast("Сроки сохранены"); paint(); }, function (e) { S.stgErr = String(e); paint(); });
+    var steps = {};
+    Object.keys(S.stgD).forEach(function (k) {
+      var d = S.stgD[k];
+      steps[k] = { title: d.title, who: d.who, days: d.days === "" ? "" : +d.days, label: d.label, auto: d.auto };
+    });
+    api("/stages", { steps: steps }).then(function (r) { S.stg = r; toast("Этапы и сроки сохранены"); return loadStages(); }).then(paint, function (e) { S.stgErr = String(e); paint(); });
   }
 
   /* ---------- автоматизация ---------- */
@@ -820,7 +1071,7 @@
     var edit = pr.can_edit, rows = edit ? S.pd : pr.items;
     var head = '<div class="head"><div><h1>Прайс-лист</h1><p>Услуги и цены для конструктора КП. ' + (edit ? "Изменения применяются к новым КП; выставленные КП не меняются." : "Правит руководитель или руководитель отдела продаж.") + "</p></div>"
       + (edit ? '<div style="display:flex;gap:10px"><button class="btn ghost" data-prreset="1">Отменить правки</button><button class="btn primary" data-prsave="1">Сохранить</button></div>' : "") + "</div>"
-      + '<div class="rolebar">' + ic("lock") + "<span>" + E(ROLE_NAME[p] || "") + ". " + E(ROLE_NOTE[p] || "") + "</span></div>";
+      + "";
     var inp = 'style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:var(--surface);color:var(--ink)"';
     var body = rows.map(function (r, i) {
       return edit ? "<tr><td><input data-prf=\"" + i + ".name\" value=\"" + E(r.name) + "\" " + inp + "></td><td><input type=\"number\" min=\"0\" data-prf=\"" + i + ".price\" value=\"" + (+r.price || 0) + "\" " + inp + " ></td>"
@@ -841,32 +1092,61 @@
     var seg = '<div class="seg" style="margin-bottom:16px">' + [["services", "Услуги"], ["calc", "Калькулятор"], ["print", "Печать"]].map(function (x) {
       return '<button data-pt="' + x[0] + '" class="' + (tab === x[0] ? "on" : "") + '">' + x[1] + "</button>";
     }).join("") + "</div>";
-    return seg + (tab === "calc" ? priceCalc() : tab === "print" ? pricePrint() : priceServices());
+    return seg + (tab === "calc" ? priceCalc(false) : tab === "print" ? pricePrint(false) : priceServices());
   }
-  /* ---- «Печать»: закупочные цены С-КОПИ + наценка; доставка отдельной строкой */
+  /* ---- «Печать»: цены типографии + наценка; калькулятор по количеству листов; доставка отдельной строкой */
   function ppInit() {
     if (!S.pp && S.price && S.price.print) S.pp = JSON.parse(JSON.stringify(S.price.print));
     return S.pp;
   }
-  function pricePrint() {
-    var pr = S.price, pp = ppInit(), edit = pr.can_edit;
+  function pcState() {
+    if (!S.pc) S.pc = { q: {}, deliv: false };
+    return S.pc;
+  }
+  function pcSum() {
+    var pp = S.price && S.price.print, pc = pcState(), mk = pp ? (+pp.markup || 0) : 0, sum = 0;
+    if (!pp) return 0;
+    pp.items.forEach(function (it, i) { sum += (+pc.q[i] || 0) * it.base * (1 + mk / 100); });
+    return Math.round(sum * 100) / 100;
+  }
+  function pcTotalHtml() {
+    var pp = S.price.print, s = pcSum(), pc = pcState(), d = pc.deliv ? (+pp.delivery || 0) : 0;
+    return '<div class="dbox"><small>Печать и сборка</small><b style="font-size:1.2rem">' + f2(s) + " ₽</b>"
+      + (pc.deliv ? "<div>Доставка отдельной строкой: " + f2(d) + " ₽</div><div><b>Всего с доставкой: " + f2(s + d) + " ₽</b></div>" : "") + "</div>";
+  }
+  function pricePrint(forKp) {
+    var pr = S.price, pp = ppInit(), edit = pr.can_edit && !forKp, pc = pcState();
     if (!pp) return '<div class="note">Прайс на печать недоступен.</div>';
-    var inp = 'style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:var(--surface);color:var(--ink)"';
+    var inp = 'style="width:100%;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink)"';
+    var qs = 'style="width:90px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink)"';
     var mk = +pp.markup || 0;
-    var head = '<div class="head"><div><h1>Печать документации</h1><p>Цены по прайсу типографии, плюс наценка ' + mk + "%. Доставка добавляется отдельной строкой: " + money(pp.delivery) + ".</p></div>"
-      + (edit ? '<div style="display:flex;gap:10px"><button class="btn ghost" data-ppreset="1">Отменить правки</button><button class="btn primary" data-ppsave="1">Сохранить</button></div>' : "") + "</div>";
+    var head = forKp ? "" : '<div class="head"><div><h1>Печать документации</h1><p>Укажите количество листов и услуг: стоимость считается автоматически. Цены типографии плюс наценка ' + mk + "%; доставка отдельной строкой: " + money(pp.delivery) + ".</p></div>"
+      + (edit ? '<div style="display:flex;gap:10px"><button class="btn ghost" data-ppreset="1">Отменить правки</button><button class="btn primary" data-ppsave="1">Сохранить цены</button></div>' : "") + "</div>";
     var ctl = edit ? '<div class="panel pad" style="margin-bottom:14px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 14px">'
       + '<div class="fld"><label>Наценка к ценам типографии, %</label><input type="number" min="0" data-ppf="markup" value="' + mk + '"></div>'
       + '<div class="fld"><label>Доставка (отдельной строкой), ₽</label><input type="number" min="0" data-ppf="delivery" value="' + (+pp.delivery || 0) + '"></div></div></div>' : "";
     var rows = pp.items.map(function (r, i) {
-      var our = (+r.base || 0) * (1 + mk / 100);
-      return edit ? "<tr><td>" + E(r.name) + "</td><td>" + E(r.unit) + '</td><td><input type="number" min="0" step="0.01" data-ppf="i.' + i + '.base" value="' + (+r.base || 0) + '" ' + inp + '></td><td class="r"><b data-ppour="' + i + '">' + f2(our) + " ₽</b></td></tr>"
-        : "<tr><td>" + E(r.name) + "</td><td>" + E(r.unit) + '</td><td class="r"><b>' + f2(our) + " ₽</b></td></tr>";
+      var our = (+r.base || 0) * (1 + mk / 100), q = +pc.q[i] || 0;
+      return "<tr><td>" + E(r.name) + "</td><td>" + E(r.unit) + "</td>"
+        + (edit ? '<td><input type="number" min="0" step="0.01" data-ppf="i.' + i + '.base" value="' + (+r.base || 0) + '" ' + inp + "></td>" : "")
+        + '<td class="r"><b data-ppour="' + i + '">' + f2(our) + ' ₽</b></td><td><input type="number" min="0" step="1" data-pcq="' + i + '" value="' + (q || "") + '" placeholder="0" ' + qs + '></td>'
+        + '<td class="r" data-pcsum="' + i + '">' + (q ? f2(q * our) + " ₽" : "") + "</td></tr>";
     }).join("");
-    return head + ctl + '<div class="panel" style="overflow:auto"><table class="tbl"><tr><th>Услуга</th><th style="width:70px">Ед.</th>'
-      + (edit ? '<th style="width:150px">Закупка, ₽</th>' : "") + '<th style="width:150px">Цена, ₽</th></tr>' + rows
-      + '<tr><td><b>Доставка заказа</b></td><td>заказ</td>' + (edit ? "<td></td>" : "") + '<td class="r"><b>' + f2(pp.delivery) + " ₽</b></td></tr></table></div>"
-      + (S.ppErr ? '<div class="err">' + E(S.ppErr) + "</div>" : "");
+    var tbl = '<div class="panel" style="overflow:auto;' + (forKp ? "max-height:420px" : "") + '"><table class="tbl"><tr><th>Услуга</th><th style="width:60px">Ед.</th>' + (edit ? '<th style="width:130px">Закупка, ₽</th>' : "")
+      + '<th style="width:110px">Цена, ₽</th><th style="width:110px">Количество</th><th style="width:110px">Сумма</th></tr>' + rows + "</table></div>";
+    var bottom = '<div class="panel pad" style="margin-top:12px"><label style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input type="checkbox" data-pcd="1"' + (pc.deliv ? " checked" : "") + "> Нужна доставка (" + money(pp.delivery) + " отдельной строкой)</label>"
+      + '<div id="pcTotal">' + pcTotalHtml() + "</div>"
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap">' + (forKp ? '<button class="btn primary" data-pcadd="1">Добавить в КП</button>' : '<button class="btn primary" data-pcadd="1">Создать КП с печатью</button>')
+      + '<button class="btn ghost" data-pcreset="1">Сбросить количество</button></div></div>';
+    return head + ctl + tbl + bottom + (S.ppErr ? '<div class="err">' + E(S.ppErr) + "</div>" : "");
+  }
+  function pcAddToKp() {
+    var pp = S.price.print, s = pcSum(), pc = pcState();
+    if (s <= 0) return toast("Укажите количество листов и услуг");
+    kpAddLine("Печать и сборка комплекта документации", Math.max(1, Math.round(s)));
+    if (pc.deliv) kpAddLine("Доставка комплекта документации", +pp.delivery || 0);
+    if (S.mount && S.mount.kind === "kpc") { toast("Строки добавлены в КП"); return paint(); }
+    location.hash = "#/kpc";
   }
   function savePrint() {
     S.ppErr = "";
@@ -875,9 +1155,9 @@
       S.price = Object.assign({}, S.price, { print: r }); S.pp = null; toast("Прайс на печать сохранён"); paint();
     }, function (e) { S.ppErr = String(e); paint(); });
   }
-  /* ---- «Калькулятор»: проектирование по площади + обследование + печать/сборка/доставка (без смет и экспертизы) */
+  /* ---- «Калькулятор»: проектирование по площади + обследование + печать (из вкладки «Печать») + доставка; без смет и экспертизы */
   function calcState() {
-    if (!S.calc) S.calc = { sys: "", area: "", survey: false, city: true, pump: false, stairs: -1, pr: [], deliv: false };
+    if (!S.calc) S.calc = { sys: "", area: "", survey: false, city: true, pump: false, stairs: -1, deliv: false };
     return S.calc;
   }
   function tierIdx(sys, area) {
@@ -902,11 +1182,10 @@
       lines.push({ name: "Обследование объекта", price: area > 3000 ? cf.survey.over3000 : cf.survey.to3000 });
       if (!c.city) lines.push({ name: "Выезд на обследование вне города", price: cf.survey.out_of_city });
     }
-    if (sys && sys.pump && c.pump) lines.push({ name: "Насосная станция (проектирование)", price: cf.pump });
+    if (sys && sys.pump && c.pump) lines.push({ name: "Проектирование насосной станции пожаротушения", price: cf.pump });
     if (c.stairs >= 0 && cf.stairs[c.stairs]) { var st = cf.stairs[c.stairs]; if (st[1] == null) ask = true; lines.push({ name: st[0], price: st[1] }); }
-    var prn = 0;
-    c.pr.forEach(function (r) { var it = pp.items[r.i]; if (it) prn += (+r.q || 0) * (it.base * (1 + (+pp.markup || 0) / 100)); });
-    if (prn > 0) lines.push({ name: "Печать и сборка комплекта документации", price: Math.max(1, Math.round(prn)) });   // в КП суммы в целых рублях
+    var prn = pcSum();
+    if (prn > 0) lines.push({ name: "Печать и сборка комплекта документации", price: Math.max(1, Math.round(prn)) });
     if (c.deliv) lines.push({ name: "Доставка комплекта документации", price: +pp.delivery || 0 });
     return { lines: lines, ask: ask, total: lines.reduce(function (a, l) { return a + (l.price == null ? 0 : l.price); }, 0) };
   }
@@ -917,7 +1196,7 @@
       + '<tr><td><b>Итого</b></td><td class="r"><b style="font-size:1.15rem">' + f2(r.total) + " ₽</b></td></tr></table>"
       + (r.ask ? '<div class="note">Часть позиций «по запросу»: стоимость согласуется индивидуально, в итог они не входят.</div>' : "");
   }
-  function priceCalc() {
+  function priceCalc(compact) {
     var pr = S.price, cf = pr.calc, pp = pr.print, c = calcState();
     var sys = cf.systems.filter(function (s) { return s.id === c.sys; })[0];
     var sel = 'style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface);color:var(--ink)"';
@@ -928,25 +1207,21 @@
       + '<div class="fld"><label>Площадь объекта, м²</label><input type="number" min="0" data-cc="area" value="' + E(c.area) + '" placeholder="например 2500"></div>'
       + chk("survey", "Требуется обследование", c.survey) + (c.survey ? chk("city", "Объект в городе (иначе +" + money(cf.survey.out_of_city) + " за выезд)", c.city) : "")
       + (sys && sys.pump ? chk("pump", "Насосная станция (+" + money(cf.pump) + ")", c.pump) : "")
-      + '<div class="fld"><label>Лестницы (проектирование)</label><select data-cc="stairs" ' + sel + '><option value="-1">— не требуется —</option>'
+      + '<div class="fld"><label>Проектирование пожарных лестниц</label><select data-cc="stairs" ' + sel + '><option value="-1">— не требуется —</option>'
       + cf.stairs.map(function (s, i) { return '<option value="' + i + '"' + (i === c.stairs ? " selected" : "") + ">" + E(s[0]) + " — " + (s[1] == null ? "индивидуально" : money(s[1])) + "</option>"; }).join("") + "</select></div>"
-      + '<h3 style="margin-top:14px">Печать и сборка</h3><p class="sub">Позиции из вкладки «Печать»; цены с наценкой ' + (+pp.markup || 0) + "%</p>"
-      + c.pr.map(function (r, idx) {
-        return '<div class="dsv on"><select data-ccp="' + idx + '.i" ' + sel + ">" + pp.items.map(function (it, j) { return '<option value="' + j + '"' + (j === r.i ? " selected" : "") + ">" + E(it.name) + "</option>"; }).join("")
-          + '</select><input type="number" min="0" data-ccp="' + idx + '.q" value="' + (+r.q || 0) + '" style="width:90px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--surface)">'
-          + '<button class="btn ghost sm" data-ccdel="' + idx + '">✕</button></div>';
-      }).join("")
-      + '<button class="btn ghost sm" data-ccadd="1" style="margin:6px 0 10px">+ Позиция печати</button>'
+      + '<div class="dbox"><small>Печать и сборка</small>' + f2(pcSum()) + " ₽ <span style=\"color:var(--muted)\">— количество листов указывается на вкладке «Печать»</span></div>"
       + chk("deliv", "Доставка комплекта (" + money(pp.delivery) + " отдельной строкой)", c.deliv)
       + "</div>";
-    var res = '<div class="panel pad"><h3>Итого</h3><div id="calcRes">' + calcResHtml() + "</div>"
-      + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button class="btn primary" data-cckp="1">Создать КП из расчёта</button><button class="btn ghost" data-ccreset="1">Сбросить</button></div></div>';
-    return '<div class="head"><div><h1>Калькулятор стоимости</h1><p>Проектирование по площади, обследование, печать, сборка и доставка. Сметы и экспертиза не входят</p></div></div><div class="kpc">' + form + "<div>" + res + "</div></div>";
+    var res = '<div class="panel pad" style="margin-top:12px"><h3>Итого</h3><div id="calcRes">' + calcResHtml() + "</div>"
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button class="btn primary" data-cckp="1">' + (compact ? "Добавить в КП" : "Создать КП из расчёта") + '</button><button class="btn ghost" data-ccreset="1">Сбросить</button></div></div>';
+    if (compact) return form + res;
+    return '<div class="head"><div><h1>Калькулятор стоимости</h1><p>Проектирование по площади, обследование, печать, сборка и доставка. Сметы и экспертиза не входят</p></div></div><div class="kpc"><div>' + form + "</div><div>" + res.replace("margin-top:12px", "") + "</div></div>";
   }
   function calcToKp() {
-    var r = calcLines(), items = r.lines.filter(function (l) { return l.price != null && l.price > 0; }).map(function (l) { return { name: l.name, price: l.price, on: true, custom: true }; });
+    var r = calcLines(), items = r.lines.filter(function (l) { return l.price != null && l.price > 0; });
     if (!items.length) return toast("Сначала выполните расчёт");
-    S.kpf = { id: 0, customer_id: 0, object: "", pay: "adv50", err: "", items: items };
+    items.forEach(function (l) { kpAddLine(l.name, l.price); });
+    if (S.mount && S.mount.kind === "kpc") { toast("Строки добавлены в КП"); return paint(); }
     location.hash = "#/kpc";
   }
   function loadCompany() {
@@ -960,7 +1235,10 @@
       + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0 14px">'
       + f("name", "Исполнитель (ИП)", "ИП Шубинов Д.А.") + f("city", "Город договора", "Санкт-Петербург") + f("position", "Должность подписанта", "Индивидуальный предприниматель") + f("director", "Подпись (инициалы, фамилия)", "Д.А. Шубинов")
       + f("phone", "Телефон", "+7 …") + f("email", "E-mail", "info@…") + f("site", "Сайт", "https://…") + f("valid_days", "Срок действия КП, календарных дней", "10") + f("work_days", "Срок работ по КП и договору, рабочих дней", "30") + "</div>"
-      + '<div class="fld"><label>Реквизиты ИП (ОГРНИП, ИНН, юридический адрес, банк, БИК, р/с, к/с)</label><textarea data-cmp="requisites" ' + ro + ">" + E(c.requisites || "") + "</textarea></div>"
+      + '<h4 style="margin:14px 0 6px">Реквизиты ИП для договора</h4><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0 14px">'
+      + f("full_name", "ФИО полностью", "Шубинов Дмитрий Андреевич") + f("ogrnip", "ОГРНИП") + f("inn", "ИНН") + f("tax", "Налогообложение (АУСН или УСН)", "АУСН")
+      + f("rs", "Расчётный счёт") + f("bank", "Банк", "АО «ТБанк»") + f("bik", "БИК") + f("ks", "Корр. счёт") + f("messenger_phone", "Telegram / MAX (телефон)", "+7 …") + "</div>"
+      + f("address", "Юридический адрес", "650002, Кемеровская область – Кузбасс, г. Кемерово, …")
       + (S.compErr ? '<div class="err">' + E(S.compErr) + "</div>" : "")
       + (c.can_edit ? '<button class="btn primary" data-compsave="1">Сохранить реквизиты</button>' : "") + "</div>";
   }
@@ -1012,7 +1290,7 @@
     var head = '<div class="head"><div><h1>Недельный отчёт · ' + E(r.title) + "</h1><p>Формируется каждую пятницу в 17:00 и уходит в закрытый канал «Руководители». Неделя " + dmy(r.week_start).slice(0, 5) + " — " + dmy(r.week_end).slice(0, 5) + "</p></div>"
       + '<div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg"><button data-rpnav="-1">← Пред.</button><button data-rpnav="0" class="on">Эта</button><button data-rpnav="1">След. →</button></div>'
       + '<button class="btn ghost" data-rpdl="1">Скачать</button><button class="btn primary" data-rppub="1">Отправить в канал руководителей</button></div></div>'
-      + '<div class="rolebar">' + ic("lock") + "<span>" + E(ROLE_NAME[p] || "") + ". " + E(ROLE_NOTE[p] || "") + "</span></div>" + tabs;
+      + "" + tabs;
     var tiles = '<div class="tiles" style="margin-bottom:16px">' + r.tiles.map(function (x) { return '<div class="tile" style="--c:' + (tone[x[0]] || "var(--brand)") + '"><div class="n">' + E(x[1]) + '</div><div class="l">' + E(x[2]) + "</div></div>"; }).join("") + "</div>";
     var rows = r.rows.length ? '<div class="panel pad"><h3>Статистика недели</h3><div class="kv" style="margin-top:10px">' + r.rows.map(function (x) { return "<span>" + E(x[0]) + "</span><span><b>" + E(fmtVal(x[1])) + "</b></span>"; }).join("") + "</div>"
       + r.notes.map(function (n) { return '<div class="note">' + E(n) + "</div>"; }).join("") + "</div>" : "";
@@ -1082,7 +1360,7 @@
     if (!inModal && !(S.mount && S.mount.el && S.mount.el.contains(e.target))) return;
     var bg = e.target.getAttribute && e.target.getAttribute("data-bg");
     if (bg) { closeAll(); return; }
-    var t = e.target.closest("[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset]");
+    var t = e.target.closest("[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset]");
     if (!t) return;
     var d = t.dataset;
     if (d.close) return closeAll();
@@ -1098,7 +1376,7 @@
     if (d.wmark) { var wd = dayRec(d.wmark); return act2(api("/week/day", { day: d.wmark, worked: !wd.worked }), true); }
     if (d.woff) { var wf = dayRec(d.woff); return act2(api("/week/day", { day: d.woff, off: !wf.off }), true); }
     if (d.wnav != null && t.hasAttribute("data-wnav")) { S.wk.start = isoDay(addDays(S.wk.start === "" ? monday() : new Date(S.wk.start + "T00:00:00"), d.wnav === "0" ? 0 : (+d.wnav) * 7)); if (d.wnav === "0") S.wk.start = isoDay(monday()); return loadWeek().then(paint); }
-    if (d.kpcontract) { S.ct = { kid: +d.kpcontract, type: "Проектирование СПС, СОУЭ", days: 30, made: false }; location.hash = "#/contracts"; return; }
+    if (d.kpcontract) { S.ct = { kid: +d.kpcontract }; location.hash = "#/contracts"; return; }
     if (d.kpstatus != null && t.hasAttribute("data-kpstatus")) return;
     if (d.kptouch) return act2(api("/kp/" + d.kptouch + "/touch", {}).then(loadKp), false);
     if (d.ksv != null && t.hasAttribute("data-ksv")) { var it = S.kpf.items[+d.ksv]; it.on = !it.on; return paint(); }
@@ -1119,11 +1397,19 @@
     if (d.aurun != null && t.hasAttribute("data-aurun")) return act2(api("/auto/run", {}).then(function (r) { var n = Object.keys(r.fired).reduce(function (a, k) { return a + r.fired[k]; }, 0); toast(n ? "Сработало правил: " + n : "Сейчас ничего не требует внимания"); return loadAuto(); }), false);
     if (d.doc) { var dd = d.doc.split(":"); return downloadDoc(+dd[0], dd[1], dd[2]); }
     if (d.compsave != null && t.hasAttribute("data-compsave")) return saveCompany();
+    if (d.ctsvdel != null && t.hasAttribute("data-ctsvdel")) { S.ct.data.services.splice(+d.ctsvdel, 1); return paint(); }
+    if (d.ctsvnew != null && t.hasAttribute("data-ctsvnew")) { S.ct.data.services.push({ name: "", unit: "услуга", qty: 1, unit_price: 0 }); return paint(); }
+    if (d.ctparty != null && t.hasAttribute("data-ctparty")) { var cu0 = S.ct.data.customer; cu0.party_custom = false; cu0.party_text = ctParty(cu0); return paint(); }
     if (d.pt) { S.pt = d.pt; return paint(); }
     if (d.ppreset != null && t.hasAttribute("data-ppreset")) { S.pp = null; S.ppErr = ""; return paint(); }
     if (d.ppsave != null && t.hasAttribute("data-ppsave")) return savePrint();
-    if (d.ccadd != null && t.hasAttribute("data-ccadd")) { calcState().pr.push({ i: 0, q: 1 }); return paint(); }
-    if (d.ccdel != null && t.hasAttribute("data-ccdel")) { calcState().pr.splice(+d.ccdel, 1); return paint(); }
+    if (d.kt) { S.kt = d.kt; return paint(); }
+    if (d.mt) { S.mt = d.mt; return paint(); }
+    if (d.chatopen) { location.hash = "#/chat?t=" + encodeURIComponent(d.chatopen); return; }
+    if (d.kpdel) { var kpr = (S.kp || []).filter(function (x) { return x.id === +d.kpdel; })[0]; if (!confirm("Удалить КП " + (kpr ? kpr.number + " · " + kpr.customer : "") + " из реестра? Это нельзя отменить.")) return; return act2(api("/kp/" + d.kpdel + "/delete", {}).then(loadKp), false); }
+    if (d.kpadd != null && t.hasAttribute("data-kpadd")) { var pit = S.price.items.filter(function (i) { return i.active; })[+d.kpadd]; if (pit) { kpAddLine(pit.name, pit.price); return paint(); } return; }
+    if (d.pcadd != null && t.hasAttribute("data-pcadd")) return pcAddToKp();
+    if (d.pcreset != null && t.hasAttribute("data-pcreset")) { S.pc = null; return paint(); }
     if (d.cckp != null && t.hasAttribute("data-cckp")) return calcToKp();
     if (d.ccreset != null && t.hasAttribute("data-ccreset")) { S.calc = null; return paint(); }
     if (d.pradd != null && t.hasAttribute("data-pradd")) { S.pd.push({ name: "", price: 0, note: "", active: true }); return paint(); }
@@ -1140,6 +1426,11 @@
     if (d.tile) { S.ov.tile = S.ov.tile === d.tile ? "" : d.tile; return paint(); }
     if (d.ostage != null && t.hasAttribute("data-ostage")) { S.ov.stage = d.ostage; return paint(); }
     if (d.ld) { S.ld = d.ld; return paint(); }
+    if (d.ldn != null && t.hasAttribute("data-ldn")) {
+      var cm = S.ldm || isoDay(new Date()).slice(0, 7), cy = +cm.slice(0, 4), cmn = +cm.slice(5, 7) - 1 + (+d.ldn);
+      if (d.ldn === "0") { S.ldm = isoDay(new Date()).slice(0, 7); return paint(); }
+      var nd = new Date(cy, cmn, 1); S.ldm = nd.getFullYear() + "-" + ("0" + (nd.getMonth() + 1)).slice(-2); return paint();
+    }
     if (d.edit) { if (!(pos() === "owner" || pos() === "design")) return toast("Исполнителя и сроки назначает руководитель проектного отдела"); S.edit = +d.edit; S.open = null; return paint(); }
     if (d.saveplan) {
       var w = +document.getElementById("pl-who").value, s = document.getElementById("pl-s").value, en = document.getElementById("pl-e").value;
@@ -1168,7 +1459,7 @@
   document.addEventListener("input", function (e) {
     if (e.target.id === "dsQ") { S.ov.q = e.target.value; return paint(); }
     var sd = e.target.dataset && e.target.dataset.sd;
-    if (sd && S.stgD) { S.stgD[sd] = e.target.value; return; }
+    if (sd && S.stgD) { var sp_ = sd.split("."); if (S.stgD[sp_[0]]) S.stgD[sp_[0]][sp_[1]] = e.target.value; return; }
     var cmp = e.target.dataset && e.target.dataset.cmp;
     if (cmp && S.comp) { S.comp[cmp] = e.target.value; return; }
     var ppf = e.target.dataset && e.target.dataset.ppf;
@@ -1180,8 +1471,14 @@
     }
     var ccv = e.target.dataset && e.target.dataset.cc;
     if (ccv === "area" && S.calc) { S.calc.area = e.target.value; var rs = document.getElementById("calcRes"); if (rs) rs.innerHTML = calcResHtml(); return; }
-    var ccp = e.target.dataset && e.target.dataset.ccp;
-    if (ccp && S.calc && ccp.split(".")[1] === "q") { S.calc.pr[+ccp.split(".")[0]].q = +e.target.value || 0; var rs2 = document.getElementById("calcRes"); if (rs2) rs2.innerHTML = calcResHtml(); return; }
+    var pcq = e.target.dataset && e.target.dataset.pcq;
+    if (pcq != null && S.price) {
+      pcState().q[+pcq] = +e.target.value || 0;
+      var it_ = S.price.print.items[+pcq], mk_ = +(S.pp ? S.pp.markup : S.price.print.markup) || 0, sc = document.querySelector("[data-pcsum=\"" + pcq + "\"]");
+      if (sc) sc.textContent = pcState().q[+pcq] ? f2(pcState().q[+pcq] * it_.base * (1 + mk_ / 100)) + " ₽" : "";
+      var tt_ = document.getElementById("pcTotal"); if (tt_) tt_.innerHTML = pcTotalHtml();
+      return;
+    }
     var prf = e.target.dataset && e.target.dataset.prf;
     if (prf && S.pd) { var pp = prf.split("."); var row = S.pd[+pp[0]]; row[pp[1]] = pp[1] === "price" ? (+e.target.value || 0) : e.target.value; return; }
     var kf = e.target.dataset && e.target.dataset.kf;
@@ -1192,8 +1489,20 @@
       if (kp_[0] === "i" && kp_[2] === "price") { var tt = document.getElementById("kTotal"); if (tt) tt.textContent = money(kpTotal()); }
       return;
     }
-    var ctf = e.target.dataset && e.target.dataset.ctf;
-    if (ctf && S.ct) { S.ct[ctf] = e.target.value; S.ct.made = false; return; }
+    var ctp = e.target.dataset && e.target.dataset.ctp;
+    if (ctp && S.ct && S.ct.data && e.target.type !== "checkbox" && e.target.tagName !== "SELECT") {
+      var cv = e.target.value;
+      if (e.target.type === "number" && cv !== "") cv = +cv;
+      ctSetPath(ctp, cv);
+      var cu1 = S.ct.data.customer;
+      if (ctp === "customer.party_text") cu1.party_custom = true;
+      else if (/^customer\.(name_full|name_short|position_gen|fio_gen|basis|ogrn)$/.test(ctp) && !cu1.party_custom) {
+        cu1.party_text = ctParty(cu1);
+        var ta = document.querySelector("[data-ctp=\"customer.party_text\"]"); if (ta) ta.value = cu1.party_text;
+      }
+      ctRefresh();
+      return;
+    }
     var cf = e.target.dataset && e.target.dataset.cf;
     if (cf && S.cu.draft) {
       var parts = cf.split(".");
@@ -1209,9 +1518,22 @@
     var cdt = e.target.dataset || {};
     if (cdt.cc && S.calc && cdt.cc !== "area") { var cs_ = calcState(); cs_[cdt.cc] = cdt.cc === "stairs" ? +e.target.value : e.target.value; if (cdt.cc === "sys") cs_.pump = false; paint(); }
     if (cdt.ccb && S.calc) { S.calc[cdt.ccb] = e.target.checked; paint(); }
-    if (cdt.ccp && S.calc && cdt.ccp.split(".")[1] === "i") { S.calc.pr[+cdt.ccp.split(".")[0]].i = +e.target.value; paint(); }
+    if (cdt.pcd != null && S.price) { pcState().deliv = e.target.checked; var tt2_ = document.getElementById("pcTotal"); if (tt2_) tt2_.innerHTML = pcTotalHtml(); }
     if (e.target.dataset && (e.target.dataset.kf === "customer_id" || e.target.dataset.kf === "pay") && S.kpf) { S.kpf[e.target.dataset.kf] = e.target.dataset.kf === "pay" ? e.target.value : +e.target.value; paint(); }
-    if (e.target.dataset && e.target.dataset.ctpick != null && S.ct) { S.ct = { kid: +e.target.value, type: S.ct.type, days: S.ct.days, made: false }; paint(); }
+    if (e.target.dataset && e.target.dataset.ctpick != null && S.ct) { S.ct = { kid: +e.target.value }; loadContractDraft().then(paint); }
+    var ctsa = e.target.dataset && e.target.dataset.ctsvadd;
+    if (ctsa != null && S.ct && e.target.value !== "") {
+      var pr_ = (S.price && S.price.items ? S.price.items.filter(function (i) { return i.active; }) : [])[+e.target.value];
+      if (pr_) { S.ct.data.services.push({ name: pr_.name, unit: "услуга", qty: 1, unit_price: pr_.price }); paint(); }
+    }
+    var ctq = e.target.dataset && e.target.dataset.ctp;
+    if (ctq && S.ct && S.ct.data && (e.target.type === "checkbox" || e.target.tagName === "SELECT")) {
+      if (ctq === "__upd") { S.ct.upd = e.target.checked; return; }
+      ctSetPath(ctq, e.target.type === "checkbox" ? e.target.checked : e.target.value);
+      var cu2 = S.ct.data.customer;
+      if (ctq === "customer.type") { if (cu2.type === "ip") { cu2.basis = cu2.basis === "Устава" ? "листа записи из ЕГРИП" : cu2.basis; cu2.position_sign = "Индивидуальный предприниматель"; } else if (cu2.type === "org") { cu2.basis = cu2.basis === "листа записи из ЕГРИП" ? "Устава" : cu2.basis; cu2.position_sign = "Генеральный директор"; } if (!cu2.party_custom) cu2.party_text = ctParty(cu2); }
+      paint();
+    }
     if (e.target.dataset && e.target.dataset.kpstatus && S.kp) { var kid_ = +e.target.dataset.kpstatus; act2(api("/kp/" + kid_ + "/status", { status: e.target.value }).then(loadKp), false); }
     if (e.target.dataset && e.target.dataset.cfchk != null && S.cu.draft) { S.cu.draft.regular = e.target.checked ? 1 : 0; }
     if (e.target.dataset && e.target.dataset.cftz != null && S.cu.draft) { S.cu.draft.tz = e.target.value; paint(); }
