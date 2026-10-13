@@ -433,12 +433,10 @@
       }).join("") + "</div>";
     }
     /* месяц: колонки по дням, выходные закрашены, у каждого сотрудника свой цвет, отмечен последний день загрузки */
-    var ym = S.ldm || today.slice(0, 7), y0 = +ym.slice(0, 4), m0 = +ym.slice(5, 7) - 1;
-    var dim = new Date(y0, m0 + 1, 0).getDate(), iso = [], dow = [];
-    for (var k = 1; k <= dim; k++) { var dd = new Date(y0, m0, k); iso.push(isoDay(dd)); dow.push((dd.getDay() + 6) % 7); }
-    var MN = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
+    var off = Math.max(0, (S.ldo | 0)), dim = 30, iso = [], dow = [];
+    for (var k = 0; k < dim; k++) { var dd = addDays(new Date(), off + k); iso.push(isoDay(dd)); dow.push((dd.getDay() + 6) % 7); }
     var cols = "160px repeat(" + dim + ",minmax(30px,1fr))", minw = 160 + dim * 32;
-    var nav = '<div class="seg" style="margin-bottom:12px"><button data-ldn="-1">← ' + MN[(m0 + 11) % 12] + '</button><button data-ldn="0" class="on">' + MN[m0] + " " + y0 + '</button><button data-ldn="1">' + MN[(m0 + 1) % 12] + " →</button></div>";
+    var nav = '<div class="seg" style="margin-bottom:12px"><button data-ldn="-1"' + (off ? "" : " disabled") + '>← назад</button><button data-ldn="0" class="on">' + dmy(iso[0]).slice(0, 5) + " — " + dmy(iso[dim - 1]).slice(0, 5) + (off ? "" : " · с сегодняшнего дня") + '</button><button data-ldn="1">вперёд →</button></div>';
     function cellBg(i, row) {
       var we = dow[i] >= 5, td = iso[i] === today;
       return '<div style="grid-column:' + (i + 2) + ";grid-row:" + row + ";border-left:1px solid var(--line);" + (td ? "background:color-mix(in srgb,var(--accent) 18%,transparent);" : we ? "background:color-mix(in srgb,var(--bad) 10%,var(--surface-2));" : "") + '"></div>';
@@ -459,7 +457,7 @@
     var header = '<div style="display:grid;grid-template-columns:' + cols + ';background:var(--surface-2);color:var(--muted);min-width:' + minw + 'px;border-bottom:1px solid var(--line)"><div style="padding:8px 12px">Сотрудник</div>'
       + iso.map(function (d, i) {
         var we = dow[i] >= 5, td = d === today;
-        return '<div style="padding:6px 2px;text-align:center;font-size:.72rem;border-left:1px solid var(--line);' + (td ? "color:var(--accent);font-weight:800;background:color-mix(in srgb,var(--accent) 18%,transparent);" : we ? "color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,var(--surface-2));" : "") + '">' + WD[dow[i]] + "<br><b>" + ("0" + (i + 1)).slice(-2) + "</b></div>";
+        return '<div style="padding:6px 2px;text-align:center;font-size:.72rem;border-left:1px solid var(--line);' + (td ? "color:var(--accent);font-weight:800;background:color-mix(in srgb,var(--accent) 18%,transparent);" : we ? "color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,var(--surface-2));" : "") + '">' + WD[dow[i]] + "<br><b>" + d.slice(8, 10) + "</b></div>";
       }).join("") + "</div>";
     function block(u) {
       var color = personColor(u.name);
@@ -803,13 +801,19 @@
       + '<div style="font-size:.86rem">' + m.slice(0, 12).map(function (x) { return "• " + E(x[1]); }).join("<br>") + (m.length > 12 ? "<br>…и ещё " + (m.length - 12) : "") + "</div></div>"
       : '<div class="dbox sys"><small>Проверка</small>Все обязательные поля заполнены</div>';
   }
+  function ctForceHtml(c) {
+    if (!c.miss || !c.miss.length) return "";
+    return '<label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;padding:10px 12px;border:1px dashed var(--bad);border-radius:10px"><input type="checkbox" data-ctforce="1"' + (c.force ? " checked" : "") + ' style="margin-top:3px">'
+      + "<span>Я понимаю, что не все поля заполнены, но хочу скачать договор</span></label>";
+  }
   function ctRefresh() {
     var c = S.ct; if (!c || !c.data) return;
     c.miss = ctMissing(c.data);
     var mh = document.getElementById("ctMiss"); if (mh) mh.innerHTML = ctMissHtml(c.miss);
     var pp = document.getElementById("ctPaper"); if (pp) pp.innerHTML = ctPaper(c.data);
     var tot = document.getElementById("ctTotal"); if (tot) { var t = ctTotals(c.data); tot.textContent = money(t.amount) + " · аванс " + money(t.adv) + " · остаток " + money(t.post); }
-    var mk = document.getElementById("ctMake"); if (mk) { mk.disabled = c.miss.length > 0; mk.style.opacity = c.miss.length ? ".5" : ""; }
+    var fb = document.getElementById("ctForceBox"); if (fb) { if (!c.miss.length) c.force = false; fb.innerHTML = ctForceHtml(c); }
+    var mk = document.getElementById("ctMake"); if (mk) { var blocked = c.miss.length > 0 && !c.force; mk.disabled = blocked; mk.style.opacity = blocked ? ".5" : ""; }
     document.querySelectorAll("[data-ctp]").forEach(function (el) {
       var bad = c.miss.some(function (x) { return x[0] === el.dataset.ctp; });
       if (el.type === "checkbox") return;
@@ -820,8 +824,8 @@
     var p = pos();
     if (!(p === "owner" || p === "sales" || p === "ops")) return '<div class="head"><div><h1>Конструктор договора</h1></div></div><div class="note">Раздел недоступен для вашей роли.</div>';
     var open = (S.kp || []).filter(function (x) { return !x.order_id && x.status !== "Отказ"; });
-    var head = '<div class="head"><div><h1>Конструктор договора</h1><p>Договор на услуги ИП по вашему шаблону: заполняется из КП и карточки заказчика, без обязательных полей не создаётся</p></div></div>';
-    if (!S.ct || !S.ct.kid) return head + '<div class="note">Нет КП, по которым можно оформить договор. Сначала выставьте КП в «Конструкторе КП» (договор формируется из КП).</div>';
+    var head = '<div class="head"><div><h1>Конструктор договора</h1><p>Договор на услуги ИП по вашему шаблону: заполняется из КП и карточки заказчика либо вводится самостоятельно</p></div><button class="btn accent" data-ctstandalone="1">' + ic("plus") + "Договор без КП</button></div>";
+    if (!S.ct || !S.ct.kid) return head + '<div class="note">Нет КП, по которым можно оформить договор. Выставьте КП в «Конструкторе КП» или создайте договор без КП.</div><button class="btn accent" data-ctstandalone="1">' + ic("plus") + "Договор без КП</button>";
     var c = S.ct, k = (S.kp || []).filter(function (x) { return x.id === c.kid; })[0];
     if (c.err || !c.data) return head + '<div class="err">' + E(c.err || "Не удалось загрузить данные договора") + "</div>";
     var d = c.data, cu = d.customer || {}, t = ctTotals(d);
@@ -876,7 +880,8 @@
       + '<div class="dbox"><small>Итого</small><b id="ctTotal" style="font-size:1.15rem">' + money(t.amount) + " · аванс " + money(t.adv) + " · остаток " + money(t.post) + "</b></div></div>";
     var acts = '<div class="panel pad" style="margin-top:14px"><div id="ctMiss">' + ctMissHtml(c.miss) + "</div>"
       + (c.err ? '<div class="err">' + E(c.err) + "</div>" : "")
-      + '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" id="ctMake" data-ctmake="1"' + (c.miss.length ? ' disabled style="opacity:.5"' : "") + ">" + ic("file") + (c.saved ? "Сохранить договор" : "Создать договор") + "</button>"
+      + '<div id="ctForceBox">' + ctForceHtml(c) + "</div>"
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" id="ctMake" data-ctmake="1"' + ((c.miss.length && !c.force) ? ' disabled style="opacity:.5"' : "") + ">" + ic("file") + (c.miss.length && c.force ? "Скачать договор (не все поля заполнены)" : c.saved ? "Сохранить договор" : "Создать договор") + "</button>"
       + (k && k.contract_number ? '<button class="btn ghost" data-doc="' + k.id + ':contract:docx">Скачать Word</button><button class="btn ghost" data-doc="' + k.id + ':contract:pdf">Скачать PDF</button><button class="btn ok" data-ctsign="1">Договор подписан</button>' : "") + "</div>"
       + (k && k.contract_number ? '<div class="autolist"><b>Договор №' + E(k.contract_number) + " сформирован.</b><ul style=\"margin-top:8px\"><li>Привязан к КП " + E(k.number) + " и заказчику «" + E(k.customer) + "»</li>"
         + "<li>После «Договор подписан» система создаст проектную задачу, папку на сервере и чат проекта</li>"
@@ -885,9 +890,16 @@
   }
   function makeContract() {
     var c = S.ct; c.err = ""; c.miss = ctMissing(c.data);
-    if (c.miss.length) { c.err = "Заполните обязательные поля"; return paint(); }
-    api("/kp/" + c.kid + "/contract", { data: c.data, save_customer: !!c.upd }).then(function () { c.saved = true; c.loadedFor = null; return loadKp(); })
-      .then(function () { return loadContractDraft(); }).then(function () { toast("Договор сформирован"); paint(); }, function (e) { c.err = String(e); paint(); });
+    var force = !!(c.miss.length && c.force);
+    if (c.miss.length && !force) { c.err = "Заполните обязательные поля или отметьте, что хотите скачать договор без них"; return paint(); }
+    api("/kp/" + c.kid + "/contract", { data: c.data, save_customer: !!c.upd, force: force }).then(function () { c.saved = true; c.loadedFor = null; return loadKp(); })
+      .then(function () { return loadContractDraft(); })
+      .then(function () { toast("Договор сформирован" + (force ? ": скачиваю Word" : "")); paint(); if (force) return downloadDoc(c.kid, "contract", "docx"); },
+        function (e) { c.err = String(e); paint(); });
+  }
+  function newStandalone() {
+    return api("/contracts/standalone", {}).then(function (r) { S.ct = { kid: r.id }; return loadKp(); }).then(function () { return loadContractDraft(); })
+      .then(function () { toast("Пустой договор создан: заполните данные"); if (location.hash !== "#/contracts") location.hash = "#/contracts"; else paint(); }, function (e) { toast(String(e)); });
   }
   function signContract() {
     var c = S.ct;
@@ -1094,70 +1106,70 @@
     }).join("") + "</div>";
     return seg + (tab === "calc" ? priceCalc(false) : tab === "print" ? pricePrint(false) : priceServices());
   }
-  /* ---- «Печать»: цены типографии + наценка; калькулятор по количеству листов; доставка отдельной строкой */
+  /* ---- «Печать»: 4 варианта по площади объекта; цена за 1 экземпляр, следующий экземпляр дешевле; доставка входит */
   function ppInit() {
     if (!S.pp && S.price && S.price.print) S.pp = JSON.parse(JSON.stringify(S.price.print));
     return S.pp;
   }
   function pcState() {
-    if (!S.pc) S.pc = { q: {}, deliv: false };
+    if (!S.pc) S.pc = { tier: -1, copies: 1 };
     return S.pc;
   }
-  function pcSum() {
-    var pp = S.price && S.price.print, pc = pcState(), mk = pp ? (+pp.markup || 0) : 0, sum = 0;
-    if (!pp) return 0;
-    pp.items.forEach(function (it, i) { sum += (+pc.q[i] || 0) * it.base * (1 + mk / 100); });
-    return Math.round(sum * 100) / 100;
+  function printCost(tier, copies) {
+    var pp = (S.pp || (S.price && S.price.print)), t = pp && pp.tiers[tier];
+    if (!t) return 0;
+    var n = Math.max(1, Math.round(+copies || 1)), p = +t.price || 0;
+    return Math.round((p + (n - 1) * p * (1 - (+pp.discount || 0) / 100)) * 100) / 100;
+  }
+  function printLine(tier, copies) {
+    var t = S.price.print.tiers[tier], n = Math.max(1, Math.round(+copies || 1));
+    return { name: t.name + (n > 1 ? ", " + n + " экз." : ", 1 экз."), price: printCost(tier, n) };
   }
   function pcTotalHtml() {
-    var pp = S.price.print, s = pcSum(), pc = pcState(), d = pc.deliv ? (+pp.delivery || 0) : 0;
-    return '<div class="dbox"><small>Печать и сборка</small><b style="font-size:1.2rem">' + f2(s) + " ₽</b>"
-      + (pc.deliv ? "<div>Доставка отдельной строкой: " + f2(d) + " ₽</div><div><b>Всего с доставкой: " + f2(s + d) + " ₽</b></div>" : "") + "</div>";
+    var pc = pcState(), pp = S.pp || S.price.print;
+    if (pc.tier < 0) return '<div class="dbox"><small>Печать документации</small>Выберите вариант по площади объекта</div>';
+    var n = Math.max(1, Math.round(+pc.copies || 1)), p = +pp.tiers[pc.tier].price || 0, nxt = Math.round(p * (1 - (+pp.discount || 0) / 100) * 100) / 100;
+    return '<div class="dbox"><small>Печать документации, ' + n + " экз.</small><b style=\"font-size:1.2rem\">" + f2(printCost(pc.tier, n)) + " ₽</b>"
+      + "<div>1-й экземпляр: " + f2(p) + " ₽" + (n > 1 ? " · каждый следующий: " + f2(nxt) + " ₽ (−" + (+pp.discount || 0) + "%)" : "") + "</div><div>Доставка входит в стоимость</div></div>";
   }
   function pricePrint(forKp) {
     var pr = S.price, pp = ppInit(), edit = pr.can_edit && !forKp, pc = pcState();
     if (!pp) return '<div class="note">Прайс на печать недоступен.</div>';
     var inp = 'style="width:100%;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink)"';
-    var qs = 'style="width:90px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink)"';
-    var mk = +pp.markup || 0;
-    var head = forKp ? "" : '<div class="head"><div><h1>Печать документации</h1><p>Укажите количество листов и услуг: стоимость считается автоматически. Цены типографии плюс наценка ' + mk + "%; доставка отдельной строкой: " + money(pp.delivery) + ".</p></div>"
+    var head = forKp ? "" : '<div class="head"><div><h1>Печать документации</h1><p>Цена за 1 экземпляр комплекта по площади объекта, доставка входит. Каждый следующий экземпляр дешевле на ' + (+pp.discount || 0) + "%.</p></div>"
       + (edit ? '<div style="display:flex;gap:10px"><button class="btn ghost" data-ppreset="1">Отменить правки</button><button class="btn primary" data-ppsave="1">Сохранить цены</button></div>' : "") + "</div>";
-    var ctl = edit ? '<div class="panel pad" style="margin-bottom:14px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 14px">'
-      + '<div class="fld"><label>Наценка к ценам типографии, %</label><input type="number" min="0" data-ppf="markup" value="' + mk + '"></div>'
-      + '<div class="fld"><label>Доставка (отдельной строкой), ₽</label><input type="number" min="0" data-ppf="delivery" value="' + (+pp.delivery || 0) + '"></div></div></div>' : "";
-    var rows = pp.items.map(function (r, i) {
-      var our = (+r.base || 0) * (1 + mk / 100), q = +pc.q[i] || 0;
-      return "<tr><td>" + E(r.name) + "</td><td>" + E(r.unit) + "</td>"
-        + (edit ? '<td><input type="number" min="0" step="0.01" data-ppf="i.' + i + '.base" value="' + (+r.base || 0) + '" ' + inp + "></td>" : "")
-        + '<td class="r"><b data-ppour="' + i + '">' + f2(our) + ' ₽</b></td><td><input type="number" min="0" step="1" data-pcq="' + i + '" value="' + (q || "") + '" placeholder="0" ' + qs + '></td>'
-        + '<td class="r" data-pcsum="' + i + '">' + (q ? f2(q * our) + " ₽" : "") + "</td></tr>";
+    var rows = pp.tiers.map(function (r, i) {
+      return '<label class="dsv ' + (pc.tier === i ? "on" : "") + '" style="display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;cursor:pointer;margin-bottom:8px">'
+        + '<input type="radio" name="pctier" data-pct="' + i + '"' + (pc.tier === i ? " checked" : "") + ">"
+        + (edit ? '<input data-ppf="t.' + i + '.name" value="' + E(r.name) + '" ' + inp + ">" : "<span><b>" + E(r.name) + "</b></span>")
+        + (edit ? '<span style="display:flex;gap:6px;align-items:center"><input type="number" min="0" data-ppf="t.' + i + '.price" value="' + (+r.price || 0) + '" style="width:110px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink)"> ₽</span>'
+          : '<span><b>' + money(r.price) + "</b></span>") + "</label>";
     }).join("");
-    var tbl = '<div class="panel" style="overflow:auto;' + (forKp ? "max-height:420px" : "") + '"><table class="tbl"><tr><th>Услуга</th><th style="width:60px">Ед.</th>' + (edit ? '<th style="width:130px">Закупка, ₽</th>' : "")
-      + '<th style="width:110px">Цена, ₽</th><th style="width:110px">Количество</th><th style="width:110px">Сумма</th></tr>' + rows + "</table></div>";
-    var bottom = '<div class="panel pad" style="margin-top:12px"><label style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input type="checkbox" data-pcd="1"' + (pc.deliv ? " checked" : "") + "> Нужна доставка (" + money(pp.delivery) + " отдельной строкой)</label>"
+    var ctl = edit ? '<div class="fld" style="max-width:300px"><label>Скидка на 2-й и последующие экземпляры, %</label><input type="number" min="0" max="100" data-ppf="discount" value="' + (+pp.discount || 0) + '"></div>' : "";
+    var bottom = '<div class="panel pad" style="margin-top:12px"><div class="fld" style="max-width:260px"><label>Количество экземпляров</label><input type="number" min="1" step="1" data-pcn="1" value="' + (+pc.copies || 1) + '"></div>'
       + '<div id="pcTotal">' + pcTotalHtml() + "</div>"
-      + '<div style="display:flex;gap:10px;flex-wrap:wrap">' + (forKp ? '<button class="btn primary" data-pcadd="1">Добавить в КП</button>' : '<button class="btn primary" data-pcadd="1">Создать КП с печатью</button>')
-      + '<button class="btn ghost" data-pcreset="1">Сбросить количество</button></div></div>';
-    return head + ctl + tbl + bottom + (S.ppErr ? '<div class="err">' + E(S.ppErr) + "</div>" : "");
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">' + (forKp ? '<button class="btn primary" data-pcadd="1">Добавить в КП</button>' : '<button class="btn primary" data-pcadd="1">Создать КП с печатью</button>')
+      + '<button class="btn ghost" data-pcreset="1">Сбросить</button></div></div>';
+    return head + '<div class="panel pad">' + rows + ctl + "</div>" + bottom + (S.ppErr ? '<div class="err">' + E(S.ppErr) + "</div>" : "");
   }
   function pcAddToKp() {
-    var pp = S.price.print, s = pcSum(), pc = pcState();
-    if (s <= 0) return toast("Укажите количество листов и услуг");
-    kpAddLine("Печать и сборка комплекта документации", Math.max(1, Math.round(s)));
-    if (pc.deliv) kpAddLine("Доставка комплекта документации", +pp.delivery || 0);
-    if (S.mount && S.mount.kind === "kpc") { toast("Строки добавлены в КП"); return paint(); }
+    var pc = pcState();
+    if (pc.tier < 0) return toast("Выберите вариант печати по площади объекта");
+    var l = printLine(pc.tier, pc.copies);
+    kpAddLine(l.name, l.price);
+    if (S.mount && S.mount.kind === "kpc") { toast("Строка добавлена в КП"); return paint(); }
     location.hash = "#/kpc";
   }
   function savePrint() {
     S.ppErr = "";
     var pp = S.pp;
-    api("/price/print", { markup: +pp.markup || 0, delivery: +pp.delivery || 0, items: pp.items.map(function (r) { return { name: r.name, unit: r.unit, base: +r.base || 0 }; }) }).then(function (r) {
+    api("/price/print", { discount: +pp.discount || 0, tiers: pp.tiers.map(function (r) { return { name: r.name, price: +r.price || 0 }; }) }).then(function (r) {
       S.price = Object.assign({}, S.price, { print: r }); S.pp = null; toast("Прайс на печать сохранён"); paint();
     }, function (e) { S.ppErr = String(e); paint(); });
   }
   /* ---- «Калькулятор»: проектирование по площади + обследование + печать (из вкладки «Печать») + доставка; без смет и экспертизы */
   function calcState() {
-    if (!S.calc) S.calc = { sys: "", area: "", survey: false, city: true, pump: false, stairs: -1, deliv: false };
+    if (!S.calc) S.calc = { sys: "", area: "", survey: false, city: true, pump: false, stairs: -1, print: false, copies: 1 };
     return S.calc;
   }
   function tierIdx(sys, area) {
@@ -1184,9 +1196,10 @@
     }
     if (sys && sys.pump && c.pump) lines.push({ name: "Проектирование насосной станции пожаротушения", price: cf.pump });
     if (c.stairs >= 0 && cf.stairs[c.stairs]) { var st = cf.stairs[c.stairs]; if (st[1] == null) ask = true; lines.push({ name: st[0], price: st[1] }); }
-    var prn = pcSum();
-    if (prn > 0) lines.push({ name: "Печать и сборка комплекта документации", price: Math.max(1, Math.round(prn)) });
-    if (c.deliv) lines.push({ name: "Доставка комплекта документации", price: +pp.delivery || 0 });
+    if (c.print && area > 0) {
+      var ti = 0; while (ti < pp.tiers.length - 1 && pp.tiers[ti].up_to != null && area > pp.tiers[ti].up_to) ti++;
+      lines.push(printLine(ti, c.copies || 1));
+    }
     return { lines: lines, ask: ask, total: lines.reduce(function (a, l) { return a + (l.price == null ? 0 : l.price); }, 0) };
   }
   function calcResHtml() {
@@ -1209,8 +1222,8 @@
       + (sys && sys.pump ? chk("pump", "Насосная станция (+" + money(cf.pump) + ")", c.pump) : "")
       + '<div class="fld"><label>Проектирование пожарных лестниц</label><select data-cc="stairs" ' + sel + '><option value="-1">— не требуется —</option>'
       + cf.stairs.map(function (s, i) { return '<option value="' + i + '"' + (i === c.stairs ? " selected" : "") + ">" + E(s[0]) + " — " + (s[1] == null ? "индивидуально" : money(s[1])) + "</option>"; }).join("") + "</select></div>"
-      + '<div class="dbox"><small>Печать и сборка</small>' + f2(pcSum()) + " ₽ <span style=\"color:var(--muted)\">— количество листов указывается на вкладке «Печать»</span></div>"
-      + chk("deliv", "Доставка комплекта (" + money(pp.delivery) + " отдельной строкой)", c.deliv)
+      + chk("print", "Печать документации (вариант по площади, доставка входит)", c.print)
+      + (c.print ? '<div class="fld"><label>Экземпляров (2-й и далее −' + (+pp.discount || 0) + "%)</label><input type=\"number\" min=\"1\" step=\"1\" data-cc=\"copies\" value=\"" + (c.copies || 1) + "\"></div>" : "")
       + "</div>";
     var res = '<div class="panel pad" style="margin-top:12px"><h3>Итого</h3><div id="calcRes">' + calcResHtml() + "</div>"
       + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button class="btn primary" data-cckp="1">' + (compact ? "Добавить в КП" : "Создать КП из расчёта") + '</button><button class="btn ghost" data-ccreset="1">Сбросить</button></div></div>';
@@ -1384,6 +1397,7 @@
     if (d.kdel != null && t.hasAttribute("data-kdel")) { S.kpf.items.splice(+d.kdel, 1); return paint(); }
     if (d.ksave != null && t.hasAttribute("data-ksave")) return saveKp(d.ksave === "send");
     if (d.ctmake != null && t.hasAttribute("data-ctmake")) return makeContract();
+    if (d.ctstandalone != null && t.hasAttribute("data-ctstandalone")) return newStandalone();
     if (d.ctsign != null && t.hasAttribute("data-ctsign")) return signContract();
     if (d.tstate) { var ts = d.tstate.split(":"); return act2(api("/tasks/" + ts[0] + "/state", { state: ts[1] }).then(function () { S.tasks = null; return load(); }), false); }
     if (d.flstep) { S.flStep = S.flStep === d.flstep ? null : d.flstep; return paint(); }
@@ -1427,9 +1441,8 @@
     if (d.ostage != null && t.hasAttribute("data-ostage")) { S.ov.stage = d.ostage; return paint(); }
     if (d.ld) { S.ld = d.ld; return paint(); }
     if (d.ldn != null && t.hasAttribute("data-ldn")) {
-      var cm = S.ldm || isoDay(new Date()).slice(0, 7), cy = +cm.slice(0, 4), cmn = +cm.slice(5, 7) - 1 + (+d.ldn);
-      if (d.ldn === "0") { S.ldm = isoDay(new Date()).slice(0, 7); return paint(); }
-      var nd = new Date(cy, cmn, 1); S.ldm = nd.getFullYear() + "-" + ("0" + (nd.getMonth() + 1)).slice(-2); return paint();
+      if (d.ldn === "0") { S.ldo = 0; return paint(); }
+      S.ldo = Math.max(0, (S.ldo | 0) + 30 * (+d.ldn)); return paint();
     }
     if (d.edit) { if (!(pos() === "owner" || pos() === "design")) return toast("Исполнителя и сроки назначает руководитель проектного отдела"); S.edit = +d.edit; S.open = null; return paint(); }
     if (d.saveplan) {
@@ -1464,18 +1477,17 @@
     if (cmp && S.comp) { S.comp[cmp] = e.target.value; return; }
     var ppf = e.target.dataset && e.target.dataset.ppf;
     if (ppf && S.pp) {
-      if (ppf === "markup" || ppf === "delivery") S.pp[ppf] = +e.target.value || 0;
-      else { var q1 = ppf.split("."); S.pp.items[+q1[1]].base = +e.target.value || 0; }
-      document.querySelectorAll("[data-ppour]").forEach(function (b) { var it = S.pp.items[+b.dataset.ppour]; if (it) b.textContent = f2((+it.base || 0) * (1 + (+S.pp.markup || 0) / 100)) + " ₽"; });
+      if (ppf === "discount") S.pp.discount = +e.target.value || 0;
+      else { var q1 = ppf.split("."); S.pp.tiers[+q1[1]][q1[2]] = q1[2] === "price" ? (+e.target.value || 0) : e.target.value; }
+      var tt0 = document.getElementById("pcTotal"); if (tt0) tt0.innerHTML = pcTotalHtml();
       return;
     }
     var ccv = e.target.dataset && e.target.dataset.cc;
+    if (ccv === "copies" && S.calc) { S.calc.copies = Math.max(1, Math.round(+e.target.value || 1)); var rs2 = document.getElementById("calcRes"); if (rs2) rs2.innerHTML = calcResHtml(); return; }
     if (ccv === "area" && S.calc) { S.calc.area = e.target.value; var rs = document.getElementById("calcRes"); if (rs) rs.innerHTML = calcResHtml(); return; }
-    var pcq = e.target.dataset && e.target.dataset.pcq;
-    if (pcq != null && S.price) {
-      pcState().q[+pcq] = +e.target.value || 0;
-      var it_ = S.price.print.items[+pcq], mk_ = +(S.pp ? S.pp.markup : S.price.print.markup) || 0, sc = document.querySelector("[data-pcsum=\"" + pcq + "\"]");
-      if (sc) sc.textContent = pcState().q[+pcq] ? f2(pcState().q[+pcq] * it_.base * (1 + mk_ / 100)) + " ₽" : "";
+    var pcn = e.target.dataset && e.target.dataset.pcn;
+    if (pcn != null && S.price) {
+      pcState().copies = Math.max(1, Math.round(+e.target.value || 1));
       var tt_ = document.getElementById("pcTotal"); if (tt_) tt_.innerHTML = pcTotalHtml();
       return;
     }
@@ -1518,7 +1530,8 @@
     var cdt = e.target.dataset || {};
     if (cdt.cc && S.calc && cdt.cc !== "area") { var cs_ = calcState(); cs_[cdt.cc] = cdt.cc === "stairs" ? +e.target.value : e.target.value; if (cdt.cc === "sys") cs_.pump = false; paint(); }
     if (cdt.ccb && S.calc) { S.calc[cdt.ccb] = e.target.checked; paint(); }
-    if (cdt.pcd != null && S.price) { pcState().deliv = e.target.checked; var tt2_ = document.getElementById("pcTotal"); if (tt2_) tt2_.innerHTML = pcTotalHtml(); }
+    if (cdt.ctforce != null && S.ct) { S.ct.force = e.target.checked; ctRefresh(); return; }
+    if (cdt.pct != null && S.price) { pcState().tier = +cdt.pct; paint(); }
     if (e.target.dataset && (e.target.dataset.kf === "customer_id" || e.target.dataset.kf === "pay") && S.kpf) { S.kpf[e.target.dataset.kf] = e.target.dataset.kf === "pay" ? e.target.value : +e.target.value; paint(); }
     if (e.target.dataset && e.target.dataset.ctpick != null && S.ct) { S.ct = { kid: +e.target.value }; loadContractDraft().then(paint); }
     var ctsa = e.target.dataset && e.target.dataset.ctsvadd;

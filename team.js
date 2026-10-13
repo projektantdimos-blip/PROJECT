@@ -143,7 +143,8 @@
   function msgHtml(m) {
     var me = C.me && m.user === C.me.name, mine = m.acks && C.me && m.acks.indexOf(C.me.name) >= 0;
     return '<div class="x-msg ' + (m.urgent ? "urg " : "") + (me ? "me" : "") + '">' + ava(m.user, "sm") + '<div class="bd"><div class="nm">' + E(m.user) + "<small>" + when(m.ts) + '</small></div><div class="tx">'
-      + (m.urgent ? '<div class="x-urgtag">' + ic("flame") + "Срочное</div>" : "") + E(m.text) + "</div>"
+      + (m.urgent ? '<div class="x-urgtag">' + ic("flame") + "Срочное</div>" : "") + E(m.text)
+      + (m.files && m.files.length ? '<div class="x-files">' + m.files.map(function (f) { return '<button class="x-file" data-tfile="' + f.id + '" title="Скачать">📎 ' + E(f.name) + "<small>" + Math.max(1, Math.round(f.size / 1024)) + " КБ</small></button>"; }).join("") + "</div>" : "") + "</div>"
       + (m.urgent ? '<div class="x-ack">' + ic("check") + (m.acks.length ? "Прочитали: " + E(m.acks.join(", ")) : "Пока никто не подтвердил") + (!me && !mine ? '<button data-ack="' + m.id + '">Прочитал(а)</button>' : "") + "</div>" : "") + "</div></div>";
   }
   function paintThread(keep) {
@@ -157,11 +158,24 @@
       + (room.kind === "task" && room.task_row ? '<a class="x-btn ghost" style="margin-left:auto;padding:7px 12px" href="#/task/' + room.task_row + '">Открыть задачу</a>' : "") + "</div>"
       + (pin ? '<div class="x-pinned">' + ic("flame") + "<span>Срочное: " + E(pin.text) + "</span></div>" : "")
       + '<div class="x-msgs">' + (body || '<span class="x-day">Здесь пока пусто — напишите первое сообщение</span>') + "</div>"
-      + '<div class="x-comp"><input type="text" id="tIn" placeholder="Написать в «' + E(room.name) + '»… (@Имя — упомянуть)" autocomplete="off"><button class="x-urgbtn ' + (S.urg ? "on" : "") + '" id="tUrg" title="Срочное: придёт всем участникам, даже в тихие часы">' + ic("flame") + 'Срочное</button><button class="x-btn primary" id="tSend" style="padding:12px 14px">' + ic("send") + "</button></div>";
+      + '<div class="x-comp"><button class="x-btn ghost" id="tAtt" title="Прикрепить файл (до 10 МБ). Файл можно перетащить прямо в окно чата" style="padding:12px 13px">📎</button><input type="file" id="tFile" hidden><input type="text" id="tIn" placeholder="Написать в «' + E(room.name) + '»… (@Имя — упомянуть)" autocomplete="off"><button class="x-urgbtn ' + (S.urg ? "on" : "") + '" id="tUrg" title="Срочное: придёт всем участникам, даже в тихие часы">' + ic("flame") + 'Срочное</button><button class="x-btn primary" id="tSend" style="padding:12px 14px">' + ic("send") + "</button></div>";
     var m = el.querySelector(".x-msgs"); if (!keep || wasBottom) m.scrollTop = 1e6;
     var bk = el.querySelector("[data-back]"); if (bk) bk.onclick = function () { var ch = document.querySelector(".x-chat"); if (ch) ch.classList.remove("open"); };
     $("tIn").value = val;
     $("tSend").onclick = send;
+    $("tAtt").onclick = function () { $("tFile").click(); };
+    $("tFile").onchange = function () { var f = this.files && this.files[0]; this.value = ""; if (f) sendFile(f); };
+    el.ondragover = function (e) { if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") >= 0) { e.preventDefault(); el.classList.add("x-drop"); } };
+    el.ondragleave = function (e) { if (!el.contains(e.relatedTarget)) el.classList.remove("x-drop"); };
+    el.ondrop = function (e) { el.classList.remove("x-drop"); var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) { e.preventDefault(); sendFile(f); } };
+    el.querySelectorAll("[data-tfile]").forEach(function (b) {
+      b.onclick = function () {
+        C.blob("/crm/team/files/" + b.dataset.tfile).then(function (r) {
+          var a = document.createElement("a"); a.href = URL.createObjectURL(r.blob); a.download = r.name; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+        }).catch(function (e) { toast(E(e)); });
+      };
+    });
     mentionBox($("tIn"));
     $("tIn").onkeydown = function (e) { if (e.key === "Enter" && !(document.getElementById("tMent") && document.getElementById("tMent").children.length)) send(); };
     $("tUrg").onclick = function () { S.urg = !S.urg; this.classList.toggle("on", S.urg); };
@@ -201,6 +215,22 @@
       else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); e.stopPropagation(); pick(sel); }
       else if (e.key === "Escape") close();
     }, true);
+  }
+  function sendFile(f) {
+    if (!f) return;
+    if (f.size > 10 * 1024 * 1024) { toast("Файл больше 10 МБ"); return; }
+    var i = $("tIn"), text = i ? i.value.trim() : "", urgent = S.urg, rd = new FileReader();
+    rd.onload = function () {
+      var b64 = String(rd.result || "").split(",")[1];
+      toast("Загружаю «" + f.name + "»…");
+      C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/send-file", { body: { text: text, filename: f.name, mime: f.type || "application/octet-stream", data: b64, urgent: urgent } }).then(function () {
+        S.urg = false; if ($("tIn")) $("tIn").value = "";
+        return C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages?after=" + S.lastId);
+      }).then(function (ms) { if (ms.length) { S.msgs = S.msgs.concat(ms); S.lastId = ms[ms.length - 1].id; } paintThread(); loadRooms(); })
+        .catch(function (e) { toast(E(e)); });
+    };
+    rd.onerror = function () { toast("Не удалось прочитать файл"); };
+    rd.readAsDataURL(f);
   }
   function send() {
     var i = $("tIn"), text = i.value.trim(); if (!text) return;

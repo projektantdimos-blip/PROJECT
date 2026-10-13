@@ -734,8 +734,8 @@ function sectionForHash(h){
 /* Какие разделы видит каждая роль (позиция сотрудника в CRM). Это интерфейс; данные ограничиваются на сервере (этап 2). */
 var DS_ALLOWED = {
   owner:    ["dash","flow","tasks","tz","cal","my","clients","kpreg","kpc","price","contracts","chat","team","report","stats","log","auto","stages","me"],
-  design:   ["dash","tasks","cal","my","clients","team","report","me"],
-  sales:    ["dash","flow","tasks","clients","kpreg","kpc","price","contracts","chat","team","report","me"],
+  design:   ["dash","tasks","cal","my","clients","chat","team","report","me"],
+  sales:    ["dash","flow","tasks","cal","clients","kpreg","kpc","price","contracts","chat","team","report","me"],
   ops:      ["dash","flow","tasks","tz","cal","my","clients","kpreg","kpc","price","contracts","chat","team","report","me"],
   acc:      ["tasks","kpreg","team","me"],
   designer: ["tasks","my","team","me"]
@@ -761,14 +761,14 @@ function renderTopNav(){
   var comm = (ok("kpreg") || ok("kpc") || ok("contracts")) ? '<button data-goto="#/kpreg/" class="'+(pa==="commerce"?"active":"")+'">'+icon("briefcase")+'<span>Коммерция</span></button>' + (pa==="commerce" ? sub : "") : "";
   var lab = function(t, secs){ return secs.some(ok) ? '<div class="nav-label">'+t+'</div>' : ""; };
   document.getElementById("topnav").innerHTML =
-    lab("Работа", ["dash","flow","tasks","tz","cal","my"]) + b("#/dash","chart",pos==="designer"?"Сводка":"Обзор",pa==="dash","dash") + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/my","bell",(pos==="designer"||pos==="design")?"План на неделю":"Мои задачи",pa==="my","my")
+    lab("Работа", ["dash","flow","tasks","tz","cal","my"]) + b("#/dash","chart",pos==="designer"?"Сводка":"Обзор",pa==="dash","dash") + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
     + lab("Заказчики и продажи", ["clients","kpreg","kpc","contracts"]) + b("#/clients","users",pos==="design"?"Кому звонить":"Заказчики",pa==="clients","clients") + comm
     + lab("Общение", ["team","chat","report"]) + b("#/team","team","Команда",pa==="team","team") + b("#/chat","chat","Переписка",pa==="chat","chat") + b("#/report","list","Недельный отчёт",pa==="report","report")
     + '<button data-notif="1">'+icon("bell")+'<span>Уведомления</span></button>'
     + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
   var bn = function(go, ic, t, on){ return '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+t+'</button>'; };
   document.getElementById("bottomnav").innerHTML =
-    (dsAllowed("tasks")?bn("#/","tasks",pos==="designer"?"Проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks"):"") + (dsAllowed("my")?bn("#/my","bell",(pos==="designer"||pos==="design")?"План":"Мои",pa==="my"):"") + (dsAllowed("kpreg")?bn("#/kpreg/","briefcase","Коммерция",pa==="commerce"):"") + (dsAllowed("team")?bn("#/team","team","Команда",pa==="team"):"")
+    (dsAllowed("tasks")?bn("#/","tasks",pos==="designer"?"Проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks"):"") + (dsAllowed("my")?bn("#/my","bell",pos==="designer"?"План":"Мои",pa==="my"):"") + (dsAllowed("kpreg")?bn("#/kpreg/","briefcase","Коммерция",pa==="commerce"):"") + (dsAllowed("team")?bn("#/team","team","Команда",pa==="team"):"")
     + '<button data-more="1">'+icon("menu")+'Ещё</button>';
   document.getElementById("subnavM").innerHTML = pa==="commerce"
     ? [["#/kpreg/","Реестр КП","kpreg"],["#/kpc","Конструктор КП","kpc"],["#/price","Прайс","price"],["#/contracts","Договоры","contracts"]].map(function(x){ return '<button data-goto="'+x[0]+'" class="tab '+(cur===x[2]?"active":"")+'">'+x[1]+'</button>'; }).join("")

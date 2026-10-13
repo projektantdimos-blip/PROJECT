@@ -15,8 +15,8 @@
 
   function cfg() {
     try {
-      var c = JSON.parse(localStorage.getItem("ds_bridge") || "{}");
-      return { url: String(c.url || "").replace(/\/+$/, ""), key: c.key || "" };
+      var c = JSON.parse(localStorage.getItem("ds_bridge") || "{}"), d = window.DS_CONFIG || {};      // адрес и ключ: из настроек браузера или из config.js
+      return { url: String(c.url || d.url || "").replace(/\/+$/, ""), key: c.key || d.key || "" };
     } catch (e) { return { url: "", key: "" }; }
   }
   function esc(s) {
@@ -118,6 +118,25 @@
     ".chat-wrap .chat-thread{display:none}.chat-wrap.has-sel .chat-list{display:none}.chat-wrap.has-sel .chat-thread{display:flex}" +
     "#chatHead .back{display:block}}";
   document.head.appendChild(css);
+  var css2 = document.createElement("style");
+  css2.textContent =
+    ".chat-box{display:flex;gap:6px;margin-bottom:8px}.chat-box button{flex:1;border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:10px;padding:7px 8px;font:inherit;font-weight:600;cursor:pointer}" +
+    ".chat-box button.on{background:var(--blue);border-color:var(--blue);color:#fff}.chat-box button{white-space:nowrap;font-size:.84rem;padding:7px 4px}" +
+    "#chatHead{flex-wrap:wrap}#chat-app #chatHead .hmain{flex:0 1 auto;min-width:120px}#chatHead .chat-pill{margin-left:auto}" +
+    ".chat-new{width:100%;height:42px;margin-bottom:10px;border:0;border-radius:12px;background:linear-gradient(135deg,var(--blue),#1f5c99);color:#fff;font:inherit;font-weight:700;cursor:pointer;box-shadow:0 6px 16px rgba(31,92,153,.25)}" +
+    ".chat-tools .chat-chips{margin:0 0 8px}" +
+    ".chat-handbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:40px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}" +
+    ".chat-handbtn:hover{border-color:var(--blue);color:var(--blue)}" +
+    ".ct{padding-left:4px}.ct .udot{width:20px;flex:none;align-self:center;display:grid;place-items:center;cursor:pointer;height:38px}" +
+    ".ct .udot i{width:10px;height:10px;border-radius:50%;border:2px solid transparent;transition:.12s}" +
+    ".ct .udot.on i{background:var(--blue);border-color:var(--blue)}" +
+    ".ct:hover .udot:not(.on) i{border-color:var(--blue)}" +
+    ".ct .asg{background:#fdf0e9;color:#c96a2c;border-radius:8px;padding:0 7px;font-size:.72rem;font-weight:700;line-height:20px;flex:none;white-space:nowrap}" +
+    ".chat-wrap{position:relative}" +
+    ".chat-wrap.drop::after{content:\"Отпустите файл, чтобы прикрепить к ответу\";position:absolute;inset:0;display:grid;place-items:center;background:rgba(31,92,153,.12);border:3px dashed var(--blue);border-radius:12px;font-weight:700;color:var(--blue);z-index:5;pointer-events:none}" +
+    "#chatAssign:not(:empty){padding:7px 14px;background:var(--blue-l);border-bottom:1px solid var(--line);font-size:.84rem}" +
+    "#chatHead .hbtn.wide{width:auto;padding:0 10px;font-weight:600;font-size:.82rem;white-space:nowrap}";
+  document.head.appendChild(css2);
 
   /* ---------- каркас ---------- */
   function buildSetup() {
@@ -131,13 +150,14 @@
 
   function build() {
     root.innerHTML =
-      '<header class="top"><div class="brand"><div><h1>Общение с заказчиками</h1><p>Почта, Telegram и MAX — в одном окне, с привязкой к заказчикам и задачам</p></div></div><div class="chat-chips" id="chatChips"></div></header>' +
+      '<header class="top"><div class="brand"><div><h1>Общение с заказчиками</h1><p>Почта, Telegram и MAX — в одном окне, с привязкой к заказчикам и задачам</p></div></div></header>' +
       '<div id="chatBanner"></div>' +
       '<div class="chat-wrap" id="chatWrap">' +
-        '<aside class="chat-list"><div class="chat-tools"><input id="chatQ" type="search" placeholder="Поиск по имени и тексту">' +
+        '<aside class="chat-list"><div class="chat-tools"><button type="button" id="chatNew" class="chat-new">＋ Новое сообщение</button><div class="chat-box" id="chatBox"></div>' +
+        '<div class="chat-chips" id="chatChips"></div><input id="chatQ" type="search" placeholder="Поиск по имени и тексту">' +
         '<div class="chat-sync"><span id="chatSyncT">Загрузка…</span><span class="right">' +
         '<button type="button" id="chatPush" title="Уведомления на этом устройстве">🔔</button>' +
-        '<button type="button" id="chatRefresh" title="Обновить сейчас">⟳ Обновить</button></span></div></div>' +
+        '<button type="button" id="chatRefresh" title="Обновить сейчас">⟳</button></span></div></div>' +
         '<div id="chatThreads"></div></aside>' +
         '<section class="chat-thread"><div id="chatHead"></div><div id="chatAssign"></div><div id="chatMsgs"></div>' +
         '<div id="chatComposer"><div id="chatFileBar" class="chat-filebar" hidden></div><button type="button" id="chatAttach" class="chat-attach" title="Прикрепить файл (до 10 МБ)">📎</button><input type="file" id="chatFile" hidden><textarea id="chatText" placeholder="Ответ… (Ctrl+Enter — отправить)"></textarea><button id="chatSend">Отправить</button></div></section>' +
@@ -157,6 +177,21 @@
     el.q.oninput = function () { st.q = el.q.value.trim().toLowerCase(); renderThreads(); };
     el.send.onclick = sendMsg;
     el.fileBar = document.getElementById("chatFileBar");
+    el.box = document.getElementById("chatBox");
+    el.wrap.addEventListener("dragover", function (e) {          // перенос файла в окно переписки
+      var dt = e.dataTransfer;
+      if (st.sel && dt && Array.prototype.indexOf.call(dt.types || [], "Files") >= 0) { e.preventDefault(); el.wrap.classList.add("drop"); }
+    });
+    el.wrap.addEventListener("dragleave", function (e) { if (!el.wrap.contains(e.relatedTarget)) el.wrap.classList.remove("drop"); });
+    el.wrap.addEventListener("drop", function (e) {
+      el.wrap.classList.remove("drop");
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!f) return;
+      e.preventDefault();
+      if (!st.sel) { setErr("Сначала выберите диалог слева"); return; }
+      if (f.size > 10 * 1024 * 1024) { setErr("Файл больше 10 МБ"); return; }
+      st.file = f; showFileBar(); setErr("");
+    });
     var fileIn = document.getElementById("chatFile");
     document.getElementById("chatAttach").onclick = function () { fileIn.click(); };
     fileIn.onchange = function () {
@@ -167,6 +202,7 @@
     };
     el.fileBar.onclick = function (e) { if (e.target.getAttribute && e.target.getAttribute("data-x")) { st.file = null; showFileBar(); } };
     document.getElementById("chatRefresh").onclick = function () { refreshNow(); };
+    document.getElementById("chatNew").onclick = function () { newMessageDialog(); };
     document.getElementById("chatPush").onclick = togglePush;
     showSync();
     refreshPushBtn();
@@ -176,16 +212,92 @@
     };
     el.text.onkeydown = function (e) { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendMsg(); } };
     st.built = true;
-    renderChips(); renderThreads(); renderThread();
+    renderBox(); renderChips(); renderThreads(); renderThread();
   }
 
-  /* Передача писем и диалогов сотрудникам в проектной CRM отменена: менеджер один, переписка закрыта ролями. */
+  /* «Передать специалисту»: кому передан диалог (список с сервера, новые первыми) */
   st.assign = [];
+  st.box = "all";
+  var POSN = { owner: "Руководитель", design: "Руководитель проектного отдела", sales: "Руководитель отдела продаж", ops: "Операционный менеджер", acc: "Бухгалтер", designer: "Проектировщик" };
   function crmOn() { return !!(window.MPBC && MPBC.loggedIn && MPBC.loggedIn() && MPBC.me); }
-  function myOpen() { return []; }
-  function assignPill() { return ""; }
-  function loadAssign() { return Promise.resolve(); }
-  function renderAssign() { if (el.assign) el.assign.innerHTML = ""; }
+  function me() { return window.MPBC && MPBC.me ? MPBC.me : null; }
+  function myPos() { var m = me(); return m ? (m.position || (m.role === "admin" ? "owner" : "")) : ""; }
+  function lastAssign(tid) { for (var i = 0; i < st.assign.length; i++) if (st.assign[i].thread_id === tid) return st.assign[i]; return null; }
+  function myOpen() { var m = me(); return m ? st.assign.filter(function (a) { return a.to_id === m.id; }) : []; }
+  function assignPill(t) {
+    var a = lastAssign(t.id);
+    return a ? '<span class="asg" title="Передан: ' + esc(a.to_name) + (a.note ? " — " + esc(a.note) : "") + '">→ ' + esc(a.to_name) + "</span>" : "";
+  }
+  function loadAssign() {
+    if (!crmOn()) return Promise.resolve();
+    return api("/api/ds/handoff").then(function (l) { st.assign = l || []; if (st.built) { renderBox(); renderThreads(); renderAssign(); } }, function () {});
+  }
+  function renderAssign() {
+    if (!el.assign) return;
+    var t = curThread(), a = t ? lastAssign(t.id) : null;
+    el.assign.innerHTML = a ? "Передан специалисту: <b>" + esc(a.to_name) + "</b>" + (a.by_name ? " · от " + esc(a.by_name) : "") + (a.note ? " · «" + esc(a.note) + "»" : "") : "";
+  }
+  function renderBox() {
+    if (!el.box) return;
+    var n = myOpen().length;
+    el.box.innerHTML = '<button data-b="all" class="' + (st.box === "all" ? "on" : "") + '">Все диалоги</button><button data-b="mine" class="' + (st.box === "mine" ? "on" : "") + '">Мне передали' + (n ? " · " + n : "") + "</button>";
+    Array.prototype.forEach.call(el.box.querySelectorAll("button"), function (b) { b.onclick = function () { st.box = b.getAttribute("data-b"); renderBox(); renderThreads(); }; });
+  }
+  function handoffDialog(t) {
+    api("/api/ds/handoff/targets").then(function (list) {
+      var bg = document.createElement("div");
+      bg.style.cssText = "position:fixed;inset:0;background:rgba(10,20,35,.5);z-index:400;display:grid;place-items:center;padding:16px";
+      var def = list.filter(function (u) { return u.position === "design"; })[0] || list[0];
+      var fld = "width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;margin:4px 0 10px;background:var(--card);color:var(--ink);font:inherit";
+      bg.innerHTML = '<div style="background:var(--card,#fff);color:var(--ink);border-radius:16px;padding:20px 22px;width:min(460px,100%);box-shadow:0 20px 60px rgba(0,0,0,.3)">' +
+        '<h3 style="margin:0 0 4px">Передать специалисту</h3><p style="margin:0 0 12px;color:var(--muted);font-size:.88rem">Диалог «' + esc(t.title || t.peer) + '» откроется сотруднику, ему поставится задача в «Мои задачи» и придёт уведомление.</p>' +
+        '<label style="font-size:.8rem;color:var(--muted)">Кому</label><select id="hdTo" style="' + fld + '">' + list.map(function (u) { return '<option value="' + u.id + '"' + (def && u.id === def.id ? " selected" : "") + ">" + esc(u.name) + " — " + esc(POSN[u.position] || u.position || "") + "</option>"; }).join("") + "</select>" +
+        '<label style="font-size:.8rem;color:var(--muted)">Что нужно сделать</label><textarea id="hdNote" rows="3" placeholder="Например: позвонить заказчику, уточнить объём" style="' + fld + '"></textarea>' +
+        '<div id="hdErr" style="color:var(--bad);min-height:18px"></div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px"><button id="hdCancel" style="padding:9px 16px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;cursor:pointer;font:inherit">Отмена</button>' +
+        '<button id="hdGo" style="padding:9px 18px;border:0;background:var(--blue);color:#fff;border-radius:10px;cursor:pointer;font:inherit;font-weight:600">Передать</button></div></div>';
+      document.body.appendChild(bg);
+      var close = function () { bg.remove(); };
+      bg.onclick = function (e) { if (e.target === bg) close(); };
+      bg.querySelector("#hdCancel").onclick = close;
+      bg.querySelector("#hdGo").onclick = function () {
+        var btn = this; btn.disabled = true;
+        api("/api/ds/threads/" + encodeURIComponent(t.id) + "/handoff", { method: "POST", body: { user_id: +bg.querySelector("#hdTo").value, note: bg.querySelector("#hdNote").value } })
+          .then(function (r) { close(); setErr(""); loadAssign(); if (window.MPBT && MPBT.toast) MPBT.toast("Передано: " + r.to); }, function (e) { btn.disabled = false; bg.querySelector("#hdErr").textContent = String(e); });
+      };
+    }, function (e) { setErr(String(e)); });
+  }
+  window.__chatHandoff = function () { var t = curThread(); if (t) handoffDialog(t); };
+  function newMessageDialog() {
+    var bg = document.createElement("div");
+    bg.style.cssText = "position:fixed;inset:0;background:rgba(10,20,35,.5);z-index:400;display:grid;place-items:center;padding:16px";
+    var fld = "width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;margin:4px 0 10px;background:var(--card);color:var(--ink);font:inherit";
+    bg.innerHTML = '<div style="background:var(--card,#fff);color:var(--ink);border-radius:16px;padding:20px 22px;width:min(480px,100%);box-shadow:0 20px 60px rgba(0,0,0,.3)">' +
+      '<h3 style="margin:0 0 10px">Новое сообщение</h3>' +
+      '<label style="font-size:.8rem;color:var(--muted)">Канал</label><select id="nmCh" style="' + fld + '"><option value="mail">Почта</option><option value="tg">Telegram</option></select>' +
+      '<label style="font-size:.8rem;color:var(--muted)" id="nmToL">E-mail получателя</label><input id="nmTo" placeholder="client@company.ru" style="' + fld + '">' +
+      '<div id="nmSubW"><label style="font-size:.8rem;color:var(--muted)">Тема</label><input id="nmSub" placeholder="Тема письма" style="' + fld + '"></div>' +
+      '<label style="font-size:.8rem;color:var(--muted)">Сообщение</label><textarea id="nmText" rows="5" style="' + fld + '"></textarea>' +
+      '<div id="nmErr" style="color:var(--bad);min-height:18px"></div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px"><button id="nmCancel" style="padding:9px 16px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;cursor:pointer;font:inherit">Отмена</button>' +
+      '<button id="nmGo" style="padding:9px 18px;border:0;background:var(--blue);color:#fff;border-radius:10px;cursor:pointer;font:inherit;font-weight:600">Отправить</button></div></div>';
+    document.body.appendChild(bg);
+    var close = function () { bg.remove(); };
+    bg.onclick = function (e) { if (e.target === bg) close(); };
+    bg.querySelector("#nmCancel").onclick = close;
+    bg.querySelector("#nmCh").onchange = function () {
+      var mail = this.value === "mail";
+      bg.querySelector("#nmToL").textContent = mail ? "E-mail получателя" : "Telegram: @имя или телефон +7…";
+      bg.querySelector("#nmTo").placeholder = mail ? "client@company.ru" : "@username или +79991234567";
+      bg.querySelector("#nmSubW").style.display = mail ? "" : "none";
+    };
+    bg.querySelector("#nmGo").onclick = function () {
+      var btn = this, body = { channel: bg.querySelector("#nmCh").value, to: bg.querySelector("#nmTo").value, subject: bg.querySelector("#nmSub").value, text: bg.querySelector("#nmText").value };
+      btn.disabled = true; btn.textContent = "Отправка…";
+      api("/api/threads/new", { method: "POST", body: body }).then(function (r) {
+        close(); setErr("");
+        return loadThreads().then(function () { if (r && r.id) openThread(r.id); });
+      }, function (e) { btn.disabled = false; btn.textContent = "Отправить"; bg.querySelector("#nmErr").textContent = String(e); });
+    };
+  }
 
   function renderChips() {
     var items = [["all", "Все"], ["tg", "Telegram"], ["max", "MAX"], ["mail", "Почта"]];
@@ -199,8 +311,8 @@
 
   function visibleThreads() {
     return st.threads.filter(function (t) {
-      if (st.filter === "mine") { if (!myOpen().some(function (a) { return a.thread_id === t.id; })) return false; }
-      else if (st.filter !== "all" && t.channel !== st.filter) return false;
+      if (st.box === "mine" && !myOpen().some(function (a) { return a.thread_id === t.id; })) return false;
+      if (st.filter !== "all" && t.channel !== st.filter) return false;
       if (st.q && (t.title + " " + t.last_text + " " + t.peer).toLowerCase().indexOf(st.q) < 0) return false;
       return true;
     });
@@ -215,12 +327,23 @@
     el.threads.innerHTML = list.map(function (t) {
       var ci = chInfo(t.channel), ini = (t.title || "?").trim().charAt(0).toUpperCase(), av = avUrl(t);
       return '<div class="ct' + (t.id === st.sel ? " on" : "") + '" data-id="' + esc(t.id) + '">' +
+        '<span class="udot' + (t.unread ? " on" : "") + '" title="' + (t.unread ? "Отметить прочитанным" : "Отметить непрочитанным") + '"><i></i></span>' +
         '<div class="ava" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div>" +
         '<div class="mid"><div class="r1"><span class="nm">' + esc(t.title || t.peer) + '</span><span class="tm">' + fmtTime(t.last_ts) + "</span></div>" +
         '<div class="r2"><span class="pv">' + esc(t.last_text) + "</span>" + assignPill(t) + (t.unread ? '<span class="un">' + t.unread + "</span>" : "") + "</div></div></div>";
     }).join("");
     Array.prototype.forEach.call(el.threads.querySelectorAll(".ct"), function (d) {
       d.onclick = function () { openThread(d.getAttribute("data-id")); };
+    });
+    Array.prototype.forEach.call(el.threads.querySelectorAll(".udot"), function (dot) {      // синяя точка: прочитано / непрочитано
+      dot.onclick = function (e) {
+        e.stopPropagation();
+        var id = dot.parentNode.getAttribute("data-id"), t = st.threads.filter(function (x) { return x.id === id; })[0];
+        if (!t) return;
+        var wasUnread = !!t.unread;
+        t.unread = wasUnread ? 0 : 1; renderThreads(); applyBadge();
+        api("/api/threads/" + encodeURIComponent(id) + (wasUnread ? "/read" : "/unread"), { method: "POST" }).then(null, function () { t.unread = wasUnread ? 1 : 0; renderThreads(); applyBadge(); });
+      };
     });
     el.threads.scrollTop = keep;
   }
@@ -256,12 +379,12 @@
     el.head.innerHTML = '<button class="back" id="chatBack" title="К списку">←</button>' +
       '<div class="hava" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div>" +
       '<div class="hmain"><b>' + esc(t.title || t.peer) + "</b><small>" + esc(t.peer) + "</small></div>" +
-      '<span class="chat-pill" style="background:' + ci.color + '">' + esc(ci.label) + "</span>" +
-      '<button class="hbtn chat-infobtn" id="chatInfoBtn" title="Заказчик, создание заказчика и КП">Заказчик · КП</button>' +
-      (t.channel === "mail" ? '<button class="hbtn" id="chatFlip" title="' + (flipOn() ? "Показать письма в обычном порядке" : "Перевернуть порядок частей письма") + '"' +
+      (t.channel === "mail" ? '<button class="hbtn" id="chatFlip" title="' + (flipOn() ? "Показать письма в обычном порядке" : "Перевернуть порядок частей письма (сверху вниз)") + '"' +
         (flipOn() ? ' style="border-color:var(--blue);color:var(--blue)"' : "") + ">⇅</button>" : "") +
       '<button class="hbtn" id="chatAv" title="Загрузить фото собеседника">📷</button>' +
       (t.avatar_ts ? '<button class="hbtn" id="chatAvDel" title="Убрать фото">✕</button>' : "") +
+      '<button class="hbtn chat-infobtn" id="chatInfoBtn" title="Заказчик, создание заказчика и КП">Заказчик · КП</button>' +
+      '<span class="chat-pill" style="background:' + ci.color + '">' + esc(ci.label) + "</span>" +
       '<input type="file" id="chatAvFile" accept="image/*" hidden>';
     document.getElementById("chatBack").onclick = function () { st.sel = null; renderThreads(); renderThread(); };
     var flipBtn = document.getElementById("chatFlip");
@@ -297,9 +420,12 @@
     if (!t) { el.info.innerHTML = '<div class="chat-empty">Выберите диалог слева</div>'; return; }
     var ci = chInfo(t.channel), av = avUrl(t), ini = (t.title || "?").trim().charAt(0).toUpperCase(), name = t.title || t.peer;
     if (window.MPBD && MPBD.render) {                              // боковая панель с вкладками: заказчик / создать заказчика / КП
+      var plane = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>';
       el.info.innerHTML = '<button class="cp-close" id="cpClose">← К диалогу</button><div class="who"><div class="hava big" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div><b>" + esc(name) + '</b><div class="sub">' + esc(t.peer) + '</div><span class="chat-pill" style="background:' + ci.color + '">' + esc(ci.label) + "</span></div>" +
+        (myPos() !== "design" ? '<button type="button" class="chat-handbtn" id="chatHand2">' + plane + "Передать специалисту</button>" : "") +
         '<div id="chatPanel"></div>';
       document.getElementById("cpClose").onclick = function () { el.wrap.classList.remove("show-info"); };
+      var h2 = document.getElementById("chatHand2"); if (h2) h2.onclick = function () { handoffDialog(t); };
       MPBD.render(document.getElementById("chatPanel"), t, name);
       return;
     }
