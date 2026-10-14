@@ -272,14 +272,3 @@
   /* ---------- старт ---------- */
   C.init();
 })();
-
-
-/* Если сайт открыт по http:// на своём домене, а https уже работает — переходим на него (service worker и push требуют https). */
-(function () {
-  try {
-    if (location.protocol !== "http:" || !/\.crm-project-42\.ru$/.test(location.hostname)) return;
-    fetch("https://" + location.host + "/config.js", { mode: "no-cors", cache: "no-store" }).then(function () {
-      location.replace("https://" + location.host + location.pathname + location.search + location.hash);
-    }, function () {});
-  } catch (e) {}
-})();
