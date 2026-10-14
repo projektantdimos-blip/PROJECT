@@ -642,7 +642,9 @@
 
   function loadThreads() {
     return api("/api/threads").then(function (list) {
+      var before = totalUnread(), known = st.threads.length > 0;
       st.threads = list; setErr("");
+      if (known && window.DSSound && totalUnread() > before) DSSound.play();      // новое входящее сообщение
       st.synced = new Date(); showSync();
       if (st.built) renderThreads();
       applyBadge();

@@ -369,7 +369,15 @@
       + '<div class="x-qrow"><div><b>Не беспокоить</b><small>Push и Telegram молчат, внутри приложения всё сохраняется</small></div><button class="x-sw ' + (pr.quiet.on ? "on" : "") + '" id="qOn"></button></div>'
       + '<div class="x-qrow"><div><b>С</b></div><input type="time" id="qFrom" value="' + pr.quiet.from + '"><div style="margin-left:14px"><b>До</b></div><input type="time" id="qTo" value="' + pr.quiet.to + '"></div>'
       + '<div class="x-qrow"><div><b>«Срочное» пробивает тишину</b><small>Срочные сообщения придут всегда</small></div><button class="x-sw ' + (pr.quiet.urgent_through ? "on" : "") + '" id="qUrg"></button></div></div>'
-      + '</div><div class="x-sticky"><div class="x-panel pad"><h3>Проверка</h3><p class="x-sub">Отправим тестовое уведомление по вашим настройкам</p><button class="x-btn primary" id="meTest" style="width:100%;justify-content:center">' + ic("bell") + 'Отправить тест</button><div class="x-hint" id="meTestOut"></div></div></div></div>';
+      + '</div><div class="x-sticky"><div class="x-panel pad"><h3>Проверка</h3><p class="x-sub">Отправим тестовое уведомление по вашим настройкам</p><button class="x-btn primary" id="meTest" style="width:100%;justify-content:center">' + ic("bell") + 'Отправить тест</button><div class="x-hint" id="meTestOut"></div>'
+      + '<h3 style="margin-top:16px">Звук в CRM</h3><p class="x-sub">Сигнал при новых сообщениях и уведомлениях, пока CRM открыта</p>'
+      + '<div class="x-qrow"><div><b>Звук включён</b></div><button class="x-sw ' + (window.DSSound && DSSound.get().on ? "on" : "") + '" id="sndOn"></button></div>'
+      + '<div class="x-qrow"><div><b>Громкость</b></div><input type="range" id="sndVol" min="0.1" max="1" step="0.1" value="' + (window.DSSound ? DSSound.get().vol : 0.9) + '" style="flex:1;margin-left:12px"></div>'
+      + '<button class="x-btn ghost" id="sndTest" style="width:100%;justify-content:center">Проверить звук</button></div></div></div>';
+    var sOn = $("sndOn"), sVol = $("sndVol"), sTest = $("sndTest");
+    if (sOn) sOn.onclick = function () { var on = !DSSound.get().on; DSSound.set({ on: on }); sOn.classList.toggle("on", on); };
+    if (sVol) sVol.oninput = function () { DSSound.set({ vol: sVol.value }); };
+    if (sTest) sTest.onclick = function () { DSSound.test(); };
     $("mePush").onclick = function () { var p = pushOn ? C.disablePush() : C.enablePush(); p.then(function () { toast(pushOn ? "Push отключён" : "Push включён на этом устройстве"); paintNotif(); }).catch(function (e) { toast(E(e)); }); };
     var tgb = $("meTg"); if (tgb) tgb.onclick = function () {
       if (tg) C.call("/me/tg/unlink", { body: {} }).then(function () { C.me.tg = false; renderMe(); });
