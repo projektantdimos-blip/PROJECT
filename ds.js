@@ -315,6 +315,10 @@
     if (!S.meta) return;
     var q = document.activeElement && document.activeElement.id === "dsQ";
     var k = S.mount.kind;
+    if (k === "contract" && S.cmode !== "kp") {                 // рабочий генератор договоров: окно не перерисовываем, чтобы не терять введённое
+      if (!el.querySelector("#cgFrame")) el.innerHTML = '<div class="ds dspage">' + genScreen() + "</div>";
+      return;
+    }
     el.innerHTML = k === "ov" ? '<div class="ds dspage">' + overview() + "</div>" : k === "load" ? '<div class="ds dspage">' + loadScreen() + "</div>"
       : k === "flow" ? '<div class="ds dspage">' + flowScreen() + "</div>" : k === "tz" ? '<div class="ds dspage">' + tzScreen() + "</div>"
       : k === "stages" ? '<div class="ds dspage">' + stagesScreen() + "</div>" : k === "auto" ? '<div class="ds dspage">' + autoScreen() + "</div>"
@@ -730,7 +734,7 @@
     need(s(d.city), "city", "Город");
     need(s(cu.name_full), "customer.name_full", "Полное наименование заказчика");
     need(s(cu.name_short), "customer.name_short", "Краткое наименование");
-    need(inn.length === 10 || inn.length === 12, "customer.inn", "ИНН заказчика");
+    need(innOk(inn), "customer.inn", "ИНН заказчика (10 или 12 цифр, контрольная сумма)");
     if ((cu.type || "org") === "org") {
       need(s(cu.position_gen), "customer.position_gen", "Должность подписанта (в родительном падеже)");
       need(s(cu.fio_gen), "customer.fio_gen", "ФИО подписанта (в родительном падеже)");
@@ -802,7 +806,7 @@
       : '<div class="dbox sys"><small>Проверка</small>Все обязательные поля заполнены</div>';
   }
   function ctForceHtml(c) {
-    if (!c.miss || !c.miss.length) return "";
+    if ((!c.miss || !c.miss.length) && !c.errForce) return "";
     return '<label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;padding:10px 12px;border:1px dashed var(--bad);border-radius:10px"><input type="checkbox" data-ctforce="1"' + (c.force ? " checked" : "") + ' style="margin-top:3px">'
       + "<span>Я понимаю, что не все поля заполнены, но хочу скачать договор</span></label>";
   }
@@ -812,7 +816,7 @@
     var mh = document.getElementById("ctMiss"); if (mh) mh.innerHTML = ctMissHtml(c.miss);
     var pp = document.getElementById("ctPaper"); if (pp) pp.innerHTML = ctPaper(c.data);
     var tot = document.getElementById("ctTotal"); if (tot) { var t = ctTotals(c.data); tot.textContent = money(t.amount) + " · аванс " + money(t.adv) + " · остаток " + money(t.post); }
-    var fb = document.getElementById("ctForceBox"); if (fb) { if (!c.miss.length) c.force = false; fb.innerHTML = ctForceHtml(c); }
+    var fb = document.getElementById("ctForceBox"); if (fb) { if (!c.miss.length && !c.errForce) c.force = false; fb.innerHTML = ctForceHtml(c); }
     var mk = document.getElementById("ctMake"); if (mk) { var blocked = c.miss.length > 0 && !c.force; mk.disabled = blocked; mk.style.opacity = blocked ? ".5" : ""; }
     document.querySelectorAll("[data-ctp]").forEach(function (el) {
       var bad = c.miss.some(function (x) { return x[0] === el.dataset.ctp; });
@@ -820,14 +824,29 @@
       el.style.borderColor = bad ? "var(--bad)" : ""; el.style.background = bad ? "var(--bad-soft)" : "";
     });
   }
+  function cmodeSeg() {
+    return '<div class="seg" style="margin-bottom:12px"><button data-cmode="gen" class="' + (S.cmode !== "kp" ? "on" : "") + '">Генератор договоров</button><button data-cmode="kp" class="' + (S.cmode === "kp" ? "on" : "") + '">Договор по КП</button></div>';
+  }
+  function genScreen() {
+    return '<div class="head"><div><h1>Договоры</h1><p>Генератор договоров ИП: Word и PDF, база клиентов и история. Данные хранятся в CRM, документы собираются в браузере.</p></div></div>' + cmodeSeg()
+      + '<iframe id="cgFrame" src="contracts/index.html" title="Генератор договоров" style="width:100%;height:calc(100vh - 230px);min-height:640px;border:1px solid var(--line);border-radius:12px;background:#fff"></iframe>';
+  }
+  function innOk(s) {
+    var d = s.split("").map(Number);
+    function sum(w) { return w.reduce(function (a, x, i) { return a + x * d[i]; }, 0) % 11 % 10; }
+    if (s.length === 10) return d[9] === sum([2, 4, 10, 3, 5, 9, 4, 6, 8]);
+    if (s.length === 12) return d[10] === sum([7, 2, 4, 10, 3, 5, 9, 4, 6, 8]) && d[11] === sum([3, 7, 2, 4, 10, 3, 5, 9, 4, 6, 8]);
+    return false;
+  }
   function contractScreen() {
     var p = pos();
     if (!(p === "owner" || p === "sales" || p === "ops")) return '<div class="head"><div><h1>Конструктор договора</h1></div></div><div class="note">Раздел недоступен для вашей роли.</div>';
     var open = (S.kp || []).filter(function (x) { return !x.order_id && x.status !== "Отказ"; });
     var head = '<div class="head"><div><h1>Конструктор договора</h1><p>Договор на услуги ИП по вашему шаблону: заполняется из КП и карточки заказчика либо вводится самостоятельно</p></div><button class="btn accent" data-ctstandalone="1">' + ic("plus") + "Договор без КП</button></div>";
+    head += cmodeSeg();
     if (!S.ct || !S.ct.kid) return head + '<div class="note">Нет КП, по которым можно оформить договор. Выставьте КП в «Конструкторе КП» или создайте договор без КП.</div><button class="btn accent" data-ctstandalone="1">' + ic("plus") + "Договор без КП</button>";
     var c = S.ct, k = (S.kp || []).filter(function (x) { return x.id === c.kid; })[0];
-    if (c.err || !c.data) return head + '<div class="err">' + E(c.err || "Не удалось загрузить данные договора") + "</div>";
+    if (!c.data) return head + '<div class="err">' + E(c.err || "Не удалось загрузить данные договора") + "</div>";
     var d = c.data, cu = d.customer || {}, t = ctTotals(d);
     c.miss = ctMissing(d);
     var sel = 'style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface);color:var(--ink)"';
@@ -890,15 +909,15 @@
   }
   function makeContract() {
     var c = S.ct; c.err = ""; c.miss = ctMissing(c.data);
-    var force = !!(c.miss.length && c.force);
+    var force = !!(c.force && (c.miss.length || c.errForce));
     if (c.miss.length && !force) { c.err = "Заполните обязательные поля или отметьте, что хотите скачать договор без них"; return paint(); }
     api("/kp/" + c.kid + "/contract", { data: c.data, save_customer: !!c.upd, force: force }).then(function () { c.saved = true; c.loadedFor = null; return loadKp(); })
       .then(function () { return loadContractDraft(); })
       .then(function () { toast("Договор сформирован" + (force ? ": скачиваю Word" : "")); paint(); if (force) return downloadDoc(c.kid, "contract", "docx"); },
-        function (e) { c.err = String(e); paint(); });
+        function (e) { c.err = String(e); if (/обязательные поля/i.test(c.err)) c.errForce = true; paint(); });
   }
   function newStandalone() {
-    return api("/contracts/standalone", {}).then(function (r) { S.ct = { kid: r.id }; return loadKp(); }).then(function () { return loadContractDraft(); })
+    return api("/contracts/standalone", {}).then(function (r) { S.ct = { kid: r.id }; S.cmode = "kp"; return loadKp(); }).then(function () { return loadContractDraft(); })
       .then(function () { toast("Пустой договор создан: заполните данные"); if (location.hash !== "#/contracts") location.hash = "#/contracts"; else paint(); }, function (e) { toast(String(e)); });
   }
   function signContract() {
@@ -1260,6 +1279,7 @@
     api("/settings/company", S.comp).then(function (c) { S.comp = Object.assign({}, c, { can_edit: true }); toast("Реквизиты сохранены"); paint(); }, function (e) { S.compErr = String(e); paint(); });
   }
   function downloadDoc(kid, kind, fmt) {
+    toast(fmt === "pdf" ? "Готовлю PDF… (первый раз до полминуты, повторно — сразу)" : "Готовлю Word…");
     return C.blob("/ds/kp/" + kid + "/doc?kind=" + kind + "&fmt=" + fmt).then(function (f) {
       var a = document.createElement("a");
       a.href = URL.createObjectURL(f.blob); a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
@@ -1389,7 +1409,8 @@
     if (d.wmark) { var wd = dayRec(d.wmark); return act2(api("/week/day", { day: d.wmark, worked: !wd.worked }), true); }
     if (d.woff) { var wf = dayRec(d.woff); return act2(api("/week/day", { day: d.woff, off: !wf.off }), true); }
     if (d.wnav != null && t.hasAttribute("data-wnav")) { S.wk.start = isoDay(addDays(S.wk.start === "" ? monday() : new Date(S.wk.start + "T00:00:00"), d.wnav === "0" ? 0 : (+d.wnav) * 7)); if (d.wnav === "0") S.wk.start = isoDay(monday()); return loadWeek().then(paint); }
-    if (d.kpcontract) { S.ct = { kid: +d.kpcontract }; location.hash = "#/contracts"; return; }
+    if (d.kpcontract) { S.ct = { kid: +d.kpcontract }; S.cmode = "kp"; if (location.hash === "#/contracts") return DS.reload(); location.hash = "#/contracts"; return; }
+    if (d.cmode) { S.cmode = d.cmode; if (d.cmode === "kp") { var cEl = S.mount && S.mount.el; if (cEl) cEl.innerHTML = ""; } return paint(); }
     if (d.kpstatus != null && t.hasAttribute("data-kpstatus")) return;
     if (d.kptouch) return act2(api("/kp/" + d.kptouch + "/touch", {}).then(loadKp), false);
     if (d.ksv != null && t.hasAttribute("data-ksv")) { var it = S.kpf.items[+d.ksv]; it.on = !it.on; return paint(); }
@@ -1397,7 +1418,7 @@
     if (d.kdel != null && t.hasAttribute("data-kdel")) { S.kpf.items.splice(+d.kdel, 1); return paint(); }
     if (d.ksave != null && t.hasAttribute("data-ksave")) return saveKp(d.ksave === "send");
     if (d.ctmake != null && t.hasAttribute("data-ctmake")) return makeContract();
-    if (d.ctstandalone != null && t.hasAttribute("data-ctstandalone")) return newStandalone();
+    if (d.ctstandalone != null && t.hasAttribute("data-ctstandalone")) { S.cmode = "kp"; return newStandalone(); }
     if (d.ctsign != null && t.hasAttribute("data-ctsign")) return signContract();
     if (d.tstate) { var ts = d.tstate.split(":"); return act2(api("/tasks/" + ts[0] + "/state", { state: ts[1] }).then(function () { S.tasks = null; return load(); }), false); }
     if (d.flstep) { S.flStep = S.flStep === d.flstep ? null : d.flstep; return paint(); }

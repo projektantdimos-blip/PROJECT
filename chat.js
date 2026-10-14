@@ -125,6 +125,8 @@
     "#chatHead{flex-wrap:wrap}#chat-app #chatHead .hmain{flex:0 1 auto;min-width:120px}#chatHead .chat-pill{margin-left:auto}" +
     ".chat-new{width:100%;height:42px;margin-bottom:10px;border:0;border-radius:12px;background:linear-gradient(135deg,var(--blue),#1f5c99);color:#fff;font:inherit;font-weight:700;cursor:pointer;box-shadow:0 6px 16px rgba(31,92,153,.25)}" +
     ".chat-tools .chat-chips{margin:0 0 8px}" +
+    "#chat-app #chatHead .chat-infobtn{width:auto!important;min-width:0;height:32px;padding:0 12px!important;display:inline-flex;align-items:center;white-space:nowrap;font-size:.8rem;font-weight:700;color:var(--blue)}" +
+    "@media(min-width:1181px){#chat-app #chatHead .chat-infobtn{display:none!important}}" +
     ".chat-handbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:40px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}" +
     ".chat-handbtn:hover{border-color:var(--blue);color:var(--blue)}" +
     ".ct{padding-left:4px}.ct .udot{width:20px;flex:none;align-self:center;display:grid;place-items:center;cursor:pointer;height:38px}" +
