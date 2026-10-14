@@ -169,10 +169,19 @@
 
   /* ---------- push на это устройство ---------- */
   function b64ToU8(s) { var p = "=".repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")), a = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
-  C.pushSupported = function () { return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window; };
+  C.pushSupported = function () { return !!window.isSecureContext && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window; };
+  /* почему push недоступен на этом устройстве — человеческим языком */
+  C.pushWhy = function () {
+    var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    if (!window.isSecureContext) return "Сайт открыт без шифрования (http://). Push работает только по https: откройте https://" + location.host + location.pathname + (location.hostname.indexOf("github.io") < 0 ? " или https://projektantdimos-blip.github.io/PROJECT/" : "") + ".";
+    if (ios && !(window.navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone)").matches))) return "На iPhone/iPad: в Safari нажмите «Поделиться» → «На экран «Домой»», откройте CRM с новой иконки и включите уведомления там.";
+    if (!("serviceWorker" in navigator)) return "Этот браузер не умеет фоновые уведомления (приватное окно или встроенный браузер мессенджера). Откройте CRM в Chrome, Edge, Firefox или Safari.";
+    if (!("PushManager" in window) || !("Notification" in window)) return "Этот браузер не поддерживает push. Откройте CRM в актуальном Chrome, Edge, Firefox или Safari (iOS 16.4+, через «На экран «Домой»»).";
+    return "";
+  };
   C.pushOn = function () { try { return C.pushSupported() && Notification.permission === "granted" && localStorage.getItem("ds_push_user") === (C.me ? String(C.me.id) : "x"); } catch (e) { return false; } };
   C.enablePush = function () {
-    if (!C.pushSupported()) return Promise.reject("Этот браузер не поддерживает push. На iPhone приложение нужно сначала добавить на экран «Домой».");
+    if (!C.pushSupported()) return Promise.reject(C.pushWhy() || "Push недоступен на этом устройстве.");
     return Notification.requestPermission().then(function (perm) {
       if (perm !== "granted") throw "Уведомления не разрешены в браузере";
       return navigator.serviceWorker.register("sw.js").then(function () { return navigator.serviceWorker.ready; });
@@ -262,4 +271,15 @@
 
   /* ---------- старт ---------- */
   C.init();
+})();
+
+
+/* Если сайт открыт по http:// на своём домене, а https уже работает — переходим на него (service worker и push требуют https). */
+(function () {
+  try {
+    if (location.protocol !== "http:" || !/\.crm-project-42\.ru$/.test(location.hostname)) return;
+    fetch("https://" + location.host + "/config.js", { mode: "no-cors", cache: "no-store" }).then(function () {
+      location.replace("https://" + location.host + location.pathname + location.search + location.hash);
+    }, function () {});
+  } catch (e) {}
 })();
