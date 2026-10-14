@@ -127,6 +127,13 @@
     ".chat-tools .chat-chips{margin:0 0 8px}" +
     "#chat-app #chatHead .chat-infobtn{width:auto!important;min-width:0;height:32px;padding:0 12px!important;display:inline-flex;align-items:center;white-space:nowrap;font-size:.8rem;font-weight:700;color:var(--blue)}" +
     "@media(min-width:1181px){#chat-app #chatHead .chat-infobtn{display:none!important}}" +
+    ".cm .fl{flex-direction:row;flex-wrap:wrap;gap:10px}" +
+    ".cm .cf.tile{flex-direction:column;align-items:center;gap:4px;width:132px;padding:10px 8px 8px;border-radius:14px;text-align:center;background:var(--card);border:1px solid var(--line);transition:.12s}" +
+    ".cm .cf.tile:hover{border-color:var(--blue);box-shadow:0 6px 16px rgba(31,92,153,.18);transform:translateY(-1px)}" +
+    ".cm .cf.tile .ti{display:grid;place-items:center;width:100%;height:78px;border-radius:10px;background:linear-gradient(160deg,var(--blue-l),var(--bg))}" +
+    ".cm .cf.tile .ti img{width:100%;height:78px;object-fit:cover;border-radius:10px}" +
+    ".cm .cf.tile .tn{display:block;width:100%;font-size:.78rem;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+    ".cm .cf.tile .sz{margin:0;font-size:.7rem;color:var(--muted)}" +
     ".chat-handbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:40px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}" +
     ".chat-handbtn:hover{border-color:var(--blue);color:var(--blue)}" +
     ".ct{padding-left:4px}.ct .udot{width:20px;flex:none;align-self:center;display:grid;place-items:center;cursor:pointer;height:38px}" +
@@ -411,6 +418,7 @@
         subj + esc(m.text) + filesHtml(m.files) +
         '<div class="mt">' + fmtFull(m.ts) + "</div></div>";
     }).join("");
+    loadThumbs();
     if (!keepScroll || atBottom) el.msgs.scrollTop = el.msgs.scrollHeight;
   }
 
@@ -559,15 +567,36 @@
     if (n < 1048576) return Math.round(n / 1024) + " КБ";
     return (n / 1048576).toFixed(1) + " МБ";
   }
-  function fileIcon(mime) {
-    return mime === "application/pdf" ? "📄" : /^image\//.test(mime) ? "🖼" : "📎";
+  var EXT_COLOR = { pdf: "#d64545", doc: "#2b6cd4", docx: "#2b6cd4", rtf: "#2b6cd4", odt: "#2b6cd4", xls: "#1e9e5a", xlsx: "#1e9e5a", csv: "#1e9e5a", ods: "#1e9e5a",
+    ppt: "#d9822b", pptx: "#d9822b", zip: "#8a6d3b", rar: "#8a6d3b", "7z": "#8a6d3b", dwg: "#0d8a9c", dxf: "#0d8a9c", txt: "#6b7785",
+    jpg: "#7a55a8", jpeg: "#7a55a8", png: "#7a55a8", gif: "#7a55a8", webp: "#7a55a8", mp4: "#c2417d", mov: "#c2417d", ogg: "#c2417d", mp3: "#c2417d" };
+  function fileExt(name) { var m = /\.([A-Za-z0-9]{1,5})$/.exec(name || ""); return m ? m[1].toLowerCase() : ""; }
+  function tileIcon(name, mime) {
+    var ext = fileExt(name) || (mime === "application/pdf" ? "pdf" : /^image\//.test(mime) ? "img" : "файл");
+    var c = EXT_COLOR[ext] || "#6b7785";
+    return '<svg viewBox="0 0 56 64" width="56" height="64" aria-hidden="true"><path d="M8 2h28l14 14v46H8z" fill="#fff" stroke="' + c + '" stroke-width="2.5" stroke-linejoin="round"/>' +
+      '<path d="M36 2v14h14" fill="none" stroke="' + c + '" stroke-width="2.5" stroke-linejoin="round"/>' +
+      '<path d="M16 28h24M16 36h24M16 44h16" stroke="' + c + '" stroke-width="2.5" stroke-linecap="round" opacity=".45"/>' +
+      '<rect x="4" y="46" width="34" height="14" rx="4" fill="' + c + '"/><text x="21" y="57" text-anchor="middle" font-size="10" font-weight="700" fill="#fff" font-family="system-ui,sans-serif">' + esc(ext.toUpperCase().slice(0, 4)) + "</text></svg>";
   }
   function filesHtml(files) {
     if (!files || !files.length) return "";
     return '<div class="fl">' + files.map(function (f) {
-      return '<button type="button" class="cf" data-fid="' + f.id + '" data-name="' + esc(f.name) + '" data-mime="' + esc(f.mime) + '">' +
-        fileIcon(f.mime) + " <span>" + esc(f.name) + '</span><span class="sz">' + fmtSize(f.size) + "</span></button>";
+      var img = /^image\/(png|jpe?g|gif|webp)$/.test(f.mime || "");
+      return '<button type="button" class="cf tile' + (img ? " img" : "") + '" data-fid="' + f.id + '" data-name="' + esc(f.name) + '" data-mime="' + esc(f.mime) + '" title="Открыть / скачать: ' + esc(f.name) + '">' +
+        '<span class="ti">' + tileIcon(f.name, f.mime) + "</span>" +
+        '<span class="tn">' + esc(f.name) + '</span><span class="sz">' + fmtSize(f.size) + " · скачать</span></button>";
     }).join("") + "</div>";
+  }
+  var thumbs = {};
+  function loadThumbs() {                       // миниатюры картинок: ссылка с моста, подставляется вместо значка
+    Array.prototype.forEach.call(el.msgs.querySelectorAll(".cf.img"), function (b, i) {
+      var fid = b.getAttribute("data-fid"), ti = b.querySelector(".ti");
+      var put = function (u) { if (u && ti) ti.innerHTML = '<img src="' + u + '" alt="">'; };
+      if (thumbs[fid]) return put(thumbs[fid]);
+      if (i > 11) return;
+      api("/api/files/" + fid + "/link", { method: "POST" }).then(function (j) { thumbs[fid] = cfg().url + j.path; put(thumbs[fid]); }, function () {});
+    });
   }
   function openFile(fid, name, mime) {
     // PDF и картинки — в новой вкладке (окно открываем сразу, иначе его заблокирует браузер), остальное — скачивание.
