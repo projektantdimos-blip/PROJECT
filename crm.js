@@ -186,7 +186,12 @@
       if (perm !== "granted") throw "Уведомления не разрешены в браузере";
       return navigator.serviceWorker.register("sw.js").then(function () { return navigator.serviceWorker.ready; });
     }).then(function (reg) {
-      return C.call("/push/key").then(function (k) { return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(k.key) }); });
+      return C.call("/push/key").then(function (k) {
+        // старая подписка с другим ключом (от прежнего адреса/сервера) мешает новой — снимаем её и подписываемся заново
+        return reg.pushManager.getSubscription().then(function (old) { return old ? old.unsubscribe() : null; }).then(function () {
+          return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(k.key) });
+        });
+      });
     }).then(function (sub) { return C.call("/me/push/subscribe", { body: sub.toJSON() }); })
       .then(function () { try { localStorage.setItem("ds_push_user", String(C.me.id)); } catch (e) {} emit("push"); });
   };

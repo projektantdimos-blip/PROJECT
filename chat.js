@@ -543,7 +543,11 @@
       if (perm !== "granted") return;
       var reg;
       return navigator.serviceWorker.ready.then(function (r) { reg = r; return api("/api/push/vapid-key"); })
-        .then(function (j) { return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8Array(j.key) }); })
+        .then(function (j) {
+          return reg.pushManager.getSubscription().then(function (old) { return old ? old.unsubscribe() : null; }).then(function () {
+            return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8Array(j.key) });
+          });
+        })
         .then(function (sub) { return api("/api/push/subscribe", { method: "POST", body: sub.toJSON() }); })
         .then(function () { setErr(""); refreshPushBtn(); })
         .then(null, function (e) { setErr(typeof e === "string" ? e : "Не удалось включить уведомления"); refreshPushBtn(); });
