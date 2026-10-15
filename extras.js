@@ -492,7 +492,7 @@
      ================================================================ */
   X.more = function () {
     var ps = (window.MPBC && MPBC.me && (MPBC.me.position || (MPBC.me.role === "admin" ? "owner" : ""))) || "";
-    var ALL = [["dash", "chart", "Обзор", "#/dash"], ["flow", "flow", "Конвейер", "#/flow"], ["tasks", "tasks", ps === "designer" ? "Мои проекты" : ps === "acc" ? "Закрытие" : "Задачи", "#/"], ["tz", "list", "Технические задания", "#/tz"],
+    var ALL = [["flow", "flow", "Конвейер", "#/flow"], ["tasks", "tasks", ps === "designer" ? "Мои проекты" : ps === "acc" ? "Закрытие" : "Задачи", "#/"], ["tz", "list", "Технические задания", "#/tz"],
       ["cal", "cal", "Занятость", "#/cal"], ["my", "bell", ps === "designer" ? "План на неделю" : "Мои задачи", "#/my"], ["clients", "users", ps === "design" ? "Кому звонить" : "Заказчики", "#/clients"],
       ["kpreg", "list", "Реестр КП", "#/kpreg/"], ["kpc", "calc", "Конструктор КП", "#/kpc"], ["price", "list", "Прайс", "#/price"], ["contracts", "file", "Договоры", "#/contracts"],
       ["team", "team", "Команда", "#/team"], ["chat", "chat", "Переписка", "#/chat"], ["report", "list", "Недельный отчёт", "#/report"], ["stats", "lock", "Статистика", "#/stats"],

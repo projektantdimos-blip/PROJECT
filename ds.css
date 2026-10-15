@@ -379,3 +379,25 @@
 .side .sbell .nav-badge{position:absolute;top:-6px;right:-6px;margin:0;min-width:18px;height:18px;padding:0 5px;line-height:18px;text-align:center;font-size:.7rem;border-radius:9px;background:#e5483c;color:#fff;font-weight:700}
 /* «Заказчики»: карточка не уезжает вверх при прокрутке списка */
 @media(min-width:900px){.ds .dsg21>div:last-child{position:sticky;top:14px;align-self:start;max-height:calc(100vh - 28px);overflow:auto}}
+
+/* объединённые «Задачи»: яркие заголовки, больше воздуха */
+.ds .head h1{font-size:1.75rem;font-weight:800;letter-spacing:-.2px}
+.ds .tb{display:flex;align-items:center;gap:12px;margin:0 0 20px;flex-wrap:wrap}
+.ds .tb .grow{flex:1}.ds .tb .vlab{color:var(--muted);font-size:.86rem;font-weight:600}
+.ds .tiles{gap:16px;margin-bottom:20px}
+.ds .tools{margin-bottom:14px}
+.ds .chips{margin:0 0 22px}
+.ds .board{gap:22px}
+.ds .col{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--surface-2,var(--surface));padding:0 0 8px}
+.ds .col-h.cl{display:flex;align-items:center;justify-content:space-between;background:var(--c);color:#fff;padding:12px 16px;margin:0 0 10px;font-size:1.02rem;border-radius:0}
+.ds .col-h.cl b{font-weight:800;letter-spacing:.2px;color:#fff}
+.ds .col-h.cl .n{background:rgba(255,255,255,.25);color:#fff;border-radius:12px;padding:1px 10px;font-weight:700}
+.ds .col>.task{margin:0 10px 10px}
+/* скрипты */
+.ds .sc-wrap{display:grid;grid-template-columns:minmax(240px,320px) 1fr;gap:22px;align-items:start}
+.ds .sc-list{padding:10px}
+.ds .sc-g{font-size:.74rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding:10px 8px 4px;font-weight:700}
+.ds .sc-i{display:block;width:100%;text-align:left;padding:9px 10px;border-radius:10px;border:1px solid transparent;background:none;cursor:pointer;color:var(--ink)}
+.ds .sc-i small{display:block;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ds .sc-i.on,.ds .sc-i:hover{background:var(--brand-soft);border-color:var(--brand)}
+@media(max-width:800px){.ds .sc-wrap{grid-template-columns:1fr}}

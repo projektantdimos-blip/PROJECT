@@ -21,7 +21,14 @@
     + ".dsp .card{display:flex;gap:10px;align-items:center;padding:9px 11px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:var(--surface-2,var(--surface));font-size:.88rem;cursor:pointer;text-decoration:none;color:inherit}.dsp .card small{display:block;color:var(--muted)}"
     + ".dsp .f{margin-bottom:10px}.dsp .f label{display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:4px}.dsp .f input,.dsp .f select{width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface);color:var(--ink)}"
     + ".dsp .sv{display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;font-size:.84rem}.dsp .sv.on{border-color:var(--brand-2);background:var(--brand-soft)}.dsp .sv span{flex:1}.dsp .sv input[type=number]{width:96px;border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:var(--surface);color:var(--ink)}"
-    + ".dsp .err{color:var(--bad);font-weight:600;margin:6px 0;font-size:.84rem}.dsp .tot{padding:10px 12px;border-radius:12px;background:var(--surface-2,var(--surface));border:1px solid var(--line);margin:8px 0}.dsp .note{font-size:.8rem;color:var(--muted);margin:6px 0}";
+    + ".dsp .err{color:var(--bad);font-weight:600;margin:6px 0;font-size:.84rem}.dsp .tot{padding:10px 12px;border-radius:12px;background:var(--surface-2,var(--surface));border:1px solid var(--line);margin:8px 0}.dsp .note{font-size:.8rem;color:var(--muted);margin:6px 0}"
+    + ".dsp .pc-name{font-size:1.05rem;font-weight:800;margin:0 0 8px}.dsp .pc-reg{font-size:.7rem;font-weight:700;color:var(--ok);margin-left:6px}"
+    + ".dsp .pl{display:flex;flex-direction:column;margin:0 0 7px}.dsp .pl small{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.6px;font-weight:700}.dsp .pl span{font-size:.92rem;overflow-wrap:anywhere}"
+    + ".dsp .pb{border-radius:14px;padding:11px 13px;margin-top:12px;border:1px solid}.dsp .pb h5{margin:0 0 8px;font-size:.74rem;text-transform:uppercase;letter-spacing:1px;font-weight:800}"
+    + ".dsp .pb-blue{background:color-mix(in srgb,#378ADD 12%,transparent);border-color:#378ADD}.dsp .pb-blue h5{color:#378ADD}"
+    + ".dsp .pb-purple{background:color-mix(in srgb,#7F77DD 13%,transparent);border-color:#7F77DD}.dsp .pb-purple h5{color:#7F77DD}"
+    + ".dsp .pb-gray{background:var(--surface-2,var(--surface));border-color:var(--line)}.dsp .pb-gray h5{color:var(--muted)}"
+    + ".dsp .pi{display:block;padding:7px 0;border-top:1px dashed var(--line);text-decoration:none;color:inherit;font-size:.88rem}.dsp .pb h5+.pi{border-top:0}.dsp .pi small{display:block;color:var(--muted)}";
   document.head.appendChild(css);
 
   D.render = function (box, t, name) {
@@ -42,15 +49,44 @@
   function tabCustomer(body, t, name, s, box) {
     var l = s.link, h = "";
     if (l.customer) {
-      var c = l.customer;
+      var c = l.customer, ct = (c.contacts || [])[0] || {};
+      var ph = (c.contacts || []).map(function (x) { return x.phone; }).filter(Boolean)[0] || "";
+      var ml = (c.contacts || []).map(function (x) { return x.email; }).filter(Boolean)[0] || "";
+      function dmy(d) { var m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || ""); return m ? m[3] + "." + m[2] + "." + m[1] : ""; }
+      function line(label, v) { return '<div class="pl"><small>' + label + "</small><span>" + (v ? E(v) : "—") + "</span></div>"; }
+      h += '<div class="pc-name">' + E(c.name) + (c.regular ? ' <span class="pc-reg">постоянный</span>' : "") + "</div>"
+        + line("Контактное лицо", ct.fio) + line("Телефон", ph) + line("Почта", ml);
       if (l.auto) h += '<p class="note">Диалог привязан автоматически: ' + E(l.auto) + ".</p>";
-      h += '<div class="card" style="cursor:default"><span><b>' + E(c.name) + "</b> " + (c.regular ? "· постоянный" : "") + "<small>" + (c.contacts || []).map(function (x) { return E((x.fio || "") + (x.phone ? " " + x.phone : "") + (x.email ? " " + x.email : "")); }).join("; ") + "</small></span></div>";
-      if (c.comment) h += '<p class="note">📝 ' + E(c.comment) + "</p>";
-      h += '<div class="note">Задачи заказчика</div>' + (l.orders.map(function (o) { return '<a class="card" href="#/task/' + o.id + '"><span><b>№' + E(o.number) + " · " + E(o.object) + "</b><small>" + E(o.stage) + (o.left_days != null ? " · " + (o.left_days < 0 ? "просрочено" : "осталось") + " " + Math.abs(o.left_days) + " дн." : "") + "</small></span></a>"; }).join("") || '<p class="note">Задач пока нет</p>');
-      h += '<div class="note">КП</div>' + (l.kp.map(function (k) { return '<a class="card" href="#/kpreg/"><span><b>' + E(k.number) + " · " + money(k.amount) + "</b><small>" + E(k.status) + " · " + E(k.object) + "</small></span></a>"; }).join("") || '<p class="note">КП пока нет</p>');
-      h += '<button class="x-btn ghost" id="dspUnlink" style="width:100%;justify-content:center">Отвязать диалог</button>';
+      h += '<div class="pb pb-blue"><h5>В работе</h5>' + (l.orders.map(function (o) {
+        return '<a class="pi" href="#/task/' + o.id + '"><b>№' + E(o.number) + " · " + E(o.object) + "</b><small>" + E(o.stage) + (o.system ? " · " + E(o.system) : "") + (o.executor ? " · " + E(o.executor) : "")
+          + (o.left_days != null ? " · " + (o.left_days < 0 ? "просрочено " : "осталось ") + Math.abs(o.left_days) + " дн." : "") + "</small></a>";
+      }).join("") || '<p class="note" style="margin:0">Проектных задач пока нет</p>') + "</div>";
+      h += '<div class="pb pb-purple"><h5>Предложения</h5>' + (l.kp.map(function (k) {
+        return '<a class="pi" href="#/kpreg/"><b>КП №' + E(String(k.number).replace(/^К-/, "")) + " · " + money(k.amount) + "</b><small>"
+          + (k.issued_date ? "выставлено " + dmy(k.issued_date) : "черновик, не отправлено") + (k.object ? " · " + E(k.object) : "") + "</small></a>";
+      }).join("") || '<p class="note" style="margin:0">Предложений пока нет</p>') + "</div>";
+      var lead = (l.leads || [])[0], NEXT = { a1: "Сбор вводных", a2: "КП" };
+      h += '<div class="pb pb-gray"><h5>Передать по конвейеру</h5>';
+      if (lead) {
+        h += '<p class="note" style="margin:0 0 8px">' + E(lead.title) + (lead.due ? " · до " + dmy(lead.due) : "") + "</p>"
+          + (NEXT[lead.step] ? '<button class="x-btn primary" id="dspLeadNext" style="width:100%;justify-content:center;margin-bottom:6px">Передать дальше → ' + NEXT[lead.step] + "</button>" : "")
+          + '<button class="x-btn ghost" id="dspLeadSkip" style="width:100%;justify-content:center">Задача не требуется</button>';
+      } else {
+        h += '<p class="note" style="margin:0 0 8px">Активной задачи по этому диалогу нет</p><button class="x-btn ghost" id="dspLeadNew" style="width:100%;justify-content:center">Создать задачу по конвейеру</button>';
+      }
+      h += '<button class="x-btn ghost" id="dspHand" style="width:100%;justify-content:center;margin-top:6px">Передать специалисту…</button></div>';
+      h += '<button class="x-btn primary" id="dspNewTask" style="width:100%;justify-content:center;margin-top:10px">+ Новая задача</button>';
+      h += '<p style="text-align:center;margin:12px 0 0"><a href="#" id="dspUnlink" class="note">Сменить заказчика</a></p>';
       body.innerHTML = h;
-      $("dspUnlink").onclick = function () { api("/threads/" + encodeURIComponent(t.id) + "/link", { customer_id: 0 }).then(function () { again(box, t, name); }, function (e) { toast(String(e)); }); };
+      var leadAct = function (act) {
+        api("/tasks/" + lead.id + "/lead", { action: act }).then(function () { toast(act === "skip" ? "Задача закрыта" : "Передано дальше"); again(box, t, name); }, function (e) { toast(String(e)); });
+      };
+      if ($("dspLeadNext")) $("dspLeadNext").onclick = function () { leadAct("next"); };
+      if ($("dspLeadSkip")) $("dspLeadSkip").onclick = function () { leadAct("skip"); };
+      if ($("dspLeadNew")) $("dspLeadNew").onclick = function () { if (window.DS && DS.newTask) DS.newTask({ step: "a2", thread_id: t.id, thread_title: name }); };
+      $("dspNewTask").onclick = function () { if (window.DS && DS.newTask) DS.newTask({ thread_id: t.id, thread_title: name }); };
+      $("dspHand").onclick = function () { if (window.__chatHandoff) window.__chatHandoff(); };
+      $("dspUnlink").onclick = function (e) { e.preventDefault(); api("/threads/" + encodeURIComponent(t.id) + "/link", { customer_id: 0 }).then(function () { again(box, t, name); }, function (er) { toast(String(er)); }); };
       return;
     }
     if (l.suggestions.length) {
@@ -109,7 +145,7 @@
         return fileP.then(function (file) {
           s.busy = false; s.kp = null; s.tab = "c";
           if (window.__chatDraft) window.__chatDraft(r.text, file, r.id);
-          toast("КП " + r.number + " готово: проверьте текст в окне ответа и нажмите «Отправить»");
+          toast("КП №" + String(r.number).replace(/^К-/, "") + " готово: проверьте текст в окне ответа и нажмите «Отправить»");
           again(box, t, name);
         });
       }, function (e) { s.busy = false; s.err = String(e); draw(); });

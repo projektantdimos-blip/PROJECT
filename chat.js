@@ -139,6 +139,9 @@
     "#chatComposer textarea{max-height:340px;overflow-y:auto;transition:height .08s}" +
     ".chat-handbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:40px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}" +
     ".chat-handbtn:hover{border-color:var(--blue);color:var(--blue)}" +
+    ".mlogo{width:22px;height:22px;border-radius:50%;flex:none;align-self:center;display:grid;place-items:center;margin-right:2px}" +
+    ".mlogo.tg{background:#2b8ac6}.mlogo.max{background:#7a55a8}.mlogo.mail{background:#ee9264}" +
+    ".ct .un{cursor:pointer;background:#ee9264;color:#3d1b08}.ct .un:hover{filter:brightness(.92)}" +
     ".ct{padding-left:4px}.ct .udot{width:20px;flex:none;align-self:center;display:grid;place-items:center;cursor:pointer;height:38px}" +
     ".ct .udot i{width:10px;height:10px;border-radius:50%;border:2px solid transparent;transition:.12s}" +
     ".ct .udot.on i{background:var(--blue);border-color:var(--blue)}" +
@@ -172,7 +175,7 @@
         '<button type="button" id="chatRefresh" title="Обновить сейчас">⟳</button></span></div></div>' +
         '<div id="chatThreads"></div></aside>' +
         '<section class="chat-thread"><div id="chatHead"></div><div id="chatAssign"></div><div id="chatMsgs"></div>' +
-        '<div id="chatComposer"><div id="chatFileBar" class="chat-filebar" hidden></div><button type="button" id="chatAttach" class="chat-attach" title="Прикрепить файл (до 10 МБ)">📎</button><input type="file" id="chatFile" hidden><textarea id="chatText" placeholder="Ответ… (Ctrl+Enter — отправить)"></textarea><button id="chatSend">Отправить</button></div></section>' +
+        '<div id="chatComposer"><div id="chatFileBar" class="chat-filebar" hidden></div><button type="button" id="chatAttach" class="chat-attach" title="Прикрепить файл (до 10 МБ)">📎</button><input type="file" id="chatFile" hidden><button type="button" id="chatScripts" class="chat-attach" title="Скрипты: готовые тексты">📋</button><textarea id="chatText" placeholder="Ответ… (Ctrl+Enter — отправить)"></textarea><button id="chatSend">Отправить</button></div></section>' +
         '<aside class="chat-info" id="chatInfoPane"></aside>' +
       '</div>';
     el.banner = document.getElementById("chatBanner");
@@ -215,6 +218,7 @@
     el.fileBar.onclick = function (e) { if (e.target.getAttribute && e.target.getAttribute("data-x")) { st.file = null; showFileBar(); } };
     document.getElementById("chatRefresh").onclick = function () { refreshNow(); };
     document.getElementById("chatNew").onclick = function () { newMessageDialog(); };
+    document.getElementById("chatScripts").onclick = function () { scriptsDialog(); };
     document.getElementById("chatPush").onclick = togglePush;
     showSync();
     refreshPushBtn();
@@ -283,6 +287,31 @@
     }, function (e) { setErr(String(e)); });
   }
   window.__chatHandoff = function () { var t = curThread(); if (t) handoffDialog(t); };
+  function scriptsDialog() {
+    api("/api/ds/scripts").then(function (list) {
+      var th = curThread(), bg = document.createElement("div");
+      bg.style.cssText = "position:fixed;inset:0;background:rgba(10,20,35,.5);z-index:400;display:grid;place-items:center;padding:16px";
+      var rows = list.map(function (s, i) {
+        return '<button type="button" data-i="' + i + '" style="display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:8px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);cursor:pointer;font:inherit"><b>' + esc(s.title) + (s.group ? ' <small style="color:var(--muted)">· ' + esc(s.group) + "</small>" : "") + '</b><div style="color:var(--muted);font-size:.84rem;margin-top:2px">' + esc((s.text || "").slice(0, 110)) + "</div></button>";
+      }).join("") || '<p style="color:var(--muted)">Скриптов пока нет. Добавьте их в разделе «Скрипты».</p>';
+      bg.innerHTML = '<div style="background:var(--card,#fff);color:var(--ink);border-radius:16px;padding:18px 20px;width:min(520px,100%);max-height:80vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)"><h3 style="margin:0 0 12px">Скрипты</h3>' + rows
+        + '<div style="text-align:right;margin-top:6px"><a href="#/scripts" id="scGo" style="color:var(--blue);margin-right:14px">Править скрипты</a><button id="scClose" style="padding:8px 16px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;cursor:pointer;font:inherit">Закрыть</button></div></div>';
+      document.body.appendChild(bg);
+      var close = function () { bg.remove(); };
+      bg.onclick = function (e) { if (e.target === bg) close(); };
+      bg.querySelector("#scClose").onclick = close;
+      bg.querySelector("#scGo").onclick = close;
+      Array.prototype.forEach.call(bg.querySelectorAll("[data-i]"), function (b) {
+        b.onclick = function () {
+          var s = list[+b.getAttribute("data-i")], m = me();
+          var txt = String(s.text || "").replace(/\{менеджер\}/gi, m ? m.name : "").replace(/\{заказчик\}/gi, th ? (th.title || th.peer || "") : "");
+          el.text.value = (el.text.value ? el.text.value + "\n\n" : "") + txt;
+          if (el.grow) el.grow();
+          el.text.focus(); close();
+        };
+      });
+    }, function (e) { setErr(String(e)); });
+  }
   function newMessageDialog() {
     var bg = document.createElement("div");
     bg.style.cssText = "position:fixed;inset:0;background:rgba(10,20,35,.5);z-index:400;display:grid;place-items:center;padding:16px";
@@ -334,6 +363,11 @@
     });
   }
 
+  function chLogo(ch) {
+    if (ch === "tg") return '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3 2 11l6 2.3L10 20l3.3-4.2L18 19z"/></svg>';
+    if (ch === "mail") return '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
+    return '<b style="color:#fff;font-size:12px;font-weight:800;line-height:1">M</b>';
+  }
   function renderThreads() {
     var list = visibleThreads(), keep = el.threads.scrollTop;      // при автообновлении не сбрасываем прокрутку списка
     if (!list.length) {
@@ -343,22 +377,22 @@
     el.threads.innerHTML = list.map(function (t) {
       var ci = chInfo(t.channel), ini = (t.title || "?").trim().charAt(0).toUpperCase(), av = avUrl(t);
       return '<div class="ct' + (t.id === st.sel ? " on" : "") + '" data-id="' + esc(t.id) + '">' +
-        '<span class="udot' + (t.unread ? " on" : "") + '" title="' + (t.unread ? "Отметить прочитанным" : "Отметить непрочитанным") + '"><i></i></span>' +
+        '<span class="mlogo ' + esc(t.channel) + '" title="' + esc(ci.label) + '">' + chLogo(t.channel) + "</span>" +
         '<div class="ava" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div>" +
         '<div class="mid"><div class="r1"><span class="nm">' + esc(t.title || t.peer) + '</span><span class="tm">' + fmtTime(t.last_ts) + "</span></div>" +
-        '<div class="r2"><span class="pv">' + esc(t.last_text) + "</span>" + assignPill(t) + (t.unread ? '<span class="un">' + t.unread + "</span>" : "") + "</div></div></div>";
+        '<div class="r2"><span class="pv">' + esc(t.last_text) + "</span>" + assignPill(t) + (t.unread ? '<span class="un" title="Закрыть: отметить прочитанным">' + t.unread + " ✕</span>" : "") + "</div></div></div>";
     }).join("");
     Array.prototype.forEach.call(el.threads.querySelectorAll(".ct"), function (d) {
       d.onclick = function () { openThread(d.getAttribute("data-id")); };
     });
-    Array.prototype.forEach.call(el.threads.querySelectorAll(".udot"), function (dot) {      // синяя точка: прочитано / непрочитано
-      dot.onclick = function (e) {
+    Array.prototype.forEach.call(el.threads.querySelectorAll(".un"), function (cnt) {      // оранжевый счётчик: закрыть (отметить прочитанным)
+      cnt.onclick = function (e) {
         e.stopPropagation();
-        var id = dot.parentNode.getAttribute("data-id"), t = st.threads.filter(function (x) { return x.id === id; })[0];
-        if (!t) return;
-        var wasUnread = !!t.unread;
-        t.unread = wasUnread ? 0 : 1; renderThreads(); applyBadge();
-        api("/api/threads/" + encodeURIComponent(id) + (wasUnread ? "/read" : "/unread"), { method: "POST" }).then(null, function () { t.unread = wasUnread ? 1 : 0; renderThreads(); applyBadge(); });
+        var id = cnt.closest(".ct").getAttribute("data-id"), th = st.threads.filter(function (x) { return x.id === id; })[0];
+        if (!th) return;
+        var was = th.unread;
+        th.unread = 0; renderThreads(); applyBadge();
+        api("/api/threads/" + encodeURIComponent(id) + "/read", { method: "POST" }).then(null, function () { th.unread = was; renderThreads(); applyBadge(); });
       };
     });
     el.threads.scrollTop = keep;
@@ -400,10 +434,16 @@
       '<button class="hbtn" id="chatAv" title="Загрузить фото собеседника">📷</button>' +
       (t.avatar_ts ? '<button class="hbtn" id="chatAvDel" title="Убрать фото">✕</button>' : "") +
       (myPos() !== "design" && myPos() !== "acc" ? '<button class="chat-taskbtn" id="chatTask" title="Поставить задачу по конвейеру или сотруднику по этому диалогу"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>Задача по конвейеру</span></button>' : "") +
+      '<button class="hbtn" id="chatUnread" title="Пометить диалог непрочитанным" aria-label="Пометить непрочитанным">●</button>' +
       '<button class="hbtn chat-infobtn" id="chatInfoBtn" title="Заказчик, создание заказчика и КП">Заказчик · КП</button>' +
       '<span class="chat-pill" style="background:' + ci.color + '">' + esc(ci.label) + "</span>" +
       '<input type="file" id="chatAvFile" accept="image/*" hidden>';
     document.getElementById("chatBack").onclick = function () { st.sel = null; renderThreads(); renderThread(); };
+    var ub = document.getElementById("chatUnread");
+    if (ub) ub.onclick = function () {
+      t.unread = t.unread || 1; renderThreads(); applyBadge();
+      api("/api/threads/" + encodeURIComponent(t.id) + "/unread", { method: "POST" }).then(null, function () {});
+    };
     var tb = document.getElementById("chatTask");
     if (tb) tb.onclick = function () {
       if (window.DS && DS.newTask) DS.newTask({ step: "a2", thread_id: t.id, thread_title: t.title || t.peer });
@@ -444,8 +484,7 @@
     var ci = chInfo(t.channel), av = avUrl(t), ini = (t.title || "?").trim().charAt(0).toUpperCase(), name = t.title || t.peer;
     if (window.MPBD && MPBD.render) {                              // боковая панель с вкладками: заказчик / создать заказчика / КП
       var plane = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>';
-      el.info.innerHTML = '<button class="cp-close" id="cpClose">← К диалогу</button><div class="who"><div class="hava big" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div><b>" + esc(name) + '</b><div class="sub">' + esc(t.peer) + '</div><span class="chat-pill" style="background:' + ci.color + '">' + esc(ci.label) + "</span></div>" +
-        (myPos() !== "design" ? '<button type="button" class="chat-handbtn" id="chatHand2">' + plane + "Передать специалисту</button>" : "") +
+      el.info.innerHTML = '<button class="cp-close" id="cpClose">← К диалогу</button><div class="who"><div class="hava big" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div></div>" +
         '<div id="chatPanel"></div>';
       document.getElementById("cpClose").onclick = function () { el.wrap.classList.remove("show-info"); };
       var h2 = document.getElementById("chatHand2"); if (h2) h2.onclick = function () { handoffDialog(t); };

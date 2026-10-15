@@ -305,6 +305,7 @@ textarea{resize:vertical;min-height:64px}
 <div id="tz-app" style="display:none"></div>
 <div id="stats-app" style="display:none"></div>
 <div id="price-app" style="display:none"></div>
+<div id="scripts-app" style="display:none"></div>
 <div id="contracts-app" style="display:none"></div>
 <div id="to-app" style="display:none"><iframe id="to-frame" title="ТО МПБ" style="width:100%;height:calc(100vh - 110px);min-height:600px;border:0;display:block;background:var(--bg)"></iframe></div>
 </div></div>
@@ -703,6 +704,7 @@ function renderDetail(task, isNew){
 
 function sectionForHash(h){
   if (h.indexOf("#/price") === 0) return "price";
+  if (h.indexOf("#/scripts") === 0) return "scripts";
   if (h.indexOf("#/kpreg") === 0) return "kpreg";
   if (h.indexOf("#/kpc") === 0) return "kpc";
   if (h.indexOf("#/contracts") === 0) return "contracts";
@@ -721,10 +723,10 @@ function sectionForHash(h){
 }
 /* Какие разделы видит каждая роль (позиция сотрудника в CRM). Это интерфейс; данные ограничиваются на сервере (этап 2). */
 var DS_ALLOWED = {
-  owner:    ["dash","flow","tasks","tz","cal","my","clients","kpreg","kpc","price","contracts","chat","team","report","stats","log","auto","stages","me"],
+  owner:    ["dash","flow","tasks","tz","cal","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","stats","log","auto","stages","me"],
   design:   ["dash","tasks","cal","my","clients","chat","team","report","me"],
-  sales:    ["dash","flow","tasks","cal","clients","kpreg","kpc","price","contracts","chat","team","report","me"],
-  ops:      ["dash","flow","tasks","tz","cal","my","clients","kpreg","kpc","price","contracts","chat","team","report","me"],
+  sales:    ["dash","flow","tasks","cal","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","me"],
+  ops:      ["dash","flow","tasks","tz","cal","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","me"],
   acc:      ["tasks","kpreg","team","me"],
   designer: ["tasks","cal","my","team","me"]
 };
@@ -740,7 +742,7 @@ function dsAllowed(sec){
 }
 function renderTopNav(){
   var cur = sectionForHash(location.hash);
-  var own = { tasks:1, dash:1, cal:1, my:1, chat:1, to:1, team:1, log:1, me:1, auto:1, stages:1, clients:1, report:1, stats:1, flow:1, tz:1 };
+  var own = { scripts:1, tasks:1, dash:1, cal:1, my:1, chat:1, to:1, team:1, log:1, me:1, auto:1, stages:1, clients:1, report:1, stats:1, flow:1, tz:1 };
   var pa = own[cur] ? cur : "commerce";
   var ok = dsAllowed;
   var b = function(go, ic, t, on, sec){ return ok(sec) ? '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+'<span>'+t+'</span></button>' : ""; };
@@ -749,9 +751,9 @@ function renderTopNav(){
   var comm = (ok("kpreg") || ok("kpc") || ok("contracts")) ? '<button data-goto="#/kpreg/" class="'+(pa==="commerce"?"active":"")+'">'+icon("briefcase")+'<span>Коммерция</span></button>' + (pa==="commerce" ? sub : "") : "";
   var lab = function(t, secs){ return secs.some(ok) ? '<div class="nav-label">'+t+'</div>' : ""; };
   document.getElementById("topnav").innerHTML =
-    lab("Работа", ["dash","flow","tasks","tz","cal","my"]) + b("#/dash","chart",pos==="designer"?"Сводка":"Обзор",pa==="dash","dash") + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
+    lab("Работа", ["dash","flow","tasks","tz","cal","my"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
     + lab("Заказчики и продажи", ["clients","kpreg","kpc","contracts"]) + b("#/clients","users",pos==="design"?"Кому звонить":"Заказчики",pa==="clients","clients") + comm
-    + lab("Общение", ["team","chat","report"]) + b("#/team","team","Команда",pa==="team","team") + b("#/chat","chat","Переписка",pa==="chat","chat") + b("#/report","list","Недельный отчёт",pa==="report","report")
+    + lab("Общение", ["team","chat","scripts","report"]) + b("#/team","team","Команда",pa==="team","team") + b("#/chat","chat","Переписка",pa==="chat","chat") + b("#/scripts","list","Скрипты",pa==="scripts","scripts") + b("#/report","list","Недельный отчёт",pa==="report","report")
     + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
   var bn = function(go, ic, t, on){ return '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+t+'</button>'; };
   document.getElementById("bottomnav").innerHTML =
@@ -769,6 +771,7 @@ function renderTopNav(){
   if (window.MPBX && window.MPBX.badge) window.MPBX.badge();
   if (window.MPBC && window.MPBC.afterNav) window.MPBC.afterNav();
 }function globalRouter(){
+  if (location.hash.indexOf("#/dash") === 0) { location.hash = "#/"; return; }       // «Обзор» объединён с «Задачами»
   var sec0 = sectionForHash(location.hash);
   if (!dsAllowed(sec0)) { var hm = dsPosition() ? (DS_HOME[dsPosition()] || '#/me') : '#/me'; if (location.hash !== hm) { location.hash = hm; return; } }
   renderTopNav();
@@ -807,6 +810,8 @@ function renderTopNav(){
   if (sec === "stats" && window.DS) DS.mount("stats", document.getElementById("stats-app"));
   if (sec === "clients" && window.DS) DS.mount("cust", document.getElementById("clients-app"));
   document.getElementById("price-app").style.display = (sec === "price") ? "block" : "none";
+  document.getElementById("scripts-app").style.display = (sec === "scripts") ? "block" : "none";
+  if (sec === "scripts" && window.DS) DS.mount("scripts", document.getElementById("scripts-app"));
   if (sec === "price" && window.DS) DS.mount("price", document.getElementById("price-app"));
   if ((sec === "team" || sec === "log" || sec === "me") && window.MPBT && window.MPBT.render) window.MPBT.render(sec);
   if (sec === "chat" && window.__subRouters && window.__subRouters.chat) window.__subRouters.chat();
