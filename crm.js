@@ -132,7 +132,7 @@
       var o = b.querySelector(".nav-badge"); if (o) o.remove();
       if (team || urg) { var x = document.createElement("span"); x.className = "nav-badge" + (urg ? " red" : ""); x.textContent = team || urg; b.appendChild(x); }
     });
-    document.querySelectorAll('#topnav button[data-notif]').forEach(function (b) {
+    document.querySelectorAll('button[data-notif]').forEach(function (b) {
       var o = b.querySelector(".nav-badge"); if (o) o.remove();
       if (s.notif_unread) { var x = document.createElement("span"); x.className = "nav-badge"; x.textContent = s.notif_unread; b.appendChild(x); }
     });
@@ -144,7 +144,7 @@
       chip.innerHTML = C.me ? E(C.me.name) + "<small>" + (C.me.role === "admin" ? "руководитель · кабинет" : "личный кабинет") + "</small>" : "Войти<small>вход по PIN</small>";
       chip.onclick = function () { location.hash = "#/me"; };
     }
-    var nb = document.querySelector('#topnav button[data-notif]');
+    var nb = document.querySelector('button[data-notif]');
     if (nb) nb.onclick = function (e) { e.stopPropagation(); C.toggleNotifs(); };
   };
   C.on("login", C.afterNav); C.on("logout", C.afterNav); C.on("ready", C.afterNav);

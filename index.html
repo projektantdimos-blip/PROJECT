@@ -280,7 +280,8 @@ textarea{resize:vertical;min-height:64px}
 <body>
 <div class="app">
 <aside class="side">
-  <div class="sbrand" onclick="location.hash='#/'"><img src="logo.png" alt="Проекты DS"><b>Проекты DS</b><small>Проектная компания</small></div>
+  <div class="sbrand" onclick="location.hash='#/'"><img src="logo.png" alt="Проекты DS"><b>Проекты DS</b><small>Проектная компания</small>
+    <button class="sbell" data-notif="1" id="sbell" title="Уведомления" aria-label="Уведомления"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></button></div>
   <nav id="topnav"></nav>
   <div class="side-foot"><button class="ib2" id="themeBtn" title="Светлая / тёмная тема" aria-label="Тема"></button><div class="me" id="meChip">Проекты DS<small>CRM проектного отдела</small></div></div>
 </aside>
@@ -725,7 +726,7 @@ var DS_ALLOWED = {
   sales:    ["dash","flow","tasks","cal","clients","kpreg","kpc","price","contracts","chat","team","report","me"],
   ops:      ["dash","flow","tasks","tz","cal","my","clients","kpreg","kpc","price","contracts","chat","team","report","me"],
   acc:      ["tasks","kpreg","team","me"],
-  designer: ["tasks","my","team","me"]
+  designer: ["tasks","cal","my","team","me"]
 };
 var DS_HOME = { owner: "#/dash", design: "#/dash", sales: "#/dash", ops: "#/dash", acc: "#/", designer: "#/" };
 function dsPosition(){ return (window.MPBC && MPBC.me) ? (MPBC.me.position || (MPBC.me.role === "admin" ? "owner" : "")) : ""; }
@@ -751,7 +752,6 @@ function renderTopNav(){
     lab("Работа", ["dash","flow","tasks","tz","cal","my"]) + b("#/dash","chart",pos==="designer"?"Сводка":"Обзор",pa==="dash","dash") + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
     + lab("Заказчики и продажи", ["clients","kpreg","kpc","contracts"]) + b("#/clients","users",pos==="design"?"Кому звонить":"Заказчики",pa==="clients","clients") + comm
     + lab("Общение", ["team","chat","report"]) + b("#/team","team","Команда",pa==="team","team") + b("#/chat","chat","Переписка",pa==="chat","chat") + b("#/report","list","Недельный отчёт",pa==="report","report")
-    + '<button data-notif="1">'+icon("bell")+'<span>Уведомления</span></button>'
     + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
   var bn = function(go, ic, t, on){ return '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+t+'</button>'; };
   document.getElementById("bottomnav").innerHTML =

@@ -136,6 +136,7 @@
     ".cm .cf.tile .sz{margin:0;font-size:.7rem;color:var(--muted)}" +
     "#chat-app #chatHead .chat-taskbtn{flex:none;display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 14px;border:0;border-radius:10px;background:linear-gradient(135deg,var(--blue),#1f5c99);color:#fff;font:inherit;font-size:.82rem;font-weight:700;white-space:nowrap;cursor:pointer;box-shadow:0 4px 12px rgba(31,92,153,.25)}" +
     "#chat-app #chatHead .chat-taskbtn:hover{filter:brightness(1.1)}#chat-app #chatHead .chat-taskbtn span{display:inline;color:#fff}" +
+    "#chatComposer textarea{max-height:340px;overflow-y:auto;transition:height .08s}" +
     ".chat-handbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:40px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}" +
     ".chat-handbtn:hover{border-color:var(--blue);color:var(--blue)}" +
     ".ct{padding-left:4px}.ct .udot{width:20px;flex:none;align-self:center;display:grid;place-items:center;cursor:pointer;height:38px}" +
@@ -221,6 +222,10 @@
       var b = e.target.closest ? e.target.closest(".cf") : null;
       if (b) openFile(b.getAttribute("data-fid"), b.getAttribute("data-name"), b.getAttribute("data-mime"));
     };
+    var grow = function () { el.text.style.height = "auto"; el.text.style.height = Math.min(el.text.scrollHeight + 2, 340) + "px"; };
+    el.text.addEventListener("input", grow);
+    el.text.addEventListener("paste", function () { setTimeout(grow, 0); });
+    el.grow = grow;
     el.text.onkeydown = function (e) { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendMsg(); } };
     st.built = true;
     renderBox(); renderChips(); renderThreads(); renderThread();
@@ -707,7 +712,7 @@
         })
       : api("/api/threads/" + encodeURIComponent(t.id) + "/send", { method: "POST", body: { text: text } });
     job.then(function (r) {
-      el.text.value = ""; setErr(""); st.file = null; showFileBar();
+      el.text.value = ""; if (el.grow) el.grow(); setErr(""); st.file = null; showFileBar();
       if (st.draftKp) {                              // КП ушло заказчику: статус «КП отправлено» и дата общения
         var kid = st.draftKp; st.draftKp = 0;
         api("/api/ds/kp/" + kid + "/status", { method: "POST", body: { status: "КП отправлено" } }).then(null, function () {});
@@ -723,6 +728,7 @@
   window.__chatDraft = function (text, file, kpId) {
     if (!el.text) return;
     el.text.value = text || "";
+    if (el.grow) el.grow();
     st.file = file || null; showFileBar();
     st.draftKp = kpId || 0;
     el.text.focus();

@@ -103,7 +103,7 @@
     }, 4000);
   }
   function loadRooms() {
-    return C.call("/team/rooms").then(function (rs) { S.rooms = rs; paintRooms(); });
+    return C.call("/team/rooms" + (S.cur ? "?open=" + encodeURIComponent(S.cur) : "")).then(function (rs) { S.rooms = rs; paintRooms(); });
   }
   function roomIcon(r) {
     if (r.kind === "dm" && /^d\d+_\d+$/.test(r.id)) return ava(r.name, "sm");
@@ -299,7 +299,8 @@
   }
   T.openTaskRoom = function (row, customer) {
     C.requireLogin().then(function () { return C.call("/team/rooms", { body: { task_row: row, name: customer } }); }).then(function (r) {
-      if (cur() === "team") { S.cur = r.id; renderTeam(); try { history.replaceState(null, "", "#/team?room=" + r.id); } catch (e) {} } else location.hash = "#/team?room=" + r.id;
+      if (cur() === "team") { S.cur = r.id; return loadRooms().then(function () { renderTeam(); try { history.replaceState(null, "", "#/team?room=" + r.id); } catch (e) {} }); }
+      location.hash = "#/team?room=" + r.id;
     }).catch(function (e) { if (e !== "cancel") toast(E(e)); });
   };
 

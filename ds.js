@@ -78,6 +78,7 @@
     if ((kind === "tasks" || kind === "ov") && /^(owner|sales|ops)$/.test(pos())) need = need.then(loadKp);
     if (kind === "week") need = need.then(loadWeek);
     if (kind === "ov") need = need.then(function () { return api("/comments").then(function (c) { S.cm = c; }, function () { S.cm = S.cm || {}; }); });
+    if (kind === "load" && pos() === "designer") need = need.then(function () { return api("/load").then(function (r) { S.lo = r; }, function () { S.lo = []; }); });
     if (kind === "kp" || kind === "kpc" || kind === "contract") need = need.then(loadKp);
     if (kind === "price" || kind === "kpc") need = need.then(loadPrice);
     if (kind === "contract") need = need.then(loadPrice).then(loadContractDraft);
@@ -105,6 +106,7 @@
     return '<button class="task ' + (o.urgent ? "urgent" : "") + '" data-open="' + o.id + '"><span class="stripe" style="--c:' + (o.urgent || (o.left_days != null && o.left_days < 0) ? "var(--bad)" : (STAGE_COLOR[stage] || "var(--brand)")) + '"></span><span class="body">'
       + '<span class="r1"><span class="num">№' + E(o.number) + "</span><span>" + E(o.customer || "") + '</span><span class="fl">' + (o.urgent ? '<span class="pill urg">⚡ Срочно</span>' : "") + "</span></span>"
       + '<span class="ttl" style="display:block">' + E(o.object) + "</span>"
+      + (o.system ? '<span class="con" style="display:block;color:var(--brand);font-weight:600">' + E(o.system) + "</span>" : "")
       + '<span class="con ' + (o.left_days != null && o.left_days < 0 ? "bad" : "") + '" style="display:block">Договор до ' + dmy(o.due_date) + "</span>"
       + '<span class="meta">' + (o.executor ? ava(o.executor, "sm") + '<span style="font-size:.84rem;margin-right:auto">' + E(o.executor) + "</span>" : '<span class="pill muted" style="margin-right:auto">не назначен</span>')
       + (needPhone(o) ? '<span class="pill bad" title="В карточке заказчика не указан сотовый телефон">Нет телефона</span>' : "")
@@ -221,7 +223,7 @@
   function infoTab(o) {
     var p = pos(), cu = customerOf(o), designerView = p === "designer";
     var dl = '<div class="dl ' + (o.left_days != null && o.left_days < 0 ? "bad" : "") + '"><div><small style="color:var(--muted);font-weight:700;text-transform:uppercase;font-size:.68rem">Дедлайн</small><br><b>' + dmy(o.due_date) + "</b></div><b style=\"font-size:.95rem\">" + E(leftText(o.left_days)) + "</b></div>";
-    var work = '<div class="panel pad"><h3>Работа</h3>' + dl + '<div class="kv"><span>Исполнитель</span><span><b>' + E(o.executor || "не назначен") + "</b></span><span>Стадия</span><span>" + E(o.stage) + "</span>"
+    var work = '<div class="panel pad"><h3>Работа</h3>' + dl + '<div class="kv">' + (o.system ? "<span>Система</span><span><b>" + E(o.system) + "</b></span>" : "") + '<span>Исполнитель</span><span><b>' + E(o.executor || "не назначен") + "</b></span><span>Стадия</span><span>" + E(o.stage) + "</span>"
       + (o.contract_date ? "<span>Договор от</span><span>" + dmy(o.contract_date) + "</span>" : "") + "<span>Приоритет</span><span>" + E(o.priority) + "</span>"
       + (designerView ? "" : "<span>Правок</span><span>" + (o.edits || 0) + "</span>") + "</div></div>";
     var cust = "";
@@ -306,10 +308,13 @@
   function formHtml() {
     var f = S.form;
     return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:16px"><div class="modal" style="width:min(520px,100%);height:auto;max-height:92vh;border-radius:20px">'
-      + '<div class="m-head"><div class="row"><h2 style="font-size:1.2rem">Новая задача из договора</h2><button class="x" data-close="1">✕</button></div></div><div class="m-body">'
-      + '<div class="fld"><label>Номер договора</label><input id="nfNum" value="' + E(f.number) + '"></div>'
+      + '<div class="m-head"><div class="row"><h2 style="font-size:1.2rem">Новая проектная задача</h2><button class="x" data-close="1">✕</button></div></div><div class="m-body">'
+      + '<div class="fld"><label>Номер задачи</label><input id="nfNum" value="' + E(f.number) + '" placeholder="например 432"></div>'
       + '<div class="fld"><label>Заказчик (компания)</label><input id="nfCust" value="' + E(f.customer) + '" list="dsCust"></div><datalist id="dsCust">' + (S.customers || []).map(function (c) { return '<option value="' + E(c.name) + '">'; }).join("") + "</datalist>"
       + '<div class="fld"><label>Объект</label><input id="nfObj" value="' + E(f.object) + '"></div>'
+      + '<div class="fld"><label>Проектируемая система</label><input id="nfSys" value="' + E(f.system || "") + '" list="dsSys" placeholder="например СПС.СОУЭ"></div><datalist id="dsSys">'
+      + ["СПС.СОУЭ", "ФЭС (фотолюминесцентная эвакуационная система)", "АУП (модульная)", "АУП (спринклерная, дренчерная)", "Аварийное освещение", "СКУД", "Видеонаблюдение (СВН)", "СКС", "ВПВ", "Огнезащита"]
+        .map(function (x) { return '<option value="' + E(x) + '">'; }).join("") + "</datalist>"
       + '<div class="g2f"><div class="fld"><label>Срок по договору</label><input id="nfDue" type="date" value="' + E(f.due) + '"></div><div class="fld"><label>Сумма, ₽</label><input id="nfSum" type="number" min="0" value="' + E(f.amount) + '"></div></div>'
       + '<div class="fld"><label><input type="checkbox" id="nfAdv" ' + (f.adv ? "checked" : "") + '> Предусмотрен аванс</label></div>'
       + '<div class="fld" ' + (f.adv ? "" : 'style="display:none"') + ' id="nfAdvBox"><label>Сумма аванса, ₽</label><input id="nfAdvSum" type="number" min="0" value="' + E(f.advSum) + '"></div>'
@@ -394,7 +399,7 @@
     var cm = (S.cm || {})[o.id] || [], opened = S.cmOpen && S.cmOpen[o.id], last = cm[cm.length - 1];
     var tn = o.left_days == null ? "muted" : o.left_days < 0 ? "bad" : o.left_days <= 2 ? "warn" : "info";
     var head = '<div class="ovl' + (o.urgent ? " urg" : "") + '"><button class="num" data-open="' + o.id + '" title="Открыть окно задачи">№' + E(o.number) + "</button>"
-      + '<span class="cu" title="' + E(o.customer || "") + '">' + E(o.customer || "—") + '</span><span class="ob" title="' + E(o.object || "") + '">' + E(o.object || "") + "</span>"
+      + '<span class="cu" title="' + E(o.customer || "") + '">' + E(o.customer || "—") + '</span><span class="ob" title="' + E((o.object || "") + (o.system ? " · " + o.system : "")) + '">' + E(o.object || "") + (o.system ? " · " + E(o.system) : "") + "</span>"
       + '<span class="pill muted"><i class="dot" style="background:' + (STAGE_COLOR[o.stage] || "#999") + '"></i>' + E(o.stage) + "</span>"
       + '<span class="ex">' + E(o.executor || "не назначен") + "</span>"
       + '<span class="pill ' + tn + '">' + E(o.left_days == null ? "Без срока" : leftText(o.left_days)) + "</span>"
@@ -476,17 +481,18 @@
   var ACTIVE_WORK = ["В проектировании", "Проверка", "Корректировка"];
   var WD = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
   function span(o) { return [o.plan_start || o.start_date || "", o.plan_end || o.due_date || ""]; }
+  function loadOrders() { return pos() === "designer" ? (S.lo || []) : (S.orders || []); }
   function staff() {
     var by = {};
     (S.people || []).forEach(function (u) { by[u.name] = { id: u.id, name: u.name }; });
-    (S.orders || []).forEach(function (o) { if (o.executor && !by[o.executor]) by[o.executor] = { id: o.executor_id, name: o.executor }; });
+    loadOrders().forEach(function (o) { if (o.executor && !by[o.executor]) by[o.executor] = { id: o.executor_id, name: o.executor }; });
     return Object.keys(by).map(function (k) { return by[k]; });
   }
   function loadScreen() {
     var p = pos(), people = staff(), mon = monday(), today = isoDay(new Date());
     var canEdit = p === "owner" || p === "design";
-    var act_ = (S.orders || []).filter(function (o) { return ACTIVE_WORK.indexOf(o.stage) >= 0 && o.executor; });
-    var unassigned = (S.orders || []).filter(function (o) { return o.stage === "Готов к проектированию" && !o.executor; });
+    var act_ = loadOrders().filter(function (o) { return ACTIVE_WORK.indexOf(o.stage) >= 0 && o.executor; });
+    var unassigned = loadOrders().filter(function (o) { return o.stage === "Готов к проектированию" && !o.executor; });
     var cards = people.map(function (u) {
       var mine = act_.filter(function (o) { return o.executor_id === u.id || o.executor === u.name; });
       var late = mine.filter(function (o) { return o.left_days != null && o.left_days < 0; }).length;
@@ -496,7 +502,7 @@
       + '<div class="seg"><button data-ld="week" class="' + (S.ld === "week" ? "on" : "") + '">План на неделю</button><button data-ld="tl" class="' + (S.ld === "tl" ? "on" : "") + '">Месяц</button></div></div>'
       + ""
       + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">' + cards + "</div>";
-    var open = canEdit ? "data-edit" : "data-open";
+    var open = canEdit ? "data-edit" : (p === "designer" ? "data-ro" : "data-open");
     if (S.ld === "week") {
       var wkDays = []; for (var i = 0; i < 7; i++) wkDays.push(isoDay(addDays(mon, i)));
       var lbl = dmy(wkDays[0]).slice(0, 5) + " — " + dmy(wkDays[6]).slice(0, 5);
@@ -1565,7 +1571,7 @@
     }
     if (d.tab) { S.tab = d.tab; if (d.tab === "tz") return loadTzItem(S.open).then(paint); return paint(); }
     if (d.kb) { S.kb = d.kb; return paint(); }
-    if (d.new) { S.form = { number: "", customer: "", object: "", due: "", amount: "", adv: false, advSum: "", err: "" }; return paint(); }
+    if (d.new) { S.form = { number: "", customer: "", object: "", system: "", due: "", amount: "", adv: false, advSum: "", err: "" }; return paint(); }
     if (d.tdone) return act(api("/tasks/" + d.tdone + "/done", {}));
     if (d.create) return createOrder();
     var o = find(S.open); if (!o) return;
@@ -1637,7 +1643,7 @@
       return;
     }
     if (!S.form || !e.target.id) return;
-    var f = S.form, map = { nfNum: "number", nfCust: "customer", nfObj: "object", nfDue: "due", nfSum: "amount", nfAdvSum: "advSum" };
+    var f = S.form, map = { nfNum: "number", nfCust: "customer", nfObj: "object", nfSys: "system", nfDue: "due", nfSum: "amount", nfAdvSum: "advSum" };
     if (map[e.target.id]) f[map[e.target.id]] = e.target.value;
   });
   document.addEventListener("change", function (e) {
@@ -1690,7 +1696,7 @@
     var f = S.form;
     if (!f.number.trim() || !f.customer.trim() || !f.object.trim()) { f.err = "Заполните номер, заказчика и объект"; return paint(); }
     api("/customers", { name: f.customer.trim() }).then(function (c) {
-      return api("/orders", { number: f.number.trim(), customer_id: c.id, object: f.object.trim(), due_date: f.due || "", amount: +f.amount || 0,
+      return api("/orders", { number: f.number.trim(), customer_id: c.id, object: f.object.trim(), system: (f.system || "").trim(), due_date: f.due || "", amount: +f.amount || 0,
         adv_mode: f.adv ? "advance" : "none", adv_sum: f.adv ? (+f.advSum || 0) : 0, contract_date: new Date().toISOString().slice(0, 10) });
     }).then(function () { S.form = null; S.customers = null; S.orders = null; DS.route(); }, function (er) { f.err = String(er); paint(); });
   }
