@@ -416,3 +416,6 @@
 #topnav .nav-label{font-size:.84rem!important;font-weight:800!important;letter-spacing:1.5px!important;color:#9fd0ff!important;padding:22px 12px 9px!important;margin-top:8px;border-top:1px solid rgba(255,255,255,.14)}
 #topnav .nav-label:first-child{border-top:0;margin-top:0;padding-top:8px!important}
 #topnav>button,#topnav .sub button{margin:2px 0}
+
+/* пояснительные подписи под заголовками страниц убраны */
+.ds .head>div>p,header.top .brand p,.top .brand p{display:none!important}

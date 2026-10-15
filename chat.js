@@ -141,6 +141,7 @@
     ".chat-handbtn:hover{border-color:var(--blue);color:var(--blue)}" +
     ".ct .rowmenu{flex:none;width:28px;height:24px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:0;font-weight:800}" +
     ".ct .rowmenu:hover{border-color:var(--blue);color:var(--blue)}" +
+    ".ct .tkc{flex:none;background:#FAEEDA;color:#633806;border-radius:8px;padding:0 7px;font-size:.72rem;font-weight:700;line-height:20px;white-space:nowrap}.ct .tkc.over{background:#FCEBEB;color:#791F1F}" +
     ".mlogo{width:22px;height:22px;border-radius:50%;flex:none;align-self:center;display:grid;place-items:center;margin-right:2px}" +
     ".mlogo.tg{background:#2b8ac6}.mlogo.max{background:#7a55a8}.mlogo.mail{background:#ee9264}" +
     ".ct .un{cursor:pointer;background:#ee9264;color:#3d1b08}.ct .un:hover{filter:brightness(.92)}" +
@@ -365,6 +366,25 @@
     });
   }
 
+  st.taskCnt = {};
+  function loadTaskCounts() {
+    if (!crmOn()) return Promise.resolve();
+    return api("/api/ds/tasks").then(function (list) {
+      var m = {};
+      (list || []).forEach(function (t) {
+        if (!t.thread_id) return;
+        var o = m[t.thread_id] || (m[t.thread_id] = { n: 0, over: 0 });
+        o.n++; if (t.left_days != null && t.left_days < 0) o.over++;
+      });
+      st.taskCnt = m;
+      if (st.built) renderThreads();
+    }, function () {});
+  }
+  window.__chatTasksRefresh = loadTaskCounts;
+  function taskChip(t) {
+    var o = st.taskCnt[t.id];
+    return o ? '<span class="tkc' + (o.over ? " over" : "") + '" title="Активные задачи по диалогу">' + o.n + " " + (o.n % 10 === 1 && o.n % 100 !== 11 ? "задача" : (o.n % 10 >= 2 && o.n % 10 <= 4 && (o.n % 100 < 10 || o.n % 100 >= 20)) ? "задачи" : "задач") + "</span>" : "";
+  }
   function chLogo(ch) {
     if (ch === "tg") return '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3 2 11l6 2.3L10 20l3.3-4.2L18 19z"/></svg>';
     if (ch === "mail") return '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
@@ -382,7 +402,7 @@
         '<span class="mlogo ' + esc(t.channel) + '" title="' + esc(ci.label) + '">' + chLogo(t.channel) + "</span>" +
         '<div class="ava" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div>" +
         '<div class="mid"><div class="r1"><span class="nm">' + esc(t.title || t.peer) + '</span><span class="tm">' + fmtTime(t.last_ts) + "</span></div>" +
-        '<div class="r2"><span class="pv">' + esc(t.last_text) + "</span>" + assignPill(t) + (t.unread ? '<span class="un" title="Закрыть: отметить прочитанным">' + t.unread + " ✕</span>" : "") + '<button class="rowmenu" type="button" title="Действия с диалогом" aria-label="Действия с диалогом">⋯</button></div></div></div>';
+        '<div class="r2"><span class="pv">' + esc(t.last_text) + "</span>" + assignPill(t) + taskChip(t) + (t.unread ? '<span class="un" title="Закрыть: отметить прочитанным">' + t.unread + " ✕</span>" : "") + '<button class="rowmenu" type="button" title="Действия с диалогом" aria-label="Действия с диалогом">⋯</button></div></div></div>';
     }).join("");
     Array.prototype.forEach.call(el.threads.querySelectorAll(".ct"), function (d) {
       d.onclick = function () { openThread(d.getAttribute("data-id")); };
@@ -735,6 +755,7 @@
       applyBadge();
       loadAvatars();
       loadAssign();
+      loadTaskCounts();
     }, function (e) { if (e !== "NOCFG") setErr(String(e)); });
   }
 

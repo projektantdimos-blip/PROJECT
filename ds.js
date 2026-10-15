@@ -677,8 +677,7 @@
       + (unassigned.length ? '<div style="display:grid;grid-template-columns:' + cols + ';min-width:' + minw + 'px;border-top:2px solid var(--line)"><div style="padding:8px 12px;font-weight:700;color:var(--muted);grid-row:1/span ' + unassigned.length + '">Не назначены</div>'
         + unassigned.map(function (o, r) { return iso.map(function (d, i) { return cellBg(i, r + 1); }).join("") + bar(o, true, "", r + 1, false); }).join("") + "</div>" : "");
     return head + nav + '<div class="panel" style="overflow:auto">' + header + (body || '<div class="note" style="padding:16px;margin:0">Задач в плане нет</div>') + "</div>"
-      + '<div class="note">Каждому сотруднику свой цвет. Выходные закрашены красноватым, сегодня — оранжевым; жирный край полоски и подпись «до …» — последний день загрузки специалиста.'
-      + (canEdit ? " Нажатие на полоску открывает окно: исполнитель, начало и срок." : "") + "</div>";
+;
   }
   function planHtml() {
     var o = find(S.edit); if (!o) return "";
@@ -851,7 +850,7 @@
   function kpTotal() { return (S.kpf ? S.kpf.items : []).reduce(function (a, i) { return a + (i.on ? (+i.price || 0) : 0); }, 0); }
   function kpcInit() {
     if (S.kpf) return;
-    S.kpf = { id: 0, customer_id: 0, object: "", pay: "adv50", advpct: 40, pay_text: "", err: "", items: [] };
+    S.kpf = { id: 0, customer_id: 0, customer_text: "", object: "", pay: "adv50", advpct: 40, pay_text: "", err: "", items: [] };
   }
   /* строка в составе КП: добавить или обновить по названию */
   function kpAddLine(name, price) {
@@ -873,7 +872,8 @@
         + '<button class="btn ghost sm" data-kdel="' + idx + '" title="Убрать из КП">✕</button></div>';
     }).join("") || '<div class="note">Выберите услуги в прайсе справа или рассчитайте стоимость в калькуляторе</div>';
     var form = '<div class="panel pad"><h3>Состав КП</h3><p class="sub">Услуги можно править: название и цену</p>'
-      + '<div class="fld"><label>Заказчик (из базы заказчиков)</label><select data-kf="customer_id"><option value="0">— выберите —</option>' + cs.map(function (c) { return '<option value="' + c.id + '"' + (c.id === f.customer_id ? " selected" : "") + ">" + E(c.name) + "</option>"; }).join("") + "</select></div>"
+      + '<div class="fld"><label>Заказчик (из базы заказчиков)</label><select data-kf="customer_id"><option value="0">— без привязки к заказчику —</option>' + cs.map(function (c) { return '<option value="' + c.id + '"' + (c.id === f.customer_id ? " selected" : "") + ">" + E(c.name) + "</option>"; }).join("") + "</select></div>"
+      + (f.customer_id ? "" : '<div class="fld"><label>Для кого КП (название или имя, необязательно)</label><input data-kf="customer_text" value="' + E(f.customer_text || "") + '" placeholder="Например: ООО «Вектор»"></div>')
       + '<div class="fld"><label>Объект</label><input data-kf="object" value="' + E(f.object) + '"></div>'
       + lines
       + '<button class="btn ghost sm" data-kadd="1" style="margin:6px 0 12px">+ Своя позиция</button>'
@@ -903,11 +903,10 @@
   }
   function saveKp(send) {
     var f = S.kpf;
-    if (!f.customer_id) { f.err = "Выберите заказчика"; return paint(); }
     var items = f.items.filter(function (i) { return i.on && i.name && +i.price > 0; }).map(function (i) { return { name: i.name, price: +i.price }; });
     if (!items.length) { f.err = "Отметьте хотя бы одну услугу с ценой"; return paint(); }
     var payCode = f.pay === "custom" ? ((+f.advpct || 0) <= 0 ? "post100" : "adv" + Math.min(100, Math.round(+f.advpct))) : f.pay;
-    api("/kp", { customer_id: f.customer_id, object: f.object, services: items, pay: payCode, pay_text: f.pay_text || "", send: !!send }).then(function () {
+    api("/kp", { customer_id: f.customer_id || 0, customer_text: f.customer_id ? "" : (f.customer_text || ""), object: f.object, services: items, pay: payCode, pay_text: f.pay_text || "", send: !!send }).then(function () {
       S.kpf = null; toast(send ? "КП выставлено и добавлено в реестр" : "Черновик сохранён в реестре"); location.hash = "#/kpreg/";
     }, function (er) { f.err = String(er); paint(); });
   }

@@ -28,7 +28,9 @@
     + ".dsp .pb-blue{background:color-mix(in srgb,#378ADD 12%,transparent);border-color:#378ADD}.dsp .pb-blue h5{color:#378ADD}"
     + ".dsp .pb-purple{background:color-mix(in srgb,#7F77DD 13%,transparent);border-color:#7F77DD}.dsp .pb-purple h5{color:#7F77DD}"
     + ".dsp .pb-gray{background:var(--surface-2,var(--surface));border-color:var(--line)}.dsp .pb-gray h5{color:var(--muted)}"
-    + ".dsp .pi{display:block;padding:7px 0;border-top:1px dashed var(--line);text-decoration:none;color:inherit;font-size:.88rem}.dsp .pb h5+.pi{border-top:0}.dsp .pi small{display:block;color:var(--muted)}";
+    + ".dsp .pi{display:block;padding:7px 0;border-top:1px dashed var(--line);text-decoration:none;color:inherit;font-size:.88rem}.dsp .pb h5+.pi{border-top:0}.dsp .pi small{display:block;color:var(--muted)}"
+    + ".dsp .pb-orange{background:color-mix(in srgb,#EF9F27 16%,transparent);border-color:#EF9F27}.dsp .pb-orange h5{color:#BA7517}"
+    + ".dsp .pt{padding:8px 0;border-top:1px dashed var(--line)}.dsp .pb h5+.pt{border-top:0}.dsp .pt small{display:block;color:var(--muted)}.dsp .pbtn{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}";
   document.head.appendChild(css);
 
   D.render = function (box, t, name) {
@@ -57,6 +59,17 @@
       h += '<div class="pc-name">' + E(c.name) + (c.regular ? ' <span class="pc-reg">постоянный</span>' : "") + "</div>"
         + line("Контактное лицо", ct.fio) + line("Телефон", ph) + line("Почта", ml);
       if (l.auto) h += '<p class="note">Диалог привязан автоматически: ' + E(l.auto) + ".</p>";
+      var tasks = l.tasks || [], NEXTT = { a1: "Сбор вводных", a2: "КП" };
+      if (tasks.length) {
+        h += '<div class="pb pb-orange"><h5>Задачи по диалогу · ' + tasks.length + "</h5>" + tasks.map(function (k) {
+          var nx = NEXTT[k.step];
+          var due = (k.due ? "до " + dmy(k.due) : "") + (k.left_days != null && k.left_days < 0 ? " · просрочена" : "") + (k.assignee ? " · " + k.assignee : "");
+          return '<div class="pt"><b>' + E(String(k.title).replace(/:\s*№.*$/, "")) + "</b><small>" + E(due) + "</small>" + (k.note ? '<small>' + E(k.note) + "</small>" : "")
+            + '<div class="pbtn"><button class="x-btn primary" data-tdone="' + k.id + ":" + (nx ? "next" : "done") + '">' + (nx ? "Выполнено → " + nx : "Выполнено") + "</button>"
+            + (k.step === "a1" || k.step === "a2" ? '<button class="x-btn ghost" data-tdone="' + k.id + ':skip">Не требуется</button>' : "")
+            + (k.order_id ? '<a class="x-btn ghost" href="#/task/' + k.order_id + '" style="text-decoration:none">Открыть</a>' : "") + "</div></div>";
+        }).join("") + "</div>";
+      }
       h += '<div class="pb pb-blue"><h5>В работе</h5>' + (l.orders.map(function (o) {
         return '<a class="pi" href="#/task/' + o.id + '"><b>№' + E(o.number) + " · " + E(o.object) + "</b><small>" + E(o.stage) + (o.system ? " · " + E(o.system) : "") + (o.executor ? " · " + E(o.executor) : "")
           + (o.left_days != null ? " · " + (o.left_days < 0 ? "просрочено " : "осталось ") + Math.abs(o.left_days) + " дн." : "") + "</small></a>";
@@ -65,24 +78,23 @@
         return '<a class="pi" href="#/kpreg/"><b>КП №' + E(String(k.number).replace(/^К-/, "")) + " · " + money(k.amount) + "</b><small>"
           + (k.issued_date ? "выставлено " + dmy(k.issued_date) : "черновик, не отправлено") + (k.object ? " · " + E(k.object) : "") + "</small></a>";
       }).join("") || '<p class="note" style="margin:0">Предложений пока нет</p>') + "</div>";
-      var lead = (l.leads || [])[0], NEXT = { a1: "Сбор вводных", a2: "КП" };
-      h += '<div class="pb pb-gray"><h5>Передать по конвейеру</h5>';
-      if (lead) {
-        h += '<p class="note" style="margin:0 0 8px">' + E(lead.title) + (lead.due ? " · до " + dmy(lead.due) : "") + "</p>"
-          + (NEXT[lead.step] ? '<button class="x-btn primary" id="dspLeadNext" style="width:100%;justify-content:center;margin-bottom:6px">Передать дальше → ' + NEXT[lead.step] + "</button>" : "")
-          + '<button class="x-btn ghost" id="dspLeadSkip" style="width:100%;justify-content:center">Задача не требуется</button>';
-      } else {
-        h += '<p class="note" style="margin:0 0 8px">Активной задачи по этому диалогу нет</p><button class="x-btn ghost" id="dspLeadNew" style="width:100%;justify-content:center">Создать задачу по конвейеру</button>';
-      }
+      h += '<div class="pb pb-gray"><h5>Передать по конвейеру</h5>'
+        + '<button class="x-btn ghost" id="dspLeadNew" style="width:100%;justify-content:center">Создать задачу по конвейеру</button>';
       h += '<button class="x-btn ghost" id="dspHand" style="width:100%;justify-content:center;margin-top:6px">Передать специалисту…</button></div>';
       h += '<button class="x-btn primary" id="dspNewTask" style="width:100%;justify-content:center;margin-top:10px">+ Новая задача</button>';
       h += '<p style="text-align:center;margin:12px 0 0"><a href="#" id="dspUnlink" class="note">Сменить заказчика</a></p>';
       body.innerHTML = h;
-      var leadAct = function (act) {
-        api("/tasks/" + lead.id + "/lead", { action: act }).then(function () { toast(act === "skip" ? "Задача закрыта" : "Передано дальше"); again(box, t, name); }, function (e) { toast(String(e)); });
-      };
-      if ($("dspLeadNext")) $("dspLeadNext").onclick = function () { leadAct("next"); };
-      if ($("dspLeadSkip")) $("dspLeadSkip").onclick = function () { leadAct("skip"); };
+      body.querySelectorAll("[data-tdone]").forEach(function (btn) {
+        btn.onclick = function () {
+          var p = btn.getAttribute("data-tdone").split(":"), id = p[0], act = p[1];
+          var req = act === "done" ? api("/tasks/" + id + "/state", { state: "done" }) : api("/tasks/" + id + "/lead", { action: act });
+          req.then(function (r) {
+            toast(act === "next" ? "Выполнено, передано дальше: " + (r && r.next || "") : act === "skip" ? "Задача закрыта" : "Выполнено");
+            if (window.__chatTasksRefresh) window.__chatTasksRefresh();
+            again(box, t, name);
+          }, function (e) { toast(String(e)); });
+        };
+      });
       if ($("dspLeadNew")) $("dspLeadNew").onclick = function () { if (window.DS && DS.newTask) DS.newTask({ step: "a2", thread_id: t.id, thread_title: name }); };
       $("dspNewTask").onclick = function () { if (window.DS && DS.newTask) DS.newTask({ thread_id: t.id, thread_title: name }); };
       $("dspHand").onclick = function () { if (window.__chatHandoff) window.__chatHandoff(); };
