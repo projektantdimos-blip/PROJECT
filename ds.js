@@ -696,7 +696,7 @@
   var KP_TONE = { "Обращение": "info", "Сбор вводных": "info", "КП отправлено": "info", "Договор подписан": "ok", "Оплачено": "paid", "Отказ": "bad" };
   var KP_FUNNEL = ["Обращение", "Сбор вводных", "КП отправлено", "Договор подписан", "Оплачено"];
   var KP_MANUAL = ["Обращение", "Сбор вводных", "КП отправлено", "Договор подписан", "Оплачено", "Отказ"];
-  var PAYS = [["adv50", "Аванс 50%, остаток по акту"], ["adv30", "Аванс 30%, остаток по акту"], ["post100", "100% по акту"]];
+  var PAYS = [["adv50", "Аванс 50%, остаток по акту"], ["adv30", "Аванс 30%, остаток по акту"], ["post100", "100% по акту"], ["custom", "Свой процент аванса…"]];
   var PRICE = [];
   var CT_TYPES = ["Проектирование СПС, СОУЭ", "Проектирование АУП, ВПВ", "Проектирование (комплекс)", "Обследование объекта", "Расчёт пожарного риска, категорирование", "Разработка исполнительной документации"];
   function execName() { return (S.comp && S.comp.name) || "ИП Шубинов Д.А."; }
@@ -734,7 +734,7 @@
   function kpTotal() { return (S.kpf ? S.kpf.items : []).reduce(function (a, i) { return a + (i.on ? (+i.price || 0) : 0); }, 0); }
   function kpcInit() {
     if (S.kpf) return;
-    S.kpf = { id: 0, customer_id: 0, object: "", pay: "adv50", err: "", items: [] };
+    S.kpf = { id: 0, customer_id: 0, object: "", pay: "adv50", advpct: 40, pay_text: "", err: "", items: [] };
   }
   /* строка в составе КП: добавить или обновить по названию */
   function kpAddLine(name, price) {
@@ -747,7 +747,7 @@
     if (!(p === "owner" || p === "sales" || p === "ops")) return '<div class="head"><div><h1>Конструктор КП</h1></div></div><div class="note">Раздел недоступен для вашей роли.</div>';
     kpcInit();
     var f = S.kpf, cs = S.customers || [], total = kpTotal(), pay = PAYS.filter(function (x) { return x[0] === f.pay; })[0] || PAYS[0];
-    var pct = f.pay === "adv50" ? 0.5 : f.pay === "adv30" ? 0.3 : 0, adv = Math.round(total * pct);
+    var pct = f.pay === "adv50" ? 0.5 : f.pay === "adv30" ? 0.3 : f.pay === "custom" ? Math.max(0, Math.min(100, +f.advpct || 0)) / 100 : 0, adv = Math.round(total * pct);
     var inpS = 'style="border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink)"';
     var lines = f.items.map(function (i, idx) {
       return '<div class="dsv on" style="display:grid;grid-template-columns:1fr 112px auto;gap:6px;align-items:start">'
@@ -761,6 +761,9 @@
       + lines
       + '<button class="btn ghost sm" data-kadd="1" style="margin:6px 0 12px">+ Своя позиция</button>'
       + '<div class="fld"><label>Оплата</label><select data-kf="pay">' + PAYS.map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === f.pay ? " selected" : "") + ">" + E(x[1]) + "</option>"; }).join("") + "</select></div>"
+      + (f.pay === "custom" ? '<div class="fld"><label>Аванс, % (остаток по акту)</label><input type="number" min="0" max="100" step="1" data-kf="advpct" value="' + E(f.advpct) + '"></div>' : "")
+      + '<div class="fld"><label>Условия оплаты текстом <small style="color:var(--muted)">(необязательно: если заполнено, попадёт в КП вместо стандартной формулировки)</small></label>'
+      + '<textarea rows="2" data-kf="pay_text" placeholder="Например: 30% аванс, 40% после согласования, 30% после передачи комплекта">' + E(f.pay_text || "") + "</textarea></div>"
       + '<div class="dbox"><small>Итого</small><b id="kTotal" style="font-size:1.3rem">' + money(total) + "</b>" + (adv ? "<div>Аванс " + money(adv) + ", остаток по акту " + money(total - adv) + "</div>" : "<div>Без аванса, оплата по акту</div>") + "</div>"
       + (f.err ? '<div class="err">' + E(f.err) + "</div>" : "")
       + '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" data-ksave="send">Выставить КП</button><button class="btn ghost" data-ksave="draft">Сохранить черновик</button></div></div>';
@@ -786,7 +789,8 @@
     if (!f.customer_id) { f.err = "Выберите заказчика"; return paint(); }
     var items = f.items.filter(function (i) { return i.on && i.name && +i.price > 0; }).map(function (i) { return { name: i.name, price: +i.price }; });
     if (!items.length) { f.err = "Отметьте хотя бы одну услугу с ценой"; return paint(); }
-    api("/kp", { customer_id: f.customer_id, object: f.object, services: items, pay: f.pay, send: !!send }).then(function () {
+    var payCode = f.pay === "custom" ? ((+f.advpct || 0) <= 0 ? "post100" : "adv" + Math.min(100, Math.round(+f.advpct))) : f.pay;
+    api("/kp", { customer_id: f.customer_id, object: f.object, services: items, pay: payCode, pay_text: f.pay_text || "", send: !!send }).then(function () {
       S.kpf = null; toast(send ? "КП выставлено и добавлено в реестр" : "Черновик сохранён в реестре"); location.hash = "#/kpreg/";
     }, function (er) { f.err = String(er); paint(); });
   }
