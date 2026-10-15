@@ -134,6 +134,8 @@
     ".cm .cf.tile .ti img{width:100%;height:78px;object-fit:cover;border-radius:10px}" +
     ".cm .cf.tile .tn{display:block;width:100%;font-size:.78rem;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
     ".cm .cf.tile .sz{margin:0;font-size:.7rem;color:var(--muted)}" +
+    "#chat-app #chatHead .chat-taskbtn{flex:none;display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 14px;border:0;border-radius:10px;background:linear-gradient(135deg,var(--blue),#1f5c99);color:#fff;font:inherit;font-size:.82rem;font-weight:700;white-space:nowrap;cursor:pointer;box-shadow:0 4px 12px rgba(31,92,153,.25)}" +
+    "#chat-app #chatHead .chat-taskbtn:hover{filter:brightness(1.1)}#chat-app #chatHead .chat-taskbtn span{display:inline;color:#fff}" +
     ".chat-handbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:40px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}" +
     ".chat-handbtn:hover{border-color:var(--blue);color:var(--blue)}" +
     ".ct{padding-left:4px}.ct .udot{width:20px;flex:none;align-self:center;display:grid;place-items:center;cursor:pointer;height:38px}" +
@@ -392,10 +394,16 @@
         (flipOn() ? ' style="border-color:var(--blue);color:var(--blue)"' : "") + ">⇅</button>" : "") +
       '<button class="hbtn" id="chatAv" title="Загрузить фото собеседника">📷</button>' +
       (t.avatar_ts ? '<button class="hbtn" id="chatAvDel" title="Убрать фото">✕</button>' : "") +
+      (myPos() !== "design" && myPos() !== "acc" ? '<button class="chat-taskbtn" id="chatTask" title="Поставить задачу по конвейеру или сотруднику по этому диалогу"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>Задача по конвейеру</span></button>' : "") +
       '<button class="hbtn chat-infobtn" id="chatInfoBtn" title="Заказчик, создание заказчика и КП">Заказчик · КП</button>' +
       '<span class="chat-pill" style="background:' + ci.color + '">' + esc(ci.label) + "</span>" +
       '<input type="file" id="chatAvFile" accept="image/*" hidden>';
     document.getElementById("chatBack").onclick = function () { st.sel = null; renderThreads(); renderThread(); };
+    var tb = document.getElementById("chatTask");
+    if (tb) tb.onclick = function () {
+      if (window.DS && DS.newTask) DS.newTask({ step: "a2", thread_id: t.id, thread_title: t.title || t.peer });
+      else setErr("Раздел задач ещё не загрузился — обновите страницу");
+    };
     var flipBtn = document.getElementById("chatFlip");
     if (flipBtn) flipBtn.onclick = function () { setFlip(!flipOn()); renderThread(false); };
     renderAssign();
@@ -700,12 +708,26 @@
       : api("/api/threads/" + encodeURIComponent(t.id) + "/send", { method: "POST", body: { text: text } });
     job.then(function (r) {
       el.text.value = ""; setErr(""); st.file = null; showFileBar();
+      if (st.draftKp) {                              // КП ушло заказчику: статус «КП отправлено» и дата общения
+        var kid = st.draftKp; st.draftKp = 0;
+        api("/api/ds/kp/" + kid + "/status", { method: "POST", body: { status: "КП отправлено" } }).then(null, function () {});
+      }
       if (r && r.file === false) setErr("В Max файл не передаётся — ушёл только текст. Отправьте файл по почте или в Telegram.");
       return Promise.all([loadMessages(false), loadThreads()]);
     }).then(null, function (e) { setErr(String(e)); }).then(function () {
       st.sending = false; el.send.textContent = "Отправить"; el.send.disabled = !curThread();
     });
   }
+
+  /* КП из панели диалога: текст (и PDF файлом) подставляется в окно ответа — отправляет менеджер сам */
+  window.__chatDraft = function (text, file, kpId) {
+    if (!el.text) return;
+    el.text.value = text || "";
+    st.file = file || null; showFileBar();
+    st.draftKp = kpId || 0;
+    el.text.focus();
+    try { el.text.scrollTop = 0; } catch (e) {}
+  };
 
   /* для «Конструктора КП»: отправить готовое предложение в диалог */
   window.__chatThreads = function () { return st.threads.slice(); };

@@ -390,15 +390,15 @@
     el.innerHTML = head("Мои задачи", "Поставьте себе задачу — приложение напомнит в нужное время", "") + '<div class="wrap"><div id="myBody"></div></div>';
     paintMy();
     myLoad().then(function () { if (cur() === "my") paintMy(); X.badge(); });
-    load(false).then(function () { if (cur() === "my") fillTaskSelect(); }, function () {});
+    (window.DS && DS.ensureOrders ? DS.ensureOrders() : Promise.resolve()).then(function () { if (cur() === "my") fillTaskSelect(); }, function () {});
   }
   function fillTaskSelect() {
-    var sel = $("myTask"); if (!sel || !S.tasks) return;
-    var keep = sel.value;
-    sel.innerHTML = '<option value="">— без привязки —</option>' + S.tasks.filter(isOpen).map(function (t) { return '<option value="' + t.row + '">' + E(t.customer) + " · " + E(t.workType || "") + "</option>"; }).join("");
+    var sel = $("myTask"); if (!sel) return;
+    var keep = sel.value, list = window.DS && DS.orders ? DS.orders() : [];
+    sel.innerHTML = '<option value="">— без привязки —</option>' + list.map(function (o) { return '<option value="' + o.id + '">' + E(o.label) + "</option>"; }).join("");
     if (myPrefill && myPrefill.task) sel.value = String(myPrefill.task); else sel.value = keep;
   }
-  function taskLabel(row) { var t = (S.tasks || []).filter(function (x) { return x.row === +row; })[0]; return t ? t.customer : "Задача"; }
+  function taskLabel(row) { var o = (window.DS && DS.orders ? DS.orders() : []).filter(function (x) { return x.id === +row; })[0]; return o ? o.label : "Задача"; }
 
   function todoHtml(x) {
     var d = pd(x.d), over = d && d < today() && !x.done;
@@ -430,6 +430,7 @@
     body.innerHTML = '<div class="x-two"><div>'
       + '<div class="x-wk" id="myWk">' + wk + "</div>"
       + '<div class="x-panel pad x-qadd" style="margin-bottom:18px"><div class="big"><input type="text" id="myText" placeholder="Что нужно сделать? Например: позвонить заказчику по пропускам" autocomplete="off"><button class="x-btn accent" id="myAdd">' + ic("plus") + "Добавить</button></div>"
+      + '<div style="margin-top:10px"><button class="x-btn ghost" id="myAssign">' + ic("plus") + "Поставить задачу сотруднику…</button></div>"
       + '<div class="x-opts"><div class="x-opt"><label>Дата</label><input type="date" id="myDate"></div><div class="x-opt"><label>Время</label><input type="time" id="myTime"></div>'
       + '<div class="x-opt"><label>Напомнить</label><select id="myBefore">' + BEFORE.map(function (b) { return '<option value="' + b[0] + '">' + b[1] + "</option>"; }).join("") + "</select></div>"
       + '<div class="x-opt"><label>Повтор</label><select id="myRep">' + REPS.map(function (r) { return '<option value="' + r[0] + '">' + r[1] + "</option>"; }).join("") + "</select></div>"
@@ -461,6 +462,7 @@
       tick();
     }
     $("myAdd").onclick = add; $("myText").onkeydown = function (e) { if (e.key === "Enter") add(); };
+    var as_ = $("myAssign"); if (as_) as_.onclick = function () { if (window.DS && DS.newTask) DS.newTask({}); else toast("Раздел задач ещё не загрузился — обновите страницу"); };
     var al = $("myAllow"); if (al) al.onclick = function () { Notification.requestPermission().then(function () { paintMy(); }); };
     var ml = $("myLogin"); if (ml) ml.onclick = function () { MPBC.requireLogin().then(function () { renderMy(); }, function () {}); };
     body.querySelectorAll("#myWk div").forEach(function (b) { b.onclick = function () { mySel = (mySel === b.dataset.d) ? null : b.dataset.d; paintMy(); }; });

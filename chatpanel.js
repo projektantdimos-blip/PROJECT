@@ -84,14 +84,14 @@
     function draw() {
       var k = s.kp, total = k.items.reduce(function (a, i) { return a + (i.on ? (+i.price || 0) : 0); }, 0);
       var pct = k.pay === "adv50" ? 0.5 : k.pay === "adv30" ? 0.3 : 0, adv = Math.round(total * pct);
-      body.innerHTML = '<p class="note">КП для «' + E(s.link.customer.name) + '». Попадёт в реестр КП, а текст уйдёт заказчику в этот диалог.</p>'
+      body.innerHTML = '<p class="note">КП для «' + E(s.link.customer.name) + '». Попадёт в реестр КП, а текст появится в окне ответа: вы проверите его и отправите сами.</p>'
         + '<div class="f"><label>Объект</label><input id="dspObj" value="' + E(k.object) + '"></div>'
         + k.items.map(function (i, idx) { return '<div class="sv ' + (i.on ? "on" : "") + '"><input type="checkbox" data-sv="' + idx + '" ' + (i.on ? "checked" : "") + "><span>" + E(i.name) + '</span><input type="number" min="0" data-sp="' + idx + '" value="' + (+i.price || 0) + '"></div>'; }).join("")
         + '<div class="f" style="margin-top:8px"><label>Оплата</label><select id="dspPay">' + [["adv50", "Аванс 50%, остаток по акту"], ["adv30", "Аванс 30%, остаток по акту"], ["post100", "100% по акту"]].map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === k.pay ? " selected" : "") + ">" + x[1] + "</option>"; }).join("") + "</select></div>"
         + '<div class="tot"><b id="dspTot">' + money(total) + "</b>" + (adv ? "<div>Аванс " + money(adv) + ", остаток " + money(total - adv) + "</div>" : "<div>Без аванса, оплата по акту</div>") + "</div>"
         + '<label class="note" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="dspPdf" ' + (k.pdf === false ? "" : "checked") + '> Приложить КП файлом PDF (Telegram и почта; в MAX уйдёт текст)</label>'
         + (s.err ? '<div class="err">' + E(s.err) + "</div>" : "")
-        + '<button class="x-btn primary" id="dspSend" style="width:100%;justify-content:center"' + (s.busy ? " disabled" : "") + ">Выставить КП и отправить в диалог</button>";
+        + '<button class="x-btn primary" id="dspSend" style="width:100%;justify-content:center"' + (s.busy ? " disabled" : "") + ">Подготовить КП и вставить в окно ответа</button>";
       $("dspPdf").onchange = function () { k.pdf = this.checked; };
       $("dspObj").oninput = function () { k.object = this.value; };
       $("dspPay").onchange = function () { k.pay = this.value; draw(); };
@@ -103,23 +103,15 @@
       var k = s.kp, items = k.items.filter(function (i) { return i.on && +i.price > 0; }).map(function (i) { return { name: i.name, price: +i.price }; });
       if (!items.length) { s.err = "Отметьте хотя бы одну услугу с ценой"; return draw(); }
       s.busy = true; s.err = ""; draw();
-      api("/threads/" + encodeURIComponent(t.id) + "/kp", { object: k.object, services: items, pay: k.pay }).then(function (r) {
-        var sendIt = (s.kp.pdf === false) ? C().call("/../threads/" + encodeURIComponent(t.id) + "/send", { body: { text: r.text } })
-          : C().blob("/ds/kp/" + r.id + "/doc?kind=kp&fmt=pdf").then(function (f) {
-            return new Promise(function (ok, bad) {
-              var rd = new FileReader();
-              rd.onload = function () { ok({ name: f.name, data: String(rd.result).split(",")[1] }); };
-              rd.onerror = function () { bad("Не удалось прочитать файл"); };
-              rd.readAsDataURL(f.blob);
-            });
-          }).then(function (f) {
-            return C().call("/../threads/" + encodeURIComponent(t.id) + "/send-file", { body: { text: r.text, filename: f.name, mime: "application/pdf", data: f.data } });
-          });
-        return sendIt.then(function () {
-          s.busy = false; s.kp = null; s.tab = "c"; toast("КП " + r.number + " выставлено и отправлено заказчику");
-          if (window.MPBT && MPBT.refreshThread) MPBT.refreshThread(t.id);
+      api("/threads/" + encodeURIComponent(t.id) + "/kp", { object: k.object, services: items, pay: k.pay, send: false }).then(function (r) {
+        var withPdf = s.kp.pdf !== false;
+        var fileP = withPdf ? C().blob("/ds/kp/" + r.id + "/doc?kind=kp&fmt=pdf").then(function (f) { return new File([f.blob], f.name, { type: "application/pdf" }); }, function () { return null; }) : Promise.resolve(null);
+        return fileP.then(function (file) {
+          s.busy = false; s.kp = null; s.tab = "c";
+          if (window.__chatDraft) window.__chatDraft(r.text, file, r.id);
+          toast("КП " + r.number + " готово: проверьте текст в окне ответа и нажмите «Отправить»");
           again(box, t, name);
-        }, function (e) { s.busy = false; s.err = "КП " + r.number + " записано в реестр, но не отправлено: " + e; s.kp = null; draw(); });
+        });
       }, function (e) { s.busy = false; s.err = String(e); draw(); });
     }
     if (s.kp) { draw(); return; }

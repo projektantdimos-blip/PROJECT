@@ -341,3 +341,33 @@
 /* заполненность карточки заказчика */
 .ds .fillbar{width:92px;height:6px;border-radius:4px;background:var(--line);margin:6px 0 2px auto;overflow:hidden}
 .ds .fillbar i{display:block;height:100%}
+
+/* реестр КП: одна строка на КП, «удалить» у правого края */
+.ds .kpt{table-layout:auto}
+.ds .kpt td,.ds .kpt th{padding:5px 9px;white-space:nowrap;vertical-align:middle}
+.ds .kpt td.ell{max-width:300px;overflow:hidden;text-overflow:ellipsis}
+.ds .kpt td.ell small{color:var(--muted)}
+.ds .kpt .btn.sm{height:28px;padding:0 9px;font-size:.78rem}
+.ds .kpt td.kpd{width:1%;text-align:right}
+.ds .kpt .kpx{color:var(--bad);width:30px;padding:0}
+/* «Обзор»: задача — одна строка, комментарии раскрываются в строке */
+.ds .ovlist{display:flex;flex-direction:column;gap:6px}
+.ds .ovr{background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.ds .ovr.open{border-color:var(--brand-2,var(--brand))}
+.ds .ovl{display:flex;align-items:center;gap:10px;padding:7px 12px;min-height:44px;white-space:nowrap;overflow:hidden}
+.ds .ovl.urg{box-shadow:inset 3px 0 0 var(--bad)}
+.ds .ovl .num{font-weight:800;color:var(--brand);flex:none}
+.ds .ovl .cu{flex:0 1 190px;min-width:90px;font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.ds .ovl .ob{flex:0 1 220px;min-width:80px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.ds .ovl .ex{flex:none;color:var(--muted);font-size:.85rem}
+.ds .ovl .lc{flex:1 1 120px;min-width:60px;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:.84rem}
+.ds .ovl .lc b{color:var(--ink)}
+.ds .ovl .pill{flex:none}
+.ds .ovl .cmb{flex:none;border:1px solid var(--line);background:var(--surface-2,var(--surface));border-radius:10px;padding:4px 10px;cursor:pointer;font-weight:700;color:var(--muted)}
+.ds .ovl .cmb.on,.ds .ovl .cmb:hover{border-color:var(--brand);color:var(--brand)}
+.ds .ovc{padding:4px 14px 12px;border-top:1px solid var(--line)}
+.ds .ovc-i{padding:7px 0;border-bottom:1px dashed var(--line);font-size:.9rem}
+.ds .ovc-i b{color:var(--brand)}.ds .ovc-i small{color:var(--muted)}.ds .ovc-i div{white-space:pre-wrap;overflow-wrap:anywhere}
+.ds .ovc-f{display:flex;gap:8px;align-items:flex-end;margin-top:10px}
+.ds .ovc-f textarea{flex:1;resize:vertical;min-height:40px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface);color:var(--ink);font:inherit}
+@media(max-width:760px){.ds .ovl{flex-wrap:wrap;white-space:normal}.ds .ovl .cu,.ds .ovl .ob{flex:1 1 40%}}
