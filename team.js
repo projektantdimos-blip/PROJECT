@@ -66,7 +66,7 @@
   var ROOM_IC = { general: "hash", buy: "wallet", calc: "calc", kp: "file" };
 
   function renderTeam() {
-    var el = $("team-app"), sub = "Внутренние чаты: общий, проектный, операционный отделы, отдел продаж и отдельный диалог по каждой задаче";
+    var el = $("team-app"), sub = "";
     if (!gate(el, "Команда", sub, renderTeam)) { stopTimer(); return; }
     var q = /[?&]room=([^&]+)/.exec(location.hash); if (q) S.cur = decodeURIComponent(q[1]);
     var isOwner = C.me && (C.me.position === "owner" || C.me.role === "admin");
@@ -111,7 +111,7 @@
   }
   function roomItem(r) {
     var hasU = r.urgent_open > 0, last = r.last;
-    return '<div class="x-dlg ' + (r.id === S.cur ? "on" : "") + '" data-r="' + E(r.id) + '">' + roomIcon(r) + '<div class="m"><b>' + E(r.name) + (hasU ? '<span class="x-flame">' + ic("flame") + "</span>" : "") + "</b><span>" + (last ? E(last.user) + ": " + E(last.text) : E(r.descr)) + '</span></div><div class="tm">' + (last ? when(last.ts) : "") + "<br>" + (r.unread ? '<span class="x-un ' + (hasU ? "red" : "") + '">' + r.unread + "</span>" : "") + "</div></div>";
+    return '<div class="x-dlg ' + (r.id === S.cur ? "on" : "") + '" data-r="' + E(r.id) + '">' + roomIcon(r) + '<div class="m"><b>' + E(r.name) + (hasU ? '<span class="x-flame">' + ic("flame") + "</span>" : "") + "</b><span>" + (last ? E(last.user) + ": " + E(last.text) : "") + '</span></div><div class="tm">' + (last ? when(last.ts) : "") + "<br>" + (r.unread ? '<span class="x-un ' + (hasU ? "red" : "") + '">' + r.unread + "</span>" : "") + "</div></div>";
   }
   function paintRooms() {
     var el = $("tRooms"); if (!el) return;
@@ -154,7 +154,7 @@
     var prevDay = "", body = S.msgs.map(function (m) { var d = dayLabel(m.ts), h = (d !== prevDay ? '<span class="x-day">' + d + "</span>" : "") + msgHtml(m); prevDay = d; return h; }).join("");
     var wasBottom = true, old = el.querySelector(".x-msgs"), val = $("tIn") ? $("tIn").value : "";
     if (old && keep) wasBottom = old.scrollHeight - old.scrollTop - old.clientHeight < 80;
-    el.innerHTML = '<div class="x-th-h"><button class="x-btn ghost x-back" data-back="1" style="padding:6px 10px">←</button>' + roomIcon(room) + "<div><b>" + E(room.name) + "</b><small>" + E(room.descr) + "</small></div>"
+    el.innerHTML = '<div class="x-th-h"><button class="x-btn ghost x-back" data-back="1" style="padding:6px 10px">←</button>' + roomIcon(room) + "<div><b>" + E(room.name) + "</b></div>"
       + (room.kind === "task" && room.task_row ? '<a class="x-btn ghost" style="margin-left:auto;padding:7px 12px" href="#/task/' + room.task_row + '">Открыть задачу</a>' : "") + "</div>"
       + (pin ? '<div class="x-pinned">' + ic("flame") + "<span>Срочное: " + E(pin.text) + "</span></div>" : "")
       + '<div class="x-msgs">' + (body || '<span class="x-day">Здесь пока пусто — напишите первое сообщение</span>') + "</div>"
@@ -244,7 +244,7 @@
   function paintInfo() {
     var el = $("tInfo"); if (!el) return;
     var room = S.rooms.filter(function (r) { return r.id === S.cur; })[0], urgs = S.msgs.filter(function (m) { return m.urgent; });
-    el.innerHTML = (room && room.kind === "task" ? '<div><h6>Задача</h6><a class="x-linkcard" href="#/task/' + room.task_row + '"><span class="x-rm task">' + ic("tasks") + "</span><span><b>" + E(room.name) + "</b><small>Открыть карточку задачи</small></span></a></div>" : '<div><h6>' + (room && room.kind === "dm" ? "Личная переписка" : "О канале") + '</h6><p style="font-size:.86rem;color:var(--muted);margin:0">' + E(room ? room.descr : "") + "</p></div>")
+    el.innerHTML = (room && room.kind === "task" ? '<div><h6>Задача</h6><a class="x-linkcard" href="#/task/' + room.task_row + '"><span class="x-rm task">' + ic("tasks") + "</span><span><b>" + E(room.name) + "</b><small>Открыть карточку задачи</small></span></a></div>" : '<div><h6>' + (room && room.kind === "dm" ? "Личная переписка" : "О канале") + '</h6></div>')
       + "<div><h6>" + (room && room.kind === "dm" ? "Участники" : "Сотрудники") + "</h6>" + ((room && room.kind === "dm" ? [C.me && C.me.name, room.name].filter(Boolean) : S.users).map(function (n) { return '<div class="x-member">' + ava(n, "sm") + E(n) + (C.me && n === C.me.name ? '<small style="margin-left:auto;color:var(--muted)">вы</small>' : "") + "</div>"; }).join("") || '<p class="x-empty" style="padding:6px">—</p>') + "</div>"
       + (room && room.kind === "chan" && room.id !== "general" && C.me && (C.me.position === "owner" || C.me.role === "admin") ? '<div id="tAccess"><h6>Кто видит канал</h6><p style="font-size:.84rem;color:var(--muted);margin:0">Загрузка…</p></div>' : "")
       + "<div><h6>Срочные в этом чате</h6>" + (urgs.slice(-4).map(function (m) { return '<div class="x-linkcard" style="background:var(--bad-l);border-color:transparent;color:var(--bad)">' + ic("flame") + "<span><b>" + E(m.user) + '</b><small style="color:inherit;opacity:.8">' + E(m.text.slice(0, 80)) + "</small></span></div>"; }).join("") || '<p style="font-size:.84rem;color:var(--muted);margin:0">Пока нет</p>') + "</div>";

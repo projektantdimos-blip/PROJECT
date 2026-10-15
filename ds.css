@@ -401,3 +401,18 @@
 .ds .sc-i small{display:block;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ds .sc-i.on,.ds .sc-i:hover{background:var(--brand-soft);border-color:var(--brand)}
 @media(max-width:800px){.ds .sc-wrap{grid-template-columns:1fr}}
+
+/* карточки внутри колонок не шире колонки; номера и суммы не переносятся и не выходят за рамку */
+.ds .col>.task{margin:0 10px 10px;width:calc(100% - 20px)}
+.ds .task .body{min-width:0;flex:1}
+.ds .task .r1{flex-wrap:wrap;gap:2px 10px;align-items:baseline}
+.ds .task .num{white-space:nowrap}
+.ds .task .r1>span:not(.num):not(.fl){min-width:0;overflow-wrap:anywhere}
+.ds .task .fl{margin-left:auto;white-space:nowrap}
+.ds .task .ttl,.ds .task .con{overflow-wrap:anywhere}
+.ds .task[data-open],.ds .task[data-chatopen]{cursor:pointer}
+.ds .task[data-open]:hover,.ds .task[data-chatopen]:hover{border-color:var(--brand)}
+/* боковое меню: крупные яркие заголовки групп, больше воздуха между блоками */
+#topnav .nav-label{font-size:.84rem!important;font-weight:800!important;letter-spacing:1.5px!important;color:#9fd0ff!important;padding:22px 12px 9px!important;margin-top:8px;border-top:1px solid rgba(255,255,255,.14)}
+#topnav .nav-label:first-child{border-top:0;margin-top:0;padding-top:8px!important}
+#topnav>button,#topnav .sub button{margin:2px 0}

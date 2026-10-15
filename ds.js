@@ -129,7 +129,8 @@
     if (t.state !== "work") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':work">В работу</button>');
     if (t.state !== "wait") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':wait">Ждём ответа</button>');
     btns.push('<button class="btn ok sm" data-tstate="' + t.id + ':done">Выполнено</button>');
-    return '<div class="task"><span class="stripe" style="--c:' + (tn === "bad" ? "var(--bad)" : tn === "warn" ? "var(--accent)" : "var(--org)") + '"></span><span class="body">'
+    var openAttr = t.order_id ? ' data-open="' + t.order_id + '" title="Открыть карточку задачи"' : (t.thread_id ? ' data-chatopen="' + E(t.thread_id) + '" title="Открыть диалог"' : "");
+    return '<div class="task"' + openAttr + '><span class="stripe" style="--c:' + (tn === "bad" ? "var(--bad)" : tn === "warn" ? "var(--accent)" : "var(--org)") + '"></span><span class="body">'
       + '<span class="r1">' + (t.order_id ? '<button class="num" style="color:var(--org);font-size:1.1rem" data-open="' + t.order_id + '">№' + E(t.order_number) + "</button>" : '<span class="num" style="color:var(--org);font-size:1.1rem">' + E(kindName) + "</span>")
       + "<span>" + E(t.assignee || "") + "</span></span>"
       + '<span class="ttl" style="display:block">' + E(t.title.replace(/:\s*№.*$/, "")) + "</span>"
@@ -213,8 +214,7 @@
     var f = S.ov, q = (f.q || "").toLowerCase();
     var tabs = orgOk ? '<div class="seg">' + [["p", "Проектные"], ["o", "Организационные"]].map(function (x) { return '<button data-kb="' + x[0] + '" class="' + (type === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>" : "";
     var views = '<div class="seg">' + [["k", "Канбан"], ["l", "Список"]].map(function (x) { return '<button data-view="' + x[0] + '" class="' + (view === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>";
-    var btns = '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn ghost" data-ntopen="1">' + ic("plus") + "Поставить задачу</button>"
-      + ((p === "owner" || p === "sales" || p === "ops") ? '<button class="btn accent" data-new="1">' + ic("plus") + "Новая проектная задача</button>" : "") + "</div>";
+    var btns = '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn accent" data-ntopen="1">' + ic("plus") + "Новая задача</button></div>";
     var head = '<div class="head"><div><h1>Задачи</h1><p>' + (type === "p" ? "Проекты по стадиям: нажмите на номер, чтобы открыть окно задачи" : "Продажи, операционный менеджер и бухгалтерия — одной цепочкой от обращения до закрытия") + "</p></div>" + btns + "</div>"
       + '<div class="tb">' + tabs + '<span class="grow"></span><span class="vlab">Вид</span>' + views + "</div>";
     var search = '<div class="tools"><label class="search" style="flex:1;display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:10px 14px"><input id="dsQ" style="border:0;background:transparent;outline:0;width:100%" placeholder="' + (type === "p" ? "Номер, заказчик, объект, исполнитель…" : "Название, заказчик, исполнитель…") + '" value="' + E(f.q) + '"></label></div>';
@@ -474,7 +474,7 @@
     var users = S.assignable || [], ords = (S.orders || []).filter(function (o) { return DONE_ST.indexOf(o.stage) < 0 || o.id === +n.order; });
     var POSN = { owner: "Руководитель", design: "Руководитель проектного отдела", sales: "Отдел продаж", ops: "Операционный менеджер", acc: "Бухгалтер", designer: "Проектировщик" };
     return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:16px"><div class="modal" style="width:min(560px,100%);height:auto;max-height:92vh;border-radius:20px">'
-      + '<div class="m-head"><div class="row"><div><h2 style="font-size:1.2rem">Поставить задачу</h2>'
+      + '<div class="m-head"><div class="row"><div><h2 style="font-size:1.2rem">Новая задача</h2>'
       + (n.thread ? '<div style="color:var(--muted);font-size:.86rem">Привязана к диалогу: ' + E(n.thread_title || n.thread) + "</div>" : "") + '</div><button class="x" data-close="1">✕</button></div></div><div class="m-body">'
       + '<div class="fld"><label>Что это</label><select data-nt="step" ' + fld + ">" + NT_STEPS.map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === n.step ? " selected" : "") + ">" + E(s[1]) + "</option>"; }).join("") + "</select></div>"
       + '<div class="fld"><label>Кому</label><select data-nt="assignee" ' + fld + '><option value="0">' + (n.step ? "— по этапу: " + NT_ROLE[n.step] + " —" : "— мне —") + "</option>"
@@ -485,7 +485,7 @@
       + ords.map(function (o) { return '<option value="' + o.id + '"' + (o.id === +n.order ? " selected" : "") + ">№" + E(o.number) + " · " + E(o.customer || "") + " · " + E((o.object || "").slice(0, 40)) + "</option>"; }).join("") + "</select></div></div>"
       + '<div class="fld"><label>Комментарий</label><textarea rows="3" data-nt="note" ' + fld + ">" + E(n.note) + "</textarea></div>"
       + (n.err ? '<div class="err">' + E(n.err) + "</div>" : "")
-      + '<button class="btn primary block" data-ntsave="1">Поставить задачу</button></div></div></div>';
+      + '<button class="btn primary block" data-ntsave="1">Создать задачу</button></div></div></div>';
   }
   function ntField(el) { var k = el.dataset.nt; if (k && S.nt) S.nt[k] = el.value; }
   function ntOpen(opts) {
@@ -1612,7 +1612,7 @@
       S.sc = (S.sc || []).filter(function (x) { return x.id !== S.scSel; }); S.scSel = S.sc.length ? S.sc[0].id : "";
       return saveScripts();
     }
-    if (d.ntopen != null && t.hasAttribute("data-ntopen")) return ntOpen({});
+    if (d.ntopen != null && t.hasAttribute("data-ntopen")) return ntOpen({ step: "a1" });
     if (d.ntsave != null && t.hasAttribute("data-ntsave")) return ntSave();
     if (d.lead) {
       var lp = d.lead.split(":");

@@ -139,6 +139,8 @@
     "#chatComposer textarea{max-height:340px;overflow-y:auto;transition:height .08s}" +
     ".chat-handbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:40px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}" +
     ".chat-handbtn:hover{border-color:var(--blue);color:var(--blue)}" +
+    ".ct .rowmenu{flex:none;width:28px;height:24px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:0;font-weight:800}" +
+    ".ct .rowmenu:hover{border-color:var(--blue);color:var(--blue)}" +
     ".mlogo{width:22px;height:22px;border-radius:50%;flex:none;align-self:center;display:grid;place-items:center;margin-right:2px}" +
     ".mlogo.tg{background:#2b8ac6}.mlogo.max{background:#7a55a8}.mlogo.mail{background:#ee9264}" +
     ".ct .un{cursor:pointer;background:#ee9264;color:#3d1b08}.ct .un:hover{filter:brightness(.92)}" +
@@ -380,7 +382,7 @@
         '<span class="mlogo ' + esc(t.channel) + '" title="' + esc(ci.label) + '">' + chLogo(t.channel) + "</span>" +
         '<div class="ava" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div>" +
         '<div class="mid"><div class="r1"><span class="nm">' + esc(t.title || t.peer) + '</span><span class="tm">' + fmtTime(t.last_ts) + "</span></div>" +
-        '<div class="r2"><span class="pv">' + esc(t.last_text) + "</span>" + assignPill(t) + (t.unread ? '<span class="un" title="Закрыть: отметить прочитанным">' + t.unread + " ✕</span>" : "") + "</div></div></div>";
+        '<div class="r2"><span class="pv">' + esc(t.last_text) + "</span>" + assignPill(t) + (t.unread ? '<span class="un" title="Закрыть: отметить прочитанным">' + t.unread + " ✕</span>" : "") + '<button class="rowmenu" type="button" title="Действия с диалогом" aria-label="Действия с диалогом">⋯</button></div></div></div>';
     }).join("");
     Array.prototype.forEach.call(el.threads.querySelectorAll(".ct"), function (d) {
       d.onclick = function () { openThread(d.getAttribute("data-id")); };
@@ -395,7 +397,40 @@
         api("/api/threads/" + encodeURIComponent(id) + "/read", { method: "POST" }).then(null, function () { th.unread = was; renderThreads(); applyBadge(); });
       };
     });
+    Array.prototype.forEach.call(el.threads.querySelectorAll(".rowmenu"), function (btn) {
+      btn.onclick = function (e) {
+        e.stopPropagation();
+        var id = btn.closest(".ct").getAttribute("data-id"), th = st.threads.filter(function (x) { return x.id === id; })[0];
+        if (th) rowMenu(btn, th);
+      };
+    });
     el.threads.scrollTop = keep;
+  }
+  function rowMenu(anchor, th) {
+    var old = document.getElementById("rowMenuPop"); if (old) old.remove();
+    var pop = document.createElement("div"); pop.id = "rowMenuPop";
+    var r = anchor.getBoundingClientRect();
+    pop.style.cssText = "position:fixed;z-index:420;min-width:230px;background:var(--card,#fff);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.25);padding:6px;top:" + Math.min(r.bottom + 4, innerHeight - 190) + "px;left:" + Math.max(8, Math.min(r.left - 190, innerWidth - 246)) + "px";
+    var items = [[th.unread ? "Пометить прочитанным" : "Пометить непрочитанным", "read"]];
+    if (myPos() !== "design" && myPos() !== "acc") { items.push(["＋ Задача по конвейеру…", "task"]); items.push(["Передать специалисту…", "hand"]); }
+    pop.innerHTML = items.map(function (x, i) { return '<button type="button" data-a="' + x[1] + '" style="display:block;width:100%;text-align:left;padding:9px 12px;border:0;background:none;border-radius:8px;cursor:pointer;font:inherit;color:inherit">' + esc(x[0]) + "</button>"; }).join("");
+    document.body.appendChild(pop);
+    var close = function () { pop.remove(); document.removeEventListener("click", away, true); };
+    var away = function (e) { if (!pop.contains(e.target)) close(); };
+    setTimeout(function () { document.addEventListener("click", away, true); }, 0);
+    Array.prototype.forEach.call(pop.querySelectorAll("button"), function (b) {
+      b.onmouseover = function () { b.style.background = "var(--bg)"; };
+      b.onmouseout = function () { b.style.background = "none"; };
+      b.onclick = function () {
+        var a = b.getAttribute("data-a"); close();
+        if (a === "read") {
+          var was = th.unread; th.unread = was ? 0 : 1; renderThreads(); applyBadge();
+          api("/api/threads/" + encodeURIComponent(th.id) + (was ? "/read" : "/unread"), { method: "POST" }).then(null, function () { th.unread = was; renderThreads(); applyBadge(); });
+        } else if (a === "task") {
+          if (window.DS && DS.newTask) DS.newTask({ step: "a2", thread_id: th.id, thread_title: th.title || th.peer }); else setErr("Раздел задач ещё не загрузился — обновите страницу");
+        } else if (a === "hand") handoffDialog(th);
+      };
+    });
   }
 
   /* режим «перевернуть письма»: блоки текста (разделённые пустой строкой) идут в обратном порядке */
@@ -433,8 +468,6 @@
         (flipOn() ? ' style="border-color:var(--blue);color:var(--blue)"' : "") + ">⇅</button>" : "") +
       '<button class="hbtn" id="chatAv" title="Загрузить фото собеседника">📷</button>' +
       (t.avatar_ts ? '<button class="hbtn" id="chatAvDel" title="Убрать фото">✕</button>' : "") +
-      (myPos() !== "design" && myPos() !== "acc" ? '<button class="chat-taskbtn" id="chatTask" title="Поставить задачу по конвейеру или сотруднику по этому диалогу"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>Задача по конвейеру</span></button>' : "") +
-      '<button class="hbtn" id="chatUnread" title="Пометить диалог непрочитанным" aria-label="Пометить непрочитанным">●</button>' +
       '<button class="hbtn chat-infobtn" id="chatInfoBtn" title="Заказчик, создание заказчика и КП">Заказчик · КП</button>' +
       '<span class="chat-pill" style="background:' + ci.color + '">' + esc(ci.label) + "</span>" +
       '<input type="file" id="chatAvFile" accept="image/*" hidden>';
