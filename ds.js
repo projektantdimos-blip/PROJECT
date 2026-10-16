@@ -50,7 +50,7 @@
       var p = r[0].position;
       var extra = [];
       if (r[0].can.customers && S.customers == null) extra.push(api("/customers").then(function (c) { S.customers = c; }, function () { S.customers = []; }));
-      if ((p === "owner" || p === "design") && S.people == null) extra.push(api("/people").then(function (x) { S.people = x; }, function () { S.people = []; }));
+      if ((p === "owner" || p === "design" || p === "ops") && S.people == null) extra.push(api("/people").then(function (x) { S.people = x; }, function () { S.people = []; }));
       return Promise.all(extra);
     });
   }
@@ -104,7 +104,7 @@
   }
   function card(o, withStage) {
     var stage = o.stage, money_ = can("money") && o.amount != null;
-    return '<button class="task ' + (o.urgent ? "urgent" : "") + '" data-open="' + o.id + '"><span class="stripe" style="--c:' + (o.urgent || (o.left_days != null && o.left_days < 0) ? "var(--bad)" : (STAGE_COLOR[stage] || "var(--brand)")) + '"></span><span class="body">'
+    return '<button class="task ' + (o.urgent ? "urgent" : "") + '" data-open="' + o.id + '"' + (fullCtl() ? ' draggable="true" data-dragid="' + o.id + '"' : "") + '><span class="stripe" style="--c:' + (o.urgent || (o.left_days != null && o.left_days < 0) ? "var(--bad)" : (STAGE_COLOR[stage] || "var(--brand)")) + '"></span><span class="body">'
       + '<span class="r1"><span class="num">№' + E(o.number) + "</span><span>" + E(o.customer || "") + '</span><span class="fl">' + (o.urgent ? '<span class="pill urg">⚡ Срочно</span>' : "") + "</span></span>"
       + '<span class="ttl" style="display:block">' + E(o.object) + "</span>"
       + (o.system ? '<span class="con" style="display:block;color:var(--brand);font-weight:600">' + E(o.system) + "</span>" : "")
@@ -129,6 +129,7 @@
     if (t.state !== "work") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':work">В работу</button>');
     if (t.state !== "wait") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':wait">Ждём ответа</button>');
     btns.push('<button class="btn ok sm" data-tstate="' + t.id + ':done">Выполнено</button>');
+    if (fullCtl() || (t.author_id && C && C.me && t.author_id === C.me.id)) btns.push('<button class="btn ghost sm" data-tedit="' + t.id + '" title="Править задачу">✎</button><button class="btn ghost sm" data-tdel="' + t.id + '" title="Удалить задачу" style="color:var(--bad)">🗑</button>');
     var openAttr = t.order_id ? ' data-open="' + t.order_id + '" title="Открыть карточку задачи"' : (t.thread_id ? ' data-chatopen="' + E(t.thread_id) + '" title="Открыть диалог"' : "");
     return '<div class="task"' + openAttr + '><span class="stripe" style="--c:' + (tn === "bad" ? "var(--bad)" : tn === "warn" ? "var(--accent)" : "var(--org)") + '"></span><span class="body">'
       + '<span class="r1">' + (t.order_id ? '<button class="num" style="color:var(--org);font-size:1.1rem" data-open="' + t.order_id + '">№' + E(t.order_number) + "</button>" : '<span class="num" style="color:var(--org);font-size:1.1rem">' + E(kindName) + "</span>")
@@ -204,6 +205,7 @@
     var acts = "";
     if (u.step === "a1" || u.step === "a2") acts += '<button class="cmb" data-lead="' + u.id + ':skip" title="Задача не требуется">Не требуется</button><button class="cmb on" data-lead="' + u.id + ':next">Дальше →</button>';
     acts += '<button class="cmb" data-tstate="' + u.id + ':done" title="Выполнено">✓</button>';
+    if (fullCtl()) acts += '<button class="cmb" data-tedit="' + u.id + '" title="Править">✎</button><button class="cmb" data-tdel="' + u.id + '" title="Удалить" style="color:var(--bad)">🗑</button>';
     return '<div class="ovr"><div class="ovl"><span class="num">' + (u.order_number ? "№" + E(u.order_number) : "—") + '</span><span class="cu" title="' + E(u.title) + '">' + E((u.title || "").replace(/:\s*№.*$/, "")) + '</span><span class="ob">' + E(u.object || u.note || "") + "</span>"
       + '<span class="ex">' + E(u.assignee || "") + '</span><span class="pill ' + tn + '">' + (u.due ? "до " + dmy(u.due).slice(0, 5) + " · " : "") + E(leftText(u.left_days)) + '</span><span class="lc">' + (u.author ? "от " + E(u.author) : "") + "</span>" + acts + "</div></div>";
   }
@@ -276,9 +278,9 @@
       var empty = st.filter(function (s) { return filled.indexOf(s) < 0; });
       body = '<div class="board">' + filled.map(function (s) {
         var items = list.filter(function (o) { return o.stage === s; });
-        return '<div class="col"><div class="col-h cl" style="--c:' + (STAGE_COLOR[s] || "#888") + '"><b>' + E(s) + '</b><span class="n">' + items.length + "</span></div>" + items.map(function (o) { return card(o); }).join("") + "</div>";
+        return '<div class="col" data-dropstage="' + E(s) + '"><div class="col-h cl" style="--c:' + (STAGE_COLOR[s] || "#888") + '"><b>' + E(s) + '</b><span class="n">' + items.length + "</span></div>" + items.map(function (o) { return card(o); }).join("") + "</div>";
       }).join("") + "</div>" + (!filled.length ? '<div class="note">Ничего не найдено</div>' : "")
-        + (empty.length ? '<div class="empty-stages"><span>Пустые этапы:</span>' + empty.map(function (s) { return '<span class="pill muted"><i class="dot" style="background:' + (STAGE_COLOR[s] || "#999") + '"></i>' + E(s) + "</span>"; }).join("") + "</div>" : "");
+        + (empty.length ? '<div class="empty-stages"><span>Пустые этапы:</span>' + empty.map(function (s) { return '<span class="pill muted" data-dropstage="' + E(s) + '"><i class="dot" style="background:' + (STAGE_COLOR[s] || "#999") + '"></i>' + E(s) + "</span>"; }).join("") + "</div>" : "");
     }
     return '<div class="ds dspage">' + head + tiles(T.map(function (x) { return [x[0], x[1], x[2], cn[x[0]]]; })) + search + chips + body + "</div>";
   }
@@ -414,7 +416,8 @@
     var tabs = [["info", "Информация"]];
     if (["owner", "ops", "sales", "design"].indexOf(p) >= 0) tabs.push(["tz", "Тех. задание"]);
     tabs.push(["log", "История"]);
-    var body = S.tab === "log" ? logTab() : S.tab === "tz" ? tzTab() : infoTab(o);
+    if (fullCtl()) tabs.push(["edit", "Правка"]);
+    var body = S.tab === "log" ? logTab() : S.tab === "tz" ? tzTab() : S.tab === "edit" && fullCtl() ? editTab(o) : infoTab(o);
     var money_ = can("money") && o.amount != null;
     return '<div class="modal-bg" data-bg="1"><div class="modal"><div class="m-head"><div class="row"><h2>№' + E(o.number) + (o.customer ? " · " + E(o.customer) : "") + "</h2>"
       + (o.urgent ? '<span class="pill urg">⚡ Срочно</span>' : "") + (money_ ? (o.post_paid ? '<span class="pill ok">₽ Оплачено</span>' : '<span class="pill warn">₽ Не оплачено</span>') : "")
@@ -457,6 +460,7 @@
     if (q) { var qe = document.getElementById("dsQ"); if (qe) { qe.focus(); qe.setSelectionRange(qe.value.length, qe.value.length); } }
     var m = modalRoot();
     if (S.nt) { m.innerHTML = ntHtml(); return; }
+    if (S.te) { m.innerHTML = teHtml(); return; }
     if (S.form) { m.innerHTML = formHtml(); return; }
     if (S.edit) { m.innerHTML = planHtml(); return; }
     var o = S.open ? find(S.open) : null;
@@ -509,6 +513,79 @@
   DS.newTask = ntOpen;
   DS.orders = function () { return (S.orders || []).map(function (o) { return { id: o.id, label: "№" + o.number + " · " + (o.customer || "") + " · " + (o.object || "") }; }); };
   DS.ensureOrders = function () { return S.orders == null && C && C.loggedIn() ? load().then(null, function () {}) : Promise.resolve(); };
+
+  /* ---------- полный контроль руководителя и операционного менеджера: правка и удаление ---------- */
+  function fullCtl() { var p = pos(); return p === "owner" || p === "ops"; }
+  var OE_FIELD = 'style="width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface);color:var(--ink);font:inherit"';
+  function oeInp(label, key, type, extra) {
+    var v = S.oe[key]; if (v == null) v = "";
+    return '<div class="fld"><label>' + label + '</label><input ' + (type ? 'type="' + type + '" ' : "") + 'data-oe="' + key + '" value="' + E(v) + '" ' + OE_FIELD + (extra || "") + "></div>";
+  }
+  function oeChk(label, key) { return '<label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" data-oech="' + key + '"' + (S.oe[key] ? " checked" : "") + "> " + label + "</label>"; }
+  function editTab(o) {
+    if (!S.oe || S.oe.id !== o.id) S.oe = JSON.parse(JSON.stringify(o));
+    var stages = (S.meta && S.meta.stages) || [], people = (S.people || []);
+    var money_ = can("money");
+    var h = '<div class="panel pad"><h3>Правка задачи</h3><p class="sub">Руководитель и операционный менеджер могут менять любые поля. Изменение стадии пересоздаёт служебные задачи этапа.</p>'
+      + '<div class="g2f">' + oeInp("Номер задачи", "number") + '<div class="fld"><label>Заказчик</label><input data-oe="customer" list="dsCust" value="' + E(S.oe.customer || "") + '" ' + OE_FIELD + "></div></div>"
+      + '<datalist id="dsCust">' + (S.customers || []).map(function (c) { return '<option value="' + E(c.name) + '">'; }).join("") + "</datalist>"
+      + oeInp("Объект", "object") + oeInp("Проектируемая система", "system")
+      + '<div class="g2f"><div class="fld"><label>Стадия</label><select data-oe="stage" ' + OE_FIELD + ">" + stages.map(function (s) { return '<option' + (s === S.oe.stage ? " selected" : "") + ">" + E(s) + "</option>"; }).join("") + "</select></div>"
+      + '<div class="fld"><label>Исполнитель</label><select data-oe="executor_id" ' + OE_FIELD + '><option value="0">— не назначен —</option>' + people.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +S.oe.executor_id ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div></div>"
+      + '<div class="g2f">' + oeInp("Дата постановки", "start_date", "date") + oeInp("Срок по договору", "due_date", "date") + "</div>"
+      + '<div class="g2f">' + oeInp("Начало работ (план)", "plan_start", "date") + oeInp("Срок сдачи (план)", "plan_end", "date") + "</div>"
+      + '<div class="g2f"><div class="fld"><label>Приоритет</label><select data-oe="priority" ' + OE_FIELD + ">" + ["Обычный", "Высокий"].map(function (x) { return "<option" + (x === S.oe.priority ? " selected" : "") + ">" + x + "</option>"; }).join("") + "</select></div>" + oeInp("Правок от заказчика", "edits", "number") + "</div>"
+      + oeChk("Срочная", "urgent")
+      + (money_ && S.oe.amount != null ? '<h4 style="margin:14px 0 6px">Оплата и акт</h4><div class="g2f">' + oeInp("Сумма, ₽", "amount", "number") + oeInp("Аванс, ₽", "adv_sum", "number") + "</div>"
+        + '<div class="g2f">' + oeInp("Дата аванса", "adv_date", "date") + oeInp("Дата постоплаты", "post_date", "date") + "</div>"
+        + oeChk("Аванс оплачен", "adv_paid") + oeChk("Постоплата оплачена", "post_paid") + oeChk("Акт отправлен", "act_sent") + oeChk("Акт подписан", "act_signed") : "")
+      + (S.oeErr ? '<div class="err">' + E(S.oeErr) + "</div>" : "")
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px"><button class="btn primary" data-oesave="1">Сохранить правки</button><button class="btn ghost" data-oedel="1" style="color:var(--bad)">Удалить задачу</button></div></div>';
+    return h;
+  }
+  function oeSave() {
+    var o = S.oe; if (!o) return;
+    S.oeErr = "";
+    var pl = { number: o.number, customer: o.customer, object: o.object, system: o.system, stage: o.stage, executor_id: +o.executor_id || 0, start_date: o.start_date || "", due_date: o.due_date || "",
+      plan_start: o.plan_start || "", plan_end: o.plan_end || "", priority: o.priority, edits: +o.edits || 0, urgent: o.urgent ? 1 : 0 };
+    if (can("money") && o.amount != null) Object.assign(pl, { amount: +o.amount || 0, adv_sum: +o.adv_sum || 0, adv_date: o.adv_date || "", post_date: o.post_date || "", adv_paid: o.adv_paid ? 1 : 0, post_paid: o.post_paid ? 1 : 0, act_sent: o.act_sent ? 1 : 0, act_signed: o.act_signed ? 1 : 0 });
+    api("/orders/" + o.id + "/edit", pl).then(function () { S.oe = null; toast("Правки сохранены"); S.orders = null; S.tasks = null; return load().then(function () { return api("/orders/" + o.id + "/history").then(function (h) { S.history = h; }, function () {}); }).then(paint); },
+      function (e) { S.oeErr = String(e); paint(); });
+  }
+  function oeDel() {
+    var o = S.oe; if (!o || !confirm("Удалить задачу №" + o.number + " вместе со служебными задачами, ТЗ, историей и чатом? Это нельзя отменить.")) return;
+    api("/orders/" + o.id + "/delete", {}).then(function () { S.oe = null; S.open = null; S.tab = "info"; if (/^#\/task\//.test(location.hash)) history.replaceState(null, "", "#/"); toast("Задача удалена"); S.orders = null; S.tasks = null; return load().then(paint); },
+      function (e) { S.oeErr = String(e); paint(); });
+  }
+  /* правка и удаление организационной задачи */
+  function teHtml() {
+    var n = S.te; if (!n) return "";
+    var users = S.assignable || [];
+    return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:16px"><div class="modal" style="width:min(520px,100%);height:auto;max-height:92vh;border-radius:20px">'
+      + '<div class="m-head"><div class="row"><h2 style="font-size:1.2rem">Правка задачи</h2><button class="x" data-close="1">✕</button></div></div><div class="m-body">'
+      + '<div class="fld"><label>Название</label><input data-te="title" value="' + E(n.title) + '" ' + OE_FIELD + "></div>"
+      + '<div class="fld"><label>Исполнитель</label><select data-te="assignee_id" ' + OE_FIELD + '><option value="0">— по роли —</option>' + users.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +n.assignee_id ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div>"
+      + '<div class="g2f"><div class="fld"><label>Срок</label><input type="date" data-te="due" value="' + E(n.due || "") + '" ' + OE_FIELD + '></div>'
+      + '<div class="fld"><label>Состояние</label><select data-te="state" ' + OE_FIELD + ">" + [["new", "Новая"], ["work", "В работе"], ["wait", "Ждёт ответа"]].map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === n.state ? " selected" : "") + ">" + s[1] + "</option>"; }).join("") + "</select></div></div>"
+      + '<div class="fld"><label>Комментарий</label><textarea rows="3" data-te="note" ' + OE_FIELD + ">" + E(n.note || "") + "</textarea></div>"
+      + (n.err ? '<div class="err">' + E(n.err) + "</div>" : "")
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" data-tesave="1">Сохранить</button><button class="btn ghost" data-tdel="' + n.id + '" style="color:var(--bad)">Удалить задачу</button></div></div></div></div>';
+  }
+  function teOpen(id) {
+    var t = (S.tasks || []).filter(function (x) { return x.id === +id; })[0]; if (!t) return;
+    var go = function () { S.te = { id: t.id, title: t.title, assignee_id: t.assignee_id || 0, due: t.due || "", note: t.note || "", state: t.state === "done" ? "new" : (t.state || "new"), err: "" }; modalRoot().innerHTML = teHtml(); };
+    if (S.assignable == null) api("/users/assignable").then(function (u) { S.assignable = u; go(); }, function () { S.assignable = []; go(); }); else go();
+  }
+  function teSave() {
+    var n = S.te; if (!n) return;
+    api("/tasks/" + n.id + "/edit", { title: n.title, assignee_id: +n.assignee_id || 0, due: n.due, note: n.note, state: n.state }).then(function () {
+      S.te = null; modalRoot().innerHTML = ""; toast("Задача обновлена"); S.tasks = null; return load().then(paint);
+    }, function (e) { n.err = String(e); modalRoot().innerHTML = teHtml(); });
+  }
+  function tDel(id) {
+    if (!confirm("Удалить эту задачу? Это нельзя отменить.")) return;
+    api("/tasks/" + id + "/delete", {}).then(function () { S.te = null; modalRoot().innerHTML = ""; toast("Задача удалена"); S.tasks = null; return load().then(paint); }, function (e) { toast(String(e)); });
+  }
 
   /* ---------- «Обзор»: одна задача — одна строка, комментарии прямо в строке ---------- */
   function ovRow(o) {
@@ -1586,21 +1663,38 @@
       }, function (e) { S.busy = false; toast(String(e && e.message || e)); });
   }
   function closeAll() {
-    S.form = null; S.edit = null; S.nt = null;
+    S.form = null; S.edit = null; S.nt = null; S.te = null;
     var mr0 = document.getElementById("ds-modal"); if (mr0) mr0.innerHTML = "";
     if (S.open) { S.open = null; S.tab = "info"; if (/^#\/task\//.test(location.hash)) history.replaceState(null, "", "#/"); }
     paint();
   }
 
+  document.addEventListener("dragstart", function (e) {
+    var c = e.target.closest && e.target.closest("[data-dragid]");
+    if (c && e.dataTransfer) { e.dataTransfer.setData("text/plain", c.getAttribute("data-dragid")); e.dataTransfer.effectAllowed = "move"; }
+  });
+  document.addEventListener("dragover", function (e) { if (S.mount && e.target.closest && e.target.closest("[data-dropstage]")) e.preventDefault(); });
+  document.addEventListener("drop", function (e) {
+    var col = e.target.closest && e.target.closest("[data-dropstage]");
+    if (!col || !e.dataTransfer || !fullCtl()) return;
+    var id = e.dataTransfer.getData("text/plain"); if (!id) return;
+    e.preventDefault();
+    api("/orders/" + id + "/stage", { stage: col.getAttribute("data-dropstage") }).then(function () { S.orders = null; S.tasks = null; return load().then(paint); }, function (er) { toast(String(er)); });
+  });
   document.addEventListener("click", function (e) {
     var inModal = !!e.target.closest("#ds-modal");
     if (!inModal && !(S.mount && S.mount.el && S.mount.el.contains(e.target))) return;
     var bg = e.target.getAttribute && e.target.getAttribute("data-bg");
     if (bg) { closeAll(); return; }
-    var t = e.target.closest("[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-view],[data-scnew],[data-scsel],[data-scsave],[data-scdel],[data-sccopy]");
+    var t = e.target.closest("[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scsave],[data-scdel],[data-sccopy]");
     if (!t) return;
     var d = t.dataset;
     if (d.close) return closeAll();
+    if (d.tedit) return teOpen(d.tedit);
+    if (d.tdel) return tDel(d.tdel);
+    if (d.tesave != null && t.hasAttribute("data-tesave")) return teSave();
+    if (d.oesave != null && t.hasAttribute("data-oesave")) return oeSave();
+    if (d.oedel != null && t.hasAttribute("data-oedel")) return oeDel();
     if (d.view) { S.view = d.view; try { localStorage.setItem("ds_view", d.view); } catch (e) {} return paint(); }
     if (d.scnew != null && t.hasAttribute("data-scnew")) { var nid = "s" + Date.now(); S.sc = (S.sc || []).concat([{ id: nid, title: "Новый скрипт", group: "", text: "" }]); S.scSel = nid; return paint(); }
     if (d.scsel) { S.scSel = d.scsel; return paint(); }
@@ -1699,7 +1793,7 @@
       var id2 = S.edit; S.edit = null;
       return act(api("/orders/" + id2 + "/plan", { executor_id: w, start: s, end: en }));
     }
-    if (d.tab) { S.tab = d.tab; if (d.tab === "tz") return loadTzItem(S.open).then(paint); return paint(); }
+    if (d.tab) { S.tab = d.tab; if (d.tab === "edit") { S.oe = null; S.oeErr = ""; } if (d.tab === "tz") return loadTzItem(S.open).then(paint); return paint(); }
     if (d.kb) { S.kb = d.kb; return paint(); }
     if (d.new) { S.form = { number: "", customer: "", object: "", system: "", due: "", amount: "", adv: false, advSum: "", err: "" }; return paint(); }
     if (d.tdone) return act(api("/tasks/" + d.tdone + "/done", {}));
@@ -1720,6 +1814,8 @@
   });
   document.addEventListener("input", function (e) {
     if (e.target.dataset && e.target.dataset.nt && S.nt && e.target.tagName !== "SELECT") { ntField(e.target); return; }
+    if (e.target.dataset && e.target.dataset.oe && S.oe && e.target.tagName !== "SELECT") { S.oe[e.target.dataset.oe] = e.target.value; return; }
+    if (e.target.dataset && e.target.dataset.te && S.te && e.target.tagName !== "SELECT") { S.te[e.target.dataset.te] = e.target.value; return; }
     if (e.target.dataset && e.target.dataset.scf) { var cs_ = (S.sc || []).filter(function (x) { return x.id === S.scSel; })[0]; if (cs_) cs_[e.target.dataset.scf] = e.target.value; return; }
     if (e.target.dataset && e.target.dataset.cmd != null) { (S.cmDraft = S.cmDraft || {})[e.target.dataset.cmd] = e.target.value; return; }
     if (e.target.id === "dsQ") { S.ov.q = e.target.value; return paint(); }
@@ -1787,6 +1883,9 @@
       if (e.target.checked && ix < 0) ss.push(cdt.ccs); else if (!e.target.checked && ix >= 0) ss.splice(ix, 1);
       paint();
     }
+    if (cdt.oe && S.oe) { S.oe[cdt.oe] = e.target.value; return; }
+    if (cdt.oech && S.oe) { S.oe[cdt.oech] = e.target.checked ? 1 : 0; return; }
+    if (cdt.te && S.te) { S.te[cdt.te] = e.target.value; return; }
     if (cdt.nt && S.nt) { ntField(e.target); if (cdt.nt === "step") { var rr = document.getElementById("ds-modal"); if (rr) rr.innerHTML = ntHtml(); } }
     if (cdt.cmd != null && S.cmDraft) S.cmDraft[cdt.cmd] = e.target.value;
     if (cdt.ctforce != null && S.ct) { S.ct.force = e.target.checked; ctRefresh(); return; }
