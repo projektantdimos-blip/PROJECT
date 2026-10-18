@@ -781,6 +781,7 @@ function renderTopNav(){
   var sec = sectionForHash(location.hash);
   if (window.__lastSec && window.__lastSec !== sec && location.hash.indexOf("#/task/") !== 0 && window.DS && DS.closeAll) DS.closeAll();      // окно задачи не должно висеть поверх другого раздела
   window.__lastSec = sec;
+  document.body.classList.toggle("chat-fs", sec === "chat");
   document.getElementById("tasks-app").style.display = (sec === "tasks") ? "block" : "none";
   document.getElementById("kpreg-app").style.display = (sec === "kpreg") ? "block" : "none";
   document.getElementById("kpc-app").style.display = (sec === "kpc") ? "block" : "none";

@@ -596,3 +596,32 @@
   body.team-fs:has(.x-chat.open) #team-app{bottom:0;z-index:310}
   body.team-fs:has(.x-chat.open) .bottomnav{display:none!important}
 }
+
+/* ===== «Переписка» на телефоне: закреплённый тёмный экран со списком диалогов ===== */
+@media(max-width:760px){
+  body.chat-fs{overflow:hidden!important;overscroll-behavior:none;background:#0e1621!important}
+  body.chat-fs #apiGear{display:none!important}
+  body.chat-fs #chat-app{position:fixed;left:0;right:0;top:0;bottom:84px;background:#0e1621;overflow:hidden;z-index:50;padding:0!important}
+  body.chat-fs #chat-app>.top{display:none!important}
+  body.chat-fs #chatBanner:empty{display:none}
+  body.chat-fs #chat-app .chat-wrap:not(.has-sel){height:100%!important;min-height:0!important;display:flex!important;flex-direction:column}
+  body.chat-fs #chat-app .chat-wrap:not(.has-sel) .chat-list{height:100%;min-height:0;display:flex;flex-direction:column}
+  body.chat-fs #chat-app .chat-tools{position:relative;padding:0!important}
+  body.chat-fs #chat-app .chat-tools::before{content:"Переписка";display:block;background:#17212b;color:#fff;font-size:1.15rem;font-weight:600;padding:12px 14px}
+  body.chat-fs #chat-app .chat-box{display:flex;gap:4px;margin:0!important;background:#17212b;padding:0 8px;border-bottom:1px solid #0b121a}
+  body.chat-fs #chat-app .chat-box button{flex:0 0 auto;background:none!important;border:0!important;border-bottom:2px solid transparent!important;border-radius:0!important;color:#8ea2b3!important;padding:8px 12px!important;font-size:.95rem;font-weight:400}
+  body.chat-fs #chat-app .chat-box button.on{color:#6ab3f3!important;border-bottom-color:#6ab3f3!important;font-weight:600}
+  body.chat-fs #chat-app .chat-chips{display:flex;flex-wrap:nowrap;overflow-x:auto;margin:0!important;padding:8px 10px;background:#17212b}
+  body.chat-fs #chat-app .chat-chips button{background:#0e1621!important;border:0!important;color:#8ea2b3!important;white-space:nowrap}
+  body.chat-fs #chat-app .chat-chips button.on{background:#2b5278!important;color:#fff!important}
+  body.chat-fs #chat-app #chatQ{margin:0 10px 8px;width:calc(100% - 20px)!important;box-sizing:border-box}
+  body.chat-fs #chat-app .chat-tools{background:#17212b}
+  body.chat-fs #chat-app .chat-sync{display:none!important}
+  body.chat-fs #chat-app #chatThreads{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+  body.chat-fs #chat-app .chat-new{position:fixed;right:14px;bottom:98px;width:52px;height:52px;margin:0!important;border-radius:50%!important;padding:0;font-size:0!important;background:#2b5278!important;box-shadow:0 4px 14px rgba(0,0,0,.5)!important;z-index:60}
+  body.chat-fs #chat-app .chat-new::before{content:"✎";font-size:1.4rem;color:#fff}
+  body.chat-fs:has(.chat-wrap.has-sel) .bottomnav{display:none!important}
+  body.chat-fs #chat-app:has(.chat-wrap.has-sel){bottom:0}
+  body.chat-fs #chat-app:has(.chat-wrap.has-sel) .chat-new{display:none}
+}
+@media(max-width:760px){#chat-app .ct .un{color:#fff!important}}
