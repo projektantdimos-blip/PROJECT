@@ -72,7 +72,7 @@
     var isOwner = C.me && (C.me.position === "owner" || C.me.role === "admin");
     el.innerHTML = head("Команда", sub, '<div class="x-chips"><span class="x-chip on" id="tUrgChip">' + ic("flame") + 'Срочное <b id="tUrgN">0</b></span>'
       + (isOwner ? '<label class="x-chip" style="cursor:pointer" title="Новые сообщения заказчиков из Telegram, MAX и почты копируются в закрытый канал «Отдел продаж»"><input type="checkbox" id="tMirror" style="margin-right:6px">Диалоги заказчиков в канал продаж</label>' : "") + "</div>")
-      + '<div class="wrap"><div class="x-chat"><div class="x-dlgs"><div class="hd"><button class="x-btn primary" id="tDm" style="justify-content:center;width:100%">' + ic("plus") + 'Личное сообщение</button><button class="x-btn ghost" id="tNew" style="justify-content:center;width:100%;margin-top:8px">' + ic("tasks") + 'Диалог по задаче</button><input type="text" id="tSearch" placeholder="Поиск по чатам…" autocomplete="off" style="width:100%;margin-top:8px;border:1px solid var(--line);border-radius:12px;padding:9px 12px;background:var(--surface);color:var(--ink)"></div><div class="sc" id="tRooms"></div></div><div class="x-thread" id="tThread"></div><div class="x-info" id="tInfo"></div></div></div>';
+      + '<div class="wrap"><div class="x-chat"><div class="x-dlgs"><div class="hd"><button class="x-btn primary" id="tDm" style="justify-content:center;width:100%">' + ic("plus") + 'Личное сообщение</button><button class="x-btn ghost" id="tGrp" style="justify-content:center;width:100%;margin-top:8px">' + ic("plus") + 'Новый чат</button><button class="x-btn ghost" id="tNew" style="justify-content:center;width:100%;margin-top:8px">' + ic("tasks") + 'Диалог по задаче</button><input type="text" id="tSearch" placeholder="Поиск по чатам…" autocomplete="off" style="width:100%;margin-top:8px;border:1px solid var(--line);border-radius:12px;padding:9px 12px;background:var(--surface);color:var(--ink)"></div><div class="sc" id="tRooms"></div></div><div class="x-thread" id="tThread"></div><div class="x-info" id="tInfo"></div></div></div>';
     if (q) { var ch1 = document.querySelector(".x-chat"); if (ch1) ch1.classList.add("open"); }                   /* ссылка на чат открывает его сразу */
     $("tNew").onclick = newTaskRoom;
     if ($("tMirror")) {
@@ -83,6 +83,7 @@
       };
     }
     $("tDm").onclick = newDm;
+    $("tGrp").onclick = newGroup;
     $("tSearch").oninput = paintRooms;
     $("tUrgChip").onclick = function () { var r = S.rooms.filter(function (x) { return x.urgent_open > 0; })[0]; if (r) openRoom(r.id); };
     loadRooms().then(function () { if (!S.rooms.some(function (r) { return r.id === S.cur; })) S.cur = "general"; openRoom(S.cur, true); }).catch(function (e) { $("tThread").innerHTML = '<div class="x-empty" style="padding:40px">' + E(e) + "</div>"; });
@@ -122,9 +123,11 @@
     var dms = S.rooms.filter(function (r) { return r.kind === "dm" && ok(r); });
     var chans = S.rooms.filter(function (r) { return r.kind === "chan" && ok(r); });
     var tasks = S.rooms.filter(function (r) { return r.kind === "task" && ok(r); });
+    var groups = S.rooms.filter(function (r) { return r.kind === "group" && ok(r); });
     el.innerHTML = (urg.length ? '<div class="x-grp red">' + ic("flame") + "Срочное</div>" + urg.map(function (r) { return '<div class="x-dlg" data-r="' + E(r.id) + '"><span class="x-rm red">' + ic("flame") + '</span><div class="m"><b>' + E(r.name) + "</b><span>" + E(r.last ? r.last.user + ": " + r.last.text : "") + "</span></div></div>"; }).join("") : "")
       + '<div class="x-grp">Личные сообщения</div>' + (dms.map(roomItem).join("") || '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : "Пока нет. Нажмите «Личное сообщение»") + "</p>")
       + '<div class="x-grp">Каналы</div>' + chans.map(roomItem).join("")
+      + '<div class="x-grp">Чаты</div>' + (groups.map(roomItem).join("") || '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : "Свои чаты: нажмите «Новый чат»") + "</p>")
       + '<div class="x-grp">Диалоги по задачам</div>' + (tasks.map(roomItem).join("") || '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : "Чат создаётся сам при подписании договора. Свою задачу можно найти кнопкой «Диалог по задаче»") + "</p>");
     el.querySelectorAll(".x-dlg").forEach(function (d) { d.onclick = function () { openRoom(d.dataset.r); }; });
     if (C.sync) { /* бейдж меню обновится при следующем опросе */ }
@@ -155,6 +158,7 @@
     var wasBottom = true, old = el.querySelector(".x-msgs"), val = $("tIn") ? $("tIn").value : "";
     if (old && keep) wasBottom = old.scrollHeight - old.scrollTop - old.clientHeight < 80;
     el.innerHTML = '<div class="x-th-h"><button class="x-btn ghost x-back" data-back="1" style="padding:6px 10px">←</button>' + roomIcon(room) + "<div><b>" + E(room.name) + "</b></div>"
+      + (room.kind === "group" || (room.kind === "chan" && C.me && (C.me.position === "owner" || C.me.role === "admin")) ? '<button class="x-btn ghost" data-rename="1" style="margin-left:auto;padding:7px 12px" title="Переименовать чат">✎ Название</button>' : "")
       + (room.kind === "task" && room.task_row ? '<a class="x-btn ghost" style="margin-left:auto;padding:7px 12px" href="#/task/' + room.task_row + '">Открыть задачу</a>' : "") + "</div>"
       + (pin ? '<div class="x-pinned">' + ic("flame") + "<span>Срочное: " + E(pin.text) + "</span></div>" : "")
       + '<div class="x-msgs">' + (body || '<span class="x-day">Здесь пока пусто — напишите первое сообщение</span>') + "</div>"
@@ -277,6 +281,31 @@
     C.call("/../ds/orders").then(function (ts) { all = ts; paint(); }).catch(function (e) { $("tList").innerHTML = '<div class="x-empty">' + E(e) + "</div>"; });
     $("tFind").oninput = paint;
   }
+  /* свой чат: любое название и выбранные участники */
+  function newGroup() {
+    xmodal('<h3>Новый чат</h3><div class="x-field"><input type="text" id="gName" placeholder="Название чата (любое)" maxlength="120" autocomplete="off"></div><p class="x-sub">Участники (вы добавлены сами)</p><div id="gList" style="max-height:40vh;overflow:auto"><div class="x-empty">Загрузка…</div></div><div class="x-hint" id="gErr" style="color:var(--bad)"></div><div class="x-row"><button class="x-btn ghost" onclick="MPBT.closeModal()">Отмена</button><button class="x-btn primary" id="gGo">Создать чат</button></div>', true);
+    var all = [], me = C.me ? C.me.id : 0;
+    function paintG() {
+      $("gList").innerHTML = all.filter(function (u) { return u.id !== me; }).map(function (u) {
+        return '<label class="x-linkcard" style="cursor:pointer">' + ava(u.name, "sm") + "<span><b>" + E(u.name) + "</b><small>" + E(u.title || "") + '</small></span><input type="checkbox" data-gu="' + u.id + '" style="margin-left:auto"></label>'; }).join("") || '<div class="x-empty">Никого не найдено</div>';
+    }
+    C.call("/people").then(function (l) { all = l; paintG(); }).catch(function (e) { $("gList").innerHTML = '<div class="x-empty">' + E(e) + "</div>"; });
+    $("gGo").onclick = function () {
+      var name = $("gName").value.trim();
+      if (!name) { $("gErr").textContent = "Введите название чата"; return; }
+      var ids = [].slice.call(document.querySelectorAll("[data-gu]:checked")).map(function (x) { return +x.dataset.gu; });
+      C.call("/../ds/rooms/group", { body: { name: name, members: ids } }).then(function (r) {
+        T.closeModal();
+        if (cur() === "team") { S.cur = r.id; loadRooms().then(function () { openRoom(r.id); }); } else location.hash = "#/team?room=" + r.id;
+      }).catch(function (e) { $("gErr").textContent = String(e); });
+    };
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-rename]"); if (!b || !S.cur) return;
+    var room = S.rooms.filter(function (r) { return r.id === S.cur; })[0]; if (!room) return;
+    var nm = prompt("Название чата", room.name); if (nm == null) return; nm = nm.trim(); if (!nm) return;
+    C.call("/../ds/rooms/" + encodeURIComponent(S.cur) + "/rename", { body: { name: nm } }).then(function () { return loadRooms(); }).then(function () { paintThread(true); toast("Название изменено"); }).catch(function (er) { toast(E(er)); });
+  });
   /* личное сообщение: выбираем сотрудника, чат создаётся (или открывается уже существующий) */
   function newDm() {
     xmodal('<h3>Личное сообщение</h3><p class="x-sub">Переписку видите только вы и собеседник</p><div class="x-field"><input type="text" id="tFindU" placeholder="Поиск сотрудника…" autocomplete="off"></div><div id="tUList" style="max-height:50vh;overflow:auto"><div class="x-empty">Загрузка…</div></div><div class="x-row"><button class="x-btn ghost" onclick="MPBT.closeModal()">Закрыть</button></div>', true);

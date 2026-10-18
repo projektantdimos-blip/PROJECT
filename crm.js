@@ -162,7 +162,13 @@
         }).join("") || '<div class="x-empty" style="padding:26px">Пока уведомлений нет</div>');
         var ra = $("xReadAll"); if (ra) ra.onclick = function () { C.call("/notifications/read", { body: {} }).then(function () { C.refresh(); C.toggleNotifs(); }); };
         p.querySelectorAll(".x-nt").forEach(function (n) { n.onclick = function () { p.classList.remove("on"); var u = n.dataset.u || ""; var i = u.indexOf("#"); if (i >= 0) location.hash = u.slice(i); }; });
-        C.call("/notifications/read", { body: {} }).then(function () { setTimeout(C.refresh, 500); }).catch(function () {});
+        C.call("/notifications/read", { body: {} }).then(function () {
+          // список уже показан пользователю: подсветка «новое» и счётчик гаснут сразу, не дожидаясь нажатия на задачу
+          setTimeout(function () { p.querySelectorAll(".x-nt.unread").forEach(function (n) { n.classList.remove("unread"); }); }, 900);
+          document.querySelectorAll("button[data-notif] .nav-badge").forEach(function (b) { b.remove(); });
+          if (C.sync) C.sync.notif_unread = 0;
+          setTimeout(C.refresh, 500);
+        }).catch(function () {});
       }).catch(function (e) { p.innerHTML = '<div class="x-empty" style="padding:20px">' + E(e) + "</div>"; });
     }, function () {});
   };

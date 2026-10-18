@@ -419,3 +419,44 @@
 
 /* пояснительные подписи под заголовками страниц убраны */
 .ds .head>div>p,header.top .brand p,.top .brand p{display:none!important}
+
+/* «Занятость»: компактная диаграмма как в старой CRM */
+.ds .ldnav{display:flex;align-items:center;gap:12px;margin:0 0 12px;flex-wrap:wrap}.ds .ldnav .grow{flex:1}.ds .ldnav .vlab{color:var(--muted);font-size:.86rem;font-weight:600}
+.ds .gpanel{overflow:auto;padding:0}
+.ds .ghead,.ds .grow2{display:grid;border-bottom:1px solid var(--line)}
+.ds .ghead{background:var(--surface-2);color:var(--muted)}
+.ds .gname{padding:6px 10px;font-size:.78rem;display:flex;align-items:center}
+.ds .gname.gp{gap:8px;align-items:center;padding:4px 8px;font-size:.9rem;color:var(--ink)}
+.ds .gname.gp .ava.sm{width:26px;height:26px;font-size:.8rem;flex:none}
+.ds .gday{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3px 0;border-left:1px solid var(--line);font-size:.66rem;line-height:1.15}
+.ds .gday b{font-size:.82rem;font-weight:700;color:var(--ink)}
+.ds .gday.we{background:color-mix(in srgb,var(--bad) 8%,var(--surface-2))}.ds .gday.we small,.ds .gday.we b{color:var(--bad)}
+.ds .gday.today{border-left:2px solid #f0924d}.ds .gday.today b i{font-style:normal;display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:50%;background:#378ADD;color:#fff}
+.ds .gbar{margin:2px 1px;border-radius:6px;color:#fff;font-size:.72rem;font-weight:600;padding:0 8px;display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;position:relative;z-index:1;min-width:0}
+.ds .gbar:hover{filter:brightness(1.1)}
+.ds .gl{height:4px;align-self:end;margin:0 2px 2px;border-radius:2px}
+.ds .gun{border-top:2px solid var(--line)}
+.ds .glegend{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:12px 4px 0;font-size:.78rem;color:var(--muted)}
+.ds .glegend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+.ds .glegend a{color:var(--brand);font-weight:700}
+
+/* меню задачи (как в старой CRM): стадии и приоритет чипами */
+.ds .modal.tm{width:min(580px,100%);height:min(94vh,940px);display:flex;flex-direction:column;border-radius:20px}
+.ds .tm .tm-body{flex:1;overflow:auto;padding:14px 20px}
+.ds .tm-links{font-size:.86rem;margin-top:3px}.ds .tm-links a{color:var(--brand);font-weight:600}
+.ds .tm-ban{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-weight:700;margin-bottom:12px}
+.ds .tm-ban.bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+.ds .tm-btns{display:grid;grid-template-columns:1.4fr 1fr;gap:10px;margin-bottom:12px}.ds .tm-btns .btn{justify-content:center;text-decoration:none}
+.ds .tm-urg{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:14px}
+.ds .tm-urg .ico{font-size:1.2rem}.ds .tm-urg small{display:block;color:var(--muted);font-size:.8rem}.ds .tm-urg div{flex:1}
+.ds .tm-sw{width:48px;height:28px;border-radius:16px;border:1px solid var(--line);background:var(--surface-2);position:relative;cursor:pointer;padding:0}
+.ds .tm-sw i{position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:var(--muted);transition:.15s}
+.ds .tm-sw.on{background:var(--bad);border-color:var(--bad)}.ds .tm-sw.on i{left:23px;background:#fff}
+.ds .tm-l{display:block;font-size:.7rem;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin:14px 0 8px}
+.ds .tm-chips{display:flex;flex-wrap:wrap;gap:8px}
+.ds .tmchip{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:20px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font:inherit;font-size:.9rem}
+.ds .tmchip i{width:9px;height:9px;border-radius:50%;flex:none}
+.ds .tmchip.on{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700}.ds .tmchip.on i{box-shadow:0 0 0 2px rgba(255,255,255,.55)}
+.ds .tm-foot{display:flex;gap:10px;padding:12px 20px;border-top:1px solid var(--line);background:var(--surface)}.ds .tm-foot .btn{flex:1;justify-content:center}
+.ds .tm-foot .btn.primary{flex:2}
+@media(max-width:560px){.ds .tm-btns{grid-template-columns:1fr}}
