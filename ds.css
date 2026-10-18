@@ -463,3 +463,11 @@
 
 .ds .gnm{display:flex;flex-direction:column;line-height:1.2}.ds .gnm small{font-size:.7rem;color:var(--muted);font-weight:600}
 .ds .tm-inner .tm-foot{position:sticky;bottom:-1px;margin:14px -4px 0;padding:12px 4px;background:var(--surface)}
+
+.ds .gnm small.red{color:#e5483c;font-weight:800}
+.ds .ldwho{position:relative;margin:0 0 10px}
+.ds .ldpop{position:absolute;z-index:30;top:38px;left:0;min-width:240px;max-height:60vh;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:12px;display:flex;flex-direction:column;gap:4px}
+.ds .ldchk{display:flex;gap:10px;align-items:center;padding:7px 8px;border-radius:8px;text-align:left;font:inherit;cursor:pointer;background:none;border:0;color:var(--ink)}
+.ds .ldchk:hover{background:var(--surface-2)}
+.ds .ldchk i{width:18px;height:18px;border:2px solid var(--line);border-radius:5px;font-style:normal;font-size:.8rem;line-height:14px;text-align:center;color:#fff}
+.ds .ldchk.on i{background:var(--brand);border-color:var(--brand)}

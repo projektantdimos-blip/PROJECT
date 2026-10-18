@@ -695,11 +695,20 @@
   var WD = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
   function span(o) { return [o.plan_start || o.start_date || "", o.plan_end || o.due_date || ""]; }
   function loadOrders() { return pos() === "designer" ? (S.lo || []) : (S.orders || []); }
-  function staff() {
+  function staffAll() {
     var by = {};
-    (S.people || []).forEach(function (u) { by[u.name] = { id: u.id, name: u.name }; });
+    (S.people || []).forEach(function (u) { by[u.name] = { id: u.id, name: u.name, pos: u.position }; });
     loadOrders().forEach(function (o) { if (o.executor && !by[o.executor]) by[o.executor] = { id: o.executor_id, name: o.executor }; });
     return Object.keys(by).map(function (k) { return by[k]; });
+  }
+  function ldSel() {
+    if (S.ldSel === undefined) { try { S.ldSel = JSON.parse(localStorage.getItem("ds_ldsel") || "null"); } catch (e) { S.ldSel = null; } }
+    return S.ldSel;
+  }
+  function staff() {
+    var all = staffAll(), sel = ldSel();
+    if (sel) return all.filter(function (u) { return sel.indexOf(u.name) >= 0; });
+    return all.filter(function (u) { return u.pos === "designer" || u.pos === "design" || loadOrders().some(function (o) { return (o.executor_id === u.id || o.executor === u.name) && ACTIVE_WORK.indexOf(o.stage) >= 0; }); });
   }
   function loadScreen() {
     var p = pos(), people = staff(), mon = monday(), today = isoDay(new Date());
@@ -738,7 +747,9 @@
     z = Math.max(0.5, Math.min(1.6, z));
     var CW = 27, LW = 150, cols = LW + "px repeat(" + dim + "," + CW + "px)", minw = LW + dim * CW;
     var nav = '<div class="ldnav"><div class="seg"><button data-ldn="-1"' + (off ? "" : " disabled") + '>← назад</button><button data-ldn="0" class="on">' + dmy(iso[0]).slice(0, 5) + " — " + dmy(iso[dim - 1]).slice(0, 5) + '</button><button data-ldn="1">вперёд →</button></div>'
-      + '<span class="grow"></span><span class="vlab">Масштаб</span><div class="seg"><button data-ldz="-1" title="Уменьшить">−</button><button data-ldz="0" title="Сбросить масштаб">' + Math.round(z * 100) + '%</button><button data-ldz="1" title="Увеличить">+</button></div></div>';
+      + '<span class="grow"></span><span class="vlab">Масштаб</span><div class="seg"><button data-ldz="-1" title="Уменьшить">−</button><button data-ldz="0" title="Сбросить масштаб">' + Math.round(z * 100) + '%</button><button data-ldz="1" title="Увеличить">+</button></div></div>'
+      + (p === "owner" || p === "ops" || p === "design" ? '<div class="ldwho"><button class="btn ghost sm" data-ldmenu="1">👥 Кого показывать (' + people.length + ")</button>"
+        + (S.ldMenu ? '<div class="ldpop"><b>Показывать в «Занятости»</b>' + staffAll().map(function (u) { var on = people.some(function (x) { return x.name === u.name; }); return '<button type="button" class="ldchk ' + (on ? "on" : "") + '" data-ldp="' + E(u.name) + '"><i>' + (on ? "✓" : "") + "</i>" + E(u.name) + "</button>"; }).join("") + '<button class="btn ghost sm" data-ldmenu="0" style="margin-top:8px">Готово</button></div>' : "") + "</div>" : "");
     var BAR = { work: "#5aa2ee", hot: "#f0924d", late: "#e5483c", done: "#3aa876", gray: "#8794ab" };
     var PAL = ["#4f8ef0", "#e0734a", "#2fa66a", "#8b6fe0", "#d4a017", "#1fb3b3", "#d9568a", "#6f7de0", "#8c9a2a", "#b0632f", "#3c9bd1", "#c24bb0"];
     function barKind(o, un) { if (un) return "gray"; if (o.stage === "Сдано") return "done"; if (o.left_days != null && o.left_days < 0) return "late"; if (o.urgent || (o.left_days != null && o.left_days <= 2)) return "hot"; return "work"; }
@@ -786,7 +797,7 @@
       var bg = "";
       for (var r = 1; r <= rows; r++) bg += iso.map(function (d, i) { return cellBg(i, r); }).join("");
       var strip = load.map(function (n, i) { return n ? '<span class="gl" style="grid-column:' + (i + 2) + ";grid-row:" + rows + ";background:" + (n >= 3 ? "#e5483c" : "#8794ab") + '" title="' + n + ' задач(и) в день"></span>' : ""; }).join("");
-      var nm = '<div class="gname gp" style="grid-row:1/span ' + rows + '"><span class="ava sm" style="background:' + color + '">' + E(u.name[0]) + "</span><span class=\"gnm\"><b>" + E(u.name) + "</b>" + (until ? "<small>Загружен до " + dmy(until).slice(0, 5) + "</small>" : "<small>свободен</small>") + "</span></div>";
+      var nm = '<div class="gname gp" style="grid-row:1/span ' + rows + '"><span class="ava sm" style="background:' + color + '">' + E(u.name[0]) + "</span><span class=\"gnm\"><b>" + E(u.name) + "</b>" + (until ? "<small class=\"red\">Загружен до " + dmy(until).slice(0, 5) + "</small>" : "<small>свободен</small>") + "</span></div>";
       return '<div class="grow2" style="grid-template-columns:' + cols + ";grid-template-rows:repeat(" + (rows - 1) + ',24px) 8px;min-width:' + minw + 'px">' + nm + bg + L.items.map(function (x) { return barEl(x, false); }).join("") + strip + "</div>";
     }
     var UL = lanes(unassigned);
@@ -1733,7 +1744,7 @@
     if (!inModal && !(S.mount && S.mount.el && S.mount.el.contains(e.target))) return;
     var bg = e.target.getAttribute && e.target.getAttribute("data-bg");
     if (bg) { closeAll(); return; }
-    var t = e.target.closest("[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scsave],[data-scdel],[data-sccopy]");
+    var t = e.target.closest("[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scsave],[data-scdel],[data-sccopy]");
     if (!t) return;
     var d = t.dataset;
     if (d.close) return closeAll();
@@ -1836,6 +1847,13 @@
     if (d.tile) { S.ov.tile = S.ov.tile === d.tile ? "" : d.tile; return paint(); }
     if (d.ostage != null && t.hasAttribute("data-ostage")) { S.ov.stage = d.ostage; return paint(); }
     if (d.ld) { S.ld = d.ld; return paint(); }
+    if (d.ldmenu != null && t.hasAttribute("data-ldmenu")) { S.ldMenu = d.ldmenu === "1" ? !S.ldMenu : false; return paint(); }
+    if (d.ldp != null && t.hasAttribute("data-ldp")) {
+      var cur_ = staff().map(function (u) { return u.name; }), ix = cur_.indexOf(d.ldp);
+      if (ix >= 0) cur_.splice(ix, 1); else cur_.push(d.ldp);
+      S.ldSel = cur_; try { localStorage.setItem("ds_ldsel", JSON.stringify(cur_)); } catch (e) {}
+      return paint();
+    }
     if (d.ldz != null && t.hasAttribute("data-ldz")) {
       var zz = S.ldz || 0; if (!zz) { try { zz = +localStorage.getItem("ds_ldz") || 0; } catch (e) { zz = 0; } zz = zz || 0.85; }
       zz = d.ldz === "0" ? 0.85 : Math.max(0.5, Math.min(1.6, Math.round((zz + (+d.ldz) * 0.1) * 100) / 100));
