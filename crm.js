@@ -158,17 +158,17 @@
       p.classList.add("on"); p.innerHTML = '<h6>Уведомления</h6><div class="x-empty" style="padding:20px">Загрузка…</div>';
       C.call("/notifications").then(function (r) {
         p.innerHTML = '<h6>Уведомления<span id="xReadAll">Прочитать все</span></h6>' + (r.items.map(function (n) {
-          return '<div class="x-nt ' + (n.is_read ? "" : "unread") + (n.urgent ? " urg" : "") + '" data-u="' + E(n.url) + '"><span class="ni ' + (n.urgent ? "c-bad" : "c-blue") + '">' + ic(n.urgent ? "flame" : "bell") + "</span><div><b>" + E(n.title) + "</b><small>" + E(n.body) + "</small><small>" + new Date(n.ts * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) + "</small></div></div>";
+          return '<div class="x-nt ' + (n.is_read ? "" : "unread") + (n.urgent ? " urg" : "") + '" data-id="' + n.id + '" data-u="' + E(n.url) + '"><span class="ni ' + (n.urgent ? "c-bad" : "c-blue") + '">' + ic(n.urgent ? "flame" : "bell") + "</span><div><b>" + E(n.title) + "</b><small>" + E(n.body) + "</small><small>" + new Date(n.ts * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) + "</small></div></div>";
         }).join("") || '<div class="x-empty" style="padding:26px">Пока уведомлений нет</div>');
         var ra = $("xReadAll"); if (ra) ra.onclick = function () { C.call("/notifications/read", { body: {} }).then(function () { C.refresh(); C.toggleNotifs(); }); };
-        p.querySelectorAll(".x-nt").forEach(function (n) { n.onclick = function () { p.classList.remove("on"); var u = n.dataset.u || ""; var i = u.indexOf("#"); if (i >= 0) location.hash = u.slice(i); }; });
-        C.call("/notifications/read", { body: {} }).then(function () {
-          // список уже показан пользователю: подсветка «новое» и счётчик гаснут сразу, не дожидаясь нажатия на задачу
-          setTimeout(function () { p.querySelectorAll(".x-nt.unread").forEach(function (n) { n.classList.remove("unread"); }); }, 900);
-          document.querySelectorAll("button[data-notif] .nav-badge").forEach(function (b) { b.remove(); });
-          if (C.sync) C.sync.notif_unread = 0;
-          setTimeout(C.refresh, 500);
-        }).catch(function () {});
+        /* открытие списка ничего не прочитывает: уведомление гаснет только после нажатия на него */
+        p.querySelectorAll(".x-nt").forEach(function (n, k) {
+          n.onclick = function () {
+            p.classList.remove("on"); var u = n.dataset.u || ""; var i = u.indexOf("#");
+            if (n.classList.contains("unread")) C.call("/notifications/read", { body: { id: +n.dataset.id } }).then(function () { C.refresh(); }).catch(function () {});
+            if (i >= 0) location.hash = u.slice(i);
+          };
+        });
       }).catch(function (e) { p.innerHTML = '<div class="x-empty" style="padding:20px">' + E(e) + "</div>"; });
     }, function () {});
   };
