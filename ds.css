@@ -460,3 +460,6 @@
 .ds .tm-foot{display:flex;gap:10px;padding:12px 20px;border-top:1px solid var(--line);background:var(--surface)}.ds .tm-foot .btn{flex:1;justify-content:center}
 .ds .tm-foot .btn.primary{flex:2}
 @media(max-width:560px){.ds .tm-btns{grid-template-columns:1fr}}
+
+.ds .gnm{display:flex;flex-direction:column;line-height:1.2}.ds .gnm small{font-size:.7rem;color:var(--muted);font-weight:600}
+.ds .tm-inner .tm-foot{position:sticky;bottom:-1px;margin:14px -4px 0;padding:12px 4px;background:var(--surface)}

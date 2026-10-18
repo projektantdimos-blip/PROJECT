@@ -413,14 +413,15 @@
     } else if (showUrgent) {
       nx = '<div class="next"><div style="flex:1"><b>Срочность</b></div><button class="btn ghost" data-urgent="' + (o.urgent ? 0 : 1) + '">⚡ ' + (o.urgent ? "Снять срочность" : "Срочная") + "</button></div>";
     }
-    var tabs = [["info", "Информация"]];
+    var menuOn = canMenu(), tabs = menuOn ? [["info", "Меню задачи"], ["inf2", "Информация"]] : [["info", "Информация"]];
     if (["owner", "ops", "sales", "design"].indexOf(p) >= 0) tabs.push(["tz", "Тех. задание"]);
     tabs.push(["log", "История"]);
-    var body = S.tab === "log" ? logTab() : S.tab === "tz" ? tzTab() : infoTab(o);
+    if (menuOn && S.tab === "info" && (!S.oe || S.oe.id !== o.id)) { S.oe = JSON.parse(JSON.stringify(o)); S.oeErr = ""; }
+    var body = S.tab === "log" ? logTab() : S.tab === "tz" ? tzTab() : (menuOn && S.tab === "info") ? tmHtml() : infoTab(o);
     var money_ = can("money") && o.amount != null;
     return '<div class="modal-bg" data-bg="1"><div class="modal"><div class="m-head"><div class="row"><h2>№' + E(o.number) + (o.customer ? " · " + E(o.customer) : "") + "</h2>"
       + (o.urgent ? '<span class="pill urg">⚡ Срочно</span>' : "") + (money_ ? (o.post_paid ? '<span class="pill ok">₽ Оплачено</span>' : '<span class="pill warn">₽ Не оплачено</span>') : "")
-      + (canMenu() ? '<button class="btn ghost sm" data-tmopen="' + o.id + '" title="Меню задачи: стадия, исполнитель, сроки, приоритет">⚙ Меню задачи</button>' : "") + '<button class="x" data-close="1">✕</button></div><div style="color:var(--muted);margin-top:2px">' + E(o.object) + "</div>" + stepper(o) + "</div>"
+      + '<button class="x" data-close="1">✕</button></div><div style="color:var(--muted);margin-top:2px">' + E(o.object) + "</div>" + stepper(o) + "</div>"
       + '<div class="m-body">' + nx + '<div class="tabs">' + tabs.map(function (t) { return '<button data-tab="' + t[0] + '" class="' + (S.tab === t[0] ? "on" : "") + '">' + t[1] + "</button>"; }).join("") + "</div>" + body + "</div></div></div>";
   }
   function formHtml() {
@@ -458,7 +459,7 @@
       : k === "cust" ? '<div class="ds dspage">' + custScreen() + "</div>" : k === "week" ? '<div class="ds dspage">' + weekScreen() + "</div>" : screen();
     if (q) { var qe = document.getElementById("dsQ"); if (qe) { qe.focus(); qe.setSelectionRange(qe.value.length, qe.value.length); } }
     var m = modalRoot();
-    if (S.tm) { m.innerHTML = tmHtml(); return; }
+    if (S.tm) { m.innerHTML = tmWrap(); return; }
     if (S.nt) { m.innerHTML = ntHtml(); return; }
     if (S.te) { m.innerHTML = teHtml(); return; }
     if (S.form) { m.innerHTML = formHtml(); return; }
@@ -532,9 +533,7 @@
     var o = S.oe; if (!o) return "";
     var p = pos(), full = fullCtl(), stages = (S.meta && S.meta.stages) || [], people = S.people || [], money_ = can("money") && o.amount != null && full;
     var banner = o.left_days == null ? "" : (o.left_days < 0 ? '<div class="tm-ban bad">Просрочено ' + plural(o.left_days, ["день", "дня", "дней"]) + "</div>" : '<div class="tm-ban">Осталось ' + plural(o.left_days, ["день", "дня", "дней"]) + "</div>");
-    return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:12px"><div class="modal tm">'
-      + '<div class="m-head"><div class="row"><div><h2 style="font-size:1.25rem">№' + E(o.number) + " · " + E(o.customer || "") + '</h2><div class="tm-links"><a href="#/team?room=t' + o.id + '" data-tmclose="1">обсудить в чате</a></div></div><button class="x" data-close="1">✕</button></div></div>'
-      + '<div class="m-body tm-body">' + banner
+    return '<div class="tm-inner">' + (S.tm ? "" : '<div class="tm-links" style="margin-bottom:10px"><a href="#/team?room=t' + o.id + '">обсудить в чате</a></div>') + banner
       + '<div class="tm-btns"><a class="btn primary" href="' + E(folderUrl(o, false)) + '">Перейти в папку на сервере</a><button class="btn ghost" data-tmcopy="1">Копировать имя</button></div>'
       + '<div class="tm-urg"><span class="ico">⚡</span><div><b>Срочная работа</b><small>Поднимается наверх списка и подсвечивается красным</small></div><button type="button" class="tm-sw ' + (o.urgent ? "on" : "") + '" data-tmurg="1" aria-label="Срочная работа"><i></i></button></div>'
       + '<label class="tm-l">Стадия</label><div class="tm-chips">' + stages.map(function (s) { return '<button type="button" class="tmchip ' + (s === o.stage ? "on" : "") + '" data-tmstage="' + E(s) + '"><i style="background:' + (STAGE_COLOR[s] || "#999") + '"></i>' + E(s) + "</button>"; }).join("") + "</div>"
@@ -551,12 +550,17 @@
         + '<div class="g2f">' + tmInp("Дата аванса", "adv_date", "date") + tmInp("Дата постоплаты", "post_date", "date") + "</div>"
         + oeChk("Аванс оплачен", "adv_paid") + oeChk("Постоплата оплачена", "post_paid") + oeChk("Акт отправлен", "act_sent") + oeChk("Акт подписан", "act_signed") : "")
       + (S.oeErr ? '<div class="err">' + E(S.oeErr) + "</div>" : "")
-      + '</div><div class="tm-foot"><button class="btn ghost" data-close="1">Отмена</button>' + (full ? '<button class="btn ghost" data-oedel="1" style="color:var(--bad)">Удалить</button>' : "") + '<button class="btn primary" data-oesave="1">Сохранить</button></div></div></div>';
+      + '<div class="tm-foot"><button class="btn ghost" data-close="1">Отмена</button>' + (full ? '<button class="btn ghost" data-oedel="1" style="color:var(--bad)">Удалить</button>' : "") + '<button class="btn primary" data-oesave="1">Сохранить</button></div></div>';
+  }
+  function tmRepaint() { if (S.tm) modalRoot().innerHTML = tmWrap(); else paint(); }
+  function tmWrap() {
+    var o = S.oe; if (!o) return "";
+    return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:12px"><div class="modal tm"><div class="m-head"><div class="row"><div><h2 style="font-size:1.25rem">№' + E(o.number) + " · " + E(o.customer || "") + '</h2></div><button class="x" data-close="1">✕</button></div></div><div class="m-body tm-body">' + tmHtml() + "</div></div></div>";
   }
   function tmOpen(id) {
     var o = find(+id); if (!o) return;
     S.oe = JSON.parse(JSON.stringify(o)); S.oeErr = ""; S.tm = true;
-    modalRoot().innerHTML = tmHtml();
+    modalRoot().innerHTML = tmWrap();
   }
   function oeSave() {
     var o = S.oe; if (!o) return;
@@ -566,12 +570,12 @@
     if (can("money") && o.amount != null) Object.assign(pl, { amount: +o.amount || 0, adv_sum: +o.adv_sum || 0, adv_date: o.adv_date || "", post_date: o.post_date || "", adv_paid: o.adv_paid ? 1 : 0, post_paid: o.post_paid ? 1 : 0, act_sent: o.act_sent ? 1 : 0, act_signed: o.act_signed ? 1 : 0 });
     if (pos() === "design") { ["number", "customer", "amount", "adv_sum"].forEach(function (k) { delete pl[k]; }); }
     api("/orders/" + o.id + "/edit", pl).then(function () { S.oe = null; S.tm = false; toast("Правки сохранены"); S.orders = null; S.tasks = null; return load().then(function () { return api("/orders/" + o.id + "/history").then(function (h) { S.history = h; }, function () {}); }).then(paint); },
-      function (e) { S.oeErr = String(e); if (S.tm) modalRoot().innerHTML = tmHtml(); else paint(); });
+      function (e) { S.oeErr = String(e); tmRepaint(); });
   }
   function oeDel() {
     var o = S.oe; if (!o || !confirm("Удалить задачу №" + o.number + " вместе со служебными задачами, ТЗ, историей и чатом? Это нельзя отменить.")) return;
     api("/orders/" + o.id + "/delete", {}).then(function () { S.oe = null; S.tm = false; S.open = null; S.tab = "info"; if (/^#\/task\//.test(location.hash)) history.replaceState(null, "", "#/"); toast("Задача удалена"); S.orders = null; S.tasks = null; return load().then(paint); },
-      function (e) { S.oeErr = String(e); paint(); });
+      function (e) { S.oeErr = String(e); tmRepaint(); });
   }
   /* правка и удаление организационной задачи */
   function teHtml() {
@@ -712,7 +716,7 @@
       + "";
     var cardsHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">' + cards + "</div>", headBase = head;
     head += cardsHtml;
-    var open = canEdit ? "data-edit" : (p === "designer" ? "data-ro" : "data-open");
+    var open = p === "designer" ? "data-ro" : "data-open";
     if (S.ld === "week") {
       var wkDays = []; for (var i = 0; i < 7; i++) wkDays.push(isoDay(addDays(mon, i)));
       var lbl = dmy(wkDays[0]).slice(0, 5) + " — " + dmy(wkDays[6]).slice(0, 5);
@@ -736,7 +740,9 @@
     var nav = '<div class="ldnav"><div class="seg"><button data-ldn="-1"' + (off ? "" : " disabled") + '>← назад</button><button data-ldn="0" class="on">' + dmy(iso[0]).slice(0, 5) + " — " + dmy(iso[dim - 1]).slice(0, 5) + '</button><button data-ldn="1">вперёд →</button></div>'
       + '<span class="grow"></span><span class="vlab">Масштаб</span><div class="seg"><button data-ldz="-1" title="Уменьшить">−</button><button data-ldz="0" title="Сбросить масштаб">' + Math.round(z * 100) + '%</button><button data-ldz="1" title="Увеличить">+</button></div></div>';
     var BAR = { work: "#5aa2ee", hot: "#f0924d", late: "#e5483c", done: "#3aa876", gray: "#8794ab" };
+    var PAL = ["#4f8ef0", "#e0734a", "#2fa66a", "#8b6fe0", "#d4a017", "#1fb3b3", "#d9568a", "#6f7de0", "#8c9a2a", "#b0632f", "#3c9bd1", "#c24bb0"];
     function barKind(o, un) { if (un) return "gray"; if (o.stage === "Сдано") return "done"; if (o.left_days != null && o.left_days < 0) return "late"; if (o.urgent || (o.left_days != null && o.left_days <= 2)) return "hot"; return "work"; }
+    function taskColor(o) { var h = 0; String(o.number || o.id).split("").forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return PAL[(h + (+o.id || 0)) % PAL.length]; }
     function cellBg(i, row) {
       var we = dow[i] >= 5, td = iso[i] === today;
       return '<div style="grid-column:' + (i + 2) + ";grid-row:" + row + ";" + (td ? "border-left:2px solid #f0924d;background:color-mix(in srgb,#f0924d 10%,transparent);" : "border-left:1px solid var(--line);" + (we ? "background:color-mix(in srgb,var(--bad) 8%,var(--surface-2));" : "")) + '"></div>';
@@ -761,7 +767,7 @@
     }
     function barEl(x, un) {
       var o = x.o, kind = barKind(o, un), a_ = x.r[0], b_ = x.r[1], sp = span(o);
-      return '<div ' + open + '="' + o.id + '" title="' + E("№" + o.number + " · " + (o.object || "") + " · " + dmy(sp[0] || iso[0]) + " — " + dmy(sp[1] || sp[0] || iso[0]) + " · " + (o.executor || "не назначен") + " · " + o.stage) + '" style="grid-column:' + (a_ + 2) + "/" + (b_ + 3) + ";grid-row:" + (x.lane + 1) + ";background:" + BAR[kind] + (un ? ";color:#fff;opacity:.85" : "") + '" class="gbar">'
+      return '<div ' + open + '="' + o.id + '" title="' + E("№" + o.number + " · " + (o.object || "") + " · " + dmy(sp[0] || iso[0]) + " — " + dmy(sp[1] || sp[0] || iso[0]) + " · " + (o.executor || "не назначен") + " · " + o.stage) + '" style="grid-column:' + (a_ + 2) + "/" + (b_ + 3) + ";grid-row:" + (x.lane + 1) + ";background:" + (un ? BAR.gray : kind === "done" ? BAR.done : taskColor(o)) + (un ? ";color:#fff;opacity:.85" : "") + (kind === "late" ? ";box-shadow:inset 0 0 0 2px #e5483c,0 0 0 1px #e5483c" : kind === "hot" ? ";box-shadow:inset 4px 0 0 #f0924d" : "") + '" class="gbar">'
         + "№" + E(o.number) + " · " + E((o.object || "").split(",")[0]) + "</div>";
     }
     var header = '<div class="ghead" style="grid-template-columns:' + cols + ';min-width:' + minw + 'px"><div class="gname">Сотрудник</div>'
@@ -776,10 +782,11 @@
       var L = lanes(mine), load = iso.map(function () { return 0; });
       L.items.forEach(function (x) { for (var i = x.r[0]; i <= x.r[1]; i++) load[i]++; });
       var rows = L.n + 1;
+      var until = ""; mine.forEach(function (o) { if (o.stage === "Сдано") return; var e_ = span(o)[1] || span(o)[0]; if (e_ && e_ > until) until = e_; });
       var bg = "";
       for (var r = 1; r <= rows; r++) bg += iso.map(function (d, i) { return cellBg(i, r); }).join("");
       var strip = load.map(function (n, i) { return n ? '<span class="gl" style="grid-column:' + (i + 2) + ";grid-row:" + rows + ";background:" + (n >= 3 ? "#e5483c" : "#8794ab") + '" title="' + n + ' задач(и) в день"></span>' : ""; }).join("");
-      var nm = '<div class="gname gp" style="grid-row:1/span ' + rows + '"><span class="ava sm" style="background:' + color + '">' + E(u.name[0]) + "</span><b>" + E(u.name) + "</b></div>";
+      var nm = '<div class="gname gp" style="grid-row:1/span ' + rows + '"><span class="ava sm" style="background:' + color + '">' + E(u.name[0]) + "</span><span class=\"gnm\"><b>" + E(u.name) + "</b>" + (until ? "<small>Загружен до " + dmy(until).slice(0, 5) + "</small>" : "<small>свободен</small>") + "</span></div>";
       return '<div class="grow2" style="grid-template-columns:' + cols + ";grid-template-rows:repeat(" + (rows - 1) + ',24px) 8px;min-width:' + minw + 'px">' + nm + bg + L.items.map(function (x) { return barEl(x, false); }).join("") + strip + "</div>";
     }
     var UL = lanes(unassigned);
@@ -790,7 +797,7 @@
         + bg + UL.items.map(function (x) { return barEl(x, true); }).join("") + "</div>";
     })() : "";
     var nodates = loadOrders().filter(function (o) { return o.executor && ACTIVE_WORK.indexOf(o.stage) >= 0 && !span(o)[0] && !span(o)[1]; });
-    var legend = '<div class="glegend"><span><i style="background:' + BAR.work + '"></i>В работе</span><span><i style="background:' + BAR.hot + '"></i>Горит</span><span><i style="background:' + BAR.late + '"></i>Просрочено</span><span><i style="background:' + BAR.done + '"></i>Сдано</span>'
+    var legend = '<div class="glegend"><span>Цвет полосы — своя у каждой задачи</span><span><i style="background:' + BAR.hot + '"></i>Оранжевая кромка — горит</span><span><i style="background:' + BAR.late + '"></i>Красная рамка — просрочено</span><span><i style="background:' + BAR.done + '"></i>Сдано</span>'
       + '<span><i style="background:' + BAR.gray + '"></i>Серые — не назначены, на стадии «Готов к проектированию»: от даты постановки до последнего дня договора</span><span class="muted">Полоска снизу — число задач в день (красная ≥ 3)</span></div>'
       + (nodates.length ? '<div class="glegend">Без дат (не на шкале): ' + nodates.map(function (o) { return '<a href="#/task/' + o.id + '">№' + E(o.number || "—") + "</a>"; }).join(" ") + "</div>" : "");
     var bodyHtml = people.map(person).join("") + unBlock;
@@ -1731,9 +1738,9 @@
     var d = t.dataset;
     if (d.close) return closeAll();
     if (d.tmopen) return tmOpen(d.tmopen);
-    if (d.tmstage) { if (S.oe) { S.oe.stage = d.tmstage; modalRoot().innerHTML = tmHtml(); } return; }
-    if (d.tmprio) { if (S.oe) { S.oe.priority = d.tmprio; modalRoot().innerHTML = tmHtml(); } return; }
-    if (d.tmurg != null && t.hasAttribute("data-tmurg")) { if (S.oe) { S.oe.urgent = S.oe.urgent ? 0 : 1; modalRoot().innerHTML = tmHtml(); } return; }
+    if (d.tmstage) { if (S.oe) { S.oe.stage = d.tmstage; tmRepaint(); } return; }
+    if (d.tmprio) { if (S.oe) { S.oe.priority = d.tmprio; tmRepaint(); } return; }
+    if (d.tmurg != null && t.hasAttribute("data-tmurg")) { if (S.oe) { S.oe.urgent = S.oe.urgent ? 0 : 1; tmRepaint(); } return; }
     if (d.tmcopy != null && t.hasAttribute("data-tmcopy")) { if (S.oe) { try { navigator.clipboard.writeText("№" + S.oe.number + " " + (S.oe.customer || "")); toast("Имя скопировано"); } catch (e) { toast("Не удалось скопировать"); } } return; }
     if (d.tmclose != null && t.hasAttribute("data-tmclose")) { S.tm = false; S.oe = null; S.open = null; modalRoot().innerHTML = ""; return; }
     if (d.tedit) return teOpen(d.tedit);
@@ -1766,7 +1773,7 @@
       return api("/orders/" + coid + "/comments", { text: txt }).then(function () { S.cmDraft[coid] = ""; return api("/comments"); }).then(function (c) { S.cm = c; S.cmOpen[coid] = true; paint(); }, function (e) { toast(String(e)); });
     }
     if (d.open) {
-      S.open = +d.open; S.tab = "info"; S.edit = null;
+      S.open = +d.open; S.tab = "info"; S.edit = null; S.oe = null;
       return api("/orders/" + S.open + "/history").then(function (h) { S.history = h; }, function () { S.history = []; }).then(paint);
     }
     if (d.csel) { var cc = (S.customers || []).filter(function (c) { return c.id === +d.csel; })[0]; if (cc) { S.cu.sel = cc.id; S.cu.draft = JSON.parse(JSON.stringify(cc)); S.cu.err = ""; } paint(); if (innerWidth < 900) { var cardEl = document.querySelector("#clients-app .dsg21 > div:last-child"); if (cardEl) cardEl.scrollIntoView({ behavior: "smooth", block: "start" }); } return; }
