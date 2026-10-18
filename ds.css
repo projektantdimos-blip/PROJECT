@@ -565,3 +565,34 @@
   .x-comp .x-urgbtn{font-size:0!important}
   .x-comp #tSend{width:44px;height:44px;border-radius:50%!important;padding:0!important;background:var(--tg-out)!important;justify-content:center}
 }
+
+/* ===== «Команда» на телефоне: закреплённый тёмный экран, как список чатов в Telegram ===== */
+.x-mbar,.x-mtabs,.x-fab{display:none}
+@media(max-width:760px){
+  body.team-fs{overflow:hidden!important;overscroll-behavior:none;background:#0e1621!important}
+  body.team-fs #apiGear{display:none!important}
+  body.team-fs #team-app{position:fixed;left:0;right:0;top:0;bottom:84px;background:#0e1621;overflow:hidden;z-index:50}
+  body.team-fs #team-app>.top{display:none!important}
+  body.team-fs #team-app>.wrap{padding:0!important;height:100%;max-width:none}
+  body.team-fs .x-chat:not(.open){display:flex!important;flex-direction:column;height:100%!important;min-height:0!important;position:static!important}
+  body.team-fs .x-chat:not(.open) .x-dlgs{display:flex!important;flex-direction:column;height:100%!important;position:relative;background:#0e1621!important;min-height:0}
+  body.team-fs .x-mbar{display:flex;align-items:center;gap:10px;background:#17212b;color:#fff;padding:12px 14px;font-size:1.15rem}
+  body.team-fs .x-mbar b{flex:1;font-weight:600}
+  body.team-fs .x-mbar button{background:none;border:0;color:#8ea2b3;font-size:1.5rem;line-height:1;cursor:pointer}
+  body.team-fs .x-mur{background:#e5483c;color:#fff;border-radius:11px;padding:0 8px;font-size:.8rem;line-height:22px}
+  body.team-fs .x-mtabs{display:flex;gap:4px;background:#17212b;padding:0 8px;border-bottom:1px solid #0b121a;overflow-x:auto}
+  body.team-fs .x-mtabs button{background:none;border:0;border-bottom:2px solid transparent;color:#8ea2b3;padding:8px 12px;font:inherit;font-size:.95rem;cursor:pointer;white-space:nowrap}
+  body.team-fs .x-mtabs button.on{color:#6ab3f3;border-bottom-color:#6ab3f3;font-weight:600}
+  body.team-fs .x-dlgs .hd{display:none;padding:8px 10px;background:#17212b;border-bottom:1px solid #0b121a}
+  body.team-fs .x-dlgs.srch .hd{display:flex}
+  body.team-fs .x-dlgs .hd .x-btn{display:none}
+  body.team-fs .x-dlgs.fab .hd{display:flex;position:absolute;right:12px;bottom:84px;left:auto;width:230px;z-index:6;background:#17212b;border:1px solid #0b121a;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:8px}
+  body.team-fs .x-dlgs.fab .hd .x-btn{display:flex}
+  body.team-fs .x-dlgs.fab .hd #tSearch{display:none}
+  body.team-fs .x-dlgs .sc{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+  body.team-fs .x-dlgs #tSearch{background:#0e1621!important;border:0!important;color:#fff;border-radius:18px!important}
+  body.team-fs .x-fab{display:grid;place-items:center;position:absolute;right:14px;bottom:14px;width:52px;height:52px;border-radius:50%;border:0;background:#2b5278;color:#fff;font-size:1.4rem;box-shadow:0 4px 14px rgba(0,0,0,.5);cursor:pointer;z-index:5}
+  body.team-fs .x-chat.open{bottom:0!important}
+  body.team-fs:has(.x-chat.open) #team-app{bottom:0;z-index:310}
+  body.team-fs:has(.x-chat.open) .bottomnav{display:none!important}
+}

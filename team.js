@@ -62,7 +62,7 @@
   /* ================================================================
      КОМАНДА
      ================================================================ */
-  var S = { rooms: [], cur: "general", msgs: [], lastId: 0, urg: false, tick: 0, timer: null, users: [] };
+  var S = { ft: "all", rooms: [], cur: "general", msgs: [], lastId: 0, urg: false, tick: 0, timer: null, users: [] };
   var ROOM_IC = { general: "hash", buy: "wallet", calc: "calc", kp: "file" };
 
   function renderTeam() {
@@ -72,9 +72,14 @@
     var isOwner = C.me && (C.me.position === "owner" || C.me.role === "admin");
     el.innerHTML = head("Команда", sub, '<div class="x-chips"><span class="x-chip on" id="tUrgChip">' + ic("flame") + 'Срочное <b id="tUrgN">0</b></span>'
       + (isOwner ? '<label class="x-chip" style="cursor:pointer" title="Новые сообщения заказчиков из Telegram, MAX и почты копируются в закрытый канал «Отдел продаж»"><input type="checkbox" id="tMirror" style="margin-right:6px">Диалоги заказчиков в канал продаж</label>' : "") + "</div>")
-      + '<div class="wrap"><div class="x-chat"><div class="x-dlgs"><div class="hd"><button class="x-btn primary" id="tDm" style="justify-content:center;width:100%">' + ic("plus") + 'Личное сообщение</button><button class="x-btn ghost" id="tGrp" style="justify-content:center;width:100%;margin-top:8px">' + ic("plus") + 'Новый чат</button><button class="x-btn ghost" id="tNew" style="justify-content:center;width:100%;margin-top:8px">' + ic("tasks") + 'Диалог по задаче</button><input type="text" id="tSearch" placeholder="Поиск по чатам…" autocomplete="off" style="width:100%;margin-top:8px;border:1px solid var(--line);border-radius:12px;padding:9px 12px;background:var(--surface);color:var(--ink)"></div><div class="sc" id="tRooms"></div></div><div class="x-thread" id="tThread"></div><div class="x-info" id="tInfo"></div></div></div>';
+      + '<div class="wrap"><div class="x-chat"><div class="x-dlgs"><div class="x-mbar"><b>Команда</b><span class="x-mur" id="tMurg" hidden>0</span><button type="button" id="tMs" aria-label="Поиск">⌕</button></div><div class="x-mtabs" id="tTabs">' + [["all", "Все"], ["dm", "Личные"], ["task", "Задачи"], ["chan", "Каналы"]].map(function (x) { return '<button type="button" data-ft="' + x[0] + '" class="' + (S.ft === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + '</div><button type="button" class="x-fab" id="tFab" aria-label="Создать">✎</button><div class="hd"><button class="x-btn primary" id="tDm" style="justify-content:center;width:100%">' + ic("plus") + 'Личное сообщение</button><button class="x-btn ghost" id="tGrp" style="justify-content:center;width:100%;margin-top:8px">' + ic("plus") + 'Новый чат</button><button class="x-btn ghost" id="tNew" style="justify-content:center;width:100%;margin-top:8px">' + ic("tasks") + 'Диалог по задаче</button><input type="text" id="tSearch" placeholder="Поиск по чатам…" autocomplete="off" style="width:100%;margin-top:8px;border:1px solid var(--line);border-radius:12px;padding:9px 12px;background:var(--surface);color:var(--ink)"></div><div class="sc" id="tRooms"></div></div><div class="x-thread" id="tThread"></div><div class="x-info" id="tInfo"></div></div></div>';
     if (q) { var ch1 = document.querySelector(".x-chat"); if (ch1) ch1.classList.add("open"); }                   /* ссылка на чат открывает его сразу */
     $("tNew").onclick = newTaskRoom;
+    syncFs();
+    $("tFab").onclick = function () { document.querySelector(".x-dlgs").classList.toggle("fab"); };
+    $("tMs").onclick = function () { var d = document.querySelector(".x-dlgs"); d.classList.toggle("srch"); if (d.classList.contains("srch")) $("tSearch").focus(); };
+    $("tTabs").onclick = function (e) { var b = e.target.closest("[data-ft]"); if (!b) return; S.ft = b.dataset.ft; [].forEach.call($("tTabs").children, function (x) { x.classList.toggle("on", x === b); }); paintRooms(); };
+    [$("tDm"), $("tGrp"), $("tNew")].forEach(function (b) { b.addEventListener("click", function () { document.querySelector(".x-dlgs").classList.remove("fab"); }); });
     if ($("tMirror")) {
       C.call("/../ds/settings/mirror").then(function (r) { $("tMirror").checked = !!r.on; }).catch(function () {});
       $("tMirror").onchange = function () {
@@ -90,6 +95,9 @@
     C.call("/auth/users", { auth: false }).then(function (n) { S.users = n; paintInfo(); }).catch(function () {});
     startTimer();
   }
+  /* на телефоне «Команда» — закреплённый тёмный экран: страница не прокручивается */
+  function syncFs() { document.body.classList.toggle("team-fs", cur() === "team"); }
+  window.addEventListener("hashchange", syncFs);
   function stopTimer() { if (S.timer) { clearInterval(S.timer); S.timer = null; } }
   function startTimer() {
     stopTimer();
@@ -118,17 +126,19 @@
     var el = $("tRooms"); if (!el) return;
     var urg = S.rooms.filter(function (r) { return r.urgent_open > 0; }), n = urg.reduce(function (a, r) { return a + r.urgent_open; }, 0);
     if ($("tUrgN")) $("tUrgN").textContent = n;
+    if ($("tMurg")) { $("tMurg").textContent = n; $("tMurg").hidden = !n; }
     var q = ($("tSearch") && $("tSearch").value || "").trim().toLowerCase();
     var ok = function (r) { return !q || (r.name + " " + (r.descr || "") + " " + (r.last ? r.last.text : "")).toLowerCase().indexOf(q) >= 0; };
     var dms = S.rooms.filter(function (r) { return r.kind === "dm" && ok(r); });
     var chans = S.rooms.filter(function (r) { return r.kind === "chan" && ok(r); });
     var tasks = S.rooms.filter(function (r) { return r.kind === "task" && ok(r); });
     var groups = S.rooms.filter(function (r) { return r.kind === "group" && ok(r); });
-    el.innerHTML = (urg.length ? '<div class="x-grp red">' + ic("flame") + "Срочное</div>" + urg.map(function (r) { return '<div class="x-dlg" data-r="' + E(r.id) + '"><span class="x-rm red">' + ic("flame") + '</span><div class="m"><b>' + E(r.name) + "</b><span>" + E(r.last ? r.last.user + ": " + r.last.text : "") + "</span></div></div>"; }).join("") : "")
-      + '<div class="x-grp">Личные сообщения</div>' + (dms.map(roomItem).join("") || '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : "Пока нет. Нажмите «Личное сообщение»") + "</p>")
-      + '<div class="x-grp">Каналы</div>' + chans.map(roomItem).join("")
-      + '<div class="x-grp">Чаты</div>' + (groups.map(roomItem).join("") || '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : "Свои чаты: нажмите «Новый чат»") + "</p>")
-      + '<div class="x-grp">Диалоги по задачам</div>' + (tasks.map(roomItem).join("") || '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : "Чат создаётся сам при подписании договора. Свою задачу можно найти кнопкой «Диалог по задаче»") + "</p>");
+    var ft = S.ft || "all", show = function (k) { return ft === "all" || ft === k; };
+    el.innerHTML = (urg.length && ft === "all" ? '<div class="x-grp red">' + ic("flame") + "Срочное</div>" + urg.map(function (r) { return '<div class="x-dlg" data-r="' + E(r.id) + '"><span class="x-rm red">' + ic("flame") + '</span><div class="m"><b>' + E(r.name) + "</b><span>" + E(r.last ? r.last.user + ": " + r.last.text : "") + "</span></div></div>"; }).join("") : "")
+      + (!show("dm") ? "" : '<div class="x-grp">Личные сообщения</div>' + (dms.map(roomItem).join("") || '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : "Пока нет. Нажмите «Личное сообщение»") + "</p>"))
+      + (!show("chan") ? "" : '<div class="x-grp">Каналы</div>' + chans.map(roomItem).join("")
+        + '<div class="x-grp">Чаты</div>' + (groups.map(roomItem).join("") || '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : "Свои чаты: нажмите «Новый чат»") + "</p>"))
+      + (!show("task") ? "" : '<div class="x-grp">Диалоги по задачам</div>' + (tasks.map(roomItem).join("") || '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : "Чат создаётся сам при подписании договора. Свою задачу можно найти кнопкой «Диалог по задаче»") + "</p>"));
     el.querySelectorAll(".x-dlg").forEach(function (d) { d.onclick = function () { openRoom(d.dataset.r); }; });
     if (C.sync) { /* бейдж меню обновится при следующем опросе */ }
   }
