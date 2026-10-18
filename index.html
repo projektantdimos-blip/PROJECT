@@ -760,7 +760,7 @@ function renderTopNav(){
     + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
   var bn = function(go, ic, t, on){ return '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+t+'</button>'; };
   document.getElementById("bottomnav").innerHTML =
-    (dsAllowed("tasks")?bn("#/","tasks",pos==="designer"?"Проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks"):"") + (dsAllowed("my")?bn("#/my","bell",pos==="designer"?"План":"Мои",pa==="my"):"") + (dsAllowed("kpreg")?bn("#/kpreg/","briefcase","Коммерция",pa==="commerce"):"") + (dsAllowed("team")?bn("#/team","team","Команда",pa==="team"):"")
+    (dsAllowed("tasks")?bn("#/","tasks",pos==="designer"?"Проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks"):"") + (dsAllowed("my")?bn("#/my","bell",pos==="designer"?"План":"Мои",pa==="my"):"") + (dsAllowed("team")?bn("#/team","team","Команда",pa==="team"):"") + (dsAllowed("chat")?bn("#/chat","chat","Переписка",pa==="chat"):"")
     + '<button data-more="1">'+icon("menu")+'Ещё</button>';
   document.getElementById("subnavM").innerHTML = pa==="commerce"
     ? [["#/kpreg/","Реестр КП","kpreg"],["#/kpc","Конструктор КП","kpc"],["#/price","Прайс","price"],["#/contracts","Договоры","contracts"]].map(function(x){ return '<button data-goto="'+x[0]+'" class="tab '+(cur===x[2]?"active":"")+'">'+x[1]+'</button>'; }).join("")
