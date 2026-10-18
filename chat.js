@@ -307,10 +307,17 @@
       Array.prototype.forEach.call(bg.querySelectorAll("[data-i]"), function (b) {
         b.onclick = function () {
           var s = list[+b.getAttribute("data-i")], m = me();
-          var txt = String(s.text || "").replace(/\{менеджер\}/gi, m ? m.name : "").replace(/\{заказчик\}/gi, th ? (th.title || th.peer || "") : "");
-          el.text.value = (el.text.value ? el.text.value + "\n\n" : "") + txt;
-          if (el.grow) el.grow();
-          el.text.focus(); close();
+          function fill(link) {
+            var o = link && link.orders && (link.orders.filter(function (x) { return x.stage !== "Закрыто"; })[0] || link.orders[0]) || {}, cu = link && link.customer || {};
+            var dmy = function (v) { var p = String(v || "").split("-"); return p.length === 3 ? p[2] + "." + p[1] + "." + p[0] : (v || "по договору"); };
+            var vars = { "менеджер": m ? m.name : "", "заказчик": cu.name || (th ? (th.title || th.peer || "") : ""), "номер": o.number ? "№" + o.number : "", "срок": o.due_date ? dmy(o.due_date) : "", "объект": o.object || "", "этап": o.stage || "", "исполнитель": o.executor || "" };
+            var txt = String(s.text || "").replace(/\{([^{}]+)\}/g, function (all, k) { var v = vars[k.trim().toLowerCase()]; return v === undefined ? all : v; });
+            el.text.value = (el.text.value ? el.text.value + "\n\n" : "") + txt;
+            if (el.grow) el.grow();
+            el.text.focus(); close();
+          }
+          if (!th || !/\{(номер|срок|объект|этап|исполнитель)\}/i.test(s.text || "")) return fill(null);
+          api("/api/ds/threads/" + encodeURIComponent(th.id) + "/link?title=" + encodeURIComponent(th.title || "") + "&peer=" + encodeURIComponent(th.peer || "")).then(fill, function () { fill(null); });
         };
       });
     }, function (e) { setErr(String(e)); });

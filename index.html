@@ -301,7 +301,9 @@ textarea{resize:vertical;min-height:64px}
 <div id="stages-app" style="display:none"></div>
 <div id="clients-app" style="display:none"></div>
 <div id="report-app" style="display:none"></div>
+<script>(function(){var v=window.visualViewport;function f(){document.documentElement.style.setProperty("--vvh",(v?v.height:innerHeight)+"px");}f();if(v){v.addEventListener("resize",f);v.addEventListener("scroll",f);}window.addEventListener("orientationchange",f);})();</script>
 <div id="flow-app" style="display:none"></div>
+<div id="risk-app" style="display:none"></div>
 <div id="tz-app" style="display:none"></div>
 <div id="stats-app" style="display:none"></div>
 <div id="price-app" style="display:none"></div>
@@ -711,6 +713,7 @@ function sectionForHash(h){
   if (h.indexOf("#/chat") === 0) return "chat";
   if (h.indexOf("#/to") === 0) return "to";
   if (h.indexOf("#/dash") === 0) return "dash";
+  if (h.indexOf("#/risk") === 0) return "risk";
   if (h.indexOf("#/cal") === 0) return "cal";
   if (h.indexOf("#/my") === 0) return "my";
   if (h.indexOf("#/team") === 0) return "team";
@@ -723,10 +726,10 @@ function sectionForHash(h){
 }
 /* Какие разделы видит каждая роль (позиция сотрудника в CRM). Это интерфейс; данные ограничиваются на сервере (этап 2). */
 var DS_ALLOWED = {
-  owner:    ["dash","flow","tasks","tz","cal","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","stats","log","auto","stages","me"],
-  design:   ["dash","tasks","cal","my","clients","chat","team","report","me"],
+  owner:    ["dash","flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","stats","log","auto","stages","me"],
+  design:   ["dash","tasks","cal","risk","my","clients","chat","team","report","me"],
   sales:    ["dash","flow","tasks","cal","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","me"],
-  ops:      ["dash","flow","tasks","tz","cal","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","me"],
+  ops:      ["dash","flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","me"],
   acc:      ["tasks","kpreg","team","me"],
   designer: ["tasks","cal","my","team","me"]
 };
@@ -742,7 +745,7 @@ function dsAllowed(sec){
 }
 function renderTopNav(){
   var cur = sectionForHash(location.hash);
-  var own = { scripts:1, tasks:1, dash:1, cal:1, my:1, chat:1, to:1, team:1, log:1, me:1, auto:1, stages:1, clients:1, report:1, stats:1, flow:1, tz:1 };
+  var own = { risk:1, scripts:1, tasks:1, dash:1, cal:1, my:1, chat:1, to:1, team:1, log:1, me:1, auto:1, stages:1, clients:1, report:1, stats:1, flow:1, tz:1 };
   var pa = own[cur] ? cur : "commerce";
   var ok = dsAllowed;
   var b = function(go, ic, t, on, sec){ return ok(sec) ? '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+'<span>'+t+'</span></button>' : ""; };
@@ -751,7 +754,7 @@ function renderTopNav(){
   var comm = (ok("kpreg") || ok("kpc") || ok("contracts")) ? '<button data-goto="#/kpreg/" class="'+(pa==="commerce"?"active":"")+'">'+icon("briefcase")+'<span>Коммерция</span></button>' + (pa==="commerce" ? sub : "") : "";
   var lab = function(t, secs){ return secs.some(ok) ? '<div class="nav-label">'+t+'</div>' : ""; };
   document.getElementById("topnav").innerHTML =
-    lab("Работа", ["dash","flow","tasks","tz","cal","my"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
+    lab("Работа", ["dash","flow","tasks","tz","cal","risk","my"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
     + lab("Заказчики и продажи", ["clients","kpreg","kpc","contracts"]) + b("#/clients","users",pos==="design"?"Кому звонить":"Заказчики",pa==="clients","clients") + comm
     + lab("Общение", ["team","chat","scripts","report"]) + b("#/team","team","Команда",pa==="team","team") + b("#/chat","chat","Переписка",pa==="chat","chat") + b("#/scripts","list","Скрипты",pa==="scripts","scripts") + b("#/report","list","Недельный отчёт",pa==="report","report")
     + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
@@ -776,6 +779,8 @@ function renderTopNav(){
   if (!dsAllowed(sec0)) { var hm = dsPosition() ? (DS_HOME[dsPosition()] || '#/me') : '#/me'; if (location.hash !== hm) { location.hash = hm; return; } }
   renderTopNav();
   var sec = sectionForHash(location.hash);
+  if (window.__lastSec && window.__lastSec !== sec && location.hash.indexOf("#/task/") !== 0 && window.DS && DS.closeAll) DS.closeAll();      // окно задачи не должно висеть поверх другого раздела
+  window.__lastSec = sec;
   document.getElementById("tasks-app").style.display = (sec === "tasks") ? "block" : "none";
   document.getElementById("kpreg-app").style.display = (sec === "kpreg") ? "block" : "none";
   document.getElementById("kpc-app").style.display = (sec === "kpc") ? "block" : "none";
@@ -802,6 +807,8 @@ function renderTopNav(){
   document.getElementById("clients-app").style.display = (sec === "clients") ? "block" : "none";
   document.getElementById("report-app").style.display = (sec === "report") ? "block" : "none";
   document.getElementById("flow-app").style.display = (sec === "flow") ? "block" : "none";
+  document.getElementById("risk-app").style.display = (sec === "risk") ? "block" : "none";
+  if (sec === "risk" && window.DS) DS.mount("risk", document.getElementById("risk-app"));
   document.getElementById("tz-app").style.display = (sec === "tz") ? "block" : "none";
   if (sec === "flow" && window.DS) DS.mount("flow", document.getElementById("flow-app"));
   if (sec === "tz" && window.DS) DS.mount("tz", document.getElementById("tz-app"));

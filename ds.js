@@ -61,7 +61,7 @@
     return m;
   }
 
-  var TITLES = { tasks: "Задачи", scripts: "Скрипты", ov: "Задачи", load: "Занятость", cust: "Заказчики", week: "План на неделю", kp: "Реестр КП", kpc: "Конструктор КП", contract: "Конструктор договора", report: "Недельный отчёт", stats: "Статистика", price: "Прайс", stages: "Этапы и сроки", auto: "Автоматизация", flow: "Конвейер заказа", tz: "Технические задания" };
+  var TITLES = { risk: "Просрочено и зависло", tasks: "Задачи", scripts: "Скрипты", ov: "Задачи", load: "Занятость", cust: "Заказчики", week: "План на неделю", kp: "Реестр КП", kpc: "Конструктор КП", contract: "Конструктор договора", report: "Недельный отчёт", stats: "Статистика", price: "Прайс", stages: "Этапы и сроки", auto: "Автоматизация", flow: "Конвейер заказа", tz: "Технические задания" };
   function mount(kind, el) {
     if (!el) return;
     S.mount = { kind: kind, el: el };
@@ -78,6 +78,7 @@
     if ((kind === "tasks" || kind === "ov") && /^(owner|sales|ops)$/.test(pos())) need = need.then(loadKp);
     if (kind === "week") need = need.then(loadWeek);
     if (kind === "scripts") need = need.then(loadScripts);
+    if (kind === "risk") need = need.then(loadRisk);
     if (kind === "ov" || kind === "tasks") need = need.then(function () { return api("/comments").then(function (c) { S.cm = c; }, function () { S.cm = S.cm || {}; }); });
     if (kind === "load" && pos() === "designer") need = need.then(function () { return api("/load").then(function (r) { S.lo = r; }, function () { S.lo = []; }); });
     if (kind === "kp" || kind === "kpc" || kind === "contract") need = need.then(loadKp);
@@ -286,6 +287,48 @@
   }
 
   /* ---------- «Скрипты»: тексты для переписки, заводятся и правятся самостоятельно ---------- */
+  /* ---------- «Просрочено и зависло» ---------- */
+  function loadRisk() { return api("/attention?days=" + (S.rkDays || 3)).then(function (r) { S.rk = r; S.rkErr = ""; }, function (e) { S.rk = { items: [], tasks: [], outbox: [] }; S.rkErr = String(e); }); }
+  var RK_KIND = { overdue: ["Просрочен срок по договору", "bad"], unassigned: ["Нет исполнителя", "warn"], stale: ["Без движения", "muted"] };
+  function riskScreen() {
+    var r = S.rk || { items: [], tasks: [], outbox: [] }, people = S.people || [];
+    var head = '<div class="head"><div><h1>Просрочено и зависло</h1><p>Всё, что требует внимания: срок прошёл, нет исполнителя или задача давно не двигалась. Напомнить или назначить можно прямо в строке.</p></div>'
+      + '<div class="seg"><button data-rkreload="1">⟳ Обновить</button></div></div>';
+    var days = '<div class="rkbar"><span>Считать «без движения» от</span><select data-rkdays="1">' + [1, 2, 3, 5, 7, 14].map(function (d) { return '<option value="' + d + '"' + (d === (r.stale_days || 3) ? " selected" : "") + ">" + d + " дн.</option>"; }).join("") + "</select></div>";
+    var ob = (r.outbox && r.outbox.length) ? '<div class="panel pad rkbox"><h3>Сообщения заказчикам ждут подтверждения</h3><p class="sub">Отправляются только после вашего «Отправить». Текст можно поправить.</p>'
+      + r.outbox.map(function (n) { return '<div class="rkob"><div><b>№' + E(n.number) + " · " + E(n.customer || "") + '</b><small>' + E(n.stage) + '</small></div><textarea rows="3" data-rkobt="' + n.id + '">' + E(n.text) + '</textarea><div class="rkact"><button class="btn primary sm" data-rkobsend="' + n.id + '" data-tid="' + E(n.thread_id) + '">Отправить заказчику</button><button class="btn ghost sm" data-rkobno="' + n.id + '">Не отправлять</button></div></div>'; }).join("") + "</div>" : "";
+    function group(kind) {
+      var list = r.items.filter(function (i) { return i.kind === kind; });
+      if (!list.length) return "";
+      return '<div class="panel rkgrp"><div class="rkh"><span class="pill ' + RK_KIND[kind][1] + '">' + RK_KIND[kind][0] + "</span><b>" + list.length + "</b></div>" + list.map(function (i) {
+        var assign = kind === "unassigned" ? '<select data-rkas="' + i.id + '"><option value="">Назначить…</option>' + people.map(function (u) { return '<option value="' + u.id + '">' + E(u.name) + "</option>"; }).join("") + "</select>" : "";
+        return '<div class="rkrow"><button class="rkmain" data-open="' + i.id + '"><b>№' + E(i.number) + "</b> " + E(i.customer || "") + "<small>" + E(i.object || "") + " · " + E(i.stage) + (i.executor ? " · " + E(i.executor) : "") + '</small></button>'
+          + '<span class="rkwhy">' + E(i.reason) + '</span><div class="rkact">' + assign + '<button class="btn ghost sm" data-rkrem="' + i.id + '" data-kind="' + kind + '">🔔 Напомнить</button></div></div>';
+      }).join("") + "</div>";
+    }
+    var tasks = r.tasks.length ? '<div class="panel rkgrp"><div class="rkh"><span class="pill bad">Просроченные задачи</span><b>' + r.tasks.length + "</b></div>"
+      + r.tasks.map(function (t) { return '<div class="rkrow"><span class="rkmain"><b>' + E(t.title) + '</b><small>срок ' + dmy(t.due) + '</small></span><span class="rkwhy">просрочено на ' + t.days + " дн.</span></div>"; }).join("") + "</div>" : "";
+    var body = ob + group("overdue") + group("unassigned") + group("stale") + tasks;
+    return head + (S.rkErr ? '<div class="err">' + E(S.rkErr) + "</div>" : "") + days + (body || '<div class="note">Всё в порядке: просроченных и зависших задач нет.</div>');
+  }
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest ? e.target.closest("[data-rkrem],[data-rkreload],[data-rkobsend],[data-rkobno]") : null; if (!t) return;
+    var d = t.dataset;
+    if (d.rkreload) { loadRisk().then(paint); return; }
+    if (d.rkrem) { t.disabled = true; api("/orders/" + d.rkrem + "/remind", { kind: d.kind }).then(function (x) { toast("Напомнили: " + (x.to || []).join(", ")); t.textContent = "✓ Напомнили"; }, function (er) { t.disabled = false; toast(String(er)); }); return; }
+    if (d.rkobno) { api("/outbox/" + d.rkobno, { action: "dismissed" }).then(function () { return loadRisk(); }).then(paint, function (er) { toast(String(er)); }); return; }
+    if (d.rkobsend) {
+      var ta = document.querySelector('[data-rkobt="' + d.rkobsend + '"]'), txt = ta ? ta.value.trim() : "";
+      if (!txt) return toast("Текст пустой");
+      t.disabled = true;
+      C.call("/../threads/" + encodeURIComponent(d.tid) + "/send", { body: { text: txt } }).then(function () { return api("/outbox/" + d.rkobsend, { action: "sent" }); }).then(function () { toast("Отправлено заказчику"); return loadRisk(); }).then(paint, function (er) { t.disabled = false; toast("Не отправилось: " + String(er)); });
+    }
+  });
+  document.addEventListener("change", function (e) {
+    var t = e.target; if (!t.dataset) return;
+    if (t.dataset.rkdays) { S.rkDays = +t.value; loadRisk().then(paint); }
+    if (t.dataset.rkas && t.value) { api("/orders/" + t.dataset.rkas + "/assign", { executor_id: +t.value }).then(function () { toast("Исполнитель назначен"); S.orders = null; return load(); }).then(function () { return loadRisk(); }).then(paint, function (er) { toast(String(er)); }); }
+  });
   function loadScripts() { return api("/scripts").then(function (r) { S.sc = r; if (!S.scSel && r.length) S.scSel = r[0].id; }, function (e) { S.sc = []; S.scErr = String(e); }); }
   function scriptsScreen() {
     var items = S.sc || [], sel = items.filter(function (x) { return x.id === S.scSel; })[0];
@@ -451,7 +494,7 @@
       if (!el.querySelector("#cgFrame")) el.innerHTML = '<div class="ds dspage">' + genScreen() + "</div>";
       return;
     }
-    el.innerHTML = k === "ov" ? screen() : k === "scripts" ? scriptsScreen() : k === "load" ? '<div class="ds dspage">' + loadScreen() + "</div>"
+    el.innerHTML = k === "risk" ? '<div class="ds dspage">' + riskScreen() + "</div>" : k === "ov" ? screen() : k === "scripts" ? scriptsScreen() : k === "load" ? '<div class="ds dspage">' + loadScreen() + "</div>"
       : k === "flow" ? '<div class="ds dspage">' + flowScreen() + "</div>" : k === "tz" ? '<div class="ds dspage">' + tzScreen() + "</div>"
       : k === "stages" ? '<div class="ds dspage">' + stagesScreen() + "</div>" : k === "auto" ? '<div class="ds dspage">' + autoScreen() + "</div>"
       : k === "price" ? '<div class="ds dspage">' + priceScreen() + "</div>" : k === "report" ? '<div class="ds dspage">' + reportScreen() + "</div>" : k === "stats" ? '<div class="ds dspage">' + statsScreen() + "</div>"
@@ -513,6 +556,7 @@
   }
   DS.newTask = ntOpen;
   DS.orders = function () { return (S.orders || []).map(function (o) { return { id: o.id, label: "№" + o.number + " · " + (o.customer || "") + " · " + (o.object || "") }; }); };
+  DS.closeAll = function () { S.form = S.edit = S.nt = S.te = null; S.tm = false; S.oe = null; S.open = null; S.tab = "info"; var m = document.getElementById("ds-modal"); if (m) m.innerHTML = ""; };
   DS.ensureOrders = function () { return S.orders == null && C && C.loggedIn() ? load().then(null, function () {}) : Promise.resolve(); };
 
   /* ---------- полный контроль руководителя и операционного менеджера: правка и удаление ---------- */

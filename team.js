@@ -147,6 +147,7 @@
     var me = C.me && m.user === C.me.name, mine = m.acks && C.me && m.acks.indexOf(C.me.name) >= 0;
     return '<div class="x-msg ' + (m.urgent ? "urg " : "") + (me ? "me" : "") + '">' + ava(m.user, "sm") + '<div class="bd"><div class="nm">' + E(m.user) + "<small>" + when(m.ts) + '</small></div><div class="tx">'
       + (m.urgent ? '<div class="x-urgtag">' + ic("flame") + "Срочное</div>" : "") + E(m.text)
+      + '<span class="x-tm">' + when(m.ts) + (me ? " ✓✓" : "") + "</span>"
       + (m.files && m.files.length ? '<div class="x-files">' + m.files.map(function (f) { return '<button class="x-file" data-tfile="' + f.id + '" title="Скачать">📎 ' + E(f.name) + "<small>" + Math.max(1, Math.round(f.size / 1024)) + " КБ</small></button>"; }).join("") + "</div>" : "") + "</div>"
       + (m.urgent ? '<div class="x-ack">' + ic("check") + (m.acks.length ? "Прочитали: " + E(m.acks.join(", ")) : "Пока никто не подтвердил") + (!me && !mine ? '<button data-ack="' + m.id + '">Прочитал(а)</button>' : "") + "</div>" : "") + "</div></div>";
   }
@@ -371,14 +372,14 @@
     ["mention", "Упоминание и личные сообщения", "Вас позвали через @Имя или написали лично"], ["chat", "Новое сообщение в чате", "Любое сообщение в каналах (может быть шумно)"],
     ["task", "Мне поставлена задача", "Договор подписан, задача пришла на ваш этап, назначены исполнителем, затянулась стадия"], ["deadline", "Скоро срок по договору", "За сколько дней — настраивает руководитель в «Автоматизации»"],
     ["overdue", "Срок по договору просрочен", "По вашей задаче срок по договору прошёл"], ["lead", "Оплата и КП", "Аванс и оплата получены, КП без ответа, аванс не пришёл"],
-    ["mail", "Заказчик написал", "Новые сообщения заказчиков в Telegram, MAX и почте"]];
+    ["mail", "Заказчик написал", "Новые сообщения заказчиков в Telegram, MAX и почте"], ["digest", "Утренняя сводка", "Раз в день после 9:00: что просрочено, что на сегодня, кому не назначено (операционному менеджеру)"]];
   var POS_TITLE = { owner: "Руководитель", design: "Руководитель проектного отдела", sales: "Руководитель отдела продаж", ops: "Операционный менеджер", acc: "Бухгалтер", designer: "Проектировщик" };
 
   function renderMe() {
     var el = $("me-app"), sub = "Настройки уведомлений, профиль и доступ сотрудников";
     if (!gate(el, "Личный кабинет", sub, renderMe)) return;
     var u = C.me, tabs = [["notif", "bell", "Уведомления"], ["info", "user", "Профиль"]].concat(u.role === "admin" ? [["staff", "users", "Сотрудники"]] : []);
-    el.innerHTML = head("Личный кабинет", sub) + '<div class="wrap"><div class="prof2">' + ava(u.name, "xl") + "<div><h2>" + E(u.name) + "</h2><p>" + (u.title ? E(u.title) + " · " : "") + (POS_TITLE[u.position] || (u.role === "admin" ? "Руководитель" : "Сотрудник")) + '</p><div class="pf-pills"><span>' + (u.tg ? "Telegram подключён" : "Telegram не подключён") + '</span><span>' + (C.pushOn && C.pushOn() ? "Push включён" : "Push выключен") + '</span></div></div>' + '<div class="pf-stats"><div><b>' + ((C.sync || {}).notif_unread || 0) + '</b><small>новых уведомлений</small></div><div><b>' + ((C.sync || {}).team_unread || 0) + '</b><small>непрочитано в «Команде»</small></div><div><b>' + (((C.sync || {}).urgent || []).length) + '</b><small>срочных</small></div></div><button class="x-btn ghost" id="meOut">Выйти</button></div>'
+    el.innerHTML = head("Личный кабинет", sub) + '<div class="wrap"><div class="prof2">' + ava(u.name, "xl") + "<div><h2>" + E(u.name) + "</h2><p>" + (u.title ? E(u.title) + " · " : "") + (POS_TITLE[u.position] || (u.role === "admin" ? "Руководитель" : "Сотрудник")) + '</p><div class="pf-pills"><span>' + (u.tg ? "Telegram подключён" : "Telegram не подключён") + '</span><span>' + (u.max ? "MAX подключён" : "MAX не подключён") + '</span><span>' + (C.pushOn && C.pushOn() ? "Push включён" : "Push выключен") + '</span></div></div>' + '<div class="pf-stats"><div><b>' + ((C.sync || {}).notif_unread || 0) + '</b><small>новых уведомлений</small></div><div><b>' + ((C.sync || {}).team_unread || 0) + '</b><small>непрочитано в «Команде»</small></div><div><b>' + (((C.sync || {}).urgent || []).length) + '</b><small>срочных</small></div></div><button class="x-btn ghost" id="meOut">Выйти</button></div>'
       + '<div class="x-bar"><div class="x-seg" id="meTabs">' + tabs.map(function (t) { return '<button data-t="' + t[0] + '" class="' + (P.tab === t[0] ? "on" : "") + '">' + ic(t[1]) + t[2] + "</button>"; }).join("") + '</div></div><div id="meBody"></div></div>';
     $("meOut").onclick = function () { C.logout().then(renderMe); };
     $("meTabs").querySelectorAll("button").forEach(function (b) { b.onclick = function () { P.tab = b.dataset.t; renderMe(); }; });
@@ -386,14 +387,15 @@
   }
   function savePrefs(patch) { return C.call("/me/prefs", { body: patch }).then(function (p) { C.prefs = p; return p; }); }
   function paintNotif() {
-    var body = $("meBody"), pr = C.prefs, pushOk = C.pushSupported(), pushOn = C.pushOn(), tg = C.me.tg;
+    var body = $("meBody"), pr = C.prefs, pushOk = C.pushSupported(), pushOn = C.pushOn(), tg = C.me.tg, mx = C.me.max;
     body.innerHTML = '<div class="x-two"><div>'
       + '<div class="x-chcards">'
       + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("bell") + "</span><div><b>В приложении</b><small>Колокольчик в меню</small></div></div><span class=\"x-pill ok\">Всегда включено</span></div>"
       + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("phone") + "</span><div><b>Push на это устройство</b><small>" + (pushOk ? (pushOn ? "Подключено" : "Выключено") : (C.pushWhy ? C.pushWhy() : "") || "Недоступно на этом устройстве") + '</small></div></div><button class="x-btn ' + (pushOn ? "ghost" : "primary") + '" id="mePush" ' + "" + ">" + (pushOn ? "Отключить" : "Включить") + "</button></div>"
       + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("send") + "</span><div><b>Telegram</b><small>" + (!C.bot ? "Бот не подключён на сервере" : tg ? "Подключён" : "Не привязан") + '</small></div></div>' + (C.bot ? '<button class="x-btn ' + (tg ? "ghost" : "primary") + '" id="meTg">' + (tg ? "Отвязать" : "Получить код") + "</button>" : '<span class="x-pill">нужен TG_BOT_TOKEN</span>') + '<div id="meTgCode"></div></div></div>'
-      + '<div class="x-panel" style="margin-bottom:18px"><div style="padding:18px 20px 4px"><h3>Что и куда присылать</h3><p class="x-sub">Отметьте, какие события вам важны и в каком канале о них сообщать</p></div><div style="overflow-x:auto"><table class="x-mx"><thead><tr><th>Событие</th><th>В приложении</th><th>Push</th><th>Telegram</th></tr></thead><tbody>'
-      + EVENTS.map(function (e) { return "<tr><td>" + e[1] + "<small>" + e[2] + "</small></td>" + ["app", "push", "telegram"].map(function (ch) { return '<td><button class="x-cb ' + (pr.events[e[0]][ch] ? "on" : "") + '" data-e="' + e[0] + '" data-c="' + ch + '">' + ic("check") + "</button></td>"; }).join("") + "</tr>"; }).join("")
+      + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("chat") + "</span><div><b>MAX</b><small>" + (mx ? "Подключён" : "Не привязан") + '</small></div></div><button class="x-btn ' + (mx ? "ghost" : "primary") + '" id="meMax">' + (mx ? "Отвязать" : "Получить код") + '</button><div id="meMaxCode"></div></div>'
+      + '<div class="x-panel" style="margin-bottom:18px"><div style="padding:18px 20px 4px"><h3>Что и куда присылать</h3><p class="x-sub">Отметьте, какие события вам важны и в каком канале о них сообщать</p></div><div style="overflow-x:auto"><table class="x-mx"><thead><tr><th>Событие</th><th>В приложении</th><th>Push</th><th>Telegram</th><th>MAX</th></tr></thead><tbody>'
+      + EVENTS.map(function (e) { return "<tr><td>" + e[1] + "<small>" + e[2] + "</small></td>" + ["app", "push", "telegram", "max"].map(function (ch) { return '<td><button class="x-cb ' + (pr.events[e[0]][ch] ? "on" : "") + '" data-e="' + e[0] + '" data-c="' + ch + '">' + ic("check") + "</button></td>"; }).join("") + "</tr>"; }).join("")
       + "</tbody></table></div></div>"
       + '<div class="x-panel pad"><h3>Тихие часы</h3><p class="x-sub">Чтобы работа не мешала отдыху. «Срочное» можно оставить сквозным</p>'
       + '<div class="x-qrow"><div><b>Не беспокоить</b><small>Push и Telegram молчат, внутри приложения всё сохраняется</small></div><button class="x-sw ' + (pr.quiet.on ? "on" : "") + '" id="qOn"></button></div>'
@@ -409,6 +411,10 @@
     if (sVol) sVol.oninput = function () { DSSound.set({ vol: sVol.value }); };
     if (sTest) sTest.onclick = function () { DSSound.test(); };
     $("mePush").onclick = function () { var p = pushOn ? C.disablePush() : C.enablePush(); p.then(function () { toast(pushOn ? "Push отключён" : "Push включён на этом устройстве"); paintNotif(); }).catch(function (e) { toast(E(e)); }); };
+    var mxb = $("meMax"); if (mxb) mxb.onclick = function () {
+      if (mx) C.call("/me/max/unlink", { body: {} }).then(function () { C.me.max = false; renderMe(); });
+      else C.call("/me/max/code", { body: {} }).then(function (r) { $("meMaxCode").innerHTML = '<p class="x-sub" style="margin:8px 0 0">Откройте MAX и отправьте аккаунту компании сообщение: <b>' + r.code + "</b><br>Код действует " + r.minutes + " минут. После ответа «Готово» обновите страницу.</p>"; }).catch(function (e) { toast(E(e)); });
+    };
     var tgb = $("meTg"); if (tgb) tgb.onclick = function () {
       if (tg) C.call("/me/tg/unlink", { body: {} }).then(function () { C.me.tg = false; renderMe(); });
       else C.call("/me/tg/code", { body: {} }).then(function (r) { $("meTgCode").innerHTML = '<p class="x-sub" style="margin:8px 0 0">Откройте вашего бота в Telegram и отправьте: <b>/start ' + r.code + "</b><br>Код действует " + r.minutes + " минут. После привязки обновите страницу.</p>"; }).catch(function (e) { toast(E(e)); });
@@ -419,7 +425,7 @@
     $("qFrom").onchange = function () { savePrefs({ quiet: { from: this.value } }); };
     $("qTo").onchange = function () { savePrefs({ quiet: { to: this.value } }); };
     $("meTest").onclick = function () {
-      C.call("/me/test", { body: {} }).then(function (r) { var names = { app: "в приложении", push: "push", telegram: "Telegram" }, parts = Object.keys(r).map(function (k) { return names[k] + (r[k] ? " ✓" : " ✗"); }); $("meTestOut").textContent = parts.length ? "Отправлено: " + parts.join(", ") : "По вашим настройкам сейчас ничего не отправляется (тихие часы?)"; C.refresh(); }).catch(function (e) { $("meTestOut").textContent = String(e); });
+      C.call("/me/test", { body: {} }).then(function (r) { var names = { app: "в приложении", push: "push", telegram: "Telegram", max: "MAX" }, parts = Object.keys(r).map(function (k) { return names[k] + (r[k] ? " ✓" : " ✗"); }); $("meTestOut").textContent = parts.length ? "Отправлено: " + parts.join(", ") : "По вашим настройкам сейчас ничего не отправляется (тихие часы?)"; C.refresh(); }).catch(function (e) { $("meTestOut").textContent = String(e); });
     };
   }
   function resizePhoto(file, cb) {                                // квадрат 160×160, JPEG — небольшой, хранится на сервере
