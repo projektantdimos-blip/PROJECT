@@ -308,6 +308,7 @@
     Object.keys(CITY_ZONES).forEach(function (z) { CITY_ZONES[z].split(",").forEach(function (n) { CITY_MAP[cityKey(n)] = z; CITY_LIST.push(n); }); });
     CITY_LIST.sort(function (a, b) { return a.localeCompare(b, "ru"); });
   }
+  function tzLabel(z) { return (TZ.filter(function (x) { return x[0] === z; })[0] || [z, z || "Москва (МСК)"])[1]; }
   function cityNames() { cityInit(); return CITY_LIST; }
   function cityZone(s) {
     cityInit(); var k = cityKey(s); if (!k) return "";
@@ -320,7 +321,7 @@
     var t = e.target; if (!t.dataset || t.dataset.cfcity == null || !S.cu || !S.cu.draft) return;
     var d = S.cu.draft; d.city = t.value;
     var z = cityZone(t.value), note = document.getElementById("cuCityNote");
-    if (z) { d.tz = z; var sel = document.getElementById("cuTz"); if (sel) sel.value = z; var nw = document.getElementById("cuNow"); if (nw) nw.textContent = nowIn(z); if (note) note.textContent = "Часовой пояс подставлен: " + ((TZ.filter(function (x) { return x[0] === z; })[0] || [z, z])[1]); }
+    if (z) { d.tz = z; var sel = document.getElementById("cuTz"); if (sel) sel.value = z; var tr = document.getElementById("cuTzRes"); if (tr) tr.innerHTML = "🕒 " + E(tzLabel(z)) + " · сейчас у заказчика <b>" + nowIn(z) + "</b>"; if (note) note.textContent = "✓ Часовой пояс подставлен по городу"; }
     else if (note) note.textContent = t.value.trim().length >= 3 ? "Города нет в списке — выберите часовой пояс вручную ниже" : "";
   });
   /* ---------- шрифт реестра КП ---------- */
@@ -392,7 +393,7 @@
     } else if (!(n.name || "").trim()) { n.err = "Введите название заказчика"; return paint(); }
     var body = n.mode === "contact"
       ? { name: cur.name, regular: !!cur.regular, tz: cur.tz, city: cur.city || "", comment: cur.comment || "", contacts: (cur.contacts || []).concat([contact]) }
-      : { name: n.name.trim(), regular: false, tz: "Europe/Moscow", comment: "", contacts: (contact.fio || contact.phone || contact.email) ? [contact] : [] };
+      : { name: n.name.trim(), regular: false, tz: cityZone(n.city) || "Europe/Moscow", city: (n.city || "").trim(), comment: "", contacts: (contact.fio || contact.phone || contact.email) ? [contact] : [] };
     api("/customers", body).then(function (r) { return api("/customers").then(function (c) { S.customers = c; f.customer_id = r.id; f.nc = null; paint(); toast(n.mode === "contact" ? "Контакт добавлен" : "Заказчик создан"); }); }, function (er) { n.err = String(er); paint(); });
   }
   /* ---------- «Просрочено и зависло» ---------- */
@@ -1021,7 +1022,8 @@
         + (canEdit ? '<button class="btn ghost sm" style="margin:6px 0 12px" data-cadd="1">+ Контактное лицо</button>' : "")
         + reqBlock(d, ro)
         + '<div class="fld"><label>Город <small style="color:var(--muted)">(введите любой — часовой пояс подставится сам)</small></label><input data-cfcity="1" list="cityDl" value="' + E(d.city || "") + '" placeholder="Например: Красноярск"' + ro + '><datalist id="cityDl">' + cityNames().map(function (n) { return '<option value="' + E(n) + '">'; }).join("") + '</datalist><div class="note" id="cuCityNote" style="margin-top:4px"></div></div>'
-        + '<div class="fld"><label>Часовой пояс</label><select data-cftz="1" id="cuTz"' + ro + ">" + tzOpts + '</select><div class="note" style="margin-top:6px">Сейчас у заказчика: <b id="cuNow">' + nowIn(d.tz) + "</b></div></div>"
+        + '<div class="tzres" id="cuTzRes">🕒 ' + E(tzLabel(d.tz)) + ' · сейчас у заказчика <b id="cuNow">' + nowIn(d.tz) + "</b></div>"
+        + '<details class="tzman"' + (d.city && !cityZone(d.city) ? " open" : "") + "><summary>Выбрать часовой пояс вручную</summary><select data-cftz=\"1\" id=\"cuTz\"" + ro + ">" + tzOpts + "</select></details>"
         + '<div class="fld"><label>Комментарий менеджера</label><textarea data-cf="comment"' + ro + ">" + E(d.comment || "") + "</textarea></div>"
         + (S.cu.err ? '<div class="err">' + E(S.cu.err) + "</div>" : "")
         + (canEdit ? '<button class="btn primary block" data-csave="1">Сохранить</button>' : "")
@@ -1127,7 +1129,7 @@
       acts += docButtons(k);
       var del = canEdit && !k.order_id ? '<button class="btn ghost sm kpx" data-kpdel="' + k.id + '" title="Удалить КП из реестра">✕</button>' : "";
       var svc = k.services.map(function (s) { return s.name; }).join(", ");
-      return '<tr class="' + (late ? "late" : "") + '"><td><b>' + E(kpNo(k.number)) + "</b></td><td>" + E(k.customer) + '</td><td class="ell" title="' + E(k.object + " — " + svc) + '">' + E(k.object) + " <small>" + E(svc) + "</small></td>"
+      return '<tr class="' + (late ? "late" : "") + '"><td><b>' + E(kpNo(k.number)) + "</b></td><td>" + E(k.customer) + '</td><td class="ell" title="' + E(k.object + " — " + svc) + '">' + E(k.object) + "<br><small>" + E(svc) + "</small></td>"
         + "<td>" + (k.issued_date ? dmy(k.issued_date) : "—") + "</td><td><b>" + money(k.amount) + "</b></td><td>" + st + "</td><td>" + advTxt(k) + "</td><td>" + postTxt(k) + "</td>"
         + '<td class="lastc ' + (late ? "late" : "") + '">' + (k.last_days == null ? "—" : k.last_days === 0 ? "сегодня" : plural(k.last_days, ["день", "дня", "дней"]) + " назад") + (late ? " ⚠" : "") + "</td><td>" + E(k.manager) + '</td><td class="nw">' + acts + '</td><td class="kpd">' + del + "</td></tr>";
     }).join("");
@@ -1165,7 +1167,7 @@
     }).join("") || '<div class="note">Выберите услуги в прайсе справа или рассчитайте стоимость в калькуляторе</div>';
     var cust = cs.filter(function (c) { return c.id === f.customer_id; })[0], nc = f.nc;
     var contacts = (cust && (cust.contacts || []).length ? '<div class="kcont">' + cust.contacts.map(function (c) { return "<div>" + E(c.fio || "—") + (c.phone ? " · " + E(c.phone) : "") + (c.email ? " · " + E(c.email) : "") + "</div>"; }).join("") + "</div>" : "")
-      + (nc ? '<div class="kcadd">' + (nc.mode === "customer" ? '<div class="fld"><label>Название нового заказчика</label><input data-knc="name" value="' + E(nc.name) + '"></div>' : "")
+      + (nc ? '<div class="kcadd">' + (nc.mode === "customer" ? '<div class="fld"><label>Название нового заказчика</label><input data-knc="name" value="' + E(nc.name) + '"></div><div class="fld"><label>Город <small style="color:var(--muted)">(часовой пояс подставится сам)</small></label><input data-knc="city" list="cityDl2" value="' + E(nc.city || "") + '"><datalist id="cityDl2">' + cityNames().map(function (n) { return '<option value="' + E(n) + '">'; }).join("") + "</datalist></div>" : "")
           + '<div class="fld"><label>Контактное лицо (ФИО)</label><input data-knc="fio" value="' + E(nc.fio) + '"></div><div class="g2f"><div class="fld"><label>Телефон</label><input data-knc="phone" value="' + E(nc.phone) + '" placeholder="+7 …"></div><div class="fld"><label>E-mail</label><input data-knc="email" value="' + E(nc.email) + '"></div></div>'
           + (nc.err ? '<div class="err">' + E(nc.err) + "</div>" : "") + '<div style="display:flex;gap:8px"><button class="btn primary sm" data-kcsave="1">Сохранить</button><button class="btn ghost sm" data-kcclose="1">Отмена</button></div></div>'
         : '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 12px">' + (cust ? '<button class="btn ghost sm" data-kcopen="contact">+ Контакт заказчика</button>' : "") + '<button class="btn ghost sm" data-kcopen="customer">+ Новый заказчик</button></div>');

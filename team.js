@@ -62,7 +62,7 @@
   /* ================================================================
      КОМАНДА
      ================================================================ */
-  var S = { ft: "all", rooms: [], cur: "general", msgs: [], lastId: 0, urg: false, tick: 0, timer: null, users: [] };
+  var S = { reply: null, selMsg: 0, ft: "all", rooms: [], cur: "general", msgs: [], lastId: 0, urg: false, tick: 0, timer: null, users: [] };
   var ROOM_IC = { general: "hash", buy: "wallet", calc: "calc", kp: "file" };
 
   function renderTeam() {
@@ -108,6 +108,7 @@
       C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages?after=" + S.lastId).then(function (ms) {
         if (ms.length) { S.msgs = S.msgs.concat(ms); S.lastId = ms[ms.length - 1].id; paintThread(true); C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/read", { body: {} }).then(function () { return loadRooms(); }); }
         else if (S.tick % 4 === 0) loadRooms();
+        if (S.tick % 2 === 0) C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages").then(function (all) { var a = JSON.stringify(all.map(function (m) { return [m.id, m.reactions]; })), b = JSON.stringify(S.msgs.map(function (m) { return [m.id, m.reactions]; })); if (a !== b && all.length === S.msgs.length) { S.msgs = all; paintThread(true); } }).catch(function () {});
       }).catch(function () {});
     }, 4000);
   }
@@ -177,14 +178,42 @@
       return C.call("/team/rooms/" + encodeURIComponent(id) + "/read", { body: {} }).then(loadRooms).then(function () { C.refresh(); });
     }).catch(function (e) { $("tThread").innerHTML = '<div class="x-empty" style="padding:40px">' + E(e) + "</div>"; });
   }
+  var RX = ["👍", "❤️", "😂", "🔥", "🤝", "👀", "🗿", "🤡", "💀", "🫡", "🥲", "😎", "🤯", "🙏"];
+  function reactionsHtml(m) {
+    var ks = Object.keys(m.reactions || {}); if (!ks.length) return "";
+    var mine = C.me ? C.me.name : "";
+    return '<div class="x-rx">' + ks.map(function (k) { var names = m.reactions[k]; return '<button type="button" data-rx="' + m.id + '" data-e="' + k + '" class="' + (names.indexOf(mine) >= 0 ? "on" : "") + '" title="' + E(names.join(", ")) + '">' + k + " <b>" + names.length + "</b></button>"; }).join("") + "</div>";
+  }
   function msgHtml(m) {
     var me = C.me && m.user === C.me.name, mine = m.acks && C.me && m.acks.indexOf(C.me.name) >= 0;
-    return '<div class="x-msg ' + (m.urgent ? "urg " : "") + (me ? "me" : "") + '">' + ava(m.user, "sm") + '<div class="bd"><div class="nm">' + E(m.user) + "<small>" + when(m.ts) + '</small></div><div class="tx">'
+    var quote = m.reply ? '<div class="x-quote" data-goto="' + m.reply.id + '"><b>' + E(m.reply.user) + "</b><span>" + E(m.reply.text) + "</span></div>" : "";
+    var acts = S.selMsg === m.id ? '<div class="x-macts"><button type="button" data-reply="' + m.id + '">↩ Ответить</button><span class="x-rxpick">' + RX.map(function (e) { return '<button type="button" data-rx="' + m.id + '" data-e="' + e + '">' + e + "</button>"; }).join("") + "</span></div>" : "";
+    return '<div class="x-msg ' + (m.urgent ? "urg " : "") + (me ? "me" : "") + (S.selMsg === m.id ? " sel" : "") + '" data-m="' + m.id + '" id="m' + m.id + '">' + ava(m.user, "sm") + '<div class="bd"><div class="nm">' + E(m.user) + "<small>" + when(m.ts) + '</small></div><div class="tx">' + quote
       + (m.urgent ? '<div class="x-urgtag">' + ic("flame") + "Срочное</div>" : "") + E(m.text)
       + '<span class="x-tm">' + when(m.ts) + (me ? " ✓✓" : "") + "</span>"
       + (m.files && m.files.length ? '<div class="x-files">' + m.files.map(function (f) { return '<button class="x-file" data-tfile="' + f.id + '" title="Скачать">📎 ' + E(f.name) + "<small>" + Math.max(1, Math.round(f.size / 1024)) + " КБ</small></button>"; }).join("") + "</div>" : "") + "</div>"
+      + reactionsHtml(m) + acts
       + (m.urgent ? '<div class="x-ack">' + ic("check") + (m.acks.length ? "Прочитали: " + E(m.acks.join(", ")) : "Пока никто не подтвердил") + (!me && !mine ? '<button data-ack="' + m.id + '">Прочитал(а)</button>' : "") + "</div>" : "") + "</div></div>";
   }
+  /* ответы и реакции: нажатие на сообщение показывает панель «Ответить» и реакции */
+  document.addEventListener("click", function (e) {
+    var th = e.target.closest ? e.target.closest("#tThread") : null; if (!th) return;
+    var rb = e.target.closest("[data-rx]");
+    if (rb) {
+      C.call("/team/messages/" + rb.dataset.rx + "/react", { body: { emoji: rb.dataset.e } }).then(function (r) {
+        var m = S.msgs.filter(function (x) { return x.id === +rb.dataset.rx; })[0]; if (m) m.reactions = r.reactions; S.selMsg = 0; paintThread(true);
+      }).catch(function (er) { toast(E(er)); });
+      return;
+    }
+    var rp = e.target.closest("[data-reply]");
+    if (rp) { var m2 = S.msgs.filter(function (x) { return x.id === +rp.dataset.reply; })[0]; if (m2) { S.reply = { id: m2.id, user: m2.user, text: m2.text.slice(0, 120) }; S.selMsg = 0; paintThread(true); var ti = $("tIn"); if (ti) ti.focus(); } return; }
+    if (e.target.closest("[data-noreply]")) { S.reply = null; paintThread(true); return; }
+    var gq = e.target.closest("[data-goto]");
+    if (gq) { var tgt = $("m" + gq.dataset.goto); if (tgt) { tgt.scrollIntoView({ block: "center" }); tgt.classList.add("flash"); setTimeout(function () { tgt.classList.remove("flash"); }, 1400); } return; }
+    if (e.target.closest("a,button,input,textarea,.x-file,.x-ack")) return;
+    var mm = e.target.closest(".x-msg");
+    if (mm) { var id = +mm.dataset.m; S.selMsg = S.selMsg === id ? 0 : id; paintThread(true); }
+  });
   function paintThread(keep) {
     var el = $("tThread"); if (!el) return;
     var room = S.rooms.filter(function (r) { return r.id === S.cur; })[0] || { name: "Чат", descr: "", kind: "chan", id: S.cur };
@@ -197,6 +226,7 @@
       + (room.kind === "task" && room.task_row ? '<a class="x-btn ghost" style="margin-left:auto;padding:7px 12px" href="#/task/' + room.task_row + '">Открыть задачу</a>' : "") + "</div>"
       + (pin ? '<div class="x-pinned">' + ic("flame") + "<span>Срочное: " + E(pin.text) + "</span></div>" : "")
       + '<div class="x-msgs">' + (body || '<span class="x-day">Здесь пока пусто — напишите первое сообщение</span>') + "</div>"
+      + (S.reply ? '<div class="x-replybar"><span>↩ <b>' + E(S.reply.user) + "</b>: " + E(S.reply.text) + '</span><button type="button" data-noreply="1" aria-label="Отменить ответ">✕</button></div>' : "")
       + '<div class="x-comp"><button class="x-btn ghost" id="tAtt" title="Прикрепить файл (до 10 МБ). Файл можно перетащить прямо в окно чата" style="padding:12px 13px">📎</button><input type="file" id="tFile" hidden><input type="text" id="tIn" placeholder="Написать в «' + E(room.name) + '»… (@Имя — упомянуть)" autocomplete="off"><button class="x-urgbtn ' + (S.urg ? "on" : "") + '" id="tUrg" title="Срочное: придёт всем участникам, даже в тихие часы">' + ic("flame") + 'Срочное</button><button class="x-btn primary" id="tSend" style="padding:12px 14px">' + ic("send") + "</button></div>";
     var m = el.querySelector(".x-msgs"); if (!keep || wasBottom) m.scrollTop = 1e6;
     var bk = el.querySelector("[data-back]"); if (bk) bk.onclick = function () { var ch = document.querySelector(".x-chat"); if (ch) ch.classList.remove("open"); };
@@ -274,8 +304,8 @@
   function send() {
     var i = $("tIn"), text = i.value.trim(); if (!text) return;
     var urgent = S.urg; i.disabled = true;
-    C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/send", { body: { text: text, urgent: urgent } }).then(function () {
-      S.urg = false; i.value = "";
+    C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/send", { body: { text: text, urgent: urgent, reply_to: S.reply ? S.reply.id : 0 } }).then(function () {
+      S.urg = false; i.value = ""; S.reply = null;
       return C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages?after=" + S.lastId);
     }).then(function (ms) { if (ms.length) { S.msgs = S.msgs.concat(ms); S.lastId = ms[ms.length - 1].id; } paintThread(); loadRooms(); if (urgent) toast("Срочное отправлено — сотрудники получат оповещение, даже в тихие часы"); })
       .catch(function (e) { i.disabled = false; toast(E(e)); });

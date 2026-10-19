@@ -668,3 +668,36 @@
 .x-pickc button{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer}
 .x-pickc button.on{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--ink)}
 @media(max-width:760px){.x-tile{width:48px;height:48px}.x-pick{grid-template-columns:repeat(6,1fr)}.x-chat .x-grp{color:#6ab3f3!important}.x-chat .x-dlg .x-tile{color:#fff!important}}
+
+/* Команда: ответы на сообщения и реакции */
+.x-msg .tx{cursor:pointer}
+.x-quote{border-left:3px solid var(--blue);background:color-mix(in srgb,var(--blue) 10%,transparent);border-radius:6px;padding:3px 8px;margin-bottom:5px;font-size:.84rem;cursor:pointer;max-width:100%}
+.x-quote b{display:block;color:var(--blue);font-size:.78rem}
+.x-quote span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.85}
+.x-rx{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.x-rx button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:14px;padding:2px 8px;font-size:.9rem;cursor:pointer}
+.x-rx button b{font-size:.78rem;margin-left:2px}
+.x-rx button.on{background:color-mix(in srgb,var(--blue) 18%,var(--surface));border-color:var(--blue)}
+.x-macts{margin-top:5px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:5px 6px;width:max-content;max-width:100%}
+.x-macts>button{border:0;background:var(--blue);color:#fff;border-radius:10px;padding:4px 10px;font-size:.84rem;cursor:pointer}
+.x-rxpick{display:flex;flex-wrap:wrap;gap:2px}
+.x-rxpick button{border:0;background:none;font-size:1.25rem;line-height:1;padding:3px;border-radius:8px;cursor:pointer}
+.x-rxpick button:hover{background:var(--surface-2);transform:scale(1.2)}
+.x-msg.sel .tx{outline:2px solid var(--blue)}
+.x-msg.flash .tx{animation:xflash 1.2s}
+@keyframes xflash{0%,60%{outline:3px solid #f0924d}100%{outline:0 solid transparent}}
+.x-replybar{display:flex;align-items:center;gap:8px;padding:6px 12px;border-top:1px solid var(--line);border-left:3px solid var(--blue);background:var(--surface-2);font-size:.86rem}
+.x-replybar span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.x-replybar button{border:0;background:none;color:var(--muted);font-size:1rem;cursor:pointer}
+@media(max-width:760px){
+  .x-quote{background:rgba(255,255,255,.08)}.x-quote b{color:#6ab3f3}.x-quote{border-left-color:#6ab3f3}
+  .x-rx button{background:rgba(255,255,255,.10);border:0;color:#fff}.x-rx button.on{background:#2b5278}
+  .x-macts{background:#17212b;border-color:#0b121a}.x-replybar{background:#17212b;color:#fff;border-top-color:#0b121a}
+}
+
+/* Реестр КП: объект и услуги на разных строках */
+.ds .kpt td.ell{white-space:normal!important;min-width:190px;max-width:290px!important;overflow:visible!important;line-height:1.25}
+.ds .kpt td.ell small{display:block;margin-top:1px}
+.ds .tzres{margin:-2px 0 6px;padding:8px 10px;border-radius:10px;background:var(--surface-2);font-size:.92rem}
+.ds .tzman{margin-bottom:12px;font-size:.88rem}.ds .tzman summary{cursor:pointer;color:var(--brand);margin-bottom:6px}
+.ds .tzman select{width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface);color:var(--ink);font:inherit}
