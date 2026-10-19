@@ -50,8 +50,12 @@
     if (tok()) h["X-Session"] = tok();
     return fetch(c.url + "/api" + path, { cache: "no-store", headers: h }).then(function (r) {
       if (!r.ok) return r.json().then(function (j) { return j; }, function () { return {}; }).then(function (j) { throw (j && typeof j.detail === "string") ? j.detail : ("Ошибка сервера " + r.status); });
-      var cd = r.headers.get("Content-Disposition") || "", m = /filename\*=UTF-8''([^;]+)/i.exec(cd), name = m ? decodeURIComponent(m[1]) : "документ";
-      return r.blob().then(function (b) { return { blob: b, name: name }; });
+      var cd = r.headers.get("Content-Disposition") || "", m = /filename\*=UTF-8'[^']*'([^;]+)/i.exec(cd) || /filename="?([^";]+)"?/i.exec(cd), name = "документ";
+      if (m) { try { name = decodeURIComponent(m[1]); } catch (e) { name = m[1]; } }
+      return r.blob().then(function (b) {
+        if (!/\.[A-Za-z0-9]{2,5}$/.test(name)) { var ext = { "application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png" }[b.type]; if (ext) name += ext; }
+        return { blob: b, name: name };
+      });
     }, function () { throw "Сервер недоступен. Проверьте адрес моста в ⚙ и интернет"; });
   };
 
@@ -68,6 +72,15 @@
     });
   };
   C.logout = function () {
+    // устройство перестаёт получать push этого сотрудника (на общем компьютере уведомления не должны доставаться следующему)
+    try {
+      if (C.pushSupported() && localStorage.getItem("ds_push_user")) {
+        navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+          if (sub) C.call("/me/push/unsubscribe", { body: { endpoint: sub.endpoint } }).catch(function () {}).then(function () { return sub.unsubscribe(); });
+          localStorage.removeItem("ds_push_user");
+        }).catch(function () {});
+      }
+    } catch (e) {}
     var p = C.loggedIn() ? C.call("/auth/logout", { method: "POST", body: {} }).catch(function () {}) : Promise.resolve();
     return p.then(function () { C.me = null; C.sync = null; setSession(""); stopPolling(); emit("logout"); });
   };
@@ -107,10 +120,39 @@
   var timer = null, shownUrgent = {};
   function startPolling() { stopPolling(); C.refresh(); timer = setInterval(C.refresh, 15000); }
   function stopPolling() { if (timer) { clearInterval(timer); timer = null; } }
+  /* яркое всплывающее уведомление сверху экрана + мигание вкладки; не требует разрешений браузера */
+  var alertShown = {}, flashT = null;
+  function secNow() { return window.sectionForHash ? sectionForHash(location.hash) : ""; }
+  window.DSAlert = {
+    show: function (title, body, url, urgent, fn) {
+      var box = $("dsAlerts"); if (!box) { box = document.createElement("div"); box.id = "dsAlerts"; document.body.appendChild(box); }
+      while (box.children.length >= 3) box.removeChild(box.firstChild);
+      var el = document.createElement("div"); el.className = "ds-alert" + (urgent ? " urg" : "");
+      el.innerHTML = '<span class="ai">' + (urgent ? "🔥" : "💬") + '</span><div class="at"><b>' + E(title || "Новое сообщение") + "</b><span>" + E((body || "").slice(0, 140)) + '</span></div><button type="button" aria-label="Закрыть">✕</button>';
+      var gone = function () { if (el.parentNode) el.parentNode.removeChild(el); };
+      el.querySelector("button").onclick = function (e) { e.stopPropagation(); gone(); };
+      el.onclick = function () { gone(); if (fn) fn(); else if (url) { var i = String(url).indexOf("#"); if (i >= 0) location.hash = String(url).slice(i); } };
+      box.appendChild(el);
+      if (!urgent) setTimeout(gone, 12000);
+      if (window.DSSound) { try { DSSound.play(); } catch (e) {} }
+      if (document.hidden) startFlash(title);
+    }
+  };
+  function startFlash(msg) {
+    if (flashT) return;
+    var base = document.title, on = false;
+    flashT = setInterval(function () { on = !on; document.title = on ? "🔔 " + (msg || "Новое сообщение") : base; }, 1000);
+  }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && flashT) { clearInterval(flashT); flashT = null; document.title = document.title.replace(/^🔔 .*$/, "Проекты DS — CRM"); } });
   C.refresh = function () {
-    if (!C.loggedIn() || document.hidden) return Promise.resolve();
+    if (!C.loggedIn()) return Promise.resolve();
     return C.call("/sync").then(function (s) {
       var prev = C.sync; C.sync = s; paintBadges();
+      if (prev) {
+        var dn = (s.notif_unread || 0) - (prev.notif_unread || 0), dt = (s.team_unread || 0) - (prev.team_unread || 0);
+        if (dn > 0) C.call("/notifications").then(function (r) { (r.items || []).filter(function (n) { return !n.is_read && !alertShown[n.id]; }).slice(0, 3).forEach(function (n) { alertShown[n.id] = 1; DSAlert.show(n.title, n.body, n.url, n.urgent); }); }).catch(function () {});
+        else if (dt > 0 && secNow() !== "team") DSAlert.show("Новое сообщение в «Команде»", "Нажмите, чтобы открыть", "#/team");
+      }
       if (prev && window.DSSound && ((s.notif_unread || 0) > (prev.notif_unread || 0) || (s.team_unread || 0) > (prev.team_unread || 0))) DSSound.play();
       (s.urgent || []).slice(0, 3).forEach(function (m) { if (!shownUrgent[m.id]) { shownUrgent[m.id] = 1; if (prev || Date.now() / 1000 - m.ts < 86400) urgentBanner(m); } });   // после входа — свежие неподтверждённые срочные тоже всплывают
       emit("sync", s);

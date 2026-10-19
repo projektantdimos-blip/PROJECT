@@ -754,8 +754,12 @@
 
   function loadThreads() {
     return api("/api/threads").then(function (list) {
-      var before = totalUnread(), known = st.threads.length > 0;
+      var before = totalUnread(), known = st.threads.length > 0, was = {};
+      st.threads.forEach(function (t) { was[t.id] = t.unread || 0; });
       st.threads = list; setErr("");
+      if (known && window.DSAlert) list.forEach(function (t) {
+        if ((t.unread || 0) > (was[t.id] || 0) && st.sel !== t.id) DSAlert.show(t.title || t.peer || "Новое сообщение", t.last_text || "Новое сообщение от заказчика", null, false, function () { location.hash = "#/chat"; setTimeout(function () { openThread(t.id); }, 300); });
+      });
       if (known && window.DSSound && totalUnread() > before) DSSound.play();      // новое входящее сообщение
       st.synced = new Date(); showSync();
       if (st.built) renderThreads();
