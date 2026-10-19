@@ -168,7 +168,7 @@
 
   function build() {
     root.innerHTML =
-      '<header class="top"><div class="brand"><div><h1>Общение с заказчиками</h1><p>Почта, Telegram и MAX — в одном окне, с привязкой к заказчикам и задачам</p></div></div></header>' +
+      '<header class="top"><div class="brand"><div><h1>Заказчики</h1><p>Почта, Telegram и MAX — в одном окне, с привязкой к заказчикам и задачам</p></div></div></header>' +
       '<div id="chatBanner"></div>' +
       '<div class="chat-wrap" id="chatWrap">' +
         '<aside class="chat-list"><div class="chat-tools"><button type="button" id="chatNew" class="chat-new">＋ Новое сообщение</button><div class="chat-box" id="chatBox"></div>' +

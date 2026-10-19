@@ -607,7 +607,7 @@
   body.chat-fs #chat-app .chat-wrap:not(.has-sel){height:100%!important;min-height:0!important;display:flex!important;flex-direction:column}
   body.chat-fs #chat-app .chat-wrap:not(.has-sel) .chat-list{height:100%;min-height:0;display:flex;flex-direction:column}
   body.chat-fs #chat-app .chat-tools{position:relative;padding:0!important}
-  body.chat-fs #chat-app .chat-tools::before{content:"Переписка";display:block;background:#17212b;color:#fff;font-size:1.15rem;font-weight:600;padding:12px 14px}
+  body.chat-fs #chat-app .chat-tools::before{content:"Заказчики";display:block;background:#17212b;color:#fff;font-size:1.15rem;font-weight:600;padding:12px 14px}
   body.chat-fs #chat-app .chat-box{display:flex;gap:4px;margin:0!important;background:#17212b;padding:0 8px;border-bottom:1px solid #0b121a}
   body.chat-fs #chat-app .chat-box button{flex:0 0 auto;background:none!important;border:0!important;border-bottom:2px solid transparent!important;border-radius:0!important;color:#8ea2b3!important;padding:8px 12px!important;font-size:.95rem;font-weight:400}
   body.chat-fs #chat-app .chat-box button.on{color:#6ab3f3!important;border-bottom-color:#6ab3f3!important;font-weight:600}
@@ -643,3 +643,13 @@
 .ct:has(.un){background:color-mix(in srgb,#2b9bf0 14%,transparent)}
 .ct .un{background:#e5483c!important;color:#fff!important}
 .x-dlg:has(.x-un) .m b{color:var(--blue)}
+
+/* Реестр КП: компактная таблица одного размера шрифта */
+.ds .kpt td,.ds .kpt th{padding:4px 7px!important;font-size:inherit!important}
+.ds .kpt td.ell{max-width:210px!important}
+.ds .kpt td.ell small{font-size:inherit!important;color:var(--muted)}
+.ds .kpt th{white-space:normal;line-height:1.15}
+.ds .kpt .btn.sm{height:26px;font-size:.85em!important}
+.ds .kpt select{font-size:inherit!important;min-width:128px!important;padding:3px 6px!important}
+.ds .kcont{margin:-4px 0 8px;padding:8px 10px;border:1px dashed var(--line);border-radius:10px;font-size:.88rem;color:var(--muted)}
+.ds .kcadd{margin:6px 0 12px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}

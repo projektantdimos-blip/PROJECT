@@ -61,7 +61,7 @@
     return m;
   }
 
-  var TITLES = { risk: "Просрочено и зависло", tasks: "Задачи", scripts: "Скрипты", ov: "Задачи", load: "Занятость", cust: "Заказчики", week: "План на неделю", kp: "Реестр КП", kpc: "Конструктор КП", contract: "Конструктор договора", report: "Недельный отчёт", stats: "Статистика", price: "Прайс", stages: "Этапы и сроки", auto: "Автоматизация", flow: "Конвейер заказа", tz: "Технические задания" };
+  var TITLES = { risk: "Просрочено и зависло", tasks: "Задачи", scripts: "Скрипты", ov: "Задачи", load: "Занятость", cust: "База заказчиков", week: "План на неделю", kp: "Реестр КП", kpc: "Конструктор КП", contract: "Конструктор договора", report: "Недельный отчёт", stats: "Статистика", price: "Прайс", stages: "Этапы и сроки", auto: "Автоматизация", flow: "Конвейер заказа", tz: "Технические задания" };
   function mount(kind, el) {
     if (!el) return;
     S.mount = { kind: kind, el: el };
@@ -105,7 +105,7 @@
   }
   function card(o, withStage) {
     var stage = o.stage, money_ = can("money") && o.amount != null;
-    return '<button class="task ' + (o.urgent ? "urgent" : "") + '" data-open="' + o.id + '"' + (fullCtl() ? ' draggable="true" data-dragid="' + o.id + '"' : "") + '><span class="stripe" style="--c:' + (o.urgent || (o.left_days != null && o.left_days < 0) ? "var(--bad)" : (STAGE_COLOR[stage] || "var(--brand)")) + '"></span><span class="body">'
+    return '<button class="task ' + (o.urgent ? "urgent" : "") + '" data-open="' + o.id + '"' + (taskCtl() ? ' draggable="true" data-dragid="' + o.id + '"' : "") + '><span class="stripe" style="--c:' + (o.urgent || (o.left_days != null && o.left_days < 0) ? "var(--bad)" : (STAGE_COLOR[stage] || "var(--brand)")) + '"></span><span class="body">'
       + '<span class="r1"><span class="num">№' + E(o.number) + "</span><span>" + E(o.customer || "") + '</span><span class="fl">' + (o.urgent ? '<span class="pill urg">⚡ Срочно</span>' : "") + "</span></span>"
       + '<span class="ttl" style="display:block">' + E(o.object) + "</span>"
       + (o.system ? '<span class="con" style="display:block;color:var(--brand);font-weight:600">' + E(o.system) + "</span>" : "")
@@ -130,7 +130,7 @@
     if (t.state !== "work") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':work">В работу</button>');
     if (t.state !== "wait") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':wait">Ждём ответа</button>');
     btns.push('<button class="btn ok sm" data-tstate="' + t.id + ':done">Выполнено</button>');
-    if (fullCtl() || (t.author_id && C && C.me && t.author_id === C.me.id)) btns.push('<button class="btn ghost sm" data-tedit="' + t.id + '" title="Править задачу">✎</button><button class="btn ghost sm" data-tdel="' + t.id + '" title="Удалить задачу" style="color:var(--bad)">🗑</button>');
+    if (taskCtl() || (t.author_id && C && C.me && t.author_id === C.me.id)) btns.push('<button class="btn ghost sm" data-tedit="' + t.id + '" title="Править задачу">✎</button><button class="btn ghost sm" data-tdel="' + t.id + '" title="Удалить задачу" style="color:var(--bad)">🗑</button>');
     var openAttr = t.order_id ? ' data-open="' + t.order_id + '" title="Открыть карточку задачи"' : (t.thread_id ? ' data-chatopen="' + E(t.thread_id) + '" title="Открыть диалог"' : "");
     return '<div class="task"' + openAttr + '><span class="stripe" style="--c:' + (tn === "bad" ? "var(--bad)" : tn === "warn" ? "var(--accent)" : "var(--org)") + '"></span><span class="body">'
       + '<span class="r1">' + (t.order_id ? '<button class="num" style="color:var(--org);font-size:1.1rem" data-open="' + t.order_id + '">№' + E(t.order_number) + "</button>" : '<span class="num" style="color:var(--org);font-size:1.1rem">' + E(kindName) + "</span>")
@@ -151,7 +151,7 @@
     }).join("") + "</div>";
   }
   function kpNo(n) { return "КП №" + String(n == null ? "" : n).replace(/^К-/, ""); }
-  var KP_COLS = [["Обращение", "Обращение"], ["Сбор вводных", "Сбор вводных"], ["КП отправлено", "КП отправлено"], ["Договор подписан", "Договор подписан · ждём оплату"]];
+  var KP_COLS = [["Обращение", "Обращение"], ["Сбор вводных", "Сбор вводных"], ["КП отправлено", "КП отправлено"], ["Счёт отправлен", "Счёт отправлен · ждём оплату"]];
   function kpTone(k) { return k.last_days == null ? "muted" : k.last_days > 5 ? "bad" : k.last_days >= 3 ? "warn" : "info"; }
   function kpCard(k) {
     var tn = kpTone(k);
@@ -175,7 +175,7 @@
   var ORG_COLS = [["a1", "Обращение", "#378ADD"], ["a2", "Сбор вводных", "#534AB7"], ["a3", "КП и договор", "#BA7517"], ["p0", "Старт проекта", "#0F6E56"],
     ["p1", "Сдача проекта", "#993C1D"], ["c1", "Акт и оплата", "#1D9E75"], ["s1", "Постпродажа", "#5F5E5A"], ["x", "Прочее", "#888780"]];
   function orgCol(it) {
-    if (it.kp) return it.kp.status === "Договор подписан" ? "p0" : "a3";
+    if (it.kp) return it.kp.status === "Счёт отправлен" ? "p0" : "a3";
     var s = it.t.step, ti = it.t.title || "";
     if (s === "a1" || s === "a2" || s === "a3") return s;
     if (/^Направить договор/.test(ti)) return "a3";
@@ -206,7 +206,7 @@
     var acts = "";
     if (u.step === "a1" || u.step === "a2") acts += '<button class="cmb" data-lead="' + u.id + ':skip" title="Задача не требуется">Не требуется</button><button class="cmb on" data-lead="' + u.id + ':next">Дальше →</button>';
     acts += '<button class="cmb" data-tstate="' + u.id + ':done" title="Выполнено">✓</button>';
-    if (fullCtl()) acts += '<button class="cmb" data-tedit="' + u.id + '" title="Править">✎</button><button class="cmb" data-tdel="' + u.id + '" title="Удалить" style="color:var(--bad)">🗑</button>';
+    if (taskCtl()) acts += '<button class="cmb" data-tedit="' + u.id + '" title="Править">✎</button><button class="cmb" data-tdel="' + u.id + '" title="Удалить" style="color:var(--bad)">🗑</button>';
     return '<div class="ovr"><div class="ovl"><span class="num">' + (u.order_number ? "№" + E(u.order_number) : "—") + '</span><span class="cu" title="' + E(u.title) + '">' + E((u.title || "").replace(/:\s*№.*$/, "")) + '</span><span class="ob">' + E(u.object || u.note || "") + "</span>"
       + '<span class="ex">' + E(u.assignee || "") + '</span><span class="pill ' + tn + '">' + (u.due ? "до " + dmy(u.due).slice(0, 5) + " · " : "") + E(leftText(u.left_days)) + '</span><span class="lc">' + (u.author ? "от " + E(u.author) : "") + "</span>" + acts + "</div></div>";
   }
@@ -287,6 +287,114 @@
   }
 
   /* ---------- «Скрипты»: тексты для переписки, заводятся и правятся самостоятельно ---------- */
+  /* ---------- города → часовой пояс заказчика ---------- */
+  var CITY_ZONES = {
+    "Europe/Kaliningrad": "Калининград,Черняховск,Советск,Балтийск,Светлогорск,Гусев,Зеленоградск,Светлый",
+    "Europe/Moscow": "Москва,Санкт-Петербург,Питер,СПб,Нижний Новгород,Казань,Воронеж,Ростов-на-Дону,Краснодар,Сочи,Ярославль,Тверь,Тула,Рязань,Владимир,Иваново,Кострома,Калуга,Смоленск,Брянск,Орёл,Курск,Белгород,Липецк,Тамбов,Пенза,Саранск,Чебоксары,Йошкар-Ола,Киров,Архангельск,Мурманск,Петрозаводск,Вологда,Псков,Великий Новгород,Сыктывкар,Волгоград,Севастополь,Симферополь,Ставрополь,Махачкала,Грозный,Владикавказ,Нальчик,Майкоп,Элиста,Череповец,Подольск,Химки,Мытищи,Балашиха,Королёв,Люберцы,Одинцово,Домодедово,Видное,Дмитров,Сергиев Посад,Коломна,Новороссийск,Минск,Донецк,Луганск,Мариуполь,Ухта,Воркута,Северодвинск,Нижнекамск,Набережные Челны,Альметьевск,Пятигорск,Кисловодск",
+    "Europe/Samara": "Самара,Тольятти,Ижевск,Ульяновск,Саратов,Астрахань,Сызрань,Балаково,Энгельс,Новокуйбышевск,Баку,Ереван,Тбилиси",
+    "Asia/Yekaterinburg": "Екатеринбург,Челябинск,Уфа,Пермь,Оренбург,Тюмень,Курган,Магнитогорск,Сургут,Нижневартовск,Ханты-Мансийск,Нижний Тагил,Салехард,Стерлитамак,Златоуст,Миасс,Орск,Новый Уренгой,Ноябрьск,Каменск-Уральский,Березники,Соликамск,Астана,Ташкент,Нур-Султан",
+    "Asia/Omsk": "Омск,Алматы",
+    "Asia/Krasnoyarsk": "Красноярск,Новосибирск,Томск,Кемерово,Новокузнецк,Барнаул,Бийск,Абакан,Горно-Алтайск,Кызыл,Норильск,Прокопьевск,Рубцовск,Ачинск,Железногорск,Бердск",
+    "Asia/Irkutsk": "Иркутск,Улан-Удэ,Братск,Ангарск,Усть-Илимск,Улан-Батор",
+    "Asia/Yakutsk": "Якутск,Чита,Благовещенск,Нерюнгри,Мирный,Свободный",
+    "Asia/Vladivostok": "Владивосток,Хабаровск,Уссурийск,Находка,Комсомольск-на-Амуре,Артём,Биробиджан",
+    "Asia/Magadan": "Магадан,Южно-Сахалинск,Сахалин,Холмск",
+    "Asia/Kamchatka": "Петропавловск-Камчатский,Анадырь,Елизово"
+  };
+  var CITY_MAP = null, CITY_LIST = null;
+  function cityKey(s) { return String(s || "").toLowerCase().replace(/ё/g, "е").replace(/^(г\.?|город)\s+/, "").replace(/\s+/g, " ").trim(); }
+  function cityInit() {
+    if (CITY_MAP) return; CITY_MAP = {}; CITY_LIST = [];
+    Object.keys(CITY_ZONES).forEach(function (z) { CITY_ZONES[z].split(",").forEach(function (n) { CITY_MAP[cityKey(n)] = z; CITY_LIST.push(n); }); });
+    CITY_LIST.sort(function (a, b) { return a.localeCompare(b, "ru"); });
+  }
+  function cityNames() { cityInit(); return CITY_LIST; }
+  function cityZone(s) {
+    cityInit(); var k = cityKey(s); if (!k) return "";
+    if (CITY_MAP[k]) return CITY_MAP[k];
+    if (k.length < 4) return "";
+    var zones = {}, n = 0; Object.keys(CITY_MAP).forEach(function (c) { if (c.indexOf(k) === 0) { zones[CITY_MAP[c]] = 1; n++; } });
+    var zs = Object.keys(zones); return n && zs.length === 1 ? zs[0] : "";
+  }
+  document.addEventListener("input", function (e) {
+    var t = e.target; if (!t.dataset || t.dataset.cfcity == null || !S.cu || !S.cu.draft) return;
+    var d = S.cu.draft; d.city = t.value;
+    var z = cityZone(t.value), note = document.getElementById("cuCityNote");
+    if (z) { d.tz = z; var sel = document.getElementById("cuTz"); if (sel) sel.value = z; var nw = document.getElementById("cuNow"); if (nw) nw.textContent = nowIn(z); if (note) note.textContent = "Часовой пояс подставлен: " + ((TZ.filter(function (x) { return x[0] === z; })[0] || [z, z])[1]); }
+    else if (note) note.textContent = t.value.trim().length >= 3 ? "Города нет в списке — выберите часовой пояс вручную ниже" : "";
+  });
+  /* ---------- шрифт реестра КП ---------- */
+  function kpFont() { var z = S.kpz; if (!z) { try { z = +localStorage.getItem("ds_kpz") || 0; } catch (e) { z = 0; } } return Math.max(10, Math.min(17, z || 13)); }
+  /* ---------- правка КП в реестре ---------- */
+  function keHtml() {
+    var e = S.ke, cs = S.customers || [], mg = S.assignable || [], locked = !!e.order_id;
+    var inp = function (label, k, type, extra) { return '<div class="fld"><label>' + label + '</label><input ' + (type ? 'type="' + type + '" ' : "") + 'data-ke="' + k + '" value="' + E(e[k] == null ? "" : e[k]) + '" ' + (extra || "") + "></div>"; };
+    return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:12px"><div class="modal" style="width:min(560px,100%);height:auto;max-height:94vh;border-radius:20px">'
+      + '<div class="m-head"><div class="row"><div><h2 style="font-size:1.2rem">Правка КП ' + E(kpNo(e.number)) + '</h2>' + (locked ? '<div class="sub">По КП создана проектная задача: суммы и объект изменятся и в ней</div>' : "") + '</div><button class="x" data-close="1">✕</button></div></div><div class="m-body">'
+      + '<div class="fld"><label>Заказчик</label><select data-ke="customer_id"><option value="0">— без привязки —</option>' + cs.map(function (c) { return '<option value="' + c.id + '"' + (c.id === +e.customer_id ? " selected" : "") + ">" + E(c.name) + "</option>"; }).join("") + "</select></div>"
+      + (+e.customer_id ? "" : inp("Для кого КП (текстом)", "customer_text"))
+      + inp("Объект", "object")
+      + '<div class="g2f">' + inp("Сумма, ₽", "amount", "number", 'min="0"') + inp("Аванс, ₽", "adv_sum", "number", 'min="0"') + "</div>"
+      + '<div class="note" id="keRest" style="margin:-4px 0 10px">Остаток по акту: ' + money(Math.max(0, (+e.amount || 0) - (+e.adv_sum || 0))) + "</div>"
+      + '<div class="fld"><label>Условия оплаты текстом</label><textarea rows="2" data-ke="pay_text">' + E(e.pay_text || "") + "</textarea></div>"
+      + '<div class="g2f">' + inp("Дата выставления КП", "issued_date", "date") + '<div class="fld"><label>Менеджер</label><select data-ke="manager_id"><option value="0">—</option>' + mg.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +e.manager_id ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div></div>"
+      + '<div class="fld"><label>Статус</label><select data-ke="status"' + (locked ? " disabled" : "") + ">" + KP_MANUAL.map(function (s) { return '<option value="' + E(s) + '"' + (s === e.status ? " selected" : "") + ">" + E(s) + "</option>"; }).join("") + "</select>"
+      + (locked ? "" : '<div class="note" style="margin-top:4px">«Оплачено» создаст проектную задачу и чат (нужен заказчик)</div>') + "</div>"
+      + (e.err ? '<div class="err">' + E(e.err) + "</div>" : "")
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" data-kesave="1">Сохранить</button><button class="btn ghost" data-kectr="1" title="Изменить состав услуг и цены">Состав услуг…</button><button class="btn ghost" data-close="1">Отмена</button></div></div></div></div>';
+  }
+  function kpToForm(k) {
+    var pay = k.pay || "post100", m = /^adv(\d+)$/.exec(pay), std = pay === "adv50" || pay === "adv30" || pay === "post100";
+    S.kpf = { id: k.id, number: k.number, status: k.status, order_id: k.order_id, customer_id: k.customer_id || 0, customer_text: k.customer_text || "", object: k.object || "", pay: std ? pay : "custom", advpct: m ? +m[1] : 40, pay_text: k.pay_text || "", err: "",
+      items: (k.services || []).map(function (s) { return { name: s.name, price: +s.price || 0, on: true, custom: true }; }) };
+  }
+  function keSave() {
+    var e = S.ke;
+    var body = { customer_id: +e.customer_id || 0, customer_text: +e.customer_id ? "" : (e.customer_text || ""), object: e.object || "", amount: +e.amount || 0, adv_sum: +e.adv_sum || 0, pay_text: e.pay_text || "", issued_date: e.issued_date || "", manager_id: +e.manager_id || 0 };
+    api("/kp/" + e.id + "/edit", body).then(function () { return e.status !== e.status0 ? api("/kp/" + e.id + "/status", { status: e.status }) : null; })
+      .then(function () { S.ke = null; S.orders = null; S.tasks = null; return Promise.all([loadKp(), load()]); })
+      .then(function () { toast("КП сохранено"); paint(); }, function (er) { e.err = String(er); modalRoot().innerHTML = keHtml(); });
+  }
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest ? e.target.closest("[data-kpedit],[data-kpz],[data-kesave],[data-kectr],[data-kcopen],[data-kcsave],[data-kcclose],[data-kpcancel]") : null; if (!t) return;
+    var d = t.dataset;
+    if (d.kpedit) {
+      var k = (S.kp || []).filter(function (x) { return x.id === +d.kpedit; })[0]; if (!k) return;
+      S.ke = { id: k.id, number: k.number, customer_id: k.customer_id || 0, customer_text: k.customer_text || "", object: k.object || "", amount: k.amount, adv_sum: k.adv_sum, pay_text: k.pay_text || "", issued_date: k.issued_date || "", manager_id: k.manager_id || 0, status: k.status, status0: k.status, order_id: k.order_id, err: "" };
+      modalRoot().innerHTML = keHtml();
+      if (S.assignable == null) api("/users/assignable").then(function (u) { S.assignable = u; if (S.ke) modalRoot().innerHTML = keHtml(); }, function () { S.assignable = []; });
+      return;
+    }
+    if (d.kpz != null && t.hasAttribute("data-kpz")) { var z = kpFont(); z = d.kpz === "0" ? 13 : Math.max(10, Math.min(17, z + (+d.kpz))); S.kpz = z; try { localStorage.setItem("ds_kpz", String(z)); } catch (er) {} return paint(); }
+    if (d.kesave) return keSave();
+    if (d.kectr) { var kk = (S.kp || []).filter(function (x) { return x.id === S.ke.id; })[0]; if (kk) { kpToForm(kk); S.ke = null; modalRoot().innerHTML = ""; location.hash = "#/kpc"; } return; }
+    if (d.kpcancel != null && t.hasAttribute("data-kpcancel")) { S.kpf = null; location.hash = "#/kpreg/"; return; }
+    if (d.kcopen != null && t.hasAttribute("data-kcopen")) { kpcInit(); S.kpf.nc = { mode: d.kcopen, name: "", fio: "", phone: "", email: "", err: "" }; return paint(); }
+    if (d.kcclose != null && t.hasAttribute("data-kcclose")) { if (S.kpf) S.kpf.nc = null; return paint(); }
+    if (d.kcsave != null && t.hasAttribute("data-kcsave")) return kcSave();
+  });
+  document.addEventListener("input", function (e) {
+    var t = e.target; if (!t.dataset) return;
+    if (t.dataset.ke && S.ke) { S.ke[t.dataset.ke] = t.value; if (t.dataset.ke === "amount" || t.dataset.ke === "adv_sum") { var r = document.getElementById("keRest"); if (r) r.textContent = "Остаток по акту: " + money(Math.max(0, (+S.ke.amount || 0) - (+S.ke.adv_sum || 0))); } }
+    if (t.dataset.knc && S.kpf && S.kpf.nc) S.kpf.nc[t.dataset.knc] = t.value;
+  });
+  document.addEventListener("change", function (e) {
+    var t = e.target; if (t.dataset && t.dataset.ke && S.ke) { S.ke[t.dataset.ke] = t.value; if (t.dataset.ke === "customer_id") modalRoot().innerHTML = keHtml(); }
+  });
+  /* контакт заказчика и новый заказчик прямо в конструкторе КП */
+  function kcSave() {
+    var f = S.kpf, n = f.nc; if (!n) return;
+    var cs = S.customers || [], cur = cs.filter(function (c) { return c.id === f.customer_id; })[0];
+    var contact = { fio: (n.fio || "").trim(), pos: "", phone: (n.phone || "").trim(), email: (n.email || "").trim() };
+    if (n.mode === "contact") {
+      if (!cur) { n.err = "Сначала выберите заказчика"; return paint(); }
+      if (!contact.fio && !contact.phone && !contact.email) { n.err = "Заполните ФИО, телефон или e-mail"; return paint(); }
+    } else if (!(n.name || "").trim()) { n.err = "Введите название заказчика"; return paint(); }
+    var body = n.mode === "contact"
+      ? { name: cur.name, regular: !!cur.regular, tz: cur.tz, city: cur.city || "", comment: cur.comment || "", contacts: (cur.contacts || []).concat([contact]) }
+      : { name: n.name.trim(), regular: false, tz: "Europe/Moscow", comment: "", contacts: (contact.fio || contact.phone || contact.email) ? [contact] : [] };
+    api("/customers", body).then(function (r) { return api("/customers").then(function (c) { S.customers = c; f.customer_id = r.id; f.nc = null; paint(); toast(n.mode === "contact" ? "Контакт добавлен" : "Заказчик создан"); }); }, function (er) { n.err = String(er); paint(); });
+  }
   /* ---------- «Просрочено и зависло» ---------- */
   function loadRisk() { return api("/attention?days=" + (S.rkDays || 3)).then(function (r) { S.rk = r; S.rkErr = ""; }, function (e) { S.rk = { items: [], tasks: [], outbox: [] }; S.rkErr = String(e); }); }
   var RK_KIND = { overdue: ["Просрочен срок по договору", "bad"], unassigned: ["Нет исполнителя", "warn"], stale: ["Без движения", "muted"] };
@@ -502,6 +610,7 @@
       : k === "cust" ? '<div class="ds dspage">' + custScreen() + "</div>" : k === "week" ? '<div class="ds dspage">' + weekScreen() + "</div>" : screen();
     if (q) { var qe = document.getElementById("dsQ"); if (qe) { qe.focus(); qe.setSelectionRange(qe.value.length, qe.value.length); } }
     var m = modalRoot();
+    if (S.ke) { m.innerHTML = keHtml(); return; }
     if (S.tm) { m.innerHTML = tmWrap(); return; }
     if (S.nt) { m.innerHTML = ntHtml(); return; }
     if (S.te) { m.innerHTML = teHtml(); return; }
@@ -556,11 +665,12 @@
   }
   DS.newTask = ntOpen;
   DS.orders = function () { return (S.orders || []).map(function (o) { return { id: o.id, label: "№" + o.number + " · " + (o.customer || "") + " · " + (o.object || "") }; }); };
-  DS.closeAll = function () { S.form = S.edit = S.nt = S.te = null; S.tm = false; S.oe = null; S.open = null; S.tab = "info"; var m = document.getElementById("ds-modal"); if (m) m.innerHTML = ""; };
+  DS.closeAll = function () { S.form = S.edit = S.nt = S.te = S.ke = null; S.tm = false; S.oe = null; S.open = null; S.tab = "info"; var m = document.getElementById("ds-modal"); if (m) m.innerHTML = ""; };
   DS.ensureOrders = function () { return S.orders == null && C && C.loggedIn() ? load().then(null, function () {}) : Promise.resolve(); };
 
   /* ---------- полный контроль руководителя и операционного менеджера: правка и удаление ---------- */
   function fullCtl() { var p = pos(); return p === "owner" || p === "ops"; }
+  function taskCtl() { var p = pos(); return p === "owner" || p === "ops" || p === "design"; }
   var OE_FIELD = 'style="width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface);color:var(--ink);font:inherit"';
   function oeInp(label, key, type, extra) {
     var v = S.oe[key]; if (v == null) v = "";
@@ -877,8 +987,8 @@
     ["Asia/Vladivostok", "Владивосток (+7 к МСК)"], ["Asia/Magadan", "Магадан (+8 к МСК)"], ["Asia/Kamchatka", "Камчатка (+9 к МСК)"]];
   function custScreen() {
     var p = pos(), canEdit = p === "owner" || p === "sales" || p === "ops", list = S.customers || [], d = S.cu.draft;
-    if (!can("customers")) return '<div class="head"><div><h1>Заказчики</h1></div></div><div class="note">Раздел недоступен для вашей роли.</div>';
-    var title = p === "design" ? "Кому звонить" : "Заказчики";
+    if (!can("customers")) return '<div class="head"><div><h1>База заказчиков</h1></div></div><div class="note">Раздел недоступен для вашей роли.</div>';
+    var title = p === "design" ? "Кому звонить" : "База заказчиков";
     var head = '<div class="head"><div><h1>' + title + "</h1><p>" + (p === "design" ? "Заказчики ваших проектов: контакты, часовой пояс и комментарий менеджера. Звонки делаете вы." : "Компании, контактные лица, часовой пояс и комментарии менеджера") + "</p></div>"
       + (canEdit ? '<button class="btn accent" data-cnew="1">' + ic("plus") + "Новый заказчик</button>" : "") + "</div>"
       + "";
@@ -910,7 +1020,8 @@
         }).join("")
         + (canEdit ? '<button class="btn ghost sm" style="margin:6px 0 12px" data-cadd="1">+ Контактное лицо</button>' : "")
         + reqBlock(d, ro)
-        + '<div class="fld"><label>Часовой пояс</label><select data-cftz="1"' + ro + ">" + tzOpts + '</select><div class="note" style="margin-top:6px">Сейчас у заказчика: <b>' + nowIn(d.tz) + "</b></div></div>"
+        + '<div class="fld"><label>Город <small style="color:var(--muted)">(введите любой — часовой пояс подставится сам)</small></label><input data-cfcity="1" list="cityDl" value="' + E(d.city || "") + '" placeholder="Например: Красноярск"' + ro + '><datalist id="cityDl">' + cityNames().map(function (n) { return '<option value="' + E(n) + '">'; }).join("") + '</datalist><div class="note" id="cuCityNote" style="margin-top:4px"></div></div>'
+        + '<div class="fld"><label>Часовой пояс</label><select data-cftz="1" id="cuTz"' + ro + ">" + tzOpts + '</select><div class="note" style="margin-top:6px">Сейчас у заказчика: <b id="cuNow">' + nowIn(d.tz) + "</b></div></div>"
         + '<div class="fld"><label>Комментарий менеджера</label><textarea data-cf="comment"' + ro + ">" + E(d.comment || "") + "</textarea></div>"
         + (S.cu.err ? '<div class="err">' + E(S.cu.err) + "</div>" : "")
         + (canEdit ? '<button class="btn primary block" data-csave="1">Сохранить</button>' : "")
@@ -931,7 +1042,7 @@
   function saveCustomer() {
     var d = S.cu.draft; if (!d) return;
     if (!(d.name || "").trim()) { S.cu.err = "Укажите наименование компании"; return paint(); }
-    var body = { name: d.name.trim(), regular: !!d.regular, tz: d.tz, comment: d.comment || "", contacts: (d.contacts || []).filter(function (c) { return c.fio || c.pos || c.phone || c.email; }) };
+    var body = { name: d.name.trim(), regular: !!d.regular, tz: d.tz, city: d.city || "", comment: d.comment || "", contacts: (d.contacts || []).filter(function (c) { return c.fio || c.pos || c.phone || c.email; }) };
     ["inn", "kpp", "address", "bank_name", "bik", "rs", "ks", "signer_fio", "signer_pos"].forEach(function (k) { if (d[k] !== undefined) body[k] = d[k]; });
     var p = d.id ? api("/customers/" + d.id, body) : api("/customers", body);
     p.then(function (r) {
@@ -987,9 +1098,9 @@
     }).join("") + "</div>";
   }
   /* ---------- реестр КП, конструктор КП, договор ---------- */
-  var KP_TONE = { "Обращение": "info", "Сбор вводных": "info", "КП отправлено": "info", "Договор подписан": "ok", "Оплачено": "paid", "Отказ": "bad" };
-  var KP_FUNNEL = ["КП отправлено", "Договор подписан", "Оплачено"];                  // в реестре КП этапы «Обращение» и «Сбор вводных» не показываются
-  var KP_MANUAL = ["КП отправлено", "Договор подписан", "Оплачено", "Отказ"];
+  var KP_TONE = { "Обращение": "info", "Сбор вводных": "info", "КП отправлено": "info", "Счёт отправлен": "warn", "Оплачено": "paid", "Отказ": "bad" };
+  var KP_FUNNEL = ["КП отправлено", "Счёт отправлен", "Оплачено"];                  // в реестре КП этапы «Обращение» и «Сбор вводных» не показываются
+  var KP_MANUAL = ["КП отправлено", "Счёт отправлен", "Оплачено", "Отказ"];
   function kpStatusLabel(s) { return s === "Обращение" || s === "Сбор вводных" ? "Черновик" : s; }
   var PAYS = [["adv50", "Аванс 50%, остаток по акту"], ["adv30", "Аванс 30%, остаток по акту"], ["post100", "100% по акту"], ["custom", "Свой процент аванса…"]];
   var PRICE = [];
@@ -999,17 +1110,19 @@
   function kpIsLate(k) { return k.last_days != null && k.last_days > 5 && k.status !== "Оплачено" && k.status !== "Отказ"; }
   function kpScreen() {
     var p = pos(), canEdit = p === "owner" || p === "sales" || p === "ops", list = S.kp || [];
+    var kpz = kpFont();
     var head = '<div class="head"><div><h1>Реестр КП</h1><p>Выставленные стоимости: аванс и постоплата отдельно. Красным выделены КП, по которым нет общения более 5 дней</p></div>'
-      + (canEdit ? '<div style="display:flex;gap:10px"><a class="btn accent" href="#/kpc" style="text-decoration:none">' + ic("plus") + "Составить КП</a></div>" : "") + "</div>"
-      + "";
-    var funnel = '<div class="panel pad" style="margin-bottom:16px"><h3>Воронка</h3><p class="sub">Статус «Оплачено» ставится автоматически, когда вся оплата (аванс и постоплата) пришла из 1С</p><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+      + '<div style="display:flex;gap:10px;align-items:center"><div class="seg" title="Размер шрифта таблицы"><button data-kpz="-1">A−</button><button data-kpz="0">' + kpz + ' px</button><button data-kpz="1">A+</button></div>'
+      + (canEdit ? '<a class="btn accent" href="#/kpc" style="text-decoration:none">' + ic("plus") + "Составить КП</a>" : "") + "</div></div>";
+    var funnel = '<div class="panel pad" style="margin-bottom:16px"><h3>Воронка</h3><p class="sub">«Оплачено» создаёт проектную задачу и чат по заказу (аванс считается полученным). Оплата из 1С ставит этот статус сама</p><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
       + KP_FUNNEL.map(function (s, i) { var n = list.filter(function (k) { return k.status === s; }).length; return '<span class="pill ' + KP_TONE[s] + '" style="height:30px;padding:0 14px">' + E(s) + " · " + n + "</span>" + (i < KP_FUNNEL.length - 1 ? '<span style="color:var(--muted)">→</span>' : ""); }).join("") + "</div></div>";
-    function advTxt(k) { if (!k.has_adv) return k.order_id ? "без аванса" : "—"; return money(k.adv_sum) + " · " + (k.adv_paid ? "оплачен " + dmy(k.adv_date).slice(0, 5) : (k.order_id ? "ждём" : "план")); }
-    function postTxt(k) { if (!k.order_id && !k.post_sum) return "—"; return money(k.post_sum) + " · " + (k.post_paid ? "оплачена " + dmy(k.post_date).slice(0, 5) : (k.order_id ? "ждём" : "план")); }
+    function advTxt(k) { if (!k.has_adv) return k.order_id ? "без аванса" : "—"; return money(k.adv_sum) + (k.adv_paid ? " · оплачен " + dmy(k.adv_date).slice(0, 5) : (k.order_id ? " · ждём" : "")); }
+    function postTxt(k) { if (!k.order_id && !k.post_sum) return "—"; return money(k.post_sum) + (k.post_paid ? " · оплачена " + dmy(k.post_date).slice(0, 5) : (k.order_id ? " · ждём" : "")); }
     var rows = list.map(function (k) {
       var late = kpIsLate(k);
       var st = canEdit && !k.order_id ? '<select data-kpstatus="' + k.id + '" style="min-width:150px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);padding:5px 8px">' + (KP_MANUAL.indexOf(k.status) < 0 ? [k.status] : []).concat(KP_MANUAL).map(function (s) { return "<option" + (s === k.status ? " selected" : "") + ' value="' + E(s) + '">' + E(kpStatusLabel(s)) + "</option>"; }).join("") + "</select>" : '<span class="pill ' + (KP_TONE[k.status] || "info") + '">' + E(kpStatusLabel(k.status)) + "</span>";
-      var acts = canEdit && !k.order_id && k.status !== "Отказ" ? '<button class="btn ghost sm" data-kpcontract="' + k.id + '">Договор</button> ' : "";
+      var acts = canEdit ? '<button class="btn ghost sm" data-kpedit="' + k.id + '" title="Править КП: заказчик, объект, суммы, статус">✎ Править</button> ' : "";
+      acts += canEdit && !k.order_id && k.status !== "Отказ" ? '<button class="btn ghost sm" data-kpcontract="' + k.id + '">Договор</button> ' : "";
       if (canEdit && !k.order_id) acts += '<button class="btn ghost sm" data-kptouch="' + k.id + '">Был контакт</button> ';
       acts += docButtons(k);
       var del = canEdit && !k.order_id ? '<button class="btn ghost sm kpx" data-kpdel="' + k.id + '" title="Удалить КП из реестра">✕</button>' : "";
@@ -1023,7 +1136,7 @@
       if (canEdit && k.contract_number) b += ' <button class="btn ghost sm" title="Договор в PDF" data-doc="' + k.id + ':contract:pdf">Дог. PDF</button> <button class="btn ghost sm" title="Договор в Word" data-doc="' + k.id + ':contract:docx">Дог. Word</button>';
       return b;
     }
-    return head + funnel + '<div class="panel" style="overflow:auto"><table class="tbl grid-c kpt"><tr><th>№ КП</th><th>Заказчик</th><th>Объект / услуги</th><th>Дата выставления КП</th><th>Сумма</th><th>Статус</th><th>Аванс</th><th>Постоплата</th><th>Последнее общение</th><th>Менеджер</th><th>Действия и документы</th><th></th></tr>'
+    return head + funnel + '<div class="panel" style="overflow:auto"><table class="tbl grid-c kpt" style="font-size:' + kpz + 'px"><tr><th>№ КП</th><th>Заказчик</th><th>Объект / услуги</th><th>Дата выставления КП</th><th>Сумма</th><th>Статус</th><th>Аванс</th><th>Постоплата</th><th>Последнее общение</th><th>Менеджер</th><th>Действия и документы</th><th></th></tr>'
       + (rows || '<tr><td colspan="12">КП пока нет</td></tr>') + "</table></div>";
   }
   function kpTotal() { return (S.kpf ? S.kpf.items : []).reduce(function (a, i) { return a + (i.on ? (+i.price || 0) : 0); }, 0); }
@@ -1050,8 +1163,15 @@
         + '<input type="number" min="0" data-kf="i.' + idx + '.price" value="' + (+i.price || 0) + '" ' + inpS + ">"
         + '<button class="btn ghost sm" data-kdel="' + idx + '" title="Убрать из КП">✕</button></div>';
     }).join("") || '<div class="note">Выберите услуги в прайсе справа или рассчитайте стоимость в калькуляторе</div>';
-    var form = '<div class="panel pad"><h3>Состав КП</h3><p class="sub">Услуги можно править: название и цену</p>'
+    var cust = cs.filter(function (c) { return c.id === f.customer_id; })[0], nc = f.nc;
+    var contacts = (cust && (cust.contacts || []).length ? '<div class="kcont">' + cust.contacts.map(function (c) { return "<div>" + E(c.fio || "—") + (c.phone ? " · " + E(c.phone) : "") + (c.email ? " · " + E(c.email) : "") + "</div>"; }).join("") + "</div>" : "")
+      + (nc ? '<div class="kcadd">' + (nc.mode === "customer" ? '<div class="fld"><label>Название нового заказчика</label><input data-knc="name" value="' + E(nc.name) + '"></div>' : "")
+          + '<div class="fld"><label>Контактное лицо (ФИО)</label><input data-knc="fio" value="' + E(nc.fio) + '"></div><div class="g2f"><div class="fld"><label>Телефон</label><input data-knc="phone" value="' + E(nc.phone) + '" placeholder="+7 …"></div><div class="fld"><label>E-mail</label><input data-knc="email" value="' + E(nc.email) + '"></div></div>'
+          + (nc.err ? '<div class="err">' + E(nc.err) + "</div>" : "") + '<div style="display:flex;gap:8px"><button class="btn primary sm" data-kcsave="1">Сохранить</button><button class="btn ghost sm" data-kcclose="1">Отмена</button></div></div>'
+        : '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 12px">' + (cust ? '<button class="btn ghost sm" data-kcopen="contact">+ Контакт заказчика</button>' : "") + '<button class="btn ghost sm" data-kcopen="customer">+ Новый заказчик</button></div>');
+    var form = '<div class="panel pad"><h3>' + (f.id ? "Правка КП " + E(kpNo(f.number)) : "Состав КП") + '</h3><p class="sub">' + (f.id ? "Меняйте услуги, цены, заказчика и условия оплаты, затем «Сохранить изменения»" : "Услуги можно править: название и цену") + "</p>"
       + '<div class="fld"><label>Заказчик (из базы заказчиков)</label><select data-kf="customer_id"><option value="0">— без привязки к заказчику —</option>' + cs.map(function (c) { return '<option value="' + c.id + '"' + (c.id === f.customer_id ? " selected" : "") + ">" + E(c.name) + "</option>"; }).join("") + "</select></div>"
+      + contacts
       + (f.customer_id ? "" : '<div class="fld"><label>Для кого КП (название или имя, необязательно)</label><input data-kf="customer_text" value="' + E(f.customer_text || "") + '" placeholder="Например: ООО «Вектор»"></div>')
       + '<div class="fld"><label>Объект</label><input data-kf="object" value="' + E(f.object) + '"></div>'
       + lines
@@ -1062,7 +1182,8 @@
       + '<textarea rows="2" data-kf="pay_text" placeholder="Например: 30% аванс, 40% после согласования, 30% после передачи комплекта">' + E(f.pay_text || "") + "</textarea></div>"
       + '<div class="dbox"><small>Итого</small><b id="kTotal" style="font-size:1.3rem">' + money(total) + "</b>" + (adv ? "<div>Аванс " + money(adv) + ", остаток по акту " + money(total - adv) + "</div>" : "<div>Без аванса, оплата по акту</div>") + "</div>"
       + (f.err ? '<div class="err">' + E(f.err) + "</div>" : "")
-      + '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" data-ksave="send">Выставить КП</button><button class="btn ghost" data-ksave="draft">Сохранить черновик</button></div></div>';
+      + (f.id ? '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" data-ksave="draft">Сохранить изменения</button>' + (/^(Обращение|Сбор вводных)$/.test(f.status || "") ? '<button class="btn ghost" data-ksave="send">Сохранить и выставить КП</button>' : "") + '<button class="btn ghost" data-kpcancel="1">Отмена</button></div></div>'
+        : '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" data-ksave="send">Выставить КП</button><button class="btn ghost" data-ksave="draft">Сохранить черновик</button></div></div>');
     var tab = S.kt || "price";
     var seg = '<div class="seg" style="margin-bottom:12px">' + [["price", "Услуги"], ["calc", "Калькулятор"], ["print", "Печать"]].map(function (x) {
       return '<button data-kt="' + x[0] + '" class="' + (tab === x[0] ? "on" : "") + '">' + x[1] + "</button>";
@@ -1077,7 +1198,7 @@
         return '<div class="dsv ' + (inKp ? "on" : "") + '" style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center"><span>' + E(i.name) + (i.note ? '<br><small style="color:var(--muted)">' + E(i.note) + "</small>" : "") + "</span>"
           + "<b>" + money(i.price) + '</b><button class="btn ' + (inKp ? "ghost" : "primary") + ' sm" data-kpadd="' + j + '" title="Добавить в КП">' + (inKp ? "✓" : "+") + "</button></div>";
       }).join("") + "</div>";
-    return '<div class="head"><div><h1>Конструктор КП</h1><p>Слева состав предложения, справа прайс, калькулятор и печать. «Выставить КП» вносит предложение в реестр с датой выставления</p></div></div>'
+    return '<div class="head"><div><h1>' + (f.id ? "Правка КП" : "Конструктор КП") + '</h1><p>Слева состав предложения, справа прайс, калькулятор и печать. «Выставить КП» вносит предложение в реестр с датой выставления</p></div></div>'
       + '<div class="kpc kpc-wide"><div>' + form + "</div><div>" + seg + side + "</div></div>";
   }
   function saveKp(send) {
@@ -1085,8 +1206,8 @@
     var items = f.items.filter(function (i) { return i.on && i.name && +i.price > 0; }).map(function (i) { return { name: i.name, price: +i.price }; });
     if (!items.length) { f.err = "Отметьте хотя бы одну услугу с ценой"; return paint(); }
     var payCode = f.pay === "custom" ? ((+f.advpct || 0) <= 0 ? "post100" : "adv" + Math.min(100, Math.round(+f.advpct))) : f.pay;
-    api("/kp", { customer_id: f.customer_id || 0, customer_text: f.customer_id ? "" : (f.customer_text || ""), object: f.object, services: items, pay: payCode, pay_text: f.pay_text || "", send: !!send }).then(function () {
-      S.kpf = null; toast(send ? "КП выставлено и добавлено в реестр" : "Черновик сохранён в реестре"); location.hash = "#/kpreg/";
+    api(f.id ? "/kp/" + f.id : "/kp", { customer_id: f.customer_id || 0, customer_text: f.customer_id ? "" : (f.customer_text || ""), object: f.object, services: items, pay: payCode, pay_text: f.pay_text || "", send: !!send }).then(function () {
+      var was = f.id; S.kpf = null; toast(was ? "КП изменено" : (send ? "КП выставлено и добавлено в реестр" : "Черновик сохранён в реестре")); location.hash = "#/kpreg/";
     }, function (er) { f.err = String(er); paint(); });
   }
   /* ---------- конструктор договора (шаблон ИП: 15 разделов + приложения) ---------- */
@@ -1765,7 +1886,7 @@
       }, function (e) { S.busy = false; toast(String(e && e.message || e)); });
   }
   function closeAll() {
-    S.form = null; S.edit = null; S.nt = null; S.te = null; S.tm = false; S.oe = null;
+    S.form = null; S.edit = null; S.nt = null; S.te = null; S.tm = false; S.oe = null; S.ke = null;
     var mr0 = document.getElementById("ds-modal"); if (mr0) mr0.innerHTML = "";
     if (S.open) { S.open = null; S.tab = "info"; if (/^#\/task\//.test(location.hash)) history.replaceState(null, "", "#/"); }
     paint();
@@ -1778,7 +1899,7 @@
   document.addEventListener("dragover", function (e) { if (S.mount && e.target.closest && e.target.closest("[data-dropstage]")) e.preventDefault(); });
   document.addEventListener("drop", function (e) {
     var col = e.target.closest && e.target.closest("[data-dropstage]");
-    if (!col || !e.dataTransfer || !fullCtl()) return;
+    if (!col || !e.dataTransfer || !taskCtl()) return;
     var id = e.dataTransfer.getData("text/plain"); if (!id) return;
     e.preventDefault();
     api("/orders/" + id + "/stage", { stage: col.getAttribute("data-dropstage") }).then(function () { S.orders = null; S.tasks = null; return load().then(paint); }, function (er) { toast(String(er)); });
@@ -2026,7 +2147,7 @@
       if (ctq === "customer.type") { if (cu2.type === "ip") { cu2.basis = cu2.basis === "Устава" ? "листа записи из ЕГРИП" : cu2.basis; cu2.position_sign = "Индивидуальный предприниматель"; } else if (cu2.type === "org") { cu2.basis = cu2.basis === "листа записи из ЕГРИП" ? "Устава" : cu2.basis; cu2.position_sign = "Генеральный директор"; } if (!cu2.party_custom) cu2.party_text = ctParty(cu2); }
       paint();
     }
-    if (e.target.dataset && e.target.dataset.kpstatus && S.kp) { var kid_ = +e.target.dataset.kpstatus; act2(api("/kp/" + kid_ + "/status", { status: e.target.value }).then(loadKp), false); }
+    if (e.target.dataset && e.target.dataset.kpstatus && S.kp) { var kid_ = +e.target.dataset.kpstatus; var stv_ = e.target.value; act2(api("/kp/" + kid_ + "/status", { status: stv_ }).then(loadKp).then(function () { if (stv_ === "Оплачено") { S.orders = null; S.tasks = null; return load(); } }), false); }
     if (e.target.dataset && e.target.dataset.cfchk != null && S.cu.draft) { S.cu.draft.regular = e.target.checked ? 1 : 0; }
     if (e.target.dataset && e.target.dataset.cftz != null && S.cu.draft) { S.cu.draft.tz = e.target.value; paint(); }
     if (e.target.id === "flOrder") { S.flOrder = +e.target.value; loadPath().then(paint); }
