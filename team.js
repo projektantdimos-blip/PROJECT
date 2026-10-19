@@ -114,9 +114,33 @@
   function loadRooms() {
     return C.call("/team/rooms" + (S.cur ? "?open=" + encodeURIComponent(S.cur) : "")).then(function (rs) { S.rooms = rs; paintRooms(); });
   }
+  /* картинка чата: цветная плитка с эмодзи (у каналов и своих чатов выбирается), у задачи — номер, у личного — аватар */
+  var ICONS = ["📢", "📐", "🏗️", "🚀", "🔥", "💼", "📞", "💬", "📋", "🧾", "🧮", "⚙️", "🔧", "🧯", "🏢", "🚚", "📅", "⭐", "🛒", "📄", "🎯", "💡", "🧰", "🛠️", "📦", "📊", "🗂️", "🔔", "✅", "🤝", "🌟", "🏠"];
+  var ICON_COLORS = ["#3a86d6", "#8b6fe0", "#1fb3b3", "#2fa66a", "#d4a017", "#d85a30", "#d9568a", "#6f7de0"];
+  var ROOM_DEF = { general: ["📢", "#3a86d6"], design: ["📐", "#8b6fe0"], ops: ["⚙️", "#1fb3b3"], sales: ["💼", "#ee9264"], acc: ["🧮", "#2fa66a"], buy: ["🛒", "#d4a017"], calc: ["🧮", "#2fa66a"], kp: ["📄", "#6f7de0"] };
+  function roomStyle(r) { var d = ROOM_DEF[r.id] || ["💬", "#3a86d6"]; return { icon: r.icon || d[0], color: r.color || d[1] }; }
   function roomIcon(r) {
     if (r.kind === "dm" && /^d\d+_\d+$/.test(r.id)) return ava(r.name, "sm");
-    return '<span class="x-rm ' + (r.kind === "task" ? "task" : "") + '">' + ic(r.kind === "task" ? "tasks" : (ROOM_IC[r.id] || "hash")) + "</span>";
+    if (r.kind === "task") {
+      var m = /№\s*(\d+[-\d]*)/.exec(r.name || ""), n = m ? m[1] : "", h = 0; String(n).split("").forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) >>> 0; });
+      return '<span class="x-tile num" style="background:' + ICON_COLORS[h % ICON_COLORS.length] + '">' + (n ? "№<br>" + E(n.length > 5 ? n.slice(0, 5) : n) : "✔") + "</span>";
+    }
+    var s = roomStyle(r);
+    return '<span class="x-tile" style="background:' + s.color + '">' + E(s.icon) + "</span>";
+  }
+  /* выбор картинки и цвета: единый блок для нового чата и для смены у существующего */
+  function pickerHtml(sel) {
+    return '<div class="x-pickh">Картинка</div><div class="x-pick" id="gIcons">' + ICONS.map(function (i) { return '<button type="button" data-gi="' + i + '" class="' + (i === sel.icon ? "on" : "") + '">' + i + "</button>"; }).join("") + "</div>"
+      + '<div class="x-pickh">Цвет</div><div class="x-pickc" id="gColors">' + ICON_COLORS.map(function (c) { return '<button type="button" data-gc="' + c + '" class="' + (c === sel.color ? "on" : "") + '" style="background:' + c + '"></button>'; }).join("") + "</div>";
+  }
+  function pickerBind(sel, onChange) {
+    var root = $("gIcons").parentNode;
+    root.onclick = function (e) {
+      var i = e.target.closest("[data-gi]"), c = e.target.closest("[data-gc]");
+      if (i) { sel.icon = i.dataset.gi; [].forEach.call($("gIcons").children, function (b) { b.classList.toggle("on", b === i); }); }
+      if (c) { sel.color = c.dataset.gc; [].forEach.call($("gColors").children, function (b) { b.classList.toggle("on", b === c); }); }
+      if (onChange) onChange();
+    };
   }
   function roomItem(r) {
     var hasU = r.urgent_open > 0, last = r.last;
@@ -169,7 +193,7 @@
     var wasBottom = true, old = el.querySelector(".x-msgs"), val = $("tIn") ? $("tIn").value : "";
     if (old && keep) wasBottom = old.scrollHeight - old.scrollTop - old.clientHeight < 80;
     el.innerHTML = '<div class="x-th-h"><button class="x-btn ghost x-back" data-back="1" style="padding:6px 10px">←</button>' + roomIcon(room) + "<div><b>" + E(room.name) + "</b></div>"
-      + (room.kind === "group" || (room.kind === "chan" && C.me && (C.me.position === "owner" || C.me.role === "admin")) ? '<button class="x-btn ghost" data-rename="1" style="margin-left:auto;padding:7px 12px" title="Переименовать чат">✎ Название</button>' : "")
+      + (room.kind === "group" || (room.kind === "chan" && C.me && (C.me.position === "owner" || C.me.role === "admin")) ? '<span style="margin-left:auto;display:flex;gap:6px"><button class="x-btn ghost" data-style="1" style="padding:7px 12px" title="Картинка и цвет чата">🎨</button><button class="x-btn ghost" data-rename="1" style="padding:7px 12px" title="Переименовать чат">✎ Название</button></span>' : "")
       + (room.kind === "task" && room.task_row ? '<a class="x-btn ghost" style="margin-left:auto;padding:7px 12px" href="#/task/' + room.task_row + '">Открыть задачу</a>' : "") + "</div>"
       + (pin ? '<div class="x-pinned">' + ic("flame") + "<span>Срочное: " + E(pin.text) + "</span></div>" : "")
       + '<div class="x-msgs">' + (body || '<span class="x-day">Здесь пока пусто — напишите первое сообщение</span>') + "</div>"
@@ -294,8 +318,10 @@
   }
   /* свой чат: любое название и выбранные участники */
   function newGroup() {
-    xmodal('<h3>Новый чат</h3><div class="x-field"><input type="text" id="gName" placeholder="Название чата (любое)" maxlength="120" autocomplete="off"></div><p class="x-sub">Участники (вы добавлены сами)</p><div id="gList" style="max-height:40vh;overflow:auto"><div class="x-empty">Загрузка…</div></div><div class="x-hint" id="gErr" style="color:var(--bad)"></div><div class="x-row"><button class="x-btn ghost" onclick="MPBT.closeModal()">Отмена</button><button class="x-btn primary" id="gGo">Создать чат</button></div>', true);
-    var all = [], me = C.me ? C.me.id : 0;
+    xmodal('<h3>Новый чат</h3><div class="x-field"><input type="text" id="gName" placeholder="Название чата (любое)" maxlength="120" autocomplete="off"></div><div id="gPreview" style="display:flex;align-items:center;gap:12px;margin-bottom:8px"></div><div id="gPick"></div><p class="x-sub">Участники (вы добавлены сами)</p><div id="gList" style="max-height:40vh;overflow:auto"><div class="x-empty">Загрузка…</div></div><div class="x-hint" id="gErr" style="color:var(--bad)"></div><div class="x-row"><button class="x-btn ghost" onclick="MPBT.closeModal()">Отмена</button><button class="x-btn primary" id="gGo">Создать чат</button></div>', true);
+    var all = [], me = C.me ? C.me.id : 0, sel = { icon: ICONS[0], color: ICON_COLORS[0] };
+    function prev() { $("gPreview").innerHTML = '<span class="x-tile big" style="background:' + sel.color + '">' + E(sel.icon) + '</span><small class="x-sub" style="margin:0">Так чат выглядит в списке</small>'; }
+    $("gPick").innerHTML = pickerHtml(sel); pickerBind(sel, prev); prev();
     function paintG() {
       $("gList").innerHTML = all.filter(function (u) { return u.id !== me; }).map(function (u) {
         return '<label class="x-linkcard" style="cursor:pointer">' + ava(u.name, "sm") + "<span><b>" + E(u.name) + "</b><small>" + E(u.title || "") + '</small></span><input type="checkbox" data-gu="' + u.id + '" style="margin-left:auto"></label>'; }).join("") || '<div class="x-empty">Никого не найдено</div>';
@@ -305,13 +331,22 @@
       var name = $("gName").value.trim();
       if (!name) { $("gErr").textContent = "Введите название чата"; return; }
       var ids = [].slice.call(document.querySelectorAll("[data-gu]:checked")).map(function (x) { return +x.dataset.gu; });
-      C.call("/../ds/rooms/group", { body: { name: name, members: ids } }).then(function (r) {
+      C.call("/../ds/rooms/group", { body: { name: name, members: ids, icon: sel.icon, color: sel.color } }).then(function (r) {
         T.closeModal();
         if (cur() === "team") { S.cur = r.id; loadRooms().then(function () { openRoom(r.id); }); } else location.hash = "#/team?room=" + r.id;
       }).catch(function (e) { $("gErr").textContent = String(e); });
     };
   }
   document.addEventListener("click", function (e) {
+    var sb = e.target.closest && e.target.closest("[data-style]"); if (sb && S.cur) {
+      var rm = S.rooms.filter(function (r) { return r.id === S.cur; })[0]; if (!rm) return;
+      var sel = roomStyle(rm);
+      xmodal('<h3>Картинка чата</h3><div id="gPreview" style="display:flex;align-items:center;gap:12px;margin-bottom:8px"></div><div id="gPick"></div><div class="x-hint" id="gErr" style="color:var(--bad)"></div><div class="x-row"><button class="x-btn ghost" onclick="MPBT.closeModal()">Отмена</button><button class="x-btn primary" id="gGo">Сохранить</button></div>', true);
+      var prev = function () { $("gPreview").innerHTML = '<span class="x-tile big" style="background:' + sel.color + '">' + E(sel.icon) + "</span><b>" + E(rm.name) + "</b>"; };
+      $("gPick").innerHTML = pickerHtml(sel); pickerBind(sel, prev); prev();
+      $("gGo").onclick = function () { C.call("/../ds/rooms/" + encodeURIComponent(rm.id) + "/style", { body: { icon: sel.icon, color: sel.color } }).then(function () { T.closeModal(); return loadRooms(); }).then(function () { paintThread(true); toast("Картинка изменена"); }).catch(function (er) { $("gErr").textContent = String(er); }); };
+      return;
+    }
     var b = e.target.closest && e.target.closest("[data-rename]"); if (!b || !S.cur) return;
     var room = S.rooms.filter(function (r) { return r.id === S.cur; })[0]; if (!room) return;
     var nm = prompt("Название чата", room.name); if (nm == null) return; nm = nm.trim(); if (!nm) return;

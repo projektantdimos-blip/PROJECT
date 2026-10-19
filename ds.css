@@ -653,3 +653,18 @@
 .ds .kpt select{font-size:inherit!important;min-width:128px!important;padding:3px 6px!important}
 .ds .kcont{margin:-4px 0 8px;padding:8px 10px;border:1px dashed var(--line);border-radius:10px;font-size:.88rem;color:var(--muted)}
 .ds .kcadd{margin:6px 0 12px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
+
+/* Команда: у каждого чата своя плитка-картинка, заголовки групп заметнее */
+.x-tile{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:13px;font-size:22px;line-height:1;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.18)}
+.x-tile.num{font-size:.74rem;font-weight:800;line-height:1.05;text-align:center}
+.x-tile.big{width:56px;height:56px;border-radius:16px;font-size:28px}
+.x-chat .x-dlg{align-items:center;gap:12px}
+.x-chat .x-grp{margin:14px 0 4px;padding:6px 16px;font-size:.78rem;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--blue)!important}
+.x-pickh{font-size:.78rem;color:var(--muted);margin:8px 0 4px}
+.x-pick{display:grid;grid-template-columns:repeat(8,1fr);gap:5px}
+.x-pick button{font-size:20px;padding:6px 0;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);cursor:pointer}
+.x-pick button.on{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue)}
+.x-pickc{display:flex;gap:8px;margin-bottom:10px}
+.x-pickc button{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+.x-pickc button.on{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--ink)}
+@media(max-width:760px){.x-tile{width:48px;height:48px}.x-pick{grid-template-columns:repeat(6,1fr)}.x-chat .x-grp{color:#6ab3f3!important}.x-chat .x-dlg .x-tile{color:#fff!important}}
