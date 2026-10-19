@@ -701,3 +701,16 @@
 .ds .tzres{margin:-2px 0 6px;padding:8px 10px;border-radius:10px;background:var(--surface-2);font-size:.92rem}
 .ds .tzman{margin-bottom:12px;font-size:.88rem}.ds .tzman summary{cursor:pointer;color:var(--brand);margin-bottom:6px}
 .ds .tzman select{width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface);color:var(--ink);font:inherit}
+
+/* Корректировки */
+.ds .rdsum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
+.ds .rdsum div{background:var(--surface-2);border-radius:12px;padding:10px;text-align:center}
+.ds .rdsum b{display:block;font-size:1.4rem}.ds .rdsum small{color:var(--muted);font-size:.74rem}
+.ds .rdcard{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px;background:var(--surface)}
+.ds .rdcard.fix{border-left:4px solid #f0924d}.ds .rdcard.open{box-shadow:0 0 0 2px color-mix(in srgb,#f0924d 35%,transparent)}
+.ds .rdh{display:flex;align-items:center;gap:8px;margin-bottom:6px}.ds .rdh b{flex:1}
+.ds .rdfacts{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:.88rem;color:var(--muted)}.ds .rdfacts b{color:var(--ink)}
+.ds .rdplan{font-size:.9rem;margin-top:4px}
+.ds .rdrem{margin:8px 0;padding:8px 10px;border-radius:10px;background:var(--surface-2);font-size:.9rem;white-space:pre-wrap}
+.ds .rdform{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.ds .gbar.fix{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.32) 0 6px,transparent 6px 12px)}

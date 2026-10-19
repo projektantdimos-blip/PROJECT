@@ -396,6 +396,49 @@
       : { name: n.name.trim(), regular: false, tz: cityZone(n.city) || "Europe/Moscow", city: (n.city || "").trim(), comment: "", contacts: (contact.fio || contact.phone || contact.email) ? [contact] : [] };
     api("/customers", body).then(function (r) { return api("/customers").then(function (c) { S.customers = c; f.customer_id = r.id; f.nc = null; paint(); toast(n.mode === "contact" ? "Контакт добавлен" : "Заказчик создан"); }); }, function (er) { n.err = String(er); paint(); });
   }
+  /* ---------- корректировки: циклы работ («Сроки корректировки») ---------- */
+  function rdPill(r) { return r.open ? '<span class="pill warn">в работе</span>' : r.delivered ? '<span class="pill ok">сдано</span>' : '<span class="pill muted">не начато</span>'; }
+  function rdLeft(r) {
+    if (!r.open || r.left == null) return "";
+    return r.left < 0 ? '<span style="color:var(--bad);font-weight:700">просрочено на ' + plural(-r.left, ["рабочий день", "рабочих дня", "рабочих дней"]) + "</span>" : "осталось " + plural(r.left, ["рабочий день", "рабочих дня", "рабочих дней"]);
+  }
+  function roundsTab(o) {
+    var rd = S.rd;
+    if (!rd || rd.id !== o.id) {
+      S.rd = rd = { id: o.id, data: null, err: "", edit: 0 };
+      api("/orders/" + o.id + "/rounds").then(function (r) { if (S.rd && S.rd.id === o.id) { S.rd.data = r; if (S.open === o.id) paint(); } }, function (e) { if (S.rd && S.rd.id === o.id) { S.rd.err = String(e); if (S.open === o.id) paint(); } });
+    }
+    if (!rd.data) return rd.err ? '<div class="err">' + E(rd.err) + "</div>" : '<div class="note">Загружаю…</div>';
+    var d = rd.data, people = S.people || [];
+    var head = '<div class="rdsum"><div><b>' + (d.rounds[0].days_fact != null ? d.rounds[0].days_fact : "—") + '</b><small>раб. дн. основная работа</small></div><div><b>' + d.fix_count + '</b><small>корректировок</small></div><div><b>' + d.total_days + '</b><small>раб. дн. всего по факту</small></div></div>';
+    var cards = d.rounds.map(function (r) {
+      var facts = '<div class="rdfacts"><span>Начали: <b>' + (r.started ? dmy(r.started) : "—") + "</b></span><span>Сдали: <b>" + (r.delivered ? dmy(r.delivered) : "—") + "</b></span>" + (r.days_fact != null ? "<span>Факт: <b>" + r.days_fact + " раб. дн.</b></span>" : "") + "</div>";
+      var plan = '<div class="rdplan">План: <b>' + (r.plan_start ? dmy(r.plan_start) : "—") + " — " + (r.plan_end ? dmy(r.plan_end) : "—") + "</b>" + (r.days_plan != null ? " (" + r.days_plan + " раб. дн.)" : "") + (rdLeft(r) ? " · " + rdLeft(r) : "") + "</div>";
+      var who = '<div class="rdplan">Исполнитель: <b>' + E(r.executor || "не назначен") + "</b>" + (r.created_by ? ' <small style="color:var(--muted)">· открыл(а) ' + E(r.created_by) + "</small>" : "") + "</div>";
+      var rem = r.kind === "fix" ? '<div class="rdrem">' + (r.remarks ? E(r.remarks) : '<i style="color:var(--muted)">Замечания не записаны</i>') + "</div>" : "";
+      var ed = "";
+      if (r.kind === "fix" && d.can_edit) {
+        ed = rd.edit === r.id ? '<div class="rdform"><div class="fld"><label>Замечания заказчика</label><textarea rows="3" data-rdf="remarks">' + E(r.remarks || "") + "</textarea></div>"
+          + '<div class="g2f"><div class="fld"><label>Начало</label><input type="date" data-rdf="plan_start" value="' + E(r.plan_start || "") + '"></div><div class="fld"><label>Срок, рабочих дней</label><input type="number" min="1" max="120" data-rdf="workdays" placeholder="напр. 3"></div></div>'
+          + '<div class="fld"><label>или срок датой</label><input type="date" data-rdf="plan_end" value="' + E(r.plan_end || "") + '"></div>'
+          + '<div class="fld"><label>Исполнитель (кому поставить работу)</label><select data-rdf="executor_id"><option value="0">— не менять —</option>' + people.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +r.executor_id ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div>"
+          + '<div style="display:flex;gap:8px"><button class="btn primary sm" data-rdsave="' + r.id + '">Сохранить</button><button class="btn ghost sm" data-rdedit="0">Отмена</button></div></div>'
+          : '<button class="btn ghost sm" data-rdedit="' + r.id + '">✎ Сроки корректировки</button>';
+      }
+      return '<div class="rdcard ' + r.kind + (r.open ? " open" : "") + '"><div class="rdh"><b>' + E(r.title) + "</b>" + rdPill(r) + "</div>" + facts + plan + who + rem + ed + "</div>";
+    }).join("");
+    return head + (rd.msg ? '<div class="err">' + E(rd.msg) + "</div>" : "") + '<p class="sub" style="margin:8px 0">Основной срок по договору не меняется: у каждой корректировки свои сроки в рабочих днях. Даты начала и сдачи фиксируются автоматически.</p>' + cards;
+  }
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest ? e.target.closest("[data-rdedit],[data-rdsave]") : null; if (!t || !S.rd) return;
+    if (t.dataset.rdedit != null && t.hasAttribute("data-rdedit")) { S.rd.edit = +t.dataset.rdedit; S.rd.msg = ""; return paint(); }
+    if (t.dataset.rdsave) {
+      var box = t.closest(".rdform"), body = {};
+      box.querySelectorAll("[data-rdf]").forEach(function (el) { var k = el.dataset.rdf; if (k === "workdays") { if (el.value) body.workdays = +el.value; } else if (k === "executor_id") { if (+el.value) body.executor_id = +el.value; } else body[k] = el.value; });
+      if (body.workdays) delete body.plan_end;
+      api("/orders/" + S.rd.id + "/rounds/" + t.dataset.rdsave + "/edit", body).then(function (r) { S.rd.data = r; S.rd.edit = 0; S.rd.msg = ""; toast("Сроки корректировки сохранены"); S.orders = null; return load(); }).then(paint, function (er) { S.rd.msg = String(er); paint(); });
+    }
+  });
   /* ---------- «Просрочено и зависло» ---------- */
   function loadRisk() { return api("/attention?days=" + (S.rkDays || 3)).then(function (r) { S.rk = r; S.rkErr = ""; }, function (e) { S.rk = { items: [], tasks: [], outbox: [] }; S.rkErr = String(e); }); }
   var RK_KIND = { overdue: ["Просрочен срок по договору", "bad"], unassigned: ["Нет исполнителя", "warn"], stale: ["Без движения", "muted"] };
@@ -567,9 +610,10 @@
     }
     var menuOn = canMenu(), tabs = menuOn ? [["info", "Меню задачи"], ["inf2", "Информация"]] : [["info", "Информация"]];
     if (["owner", "ops", "sales", "design"].indexOf(p) >= 0) tabs.push(["tz", "Тех. задание"]);
+    tabs.push(["rounds", "Корректировки" + (o.fix_total ? " (" + o.fix_total + ")" : "")]);
     tabs.push(["log", "История"]);
     if (menuOn && S.tab === "info" && (!S.oe || S.oe.id !== o.id)) { S.oe = JSON.parse(JSON.stringify(o)); S.oeErr = ""; }
-    var body = S.tab === "log" ? logTab() : S.tab === "tz" ? tzTab() : (menuOn && S.tab === "info") ? tmHtml() : infoTab(o);
+    var body = S.tab === "log" ? logTab() : S.tab === "tz" ? tzTab() : S.tab === "rounds" ? roundsTab(o) : (menuOn && S.tab === "info") ? tmHtml() : infoTab(o);
     var money_ = can("money") && o.amount != null;
     return '<div class="modal-bg" data-bg="1"><div class="modal"><div class="m-head"><div class="row"><h2>№' + E(o.number) + (o.customer ? " · " + E(o.customer) : "") + "</h2>"
       + (o.urgent ? '<span class="pill urg">⚡ Срочно</span>' : "") + (money_ ? (o.post_paid ? '<span class="pill ok">₽ Оплачено</span>' : '<span class="pill warn">₽ Не оплачено</span>') : "")
@@ -848,7 +892,7 @@
   /* ---------- «Занятость» ---------- */
   var ACTIVE_WORK = ["В проектировании", "Проверка", "Корректировка"];
   var WD = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
-  function span(o) { return [o.plan_start || o.start_date || "", o.plan_end || o.due_date || ""]; }
+  function span(o) { if (o.stage === "Корректировка" && o.fix_start) return [o.fix_start, o.fix_end || o.fix_start]; return [o.plan_start || o.start_date || "", o.plan_end || o.due_date || ""]; }
   function loadOrders() { return pos() === "designer" ? (S.lo || []) : (S.orders || []); }
   function staffAll() {
     var by = {};
@@ -933,8 +977,8 @@
     }
     function barEl(x, un) {
       var o = x.o, kind = barKind(o, un), a_ = x.r[0], b_ = x.r[1], sp = span(o);
-      return '<div ' + open + '="' + o.id + '" title="' + E("№" + o.number + " · " + (o.object || "") + " · " + dmy(sp[0] || iso[0]) + " — " + dmy(sp[1] || sp[0] || iso[0]) + " · " + (o.executor || "не назначен") + " · " + o.stage) + '" style="grid-column:' + (a_ + 2) + "/" + (b_ + 3) + ";grid-row:" + (x.lane + 1) + ";background:" + (un ? BAR.gray : kind === "done" ? BAR.done : taskColor(o)) + (un ? ";color:#fff;opacity:.85" : "") + (kind === "late" ? ";box-shadow:inset 0 0 0 2px #e5483c,0 0 0 1px #e5483c" : kind === "hot" ? ";box-shadow:inset 4px 0 0 #f0924d" : "") + '" class="gbar">'
-        + "№" + E(o.number) + " · " + E((o.object || "").split(",")[0]) + "</div>";
+      return '<div ' + open + '="' + o.id + '" title="' + E("№" + o.number + " · " + (o.object || "") + " · " + dmy(sp[0] || iso[0]) + " — " + dmy(sp[1] || sp[0] || iso[0]) + " · " + (o.executor || "не назначен") + " · " + o.stage) + '" style="grid-column:' + (a_ + 2) + "/" + (b_ + 3) + ";grid-row:" + (x.lane + 1) + ";background:" + (un ? BAR.gray : kind === "done" ? BAR.done : taskColor(o)) + (un ? ";color:#fff;opacity:.85" : "") + (kind === "late" ? ";box-shadow:inset 0 0 0 2px #e5483c,0 0 0 1px #e5483c" : kind === "hot" ? ";box-shadow:inset 4px 0 0 #f0924d" : "") + '" class="gbar' + (o.stage === "Корректировка" ? " fix" : "") + '">'
+        + (o.stage === "Корректировка" ? "↻ К" + (o.fix_n || "") + " · " : "") + "№" + E(o.number) + " · " + E((o.object || "").split(",")[0]) + "</div>";
     }
     var header = '<div class="ghead" style="grid-template-columns:' + cols + ';min-width:' + minw + 'px"><div class="gname">Сотрудник</div>'
       + iso.map(function (d, i) {
