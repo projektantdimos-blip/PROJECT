@@ -62,7 +62,7 @@
   /* ================================================================
      КОМАНДА
      ================================================================ */
-  var S = { reply: null, selMsg: 0, ft: "all", rooms: [], cur: "general", msgs: [], lastId: 0, urg: false, tick: 0, timer: null, users: [] };
+  var S = { drafts: {}, reply: null, selMsg: 0, ft: "all", rooms: [], cur: "general", msgs: [], lastId: 0, urg: false, tick: 0, timer: null, users: [] };
   var ROOM_IC = { general: "hash", buy: "wallet", calc: "calc", kp: "file" };
 
   function renderTeam() {
@@ -108,7 +108,7 @@
       C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages?after=" + S.lastId).then(function (ms) {
         if (ms.length) { S.msgs = S.msgs.concat(ms); S.lastId = ms[ms.length - 1].id; paintThread(true); C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/read", { body: {} }).then(function () { return loadRooms(); }); }
         else if (S.tick % 4 === 0) loadRooms();
-        if (S.tick % 2 === 0) C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages").then(function (all) { var a = JSON.stringify(all.map(function (m) { return [m.id, m.reactions]; })), b = JSON.stringify(S.msgs.map(function (m) { return [m.id, m.reactions]; })); if (a !== b && all.length === S.msgs.length) { S.msgs = all; paintThread(true); } }).catch(function () {});
+        if (S.tick % 2 === 0) C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages").then(function (all) { var a = JSON.stringify(all.map(function (m) { return [m.id, m.reactions, m.read_by]; })), b = JSON.stringify(S.msgs.map(function (m) { return [m.id, m.reactions, m.read_by]; })); if (a !== b && all.length === S.msgs.length) { S.msgs = all; paintThread(true); } }).catch(function () {});
       }).catch(function () {});
     }, 4000);
   }
@@ -187,10 +187,11 @@
   function msgHtml(m) {
     var me = C.me && m.user === C.me.name, mine = m.acks && C.me && m.acks.indexOf(C.me.name) >= 0;
     var quote = m.reply ? '<div class="x-quote" data-goto="' + m.reply.id + '"><b>' + E(m.reply.user) + "</b><span>" + E(m.reply.text) + "</span></div>" : "";
-    var acts = S.selMsg === m.id ? '<div class="x-macts"><button type="button" data-reply="' + m.id + '">↩ Ответить</button><button type="button" data-remindmsg="' + m.id + '" title="Напомнить мне про это сообщение">⏰</button><span class="x-rxpick">' + RX.map(function (e) { return '<button type="button" data-rx="' + m.id + '" data-e="' + e + '">' + e + "</button>"; }).join("") + "</span></div>" : "";
+    var rdinfo = S.selMsg === m.id && me ? '<div class="x-readinfo"><b>Прочитали:</b> ' + ((m.read_by || []).length ? E(m.read_by.join(", ")) : "пока никто") + ((m.unread_by || []).length ? "<br><b>Не прочитали:</b> " + E(m.unread_by.join(", ")) : "") + "</div>" : "";
+    var acts = rdinfo + (S.selMsg === m.id ? '<div class="x-macts"><button type="button" data-reply="' + m.id + '">↩ Ответить</button><button type="button" data-remindmsg="' + m.id + '" title="Напомнить мне про это сообщение">⏰</button><span class="x-rxpick">' + RX.map(function (e) { return '<button type="button" data-rx="' + m.id + '" data-e="' + e + '">' + e + "</button>"; }).join("") + "</span></div>" : "");
     return '<div class="x-msg ' + (m.urgent ? "urg " : "") + (me ? "me" : "") + (S.selMsg === m.id ? " sel" : "") + '" data-m="' + m.id + '" id="m' + m.id + '">' + ava(m.user, "sm") + '<div class="bd"><div class="nm">' + E(m.user) + "<small>" + when(m.ts) + '</small></div><div class="tx">' + quote
       + (m.urgent ? '<div class="x-urgtag">' + ic("flame") + "Срочное</div>" : "") + E(m.text)
-      + '<span class="x-tm">' + when(m.ts) + (me ? " ✓✓" : "") + "</span>"
+      + '<span class="x-tm">' + when(m.ts) + (me ? ' <span class="x-rd ' + ((m.read_by || []).length ? "on" : "") + '">' + ((m.read_by || []).length ? "✓✓" : "✓") + "</span>" : "") + "</span>"
       + (m.files && m.files.length ? '<div class="x-files">' + m.files.map(function (f) { return '<button class="x-file" data-tfile="' + f.id + '" title="Скачать">📎 ' + E(f.name) + "<small>" + Math.max(1, Math.round(f.size / 1024)) + " КБ</small></button>"; }).join("") + "</div>" : "") + "</div>"
       + reactionsHtml(m) + acts
       + (m.urgent ? '<div class="x-ack">' + ic("check") + (m.acks.length ? "Прочитали: " + E(m.acks.join(", ")) : "Пока никто не подтвердил") + (!me && !mine ? '<button data-ack="' + m.id + '">Прочитал(а)</button>' : "") + "</div>" : "") + "</div></div>";
@@ -226,7 +227,8 @@
     var room = S.rooms.filter(function (r) { return r.id === S.cur; })[0] || { name: "Чат", descr: "", kind: "chan", id: S.cur };
     var pin = S.msgs.filter(function (m) { return m.urgent; }).slice(-1)[0];
     var prevDay = "", body = S.msgs.map(function (m) { var d = dayLabel(m.ts), h = (d !== prevDay ? '<span class="x-day">' + d + "</span>" : "") + msgHtml(m); prevDay = d; return h; }).join("");
-    var wasBottom = true, old = el.querySelector(".x-msgs"), val = $("tIn") ? $("tIn").value : "";
+    var wasBottom = true, old = el.querySelector(".x-msgs"), val = $("tIn") ? $("tIn").value : (S.drafts[S.cur] || "");
+    var hadFocus = document.activeElement && document.activeElement.id === "tIn", ss = hadFocus ? document.activeElement.selectionStart : 0, se = hadFocus ? document.activeElement.selectionEnd : 0;
     if (old && keep) wasBottom = old.scrollHeight - old.scrollTop - old.clientHeight < 80;
     el.innerHTML = '<div class="x-th-h"><button class="x-btn ghost x-back" data-back="1" style="padding:6px 10px">←</button>' + roomIcon(room) + "<div><b>" + E(room.name) + "</b></div>"
       + '<button class="x-btn ghost" data-remind="1" title="Напомнить мне про этот чат" style="padding:7px 12px">⏰ <span class="rmtxt">Напомнить</span></button>'
@@ -235,10 +237,15 @@
       + (pin ? '<div class="x-pinned">' + ic("flame") + "<span>Срочное: " + E(pin.text) + "</span></div>" : "")
       + '<div class="x-msgs">' + (body || '<span class="x-day">Здесь пока пусто — напишите первое сообщение</span>') + "</div>"
       + (S.reply ? '<div class="x-replybar"><span>↩ <b>' + E(S.reply.user) + "</b>: " + E(S.reply.text) + '</span><button type="button" data-noreply="1" aria-label="Отменить ответ">✕</button></div>' : "")
-      + '<div class="x-comp"><button class="x-btn ghost" id="tAtt" title="Прикрепить файл (до 10 МБ). Файл можно перетащить прямо в окно чата" style="padding:12px 13px">📎</button><input type="file" id="tFile" hidden><input type="text" id="tIn" placeholder="Написать в «' + E(room.name) + '»… (@Имя — упомянуть)" autocomplete="off"><button class="x-urgbtn ' + (S.urg ? "on" : "") + '" id="tUrg" title="Срочное: придёт всем участникам, даже в тихие часы">' + ic("flame") + 'Срочное</button><button class="x-btn primary" id="tSend" style="padding:12px 14px">' + ic("send") + "</button></div>";
+      + '<div class="x-comp"><button class="x-btn ghost" id="tAtt" title="Прикрепить файл (до 10 МБ). Файл можно перетащить прямо в окно чата" style="padding:12px 13px">📎</button><input type="file" id="tFile" hidden><textarea id="tIn" rows="1" placeholder="Написать в «' + E(room.name) + '»… (@Имя — упомянуть)" autocomplete="off"></textarea><button class="x-urgbtn ' + (S.urg ? "on" : "") + '" id="tUrg" title="Срочное: придёт всем участникам, даже в тихие часы">' + ic("flame") + 'Срочное</button><button class="x-btn primary" id="tSend" style="padding:12px 14px">' + ic("send") + "</button></div>";
     var m = el.querySelector(".x-msgs"); if (!keep || wasBottom) m.scrollTop = 1e6;
     var bk = el.querySelector("[data-back]"); if (bk) bk.onclick = function () { var ch = document.querySelector(".x-chat"); if (ch) ch.classList.remove("open"); };
-    $("tIn").value = val;
+    var ti = $("tIn"); ti.value = val;
+    function grow() { ti.style.height = "auto"; ti.style.height = Math.min(ti.scrollHeight, 140) + "px"; }
+    grow();
+    if (hadFocus) { ti.focus(); try { ti.setSelectionRange(ss, se); } catch (e) {} }
+    ti.oninput = function () { S.drafts[S.cur] = ti.value; grow(); };
+    ti.onfocus = function () { setTimeout(function () { var mm = document.querySelector(".x-msgs"); if (mm) mm.scrollTop = 1e6; }, 350); };
     $("tSend").onclick = send;
     $("tAtt").onclick = function () { $("tFile").click(); };
     $("tFile").onchange = function () { var f = this.files && this.files[0]; this.value = ""; if (f) sendFile(f); };
@@ -254,7 +261,8 @@
       };
     });
     mentionBox($("tIn"));
-    $("tIn").onkeydown = function (e) { if (e.key === "Enter" && !(document.getElementById("tMent") && document.getElementById("tMent").children.length)) send(); };
+    var coarse = window.matchMedia && matchMedia("(pointer:coarse)").matches;      /* на телефоне Enter — новая строка, отправка кнопкой */
+    $("tIn").onkeydown = function (e) { if (e.key === "Enter" && !e.shiftKey && !coarse && !(document.getElementById("tMent") && document.getElementById("tMent").children.length)) { e.preventDefault(); send(); } };
     $("tUrg").onclick = function () { S.urg = !S.urg; this.classList.toggle("on", S.urg); };
     el.querySelectorAll("[data-ack]").forEach(function (b) { b.onclick = function () { C.call("/team/messages/" + b.dataset.ack + "/ack", { body: {} }).then(function () { return C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages"); }).then(function (ms) { S.msgs = ms; paintThread(true); loadRooms(); C.refresh(); }); }; });
   }
@@ -301,7 +309,7 @@
       var b64 = String(rd.result || "").split(",")[1];
       toast("Загружаю «" + f.name + "»…");
       C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/send-file", { body: { text: text, filename: f.name, mime: f.type || "application/octet-stream", data: b64, urgent: urgent } }).then(function () {
-        S.urg = false; if ($("tIn")) $("tIn").value = "";
+        S.urg = false; S.drafts[S.cur] = ""; if ($("tIn")) $("tIn").value = "";
         return C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages?after=" + S.lastId);
       }).then(function (ms) { if (ms.length) { S.msgs = S.msgs.concat(ms); S.lastId = ms[ms.length - 1].id; } paintThread(); loadRooms(); })
         .catch(function (e) { toast(E(e)); });
@@ -311,12 +319,17 @@
   }
   function send() {
     var i = $("tIn"), text = i.value.trim(); if (!text) return;
-    var urgent = S.urg; i.disabled = true;
-    C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/send", { body: { text: text, urgent: urgent, reply_to: S.reply ? S.reply.id : 0 } }).then(function () {
-      S.urg = false; i.value = ""; S.reply = null;
-      return C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages?after=" + S.lastId);
-    }).then(function (ms) { if (ms.length) { S.msgs = S.msgs.concat(ms); S.lastId = ms[ms.length - 1].id; } paintThread(); loadRooms(); if (urgent) toast("Срочное отправлено — сотрудники получат оповещение, даже в тихие часы"); })
-      .catch(function (e) { i.disabled = false; toast(E(e)); });
+    var room = S.cur, urgent = S.urg, reply = S.reply, last = S.lastId;
+    i.value = ""; i.style.height = "auto"; S.drafts[room] = ""; S.urg = false; S.reply = null;           /* набранное стирается сразу после нажатия «Отправить» */
+    var rb = document.querySelector(".x-replybar"); if (rb) rb.remove();
+    var ub = $("tUrg"); if (ub) ub.classList.remove("on");
+    C.call("/team/rooms/" + encodeURIComponent(room) + "/send", { body: { text: text, urgent: urgent, reply_to: reply ? reply.id : 0 } }).then(function () {
+      return C.call("/team/rooms/" + encodeURIComponent(room) + "/messages?after=" + last);
+    }).then(function (ms) { if (S.cur === room) { if (ms.length) { S.msgs = S.msgs.concat(ms); S.lastId = ms[ms.length - 1].id; } paintThread(); } loadRooms(); if (urgent) toast("Срочное отправлено — сотрудники получат оповещение, даже в тихие часы"); })
+      .catch(function (e) {
+        var j = $("tIn"); if (S.cur === room && j && !j.value) { j.value = text; S.drafts[room] = text; S.reply = reply; }      /* не отправилось — текст возвращается в поле */
+        toast(E(e));
+      });
   }
   function paintInfo() {
     var el = $("tInfo"); if (!el) return;

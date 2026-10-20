@@ -464,6 +464,13 @@
     return head + (S.rkErr ? '<div class="err">' + E(S.rkErr) + "</div>" : "") + days + (body || '<div class="note">Всё в порядке: просроченных и зависших задач нет.</div>');
   }
   document.addEventListener("click", function (e) {
+    var dc = e.target.closest ? e.target.closest("[data-cdelcust]") : null;
+    if (dc && S.cu && S.cu.draft && S.cu.draft.id) {
+      var cd = S.cu.draft;
+      if (!confirm("Удалить заказчика «" + cd.name + "»? Контакты будут стёрты, КП останутся в реестре. Это нельзя отменить.")) return;
+      api("/customers/" + cd.id + "/delete", {}).then(function () { S.customers = null; S.cu.sel = null; S.cu.draft = null; S.cu.err = ""; return load(); }).then(function () { paint(); toast("Заказчик удалён"); }, function (er) { S.cu.err = String(er); paint(); });
+      return;
+    }
     var t = e.target.closest ? e.target.closest("[data-rkrem],[data-rkreload],[data-rkobsend],[data-rkobno]") : null; if (!t) return;
     var d = t.dataset;
     if (d.rkreload) { loadRisk().then(paint); return; }
@@ -1071,6 +1078,7 @@
         + '<div class="fld"><label>Комментарий менеджера</label><textarea data-cf="comment"' + ro + ">" + E(d.comment || "") + "</textarea></div>"
         + (S.cu.err ? '<div class="err">' + E(S.cu.err) + "</div>" : "")
         + (canEdit ? '<button class="btn primary block" data-csave="1">Сохранить</button>' : "")
+        + (d.id && (p === "owner" || p === "ops") ? '<button class="btn ghost block" data-cdelcust="1" style="margin-top:8px;color:var(--bad)">Удалить заказчика</button>' : "")
         + (jobs.length ? '<h3 style="margin-top:16px">Задачи</h3>' + jobs.map(function (o) { return '<button class="doc" style="width:100%;text-align:left" data-open="' + o.id + '"><span>📁</span><div><b>№' + E(o.number) + " · " + E(o.object) + "</b><small>" + E(o.stage) + "</small></div></button>"; }).join("") : "")
         + "</div>";
     }
