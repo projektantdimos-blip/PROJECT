@@ -714,3 +714,25 @@
 .ds .rdrem{margin:8px 0;padding:8px 10px;border-radius:10px;background:var(--surface-2);font-size:.9rem;white-space:pre-wrap}
 .ds .rdform{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
 .ds .gbar.fix{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.32) 0 6px,transparent 6px 12px)}
+
+/* Личные напоминания: быстрое окно и вкладки */
+.rm-bg{position:fixed;inset:0;background:rgba(10,20,35,.55);z-index:600;display:flex;align-items:flex-end;justify-content:center}
+.rm-box{background:var(--card,#fff);color:var(--ink,#111);width:min(440px,100%);border-radius:20px 20px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px rgba(0,0,0,.35)}
+.rm-h{display:flex;align-items:center;margin-bottom:10px}.rm-h b{flex:1;font-size:1.05rem}.rm-h button{border:0;background:none;color:var(--muted,#888);font-size:1.1rem;cursor:pointer}
+.rm-box input[type=text],.rm-box input[type=date],.rm-box input[type=time]{width:100%;box-sizing:border-box;border:1px solid var(--line,#ddd)!important;border-radius:12px;padding:11px 12px;background:var(--bg,#f3f5f8)!important;color:var(--ink,#111)!important;font:inherit;-webkit-text-fill-color:var(--ink,#111)}
+.rm-box input::placeholder{color:var(--muted,#888)!important;-webkit-text-fill-color:var(--muted,#888)}
+.rm-src{margin:6px 2px 0;font-size:.82rem;color:var(--muted,#888)}
+.rm-chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.rm-chips button{border:1px solid var(--line,#ddd);background:var(--bg,#f3f5f8);color:var(--ink,#111);border-radius:18px;padding:8px 14px;font:inherit;font-size:.92rem;cursor:pointer}
+.rm-chips button.on{background:var(--blue,#1f5c99);border-color:var(--blue,#1f5c99);color:#fff}
+.rm-custom{display:flex;gap:8px;margin-bottom:10px}.rm-custom[hidden]{display:none}
+.rm-err{color:var(--bad,#d33);font-size:.86rem;min-height:1.1em;margin-bottom:6px}
+.rm-go{width:100%;border:0;border-radius:14px;padding:13px;background:var(--blue,#1f5c99);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.rm-go:disabled{opacity:.6}
+@media(min-width:761px){.rm-bg{align-items:center}.rm-box{border-radius:20px}}
+.my-tabs{display:none;gap:6px;padding:10px 16px 0;max-width:1200px;margin:0 auto}
+.my-tabs button{border:1px solid var(--line,#ddd);background:var(--bg);color:var(--ink,#111);border-radius:18px;padding:8px 16px;font:inherit;cursor:pointer}
+.my-tabs button.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}
+.x-th-h [data-remind]{margin-left:auto}
+.x-th-h [data-remind] ~ span,.x-th-h [data-remind] ~ a{margin-left:6px!important}
+@media(max-width:760px){.rmtxt{display:none}.my-tabs{padding:8px 10px 0}.x-th-h [data-remind]{padding:7px 10px!important}.x-macts>button[data-remindmsg]{background:#2b5278}}

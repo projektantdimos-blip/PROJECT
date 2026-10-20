@@ -187,7 +187,7 @@
   function msgHtml(m) {
     var me = C.me && m.user === C.me.name, mine = m.acks && C.me && m.acks.indexOf(C.me.name) >= 0;
     var quote = m.reply ? '<div class="x-quote" data-goto="' + m.reply.id + '"><b>' + E(m.reply.user) + "</b><span>" + E(m.reply.text) + "</span></div>" : "";
-    var acts = S.selMsg === m.id ? '<div class="x-macts"><button type="button" data-reply="' + m.id + '">↩ Ответить</button><span class="x-rxpick">' + RX.map(function (e) { return '<button type="button" data-rx="' + m.id + '" data-e="' + e + '">' + e + "</button>"; }).join("") + "</span></div>" : "";
+    var acts = S.selMsg === m.id ? '<div class="x-macts"><button type="button" data-reply="' + m.id + '">↩ Ответить</button><button type="button" data-remindmsg="' + m.id + '" title="Напомнить мне про это сообщение">⏰</button><span class="x-rxpick">' + RX.map(function (e) { return '<button type="button" data-rx="' + m.id + '" data-e="' + e + '">' + e + "</button>"; }).join("") + "</span></div>" : "";
     return '<div class="x-msg ' + (m.urgent ? "urg " : "") + (me ? "me" : "") + (S.selMsg === m.id ? " sel" : "") + '" data-m="' + m.id + '" id="m' + m.id + '">' + ava(m.user, "sm") + '<div class="bd"><div class="nm">' + E(m.user) + "<small>" + when(m.ts) + '</small></div><div class="tx">' + quote
       + (m.urgent ? '<div class="x-urgtag">' + ic("flame") + "Срочное</div>" : "") + E(m.text)
       + '<span class="x-tm">' + when(m.ts) + (me ? " ✓✓" : "") + "</span>"
@@ -203,6 +203,13 @@
       C.call("/team/messages/" + rb.dataset.rx + "/react", { body: { emoji: rb.dataset.e } }).then(function (r) {
         var m = S.msgs.filter(function (x) { return x.id === +rb.dataset.rx; })[0]; if (m) m.reactions = r.reactions; S.selMsg = 0; paintThread(true);
       }).catch(function (er) { toast(E(er)); });
+      return;
+    }
+    var rmb = e.target.closest("[data-remind],[data-remindmsg]");
+    if (rmb) {
+      var rr = S.rooms.filter(function (r) { return r.id === S.cur; })[0], nm = rr ? rr.name : "чат";
+      if (rmb.dataset.remindmsg) { var mm0 = S.msgs.filter(function (x) { return x.id === +rmb.dataset.remindmsg; })[0]; S.selMsg = 0; if (window.DSRemind) DSRemind.open({ text: "Вернуться к сообщению (" + nm + "): " + (mm0 ? mm0.user + ": " + mm0.text.slice(0, 80) : ""), link: "#/team?room=" + encodeURIComponent(S.cur), label: "Команда · " + nm }); }
+      else if (window.DSRemind) DSRemind.open({ text: "Вернуться в чат «" + nm + "»", link: "#/team?room=" + encodeURIComponent(S.cur), label: "Команда · " + nm });
       return;
     }
     var rp = e.target.closest("[data-reply]");
@@ -222,6 +229,7 @@
     var wasBottom = true, old = el.querySelector(".x-msgs"), val = $("tIn") ? $("tIn").value : "";
     if (old && keep) wasBottom = old.scrollHeight - old.scrollTop - old.clientHeight < 80;
     el.innerHTML = '<div class="x-th-h"><button class="x-btn ghost x-back" data-back="1" style="padding:6px 10px">←</button>' + roomIcon(room) + "<div><b>" + E(room.name) + "</b></div>"
+      + '<button class="x-btn ghost" data-remind="1" title="Напомнить мне про этот чат" style="padding:7px 12px">⏰ <span class="rmtxt">Напомнить</span></button>'
       + (room.kind === "group" || (room.kind === "chan" && C.me && (C.me.position === "owner" || C.me.role === "admin")) ? '<span style="margin-left:auto;display:flex;gap:6px"><button class="x-btn ghost" data-style="1" style="padding:7px 12px" title="Картинка и цвет чата">🎨</button><button class="x-btn ghost" data-rename="1" style="padding:7px 12px" title="Переименовать чат">✎ Название</button></span>' : "")
       + (room.kind === "task" && room.task_row ? '<a class="x-btn ghost" style="margin-left:auto;padding:7px 12px" href="#/task/' + room.task_row + '">Открыть задачу</a>' : "") + "</div>"
       + (pin ? '<div class="x-pinned">' + ic("flame") + "<span>Срочное: " + E(pin.text) + "</span></div>" : "")
@@ -488,7 +496,7 @@
     $("mePush").onclick = function () { var p = pushOn ? C.disablePush() : C.enablePush(); p.then(function () { toast(pushOn ? "Push отключён" : "Push включён на этом устройстве"); paintNotif(); }).catch(function (e) { toast(E(e)); }); };
     var mxb = $("meMax"); if (mxb) mxb.onclick = function () {
       if (mx) C.call("/me/max/unlink", { body: {} }).then(function () { C.me.max = false; renderMe(); });
-      else C.call("/me/max/code", { body: {} }).then(function (r) { $("meMaxCode").innerHTML = '<p class="x-sub" style="margin:8px 0 0">Откройте MAX и отправьте аккаунту компании сообщение: <b>' + r.code + "</b><br>Код действует " + r.minutes + " минут. После ответа «Готово» обновите страницу.</p>"; }).catch(function (e) { toast(E(e)); });
+      else C.call("/me/max/code", { body: {} }).then(function (r) { $("meMaxCode").innerHTML = '<p class="x-sub" style="margin:8px 0 0">Откройте ' + (r.bot ? "бота «" + E(r.bot) + "» в MAX" : "MAX и отправьте аккаунту компании сообщение") + ' и отправьте: <b>' + r.code + "</b><br>Код действует " + r.minutes + " минут. После ответа «Готово» обновите страницу.</p>"; }).catch(function (e) { toast(E(e)); });
     };
     var tgb = $("meTg"); if (tgb) tgb.onclick = function () {
       if (tg) C.call("/me/tg/unlink", { body: {} }).then(function () { C.me.tg = false; renderMe(); });

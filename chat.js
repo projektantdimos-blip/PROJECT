@@ -493,6 +493,7 @@
       '<div class="hmain"><b>' + esc(t.title || t.peer) + "</b><small>" + esc(t.peer) + "</small></div>" +
       (t.channel === "mail" ? '<button class="hbtn" id="chatFlip" title="' + (flipOn() ? "Показать письма в обычном порядке" : "Перевернуть порядок частей письма (сверху вниз)") + '"' +
         (flipOn() ? ' style="border-color:var(--blue);color:var(--blue)"' : "") + ">⇅</button>" : "") +
+      '<button class="hbtn" id="chatRemind" title="Напомнить мне про этот диалог" style="width:auto;padding:0 10px;white-space:nowrap">⏰<span class="rmtxt"> Напомнить</span></button>' +
       '<button class="hbtn" id="chatAv" title="Загрузить фото собеседника">📷</button>' +
       (t.avatar_ts ? '<button class="hbtn" id="chatAvDel" title="Убрать фото">✕</button>' : "") +
       '<button class="hbtn chat-infobtn" id="chatInfoBtn" title="Заказчик, создание заказчика и КП">Заказчик · КП</button>' +
@@ -508,6 +509,10 @@
     if (tb) tb.onclick = function () {
       if (window.DS && DS.newTask) DS.newTask({ step: "a2", thread_id: t.id, thread_title: t.title || t.peer });
       else setErr("Раздел задач ещё не загрузился — обновите страницу");
+    };
+    document.getElementById("chatRemind").onclick = function () {
+      var nm = t.title || t.peer;
+      if (window.DSRemind) DSRemind.open({ text: "Ответить: " + nm, link: "#/chat?t=" + encodeURIComponent(t.id), label: "Заказчики · " + nm });
     };
     var flipBtn = document.getElementById("chatFlip");
     if (flipBtn) flipBtn.onclick = function () { setFlip(!flipOn()); renderThread(false); };

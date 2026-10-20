@@ -267,7 +267,7 @@
   var MY = null, myNext = 1, mySel = null;
   function srv() { return !!(window.MPBC && MPBC.loggedIn()); }
   function fromServer(r) {
-    return { id: r.id, t: r.title, d: r.d, tm: r.tm, b: r.before, rep: r.rep, task: r.task_row, tl: r.task_label, done: !!r.done, fired: !!r.fired, fireTs: r.fire_ts * 1000, created: (r.created || 0) * 1000, server: true };
+    return { id: r.id, t: r.title, d: r.d, tm: r.tm, b: r.before, rep: r.rep, task: r.task_row, tl: r.task_label, done: !!r.done, fired: !!r.fired, fireTs: r.fire_ts * 1000, created: (r.created || 0) * 1000, link: r.link || "", server: true };
   }
   function localLoad() {
     var a; try { a = JSON.parse(localStorage.getItem("ds_my") || "[]"); } catch (e) { a = []; }
@@ -381,11 +381,12 @@
     });
   };
 
+  X.reload = function () { return myLoad().then(function () { X.badge(); paintMyIfOpen(); tick(); }); };
   var myPrefill = null;
   X.remindTask = function (row, customer) { myPrefill = { task: row, text: "Задача: " + (customer || "") + " — " }; if (location.hash === "#/my") renderMy(); else go("#/my"); };
 
   function renderMy() {
-    if (window.DS && DS.ownsMy && DS.ownsMy()) return;      /* у проектировщиков «Мои задачи» заменены на «План на неделю» (ds.js) */
+    if (window.DS && DS.ownsMy && DS.ownsMy() && !window.__myRem) return;      /* у проектировщиков «Мои задачи» — вкладка «План на неделю» (ds.js); вкладка «Мои напоминания» — этот экран */
     var el = mount("my-app");
     el.innerHTML = head("Мои задачи", "Поставьте себе задачу — приложение напомнит в нужное время", "") + '<div class="wrap"><div id="myBody"></div></div>';
     paintMy();
@@ -405,10 +406,11 @@
     return '<div class="x-todo ' + (x.done ? "done" : "") + '" data-id="' + x.id + '"><button class="ck" data-a="ck" title="Выполнено">' + ic("check") + '</button><div class="bx"><div class="tt">' + E(x.t) + '</div><div class="mt">'
       + '<span class="x-pill ' + (over ? "over" : "blue") + '">' + ic("bell") + (d ? when(d) : "без даты") + (x.tm ? ", " + E(x.tm) : "") + " · " + beforeLabel(x.b || 0) + "</span>"
       + (x.rep ? '<span class="x-pill">' + ic("repeat") + repLabel(x.rep) + "</span>" : "")
-      + (x.task ? '<span class="x-pill acc" style="cursor:pointer" data-a="task">' + ic("tasks") + E(x.tl || taskLabel(x.task)) + "</span>" : "") + '</div></div><button class="del" data-a="del" title="Удалить">' + ic("trash") + "</button></div>";
+      + (x.task ? '<span class="x-pill acc" style="cursor:pointer" data-a="task">' + ic("tasks") + E(x.tl || taskLabel(x.task)) + "</span>" : "")
+      + (x.link ? '<span class="x-pill acc" style="cursor:pointer" data-a="lnk" title="Открыть диалог">' + ic("chat") + E(x.tl || "Открыть диалог") + "</span>" : "") + '</div></div><button class="del" data-a="del" title="Удалить">' + ic("trash") + "</button></div>";
   }
   function paintMy() {
-    if (window.DS && DS.ownsMy && DS.ownsMy()) return;
+    if (window.DS && DS.ownsMy && DS.ownsMy() && !window.__myRem) return;
     var body = $("myBody"); if (!body) return;
     var list = myList(), tdy = today(), tdyIso = iso(tdy), i;
     var keepText = $("myText") ? $("myText").value : (myPrefill ? myPrefill.text : "");
@@ -478,6 +480,7 @@
         var ix = MY.indexOf(x); MY.splice(ix, 1); mySave(); paintMy(); toast("Напоминание удалено", function () { MY.splice(ix, 0, x); mySave(); paintMy(); });
       };
       var tl = r.querySelector('[data-a="task"]'); if (tl) tl.onclick = function () { go("#/task/" + x.task); };
+      var lk = r.querySelector('[data-a="lnk"]'); if (lk) lk.onclick = function () { go(x.link); };
     });
   }
 
