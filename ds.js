@@ -60,15 +60,34 @@
   }
   /* Приложение с иконки на телефоне не перезапускается днями: при возвращении в него подтягиваем свежие задачи
      (иначе этапы на экране устаревают и сервер отклоняет переход), а если на сайте новая версия — перезагружаем страницу. */
-  var VER = (function () { var s = document.querySelector('script[src*="ds.js?v="]'); return s ? s.getAttribute("src").split("?v=")[1] : ""; })(), verAt = 0;
+  /* Новая версия сайта: проверка раз в 3 минуты (и при возвращении в CRM), чтобы весь день открытая вкладка не работала со старым кодом.
+     Ничего не набирается — страница обновляется сама; есть набранный текст или открыта форма — плашка «Обновить», текст не теряется. */
+  var VER = (function () { var s = document.querySelector('script[src*="ds.js?v="]'); return s ? s.getAttribute("src").split("?v=")[1] : ""; })(), verAt = 0, newVer = "";
+  function typing() {
+    var a = document.activeElement, tIn = document.getElementById("tIn"), cIn = document.getElementById("chatText");
+    if (a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && String(a.value || "").trim()) return true;
+    return editing() || !!(tIn && tIn.value.trim()) || !!(cIn && cIn.value.trim()) || !!document.querySelector(".x-pend");
+  }
+  function applyUpdate() {
+    if (!newVer) return;
+    if (!typing()) { location.reload(); return; }
+    if (document.getElementById("dsUpd")) return;
+    var d = document.createElement("div"); d.id = "dsUpd"; d.className = "ds-upd";
+    d.innerHTML = "<span>Вышла новая версия CRM</span><button type=\"button\">Обновить</button>";
+    d.querySelector("button").onclick = function () { location.reload(); };
+    document.body.appendChild(d);
+  }
   function checkVersion() {
-    if (!VER || Date.now() - verAt < 5 * 60000) return;
+    if (!VER) return;
+    if (newVer) return applyUpdate();
+    if (Date.now() - verAt < 60000) return;
     verAt = Date.now();
     fetch("index.html?_=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (h) {
       var m = /ds\.js\?v=([\w.-]+)/.exec(h || "");
-      if (m && m[1] !== VER) location.reload();
+      if (m && m[1] !== VER) { newVer = m[1]; applyUpdate(); }
     }, function () {});
   }
+  setInterval(function () { if (!document.hidden) checkVersion(); }, 3 * 60000);
   function editing() { return !!(S.form || S.tm || S.nt || S.te || S.ke || S.edit || S.busy); }
   document.addEventListener("visibilitychange", function () {
     if (document.hidden || !C || !C.loggedIn()) return;
@@ -183,7 +202,7 @@
       + (k.issued_date ? '<span class="pill muted">выставлено ' + dmy(k.issued_date).slice(0, 5) + "</span>" : "") + (k.manager ? '<span class="pill muted">' + E(k.manager) + "</span>" : "") + "</span></span></a>";
   }
   function salesBoard() {
-    var kps = (S.kp || []).filter(function (k) { return k.status !== "Оплачено" && k.status !== "Отказ"; });
+    var kps = (S.kp || []).filter(function (k) { return !kpDone(k); });
     var tasks = (S.tasks || []).filter(function (x) { return x.kind === "sales"; });
     var cols = KP_COLS.map(function (c) {
       var arr = kps.filter(function (k) { return k.status === c[0]; });
@@ -209,7 +228,7 @@
   function orgItems() {
     var items = (S.tasks || []).filter(function (t) { return !(t.kind === "design" && /^(Проверить проект|Корректировка|Доработка)/.test(t.title || "")); })
       .map(function (t) { return { t: t, left: t.left_days, wait: t.state === "wait", text: (t.title || "") + " " + (t.assignee || "") + " " + (t.object || "") + " " + (t.note || "") }; });
-    (S.kp || []).filter(function (k) { return k.status !== "Оплачено" && k.status !== "Отказ" && !k.order_id; }).forEach(function (k) {
+    (S.kp || []).filter(function (k) { return !kpDone(k) && !k.order_id; }).forEach(function (k) {
       items.push({ kp: k, left: k.last_days != null && k.last_days > 5 ? -1 : (k.last_days != null && k.last_days >= 3 ? 1 : 9), wait: k.status === "КП отправлено", text: k.number + " " + k.customer + " " + (k.object || "") });
     });
     return items;
@@ -632,9 +651,9 @@
     }
     var l = S.cth.list;
     if (!l) return "";
-    if (!l.length) return '<div class="cchat"><span>Диалог с заказчиком не привязан</span><a class="btn ghost sm" href="#/chat">Открыть «Переписку»</a></div>';
-    return '<div class="cchat">' + l.slice(0, 3).map(function (t) {
-      return '<a class="btn primary sm" href="#/chat?t=' + encodeURIComponent(t.id) + '" title="' + E(t.title) + '">💬 Чат с заказчиком' + (l.length > 1 || CH_NAME[t.channel] ? " · " + E(CH_NAME[t.channel] || t.channel) : "") + "</a>";
+    if (!l.length) return '<div class="cchat"><span>Диалог с заказчиком не найден: ни привязанного, ни совпавшего по почте, Telegram/MAX или телефону контакта</span></div>';
+    return '<div class="cchat">' + l.slice(0, 3).map(function (t) {      // how — диалог найден по контактам заказчика, а не по привязке
+      return '<a class="btn primary sm" href="#/chat?t=' + encodeURIComponent(t.id) + '" title="' + E(t.title + (t.how ? " — найден " + t.how : "")) + '">💬 Чат с заказчиком · ' + E(CH_NAME[t.channel] || t.channel) + "</a>";
     }).join("") + "</div>";
   }
   function windowHtml(o) {
@@ -702,6 +721,7 @@
       : k === "kp" ? '<div class="ds dspage">' + kpScreen() + "</div>" : k === "kpc" ? '<div class="ds dspage">' + kpcScreen() + "</div>" : k === "contract" ? '<div class="ds dspage">' + contractScreen() + "</div>"
       : k === "cust" ? '<div class="ds dspage">' + custScreen() + "</div>" : k === "week" ? '<div class="ds dspage">' + weekScreen() + "</div>" : screen();
     if (q) { var qe = document.getElementById("dsQ"); if (qe) { qe.focus(); qe.setSelectionRange(qe.value.length, qe.value.length); } }
+    fitKpWrap();
     var m = modalRoot();
     if (S.ke) { m.innerHTML = keHtml(); return; }
     if (S.tm) { m.innerHTML = tmWrap(); return; }
@@ -891,7 +911,7 @@
     function tiles(arr) { return '<div class="tiles">' + arr.map(function (x) { return '<button class="tile ' + (f.tile === x[0] ? "on" : "") + '" data-tile="' + x[0] + '" style="--c:' + x[2] + '"><div class="n">' + x[3] + '</div><div class="l">' + x[1] + "</div></button>"; }).join("") + "</div>"; }
     if (type === "o" || type === "s") {
       var tk = (S.tasks || []).filter(function (x) { return type === "o" ? (x.kind === "ops" || x.kind === "acc") : x.kind === "sales"; });
-      var kp_ = type === "s" ? (S.kp || []).filter(function (k) { return k.status !== "Оплачено" && k.status !== "Отказ"; }) : [];
+      var kp_ = type === "s" ? (S.kp || []).filter(function (k) { return !kpDone(k); }) : [];
       var rows = tk.map(function (x) { return { kind: "t", left: x.left_days, wait: x.state === "wait", text: (x.title + " " + (x.assignee || "") + " " + (x.object || "")), html: taskCard(x) }; })
         .concat(kp_.map(function (k) { return { kind: "k", left: k.last_days != null && k.last_days > 5 ? -1 : (k.last_days != null && k.last_days >= 3 ? 1 : 9), wait: k.status === "КП отправлено", text: (k.number + " " + k.customer + " " + k.object), html: kpCard(k) }; }));
       var cnt = { all: rows.length, over: rows.filter(function (x) { return x.left != null && x.left < 0; }).length, hot: rows.filter(function (x) { return x.left != null && x.left >= 0 && x.left <= 2; }).length, wait: rows.filter(function (x) { return x.wait; }).length };
@@ -1193,46 +1213,64 @@
     }).join("") + "</div>";
   }
   /* ---------- реестр КП, конструктор КП, договор ---------- */
-  var KP_TONE = { "Обращение": "info", "Сбор вводных": "info", "КП отправлено": "info", "Счёт отправлен": "warn", "Оплачено": "paid", "Отказ": "bad" };
-  var KP_FUNNEL = ["КП отправлено", "Счёт отправлен", "Оплачено"];                  // в реестре КП этапы «Обращение» и «Сбор вводных» не показываются
-  var KP_MANUAL = ["КП отправлено", "Счёт отправлен", "Оплачено", "Отказ"];
+  var KP_TONE = { "Обращение": "info", "Сбор вводных": "info", "КП отправлено": "info", "Счёт отправлен": "warn", "Оплачено": "paid", "В постоплате": "warn", "Закрыто": "muted", "Отказ": "bad" };
+  var KP_FUNNEL = ["КП отправлено", "Счёт отправлен", "Оплачено", "В постоплате", "Закрыто"];      // в реестре КП этапы «Обращение» и «Сбор вводных» не показываются
+  var KP_MANUAL = ["КП отправлено", "Счёт отправлен", "Оплачено", "В постоплате", "Закрыто", "Отказ"];
+  var KP_ORDER_MANUAL = ["В постоплате", "Закрыто", "Отказ"];             // КП, по которому уже есть задача: этапы идут сами по задаче и 1С, оплату отмечает бухгалтер
+  function kpDone(k) { return ["Оплачено", "В постоплате", "Закрыто", "Отказ"].indexOf(k.status) >= 0; }      // продажа завершена: деньги пришли или отказ
   function kpStatusLabel(s) { return s === "Обращение" || s === "Сбор вводных" ? "Черновик" : s; }
+  /* сумма под этапом: по «Счёт отправлен» — ждём аванс (или всю сумму без аванса), «В постоплате» — ждём остаток */
+  function kpWait(k) { return k.status === "Счёт отправлен" ? (k.has_adv ? (k.adv_paid ? 0 : k.adv_sum) : k.amount) : k.status === "В постоплате" ? (k.post_paid ? 0 : k.post_sum) : 0; }
   var PAYS = [["adv50", "Аванс 50%, остаток по акту"], ["adv30", "Аванс 30%, остаток по акту"], ["post100", "100% по акту"], ["custom", "Свой процент аванса…"]];
   var PRICE = [];
   var CT_TYPES = ["Проектирование СПС, СОУЭ", "Проектирование АУП, ВПВ", "Проектирование (комплекс)", "Обследование объекта", "Расчёт пожарного риска, категорирование", "Разработка исполнительной документации"];
   function execName() { return (S.comp && S.comp.name) || "ИП Шубинов Д.А."; }
   function loadKp() { return api("/kp").then(function (k) { S.kp = k; }, function (e) { S.kp = []; S.err = String(e); }); }
-  function kpIsLate(k) { return k.last_days != null && k.last_days > 5 && k.status !== "Оплачено" && k.status !== "Отказ"; }
+  /* окно таблицы реестра КП заканчивается у нижнего края экрана: горизонтальная полоса прокрутки всегда на виду */
+  function fitKpWrap() {
+    var w = document.querySelector(".kpwrap"); if (!w || innerWidth <= 760) return;
+    w.style.maxHeight = Math.max(260, innerHeight - (w.getBoundingClientRect().top + scrollY) - 18) + "px";
+  }
+  addEventListener("resize", fitKpWrap);
+  function kpIsLate(k) { return k.last_days != null && k.last_days > 5 && !kpDone(k); }
   function kpScreen() {
-    var p = pos(), canEdit = p === "owner" || p === "sales" || p === "ops", list = S.kp || [];
+    var p = pos(), canEdit = p === "owner" || p === "sales" || p === "ops", all = S.kp || [];
+    var nClosed = all.filter(function (k) { return k.status === "Закрыто"; }).length;
+    var list = all.filter(function (k) { return S.kpArch ? k.status === "Закрыто" : k.status !== "Закрыто"; });      // закрытые — в архиве
     var kpz = kpFont();
     var head = '<div class="head"><div><h1>Реестр КП</h1><p>Выставленные стоимости: аванс и постоплата отдельно. Красным выделены КП, по которым нет общения более 5 дней</p></div>'
       + '<div style="display:flex;gap:10px;align-items:center"><div class="seg" title="Размер шрифта таблицы"><button data-kpz="-1">A−</button><button data-kpz="0">' + kpz + ' px</button><button data-kpz="1">A+</button></div>'
       + (canEdit ? '<a class="btn accent" href="#/kpc" style="text-decoration:none">' + ic("plus") + "Составить КП</a>" : "") + "</div></div>";
-    var funnel = '<div class="panel pad" style="margin-bottom:16px"><h3>Воронка</h3><p class="sub">«Оплачено» создаёт проектную задачу и чат по заказу (аванс считается полученным). Оплата из 1С ставит этот статус сама</p><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
-      + KP_FUNNEL.map(function (s, i) { var n = list.filter(function (k) { return k.status === s; }).length; return '<span class="pill ' + KP_TONE[s] + '" style="height:30px;padding:0 14px">' + E(s) + " · " + n + "</span>" + (i < KP_FUNNEL.length - 1 ? '<span style="color:var(--muted)">→</span>' : ""); }).join("") + "</div></div>";
-    function advTxt(k) { if (!k.has_adv) return k.order_id ? "без аванса" : "—"; return money(k.adv_sum) + (k.adv_paid ? " · оплачен " + dmy(k.adv_date).slice(0, 5) : (k.order_id ? " · ждём" : "")); }
-    function postTxt(k) { if (!k.order_id && !k.post_sum) return "—"; return money(k.post_sum) + (k.post_paid ? " · оплачена " + dmy(k.post_date).slice(0, 5) : (k.order_id ? " · ждём" : "")); }
+    var funnel = '<div class="panel pad" style="margin-bottom:16px"><h3>Воронка</h3><p class="sub">«Оплачено» создаёт проектную задачу и чат по заказу (аванс получен). Дальше этапы идут сами: проект «Сдано» → «В постоплате», оплата по акту из 1С → «Закрыто» (КП уходит в архив)</p><div class="kpfun">'
+      + KP_FUNNEL.map(function (s, i) {
+        var ks = all.filter(function (k) { return k.status === s; }), wait = ks.reduce(function (a, k) { return a + kpWait(k); }, 0);
+        return '<span class="pill ' + KP_TONE[s] + '">' + E(s) + " · " + ks.length + (wait ? "<small>ждём " + money(wait) + "</small>" : "") + "</span>" + (i < KP_FUNNEL.length - 1 ? '<span style="color:var(--muted)">→</span>' : "");
+      }).join("") + "</div></div>";
+    function advTxt(k) { if (!k.has_adv) return k.order_id ? "без аванса" : "—"; return money(k.adv_sum) + (k.adv_paid ? "<small>оплачен " + dmy(k.adv_date).slice(0, 5) + "</small>" : (k.order_id ? "<small>ждём</small>" : "")); }
+    function postTxt(k) { if (!k.order_id && !k.post_sum) return "—"; return money(k.post_sum) + (k.post_paid ? "<small>оплачена " + dmy(k.post_date).slice(0, 5) + "</small>" : (k.order_id ? "<small>ждём</small>" : "")); }
     var rows = list.map(function (k) {
       var late = kpIsLate(k);
-      var st = canEdit && !k.order_id ? '<select data-kpstatus="' + k.id + '" style="min-width:150px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);padding:5px 8px">' + (KP_MANUAL.indexOf(k.status) < 0 ? [k.status] : []).concat(KP_MANUAL).map(function (s) { return "<option" + (s === k.status ? " selected" : "") + ' value="' + E(s) + '">' + E(kpStatusLabel(s)) + "</option>"; }).join("") + "</select>" : '<span class="pill ' + (KP_TONE[k.status] || "info") + '">' + E(kpStatusLabel(k.status)) + "</span>";
+      var opts = k.order_id ? KP_ORDER_MANUAL : KP_MANUAL;
+      var st = canEdit ? '<select data-kpstatus="' + k.id + '" style="min-width:150px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);padding:5px 8px">' + (opts.indexOf(k.status) < 0 ? [k.status] : []).concat(opts).map(function (s) { return "<option" + (s === k.status ? " selected" : "") + ' value="' + E(s) + '">' + E(kpStatusLabel(s)) + "</option>"; }).join("") + "</select>" : '<span class="pill ' + (KP_TONE[k.status] || "info") + '">' + E(kpStatusLabel(k.status)) + "</span>";
+      if (kpWait(k)) st += '<span class="kpsum">' + (k.status === "В постоплате" ? "ждём остаток " : k.has_adv ? "ждём аванс " : "ждём оплату ") + money(kpWait(k)) + "</span>";
       var acts = canEdit ? '<button class="btn ghost sm" data-kpedit="' + k.id + '" title="Править КП: заказчик, объект, суммы, статус">✎ Править</button> ' : "";
       acts += canEdit && !k.order_id && k.status !== "Отказ" ? '<button class="btn ghost sm" data-kpcontract="' + k.id + '">Договор</button> ' : "";
-      if (canEdit && !k.order_id) acts += '<button class="btn ghost sm" data-kptouch="' + k.id + '">Был контакт</button> ';
       acts += docButtons(k);
+      var today = canEdit && k.status !== "Закрыто" && k.status !== "Отказ" && k.last_days !== 0 ? '<button class="btn ghost sm kptoday" data-kptouch="' + k.id + '" title="Отметить, что сегодня был контакт с заказчиком">✓ Сегодня</button>' : "";
       var del = canEdit && !k.order_id ? '<button class="btn ghost sm kpx" data-kpdel="' + k.id + '" title="Удалить КП из реестра">✕</button>' : "";
       var svc = k.services.map(function (s) { return s.name; }).join(", ");
-      return '<tr class="' + (late ? "late" : "") + '"><td><b>' + E(kpNo(k.number)) + "</b></td><td>" + E(k.customer) + '</td><td class="ell" title="' + E(k.object + " — " + svc) + '">' + E(k.object) + "<br><small>" + E(svc) + "</small></td>"
+      return '<tr class="' + (late ? "late" : "") + '"><td><b>' + E(kpNo(k.number)) + '</b></td><td class="cu">' + E(k.customer) + '</td><td class="ell" title="' + E(k.object + " — " + svc) + '">' + E(k.object) + "<br><small>" + E(svc) + "</small></td>"
         + "<td>" + (k.issued_date ? dmy(k.issued_date) : "—") + "</td><td><b>" + money(k.amount) + "</b></td><td>" + st + "</td><td>" + advTxt(k) + "</td><td>" + postTxt(k) + "</td>"
-        + '<td class="lastc ' + (late ? "late" : "") + '">' + (k.last_days == null ? "—" : k.last_days === 0 ? "сегодня" : plural(k.last_days, ["день", "дня", "дней"]) + " назад") + (late ? " ⚠" : "") + "</td><td>" + E(k.manager) + '</td><td class="nw">' + acts + '</td><td class="kpd">' + del + "</td></tr>";
+        + '<td class="lastc ' + (late ? "late" : "") + '">' + (k.last_days == null ? "—" : k.last_days === 0 ? "сегодня" : plural(k.last_days, ["день", "дня", "дней"]) + " назад") + (late ? " ⚠" : "") + today + '</td><td class="mg">' + E(k.manager) + '</td><td class="nw">' + acts + '</td><td class="kpd">' + del + "</td></tr>";
     }).join("");
     function docButtons(k) {
       var b = '<button class="btn ghost sm" title="КП в PDF" data-doc="' + k.id + ':kp:pdf">КП PDF</button> <button class="btn ghost sm" title="КП в Word" data-doc="' + k.id + ':kp:docx">КП Word</button>';
       if (canEdit && k.contract_number) b += ' <button class="btn ghost sm" title="Договор в PDF" data-doc="' + k.id + ':contract:pdf">Дог. PDF</button> <button class="btn ghost sm" title="Договор в Word" data-doc="' + k.id + ':contract:docx">Дог. Word</button>';
       return b;
     }
-    return head + funnel + '<div class="panel" style="overflow:auto"><table class="tbl grid-c kpt" style="font-size:' + kpz + 'px"><tr><th>№ КП</th><th>Заказчик</th><th>Объект / услуги</th><th>Дата выставления КП</th><th>Сумма</th><th>Статус</th><th>Аванс</th><th>Постоплата</th><th>Последнее общение</th><th>Менеджер</th><th>Действия и документы</th><th></th></tr>'
-      + (rows || '<tr><td colspan="12">КП пока нет</td></tr>') + "</table></div>";
+    var arch = '<div class="kparch"><button class="btn ghost sm" data-kparch="1">' + (S.kpArch ? "← Вернуться к работе" : "Архив: закрытые КП · " + nClosed) + "</button>" + (S.kpArch ? "<span>Закрытые КП: оплачено полностью, проект сдан</span>" : "") + "</div>";
+    return head + funnel + arch + '<div class="panel kpwrap"><table class="tbl grid-c kpt" style="font-size:' + kpz + 'px"><thead><tr><th>№ КП</th><th>Заказчик</th><th>Объект / услуги</th><th>Дата выставления КП</th><th>Сумма</th><th>Статус</th><th>Аванс</th><th>Постоплата</th><th>Последнее общение</th><th>Менеджер</th><th>Действия и документы</th><th></th></tr></thead><tbody>'
+      + (rows || '<tr><td colspan="12">' + (S.kpArch ? "Закрытых КП пока нет" : "КП пока нет") + "</td></tr>") + "</tbody></table></div>";
   }
   function kpTotal() { return (S.kpf ? S.kpf.items : []).reduce(function (a, i) { return a + (i.on ? (+i.price || 0) : 0); }, 0); }
   function kpcInit() {
@@ -1371,7 +1409,7 @@
     return { amount: amount, adv: adv, post: amount - adv };
   }
   function loadContractDraft() {
-    var open = (S.kp || []).filter(function (k) { return !k.order_id && k.status !== "Отказ"; });
+    var open = (S.kp || []).filter(function (k) { return !k.order_id && k.status !== "Отказ" && k.status !== "Закрыто"; });
     if (!S.ct || !S.ct.kid) { if (!open.length) { S.ct = null; return Promise.resolve(); } S.ct = { kid: open[0].id }; }
     var c = S.ct;
     if (c.data && c.loadedFor === c.kid) return Promise.resolve();
@@ -1439,7 +1477,7 @@
   function contractScreen() {
     var p = pos();
     if (!(p === "owner" || p === "sales" || p === "ops")) return '<div class="head"><div><h1>Конструктор договора</h1></div></div><div class="note">Раздел недоступен для вашей роли.</div>';
-    var open = (S.kp || []).filter(function (x) { return !x.order_id && x.status !== "Отказ"; });
+    var open = (S.kp || []).filter(function (x) { return !x.order_id && x.status !== "Отказ" && x.status !== "Закрыто"; });
     var head = '<div class="head"><div><h1>Конструктор договора</h1><p>Договор на услуги ИП по вашему шаблону: заполняется из КП и карточки заказчика либо вводится самостоятельно</p></div><button class="btn accent" data-ctstandalone="1">' + ic("plus") + "Договор без КП</button></div>";
     head += cmodeSeg();
     if (!S.ct || !S.ct.kid) return head + '<div class="note">Нет КП, по которым можно оформить договор. Выставьте КП в «Конструкторе КП» или создайте договор без КП.</div><button class="btn accent" data-ctstandalone="1">' + ic("plus") + "Договор без КП</button>";
@@ -1980,8 +2018,16 @@
         }
         paint();
       }, function (e) {      // ошибка видна и в окне задачи; данные перечитываются — вдруг этап уже сменил кто-то другой
-        S.busy = false; var msg = String(e && e.message || e); toast(msg);
-        if (S.open) { S.actErr = msg; load().then(paint, paint); }
+        S.busy = false; var msg = String(e && e.message || e);
+        if (!S.open) return toast(msg);
+        S.actErr = msg;
+        load().then(function () {
+          if (!find(S.open)) {          // этап уже сменил другой сотрудник, и задача ушла на стадию, которую роль не видит
+            S.open = null; S.tab = "info"; S.actErr = ""; if (/^#\/task\//.test(location.hash)) history.replaceState(null, "", "#/");
+            msg = "Этот шаг уже сделал другой сотрудник: задача передана дальше и вам больше не видна";
+          }
+          toast(msg); paint();
+        }, function () { toast(msg); paint(); });
       });
   }
   function closeAll() {
@@ -2008,7 +2054,7 @@
     if (!inModal && !(S.mount && S.mount.el && S.mount.el.contains(e.target))) return;
     var bg = e.target.getAttribute && e.target.getAttribute("data-bg");
     if (bg) { closeAll(); return; }
-    var t = e.target.closest("[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scsave],[data-scdel],[data-sccopy]");
+    var t = e.target.closest("[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch]");
     if (!t) return;
     var d = t.dataset;
     if (d.close) return closeAll();
@@ -2063,7 +2109,8 @@
     if (d.kpcontract) { S.ct = { kid: +d.kpcontract }; S.cmode = "kp"; if (location.hash === "#/contracts") return DS.reload(); location.hash = "#/contracts"; return; }
     if (d.cmode) { S.cmode = d.cmode; if (d.cmode === "kp") { var cEl = S.mount && S.mount.el; if (cEl) cEl.innerHTML = ""; } return paint(); }
     if (d.kpstatus != null && t.hasAttribute("data-kpstatus")) return;
-    if (d.kptouch) return act2(api("/kp/" + d.kptouch + "/touch", {}).then(loadKp), false);
+    if (d.kptouch) return act2(api("/kp/" + d.kptouch + "/touch", {}).then(loadKp).then(function () { toast("Отмечено: сегодня был контакт"); }), false);
+    if (d.kparch != null && t.hasAttribute("data-kparch")) { S.kpArch = !S.kpArch; return paint(); }
     if (d.ksv != null && t.hasAttribute("data-ksv")) { var it = S.kpf.items[+d.ksv]; it.on = !it.on; return paint(); }
     if (d.kadd != null && t.hasAttribute("data-kadd")) { S.kpf.items.push({ name: "", price: 0, on: true, custom: true }); return paint(); }
     if (d.kdel != null && t.hasAttribute("data-kdel")) { S.kpf.items.splice(+d.kdel, 1); return paint(); }

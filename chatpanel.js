@@ -51,13 +51,15 @@
   function tabCustomer(body, t, name, s, box) {
     var l = s.link, h = "";
     if (l.customer) {
-      var c = l.customer, ct = (c.contacts || [])[0] || {};
-      var ph = (c.contacts || []).map(function (x) { return x.phone; }).filter(Boolean)[0] || "";
-      var ml = (c.contacts || []).map(function (x) { return x.email; }).filter(Boolean)[0] || "";
+      var c = l.customer, ct = l.contact || (c.contacts || [])[0] || {};          // контакт именно этого диалога
+      var ph = ct.phone || (l.service ? "" : (c.contacts || []).map(function (x) { return x.phone; }).filter(Boolean)[0] || "");
+      var ml = ct.email || (l.service ? "" : (c.contacts || []).map(function (x) { return x.email; }).filter(Boolean)[0] || "");
       function dmy(d) { var m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || ""); return m ? m[3] + "." + m[2] + "." + m[1] : ""; }
       function line(label, v) { return '<div class="pl"><small>' + label + "</small><span>" + (v ? E(v) : "—") + "</span></div>"; }
-      h += '<div class="pc-name">' + E(c.name) + (c.regular ? ' <span class="pc-reg">постоянный</span>' : "") + "</div>"
-        + line("Контактное лицо", ct.fio) + line("Телефон", ph) + line("Почта", ml);
+      if (l.can_edit && (s.edit || (l.service && !s.skipSvc))) { editForm(body, t, name, s, box, l, ct, ph, ml); return; }
+      h += '<div class="pc-name">' + E(c.name) + (c.regular ? ' <span class="pc-reg">постоянный</span>' : "")
+        + (l.can_edit ? ' <a href="#" id="dspEdit" class="note" style="font-weight:600;margin-left:6px">✎ Изменить</a>' : "") + "</div>"
+        + line("Контактное лицо", ct.fio + (ct.pos ? " · " + ct.pos : "")) + line("Телефон", ph) + line("Почта", ml);
       if (l.auto) h += '<p class="note">Диалог привязан автоматически: ' + E(l.auto) + ".</p>";
       var tasks = l.tasks || [], NEXTT = { a1: "Сбор вводных", a2: "КП" };
       if (tasks.length) {
@@ -99,6 +101,7 @@
       $("dspNewTask").onclick = function () { if (window.DS && DS.newTask) DS.newTask({ thread_id: t.id, thread_title: name }); };
       $("dspHand").onclick = function () { if (window.__chatHandoff) window.__chatHandoff(); };
       $("dspUnlink").onclick = function (e) { e.preventDefault(); api("/threads/" + encodeURIComponent(t.id) + "/link", { customer_id: 0 }).then(function () { again(box, t, name); }, function (er) { toast(String(er)); }); };
+      if ($("dspEdit")) $("dspEdit").onclick = function (e) { e.preventDefault(); s.edit = true; s.err = ""; tabCustomer(body, t, name, s, box); };
       return;
     }
     if (l.suggestions.length) {
@@ -120,6 +123,30 @@
       if (!nm) { s.err = "Укажите наименование компании"; return again(box, t, name); }
       api("/threads/" + encodeURIComponent(t.id) + "/customer", { name: nm, fio: $("dspFio").value.trim(), phone: $("dspPhone").value.trim(), email: $("dspMail").value.trim() })
         .then(function () { s.err = ""; again(box, t, name); }, function (e) { s.err = String(e); again(box, t, name); });
+    };
+  }
+
+  /* Правка заказчика прямо в переписке (руководитель, продажи, операционный менеджер).
+     Общая карточка amoCRM: контакт диалога выносится в настоящего заказчика вместе с Telegram/MAX/почтой. */
+  function editForm(body, t, name, s, box, l, ct, ph, ml) {
+    var svc = l.service, f = function (id, label, v, ph_) { return '<div class="f"><label>' + label + '</label><input id="' + id + '" value="' + E(v || "") + '"' + (ph_ ? ' placeholder="' + E(ph_) + '"' : "") + "></div>"; };
+    body.innerHTML = (svc ? '<div class="pb pb-orange" style="margin-top:0"><h5>Контакт из amoCRM без компании</h5><div class="note" style="margin:0">Диалог привязан к общей карточке «' + E(l.customer.name) + '». Укажите настоящего заказчика: контакт, его Telegram/MAX и почта перейдут к нему. Если такой заказчик уже есть, контакт добавится к нему.</div></div>'
+        : '<div class="pc-name">Изменить заказчика</div>')
+      + f("dspEName", "Наименование заказчика", svc ? "" : l.customer.name, svc ? "например, ООО «СК Миллер»" : "")
+      + f("dspEFio", "Контактное лицо (ФИО)", ct.fio) + f("dspEPos", "Должность", ct.pos) + f("dspEPhone", "Телефон", ph) + f("dspEMail", "E-mail", ml)
+      + (s.err ? '<div class="err">' + E(s.err) + "</div>" : "")
+      + '<button class="x-btn primary" id="dspESave" style="width:100%;justify-content:center"' + (s.busy ? " disabled" : "") + ">" + (svc ? "Сохранить заказчика" : "Сохранить") + "</button>"
+      + '<button class="x-btn ghost" id="dspECancel" style="width:100%;justify-content:center;margin-top:6px">' + (svc ? "Пока не указывать" : "Отмена") + "</button>";
+    $("dspECancel").onclick = function () { s.edit = false; s.skipSvc = svc || s.skipSvc; s.err = ""; tabCustomer(body, t, name, s, box); };
+    $("dspESave").onclick = function () {
+      var v = function (id) { return $(id).value.trim(); }, nm = v("dspEName");
+      if (!nm) { s.err = "Укажите наименование заказчика"; return editForm(body, t, name, s, box, l, { fio: v("dspEFio"), pos: v("dspEPos") }, v("dspEPhone"), v("dspEMail")); }
+      s.busy = true;
+      api("/threads/" + encodeURIComponent(t.id) + "/customer-edit", { name: nm, fio: v("dspEFio"), pos: v("dspEPos"), phone: v("dspEPhone"), email: v("dspEMail") }).then(function (r) {
+        s.busy = false; s.edit = false; s.err = "";
+        toast(r.moved ? (r.joined ? "Контакт добавлен к заказчику «" + nm + "»" : "Заказчик «" + nm + "» создан, диалог привязан к нему") : "Заказчик сохранён");
+        again(box, t, name);
+      }, function (e) { s.busy = false; s.err = String(e); editForm(body, t, name, s, box, l, { fio: v("dspEFio"), pos: v("dspEPos") }, v("dspEPhone"), v("dspEMail")); });
     };
   }
 

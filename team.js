@@ -106,11 +106,19 @@
       if (document.hidden || !C.loggedIn()) return;
       S.tick++;
       C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages?after=" + S.lastId).then(function (ms) {
-        if (ms.length) { S.msgs = S.msgs.concat(ms); S.lastId = ms[ms.length - 1].id; paintThread(true); C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/read", { body: {} }).then(function () { return loadRooms(); }); }
+        if (addMsgs(ms)) { paintThread(true); C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/read", { body: {} }).then(function () { return loadRooms(); }); }
         else if (S.tick % 4 === 0) loadRooms();
         if (S.tick % 2 === 0) C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages").then(function (all) { var a = JSON.stringify(all.map(function (m) { return [m.id, m.reactions, m.read_by]; })), b = JSON.stringify(S.msgs.map(function (m) { return [m.id, m.reactions, m.read_by]; })); if (a !== b && (!all.length || all[all.length - 1].id <= S.lastId)) { S.msgs = all; S.lastId = all.length ? all[all.length - 1].id : S.lastId; paintThread(true); } }).catch(function () {});      // реакции, «прочитали» и удалённые сообщения
       }).catch(function () {});
     }, 4000);
+  }
+  /* новые сообщения приходят двумя путями (после «Отправить» и автообновлением раз в 4 с): одно и то же не добавляется дважды */
+  function addMsgs(ms) {
+    var have = {}, n = 0;
+    S.msgs.forEach(function (m) { have[m.id] = 1; });
+    (ms || []).forEach(function (m) { if (!have[m.id]) { have[m.id] = 1; S.msgs.push(m); n++; } });
+    if (n) { S.msgs.sort(function (a, b) { return a.id - b.id; }); S.lastId = Math.max(S.lastId, S.msgs[S.msgs.length - 1].id); }
+    return n;
   }
   function loadRooms() {
     return C.call("/team/rooms" + (S.cur ? "?open=" + encodeURIComponent(S.cur) : "")).then(function (rs) { S.rooms = rs; paintRooms(); });
@@ -431,7 +439,7 @@
       if (S.pend === p) { if (p.url) URL.revokeObjectURL(p.url); S.pend = null; }
       S.urg = false; S.reply = null; S.drafts[room] = ""; if ($("tIn")) $("tIn").value = "";
       return C.call("/team/rooms/" + encodeURIComponent(room) + "/messages?after=" + last);
-    }).then(function (ms) { if (S.cur === room) { if (ms.length) { S.msgs = S.msgs.concat(ms); S.lastId = ms[ms.length - 1].id; } paintThread(); } loadRooms(); })
+    }).then(function (ms) { if (S.cur === room) { addMsgs(ms); paintThread(); } loadRooms(); })
       .catch(function (e) { p.busy = false; toast(E(e)); if (S.cur === room) paintThread(true); });
   }
   /* фото в сообщениях подгружаются с сервера с авторизацией и показываются картинкой; нажатие открывает крупно */
@@ -466,7 +474,7 @@
     var ub = $("tUrg"); if (ub) ub.classList.remove("on");
     C.call("/team/rooms/" + encodeURIComponent(room) + "/send", { body: { text: text, urgent: urgent, reply_to: reply ? reply.id : 0 } }).then(function () {
       return C.call("/team/rooms/" + encodeURIComponent(room) + "/messages?after=" + last);
-    }).then(function (ms) { if (S.cur === room) { if (ms.length) { S.msgs = S.msgs.concat(ms); S.lastId = ms[ms.length - 1].id; } paintThread(); } loadRooms(); if (urgent) toast("Срочное отправлено — сотрудники получат оповещение, даже в тихие часы"); })
+    }).then(function (ms) { if (S.cur === room) { addMsgs(ms); paintThread(); } loadRooms(); if (urgent) toast("Срочное отправлено — сотрудники получат оповещение, даже в тихие часы"); })
       .catch(function (e) {
         var j = $("tIn"); if (S.cur === room && j && !j.value) { j.value = text; S.drafts[room] = text; S.reply = reply; }      /* не отправилось — текст возвращается в поле */
         toast(E(e));

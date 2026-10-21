@@ -629,6 +629,10 @@
 }
 @media(max-width:760px){#chat-app .ct .un{color:#fff!important}}
 
+/* Плашка «Вышла новая версия CRM» (ds.js, checkVersion) */
+.ds-upd{position:fixed;left:50%;top:max(12px,calc(env(safe-area-inset-top) + 8px));transform:translateX(-50%);z-index:10001;display:flex;align-items:center;gap:12px;padding:10px 12px 10px 18px;border-radius:16px;background:#1f6fe0;color:#fff;font-weight:700;font-size:.92rem;box-shadow:0 12px 34px rgba(20,90,200,.5);max-width:calc(100vw - 24px)}
+.ds-upd button{border:0;border-radius:10px;padding:8px 14px;background:#fff;color:#1f6fe0;font:inherit;font-weight:800;cursor:pointer}
+
 /* Яркие уведомления о новых сообщениях */
 #dsAlerts{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:10px;width:min(440px,calc(100vw - 20px));pointer-events:none}
 .ds-alert{pointer-events:auto;display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#1f6fe0,#2b9bf0);color:#fff;border-radius:16px;padding:13px 14px;box-shadow:0 12px 34px rgba(20,90,200,.55),0 0 0 2px rgba(255,255,255,.35);cursor:pointer;animation:dsAlertIn .35s cubic-bezier(.2,1.4,.4,1)}
@@ -703,6 +707,28 @@
 /* Реестр КП: объект и услуги на разных строках */
 .ds .kpt td.ell{white-space:normal!important;min-width:190px;max-width:290px!important;overflow:visible!important;line-height:1.25}
 .ds .kpt td.ell small{display:block;margin-top:1px}
+/* Реестр КП: таблица в своём окне прокрутки — горизонтальная полоса всегда видна внизу экрана, шапка закреплена;
+   заказчик узкий (переносится), объект и услуги широкие, действия в две строки — чтобы всё помещалось на монитор */
+.ds .kpwrap{overflow:auto!important;max-height:calc(100vh - 250px)}
+.ds .kpwrap::-webkit-scrollbar{height:12px;width:10px}
+.ds .kpwrap::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 45%,transparent);border-radius:8px}
+.ds .kpt thead th{position:sticky;top:0;z-index:2}
+.ds .kpt td.cu{white-space:normal!important;min-width:90px;max-width:140px;line-height:1.2}
+.ds .kpt td.ell{min-width:300px!important;max-width:460px!important}
+.ds .kpt td.nw{white-space:normal!important;min-width:205px;max-width:230px}
+.ds .kpt td.nw .btn.sm{margin:1px 0}
+.ds .kpt td.lastc .kptoday{display:block;margin:3px auto 0;height:24px!important}
+.ds .kpt td small{display:block;font-size:.88em;color:var(--muted)}
+.ds .kpt th{min-width:0}
+.ds .kpt thead th:nth-child(3){width:40%}
+.ds .kpt thead th:nth-child(4),.ds .kpt thead th:nth-child(9){width:1%}
+.ds .kpt td.mg{white-space:normal!important;max-width:90px}
+.ds .kpt .kpsum{display:block;margin-top:3px;font-size:.88em;color:var(--warn,#b7791f);font-weight:700;white-space:nowrap}
+.ds .kpfun{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ds .kpfun .pill{height:auto;min-height:30px;padding:4px 14px;flex-direction:column;align-items:flex-start;justify-content:center;line-height:1.2}
+.ds .kpfun .pill small{font-weight:600;opacity:.85}
+.ds .kparch{display:flex;gap:10px;align-items:center;margin:-6px 0 10px;font-size:.86rem;color:var(--muted)}
+@media(max-width:760px){.ds .kpwrap{max-height:none}}
 .ds .tzres{margin:-2px 0 6px;padding:8px 10px;border-radius:10px;background:var(--surface-2);font-size:.92rem}
 .ds .tzman{margin-bottom:12px;font-size:.88rem}.ds .tzman summary{cursor:pointer;color:var(--brand);margin-bottom:6px}
 .ds .tzman select{width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface);color:var(--ink);font:inherit}
