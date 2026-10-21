@@ -8,6 +8,9 @@
 .ds.dspage{padding:26px 32px 70px;max-width:1500px}.ds .head{margin-top:0}.ds h1,.ds h2,.ds h3,.ds h4,.ds p{margin:0}
 .ds .modal-bg{position:fixed;inset:0;background:rgba(10,20,35,.5);z-index:300;display:flex;justify-content:flex-end}
 .ds .err{color:var(--bad);font-weight:600;margin:8px 0}
+.ds .cchat{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.ds .cchat a{text-decoration:none}
+.ds .cchat span{color:var(--muted);font-size:.84rem}
 .ds .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 17px;border-radius:12px;font-weight:700;font-size:.9rem;white-space:nowrap}
 .ds .btn.primary{background:linear-gradient(135deg,var(--brand-2),var(--brand));color:#fff;box-shadow:0 8px 20px color-mix(in srgb,var(--brand) 35%,transparent)}
 .ds .btn.accent{background:linear-gradient(135deg,#f6a982,var(--accent));color:#3d1b08}
@@ -680,6 +683,8 @@
 .x-rx button.on{background:color-mix(in srgb,var(--blue) 18%,var(--surface));border-color:var(--blue)}
 .x-macts{margin-top:5px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:5px 6px;width:max-content;max-width:100%}
 .x-macts>button{border:0;background:var(--blue);color:#fff;border-radius:10px;padding:4px 10px;font-size:.84rem;cursor:pointer}
+.x-macts>button.x-del{background:var(--bad,#e5483c)}
+.x-ctxmenu button.x-del{color:#ff8a80}
 .x-rxpick{display:flex;flex-wrap:wrap;gap:2px}
 .x-rxpick button{border:0;background:none;font-size:1.25rem;line-height:1;padding:3px;border-radius:8px;cursor:pointer}
 .x-rxpick button:hover{background:var(--surface-2);transform:scale(1.2)}
@@ -804,7 +809,7 @@
 .x-img.bad{cursor:default;opacity:.5}
 .x-file{display:flex!important;align-items:center;gap:10px;text-align:left;padding:8px 10px!important;border-radius:12px;max-width:100%}
 .x-file .fi{font-size:1.6rem;line-height:1;flex:none}
-.x-file b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:210px}
+.x-file b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-weight:600;overflow:hidden;white-space:normal;overflow-wrap:anywhere;max-width:230px}
 .x-file small{display:block;color:var(--muted);font-size:.76rem}
 .x-pend{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--line);background:var(--surface-2,rgba(127,127,127,.1));border-left:3px solid var(--blue)}
 .x-pend img{width:56px;height:56px;border-radius:10px;object-fit:cover;flex:none}

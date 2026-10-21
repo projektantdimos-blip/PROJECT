@@ -50,7 +50,7 @@
   function load() {
     S.err = "";
     return Promise.all([api("/meta"), api("/orders"), api("/tasks")]).then(function (r) {
-      S.meta = r[0]; S.orders = r[1]; S.tasks = r[2];
+      S.meta = r[0]; S.orders = r[1]; S.tasks = r[2]; S.loadedAt = Date.now();
       var p = r[0].position;
       var extra = [];
       if (r[0].can.customers && S.customers == null) extra.push(api("/customers").then(function (c) { S.customers = c; }, function () { S.customers = []; }));
@@ -58,6 +58,23 @@
       return Promise.all(extra);
     });
   }
+  /* Приложение с иконки на телефоне не перезапускается днями: при возвращении в него подтягиваем свежие задачи
+     (иначе этапы на экране устаревают и сервер отклоняет переход), а если на сайте новая версия — перезагружаем страницу. */
+  var VER = (function () { var s = document.querySelector('script[src*="ds.js?v="]'); return s ? s.getAttribute("src").split("?v=")[1] : ""; })(), verAt = 0;
+  function checkVersion() {
+    if (!VER || Date.now() - verAt < 5 * 60000) return;
+    verAt = Date.now();
+    fetch("index.html?_=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (h) {
+      var m = /ds\.js\?v=([\w.-]+)/.exec(h || "");
+      if (m && m[1] !== VER) location.reload();
+    }, function () {});
+  }
+  function editing() { return !!(S.form || S.tm || S.nt || S.te || S.ke || S.edit || S.busy); }
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden || !C || !C.loggedIn()) return;
+    checkVersion();
+    if (S.mount && S.orders && Date.now() - (S.loadedAt || 0) > 60000 && !editing()) load().then(paint, function () {});
+  });
   function root() { return document.getElementById("tasks-app"); }
   function modalRoot() {
     var m = document.getElementById("ds-modal");
@@ -603,6 +620,23 @@
       return '<div class="ev" style="--c:var(--brand)"><time>' + d.toLocaleDateString("ru-RU") + " " + d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) + "</time><b>" + E(e.action) + (e.detail ? ": " + E(e.detail) : "") + '</b><span class="note" style="margin:0">' + E(e.user_name) + "</span></div>";
     }).join("") + "</div>";
   }
+  /* «Чат с заказчиком»: диалоги «Переписки», привязанные к заказчику задачи (подгружаются при открытии окна) */
+  var CH_NAME = { tg: "Telegram", max: "MAX", mail: "почта" };
+  function custChatHtml(o) {
+    var p = pos();
+    if (["owner", "sales", "ops"].indexOf(p) < 0 || !o.customer_id) return "";       // проектному отделу кнопка не нужна
+    if (!S.cth || S.cth.oid !== o.id) {
+      S.cth = { oid: o.id, list: null };
+      var done = function (l) { if (S.cth && S.cth.oid === o.id) { S.cth.list = l; if (S.open === o.id) paint(); } };
+      api("/orders/" + o.id + "/threads").then(done, function () { done([]); });
+    }
+    var l = S.cth.list;
+    if (!l) return "";
+    if (!l.length) return '<div class="cchat"><span>Диалог с заказчиком не привязан</span><a class="btn ghost sm" href="#/chat">Открыть «Переписку»</a></div>';
+    return '<div class="cchat">' + l.slice(0, 3).map(function (t) {
+      return '<a class="btn primary sm" href="#/chat?t=' + encodeURIComponent(t.id) + '" title="' + E(t.title) + '">💬 Чат с заказчиком' + (l.length > 1 || CH_NAME[t.channel] ? " · " + E(CH_NAME[t.channel] || t.channel) : "") + "</a>";
+    }).join("") + "</div>";
+  }
   function windowHtml(o) {
     var p = pos(), n = nextStep(o), showUrgent = o.stage === "Готов к проектированию" && (p === "owner" || p === "design" || p === "ops" || p === "sales");
     var nx = "";
@@ -631,7 +665,7 @@
     var money_ = can("money") && o.amount != null;
     return '<div class="modal-bg" data-bg="1"><div class="modal"><div class="m-head"><div class="row"><h2>№' + E(o.number) + (o.customer ? " · " + E(o.customer) : "") + "</h2>"
       + (o.urgent ? '<span class="pill urg">⚡ Срочно</span>' : "") + (money_ ? (o.post_paid ? '<span class="pill ok">₽ Оплачено</span>' : '<span class="pill warn">₽ Не оплачено</span>') : "")
-      + '<button class="x" data-close="1">✕</button></div><div style="color:var(--muted);margin-top:2px">' + E(o.object) + "</div>" + stepper(o) + "</div>"
+      + '<button class="x" data-close="1">✕</button></div><div style="color:var(--muted);margin-top:2px">' + E(o.object) + "</div>" + custChatHtml(o) + stepper(o) + "</div>"
       + '<div class="m-body">' + nx + '<div class="tabs">' + tabs.map(function (t) { return '<button data-tab="' + t[0] + '" class="' + (S.tab === t[0] ? "on" : "") + '">' + t[1] + "</button>"; }).join("") + "</div>" + body + "</div></div></div>";
   }
   function formHtml() {
@@ -1945,7 +1979,10 @@
           toast("Готово: задача передана дальше и теперь вам не видна");
         }
         paint();
-      }, function (e) { S.busy = false; var msg = String(e && e.message || e); if (S.open) { S.actErr = msg; paint(); } toast(msg); });      // ошибка видна и в окне задачи
+      }, function (e) {      // ошибка видна и в окне задачи; данные перечитываются — вдруг этап уже сменил кто-то другой
+        S.busy = false; var msg = String(e && e.message || e); toast(msg);
+        if (S.open) { S.actErr = msg; load().then(paint, paint); }
+      });
   }
   function closeAll() {
     S.form = null; S.edit = null; S.nt = null; S.te = null; S.tm = false; S.oe = null; S.ke = null; S.actErr = "";
@@ -2012,7 +2049,8 @@
     }
     if (d.open) {
       S.open = +d.open; S.tab = "info"; S.edit = null; S.oe = null; S.actErr = "";
-      return api("/orders/" + S.open + "/history").then(function (h) { S.history = h; }, function () { S.history = []; }).then(paint);
+      var fresh = Date.now() - (S.loadedAt || 0) > 60000 ? load().then(null, function () {}) : Promise.resolve();      // этап в окне — с сервера, а не из давно загруженного списка
+      return fresh.then(function () { return api("/orders/" + S.open + "/history"); }).then(function (h) { S.history = h; }, function () { S.history = []; }).then(paint);
     }
     if (d.csel) { var cc = (S.customers || []).filter(function (c) { return c.id === +d.csel; })[0]; if (cc) { S.cu.sel = cc.id; S.cu.draft = JSON.parse(JSON.stringify(cc)); S.cu.err = ""; } paint(); if (innerWidth < 900) { var cardEl = document.querySelector("#clients-app .dsg21 > div:last-child"); if (cardEl) cardEl.scrollIntoView({ behavior: "smooth", block: "start" }); } return; }
     if (d.cnew != null && t.hasAttribute("data-cnew")) { S.cu.sel = 0; S.cu.draft = { id: 0, name: "", regular: 0, tz: "Europe/Moscow", comment: "", contacts: [{ fio: "", pos: "", phone: "" }] }; S.cu.err = ""; return paint(); }
