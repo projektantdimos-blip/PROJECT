@@ -3,8 +3,9 @@
 import http.server, os, sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-INJECT = b'<script src="/dev/mock.js"></script>'
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8778
+BRIDGE_PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 8790      # порт dev/crm_dev_app.py
+INJECT = b'<script>window.DEV_BRIDGE_PORT=%d</script><script src="/dev/mock.js"></script>' % BRIDGE_PORT
 
 
 class H(http.server.SimpleHTTPRequestHandler):

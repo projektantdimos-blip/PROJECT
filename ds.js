@@ -36,7 +36,11 @@
   function ava(n, c) { n = n || "?"; var col = COL[n] || ("linear-gradient(135deg," + personColor(n) + "," + personColor(n) + ")"); return '<span class="ava ' + (c || "") + '" style="background:' + col + '">' + E(n[0]) + "</span>"; }
   function pos() { return (C && C.me && (C.me.position || (C.me.role === "admin" ? "owner" : ""))) || ""; }
   function api(path, body) { return C.call("/../ds" + path, body ? { body: body } : {}); }
-  function toast(m) { if (window.toast) window.toast(m); else alert(m); }
+  function toast(m) {           /* своя плашка вместо alert(): в приложении на телефоне и во встроенных браузерах alert() часто не показывается */
+    if (window.toast) return window.toast(m);
+    var t = document.getElementById("xToast"); if (!t) { t = document.createElement("div"); t.id = "xToast"; t.className = "x-toast"; document.body.appendChild(t); }
+    t.innerHTML = "<span>" + E(m) + "</span>"; t.className = "x-toast on"; clearTimeout(toast.h); toast.h = setTimeout(function () { t.className = "x-toast"; }, 4000);
+  }
   function can(k) { return S.meta && S.meta.can && S.meta.can[k]; }
   function find(id) { return (S.orders || []).filter(function (o) { return o.id === id; })[0]; }
   var ICON = { plus: '<path d="M12 5v14M5 12h14"/>', lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>' };
@@ -568,14 +572,16 @@
         + accButtons(o) + "</div>";
     }
     var canCreate = p === "owner" || p === "sales" || p === "ops";
-    var fol = '<div class="panel pad"><h3>Папка и чат</h3><div class="doc" style="margin-top:10px"><span>📂</span><div style="flex:1"><b>\\\\176.197.21.187\\ServAmani\\' + E(o.number) + ". " + E(o.object) + "</b><small>Откроется в проводнике (нужен VPN и установленная кнопка)</small></div></div>"
+    var fol = '<div class="panel pad"><h3>Папка и чат</h3><div class="doc" style="margin-top:10px"><span>📂</span><div style="flex:1"><b>' + E(FOLDER_ROOT) + "\\" + E(o.number) + ". " + E(o.object) + "</b><small>Откроется в проводнике (нужен VPN и установленная кнопка)</small></div></div>"
       + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px"><a class="btn ghost sm" style="text-decoration:none" href="' + folderUrl(o, false) + '">Перейти в папку на сервере</a>'
       + (canCreate ? '<a class="btn ghost sm" style="text-decoration:none" href="' + folderUrl(o, true) + '">Создать папку</a>' : "") + "</div>"
       + '<div class="doc"><span>💬</span><div style="flex:1"><b>Чат проекта</b><small>Обсуждение задачи №' + E(o.number) + '</small></div><a class="btn ghost sm" style="text-decoration:none" href="#/team?room=t' + o.id + '">Открыть</a></div></div>';
     return '<div class="grid g2">' + work + cust + mon + fol + "</div>";
   }
+  /* папку открывает server-link/open-folder.ps1 на компьютере сотрудника (свой протокол dsfolder://, не путается с кнопкой МПБ) */
+  var FOLDER_ROOT = "\\\\176.197.21.187\\ServAmani\\Проектная компания\\Задачи";
   function folderUrl(o, create) {
-    return "mpb://open?num=" + encodeURIComponent(o.number) + "&name=" + encodeURIComponent(o.object || "") + (create ? "&create=1" : "");
+    return "dsfolder://open?num=" + encodeURIComponent(o.number) + "&name=" + encodeURIComponent(o.object || "") + (create ? "&create=1" : "");
   }
   function accButtons(o) {
     var p = pos();
@@ -611,7 +617,8 @@
         + (n.pay ? '<button class="btn primary" data-pay="' + n.pay + '">' + E(n.btn) + "</button>"
           : '<button class="btn primary" data-go="' + E(n.to) + '"' + (n.needExec ? ' data-needexec="1"' : "") + ">" + E(n.btn) + "</button>")
         + (n.back ? '<button class="btn ghost" data-go="' + E(n.back.to) + '">' + E(n.back.btn) + "</button>" : "")
-        + (showUrgent ? '<button class="btn ghost" data-urgent="' + (o.urgent ? 0 : 1) + '">⚡ ' + (o.urgent ? "Снять срочность" : "Срочная") + "</button>" : "") + "</div>";
+        + (showUrgent ? '<button class="btn ghost" data-urgent="' + (o.urgent ? 0 : 1) + '">⚡ ' + (o.urgent ? "Снять срочность" : "Срочная") + "</button>" : "")
+        + (S.actErr ? '<div class="err" style="flex-basis:100%;margin:0">Не выполнено: ' + E(S.actErr) + "</div>" : "") + "</div>";
     } else if (showUrgent) {
       nx = '<div class="next"><div style="flex:1"><b>Срочность</b></div><button class="btn ghost" data-urgent="' + (o.urgent ? 0 : 1) + '">⚡ ' + (o.urgent ? "Снять срочность" : "Срочная") + "</button></div>";
     }
@@ -1145,7 +1152,7 @@
       return '<div class="panel" style="padding:12px;display:flex;flex-direction:column;gap:9px;min-height:260px;' + (d.day === today ? "border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset;" : "") + (d.off ? "background:var(--surface-2);opacity:.92;" : "") + '">'
         + '<div style="display:flex;justify-content:space-between"><b>' + WN[i] + '</b><small style="color:var(--muted)">' + dmy(d.day).slice(0, 5) + "</small></div>"
         + (d.off ? '<div style="height:40px;border-radius:12px;background:var(--line);display:grid;place-items:center;font-weight:700;color:var(--muted);font-size:.86rem">Выходной</div>'
-          : tasks.map(function (o) { return '<div style="border:1px solid var(--line);border-left:4px solid var(--brand);background:var(--surface-2);border-radius:10px;padding:7px 9px;font-size:.82rem"><b>№' + E(o.number) + "</b> " + E((o.object || "").split(",")[0]) + "</div>"; }).join("")
+          : tasks.map(function (o) { return '<div role="button" data-open="' + o.id + '" title="Открыть задачу" style="cursor:pointer;border:1px solid var(--line);border-left:4px solid var(--brand);background:var(--surface-2);border-radius:10px;padding:7px 9px;font-size:.82rem"><b>№' + E(o.number) + "</b> " + E((o.object || "").split(",")[0]) + "</div>"; }).join("")
             + '<button data-wmark="' + d.day + '" style="height:40px;border-radius:12px;font-weight:800;font-size:.86rem;' + (d.worked ? "border:1.5px solid var(--ok);background:var(--ok-soft);color:var(--ok)" : "border:1.5px dashed var(--accent);color:#d0702f") + '">' + (d.worked ? "✓ Отработал(а)" : "Отметить отработанным") + "</button>")
         + '<textarea data-wc="' + d.day + '" placeholder="Комментарий к дню…" style="width:100%;min-height:62px;border:1px solid var(--line);border-radius:10px;padding:7px 9px;font-size:.8rem;resize:vertical;background:var(--surface);color:var(--ink)">' + E(d.comment || "") + "</textarea>"
         + '<button data-woff="' + d.day + '" style="font-size:.76rem;color:var(--muted);text-decoration:underline;text-align:center">' + (d.off ? "Снять выходной" : "Сделать выходным") + "</button></div>";
@@ -1928,8 +1935,9 @@
       + d.chart.map(function (c) { return '<div class="g"><div class="bars"><i style="height:' + (c.issued / mx * 100) + '%" title="' + money(c.issued) + '"></i><i class="p" style="height:' + (c.paid / mx * 100) + '%" title="' + money(c.paid) + '"></i></div><small>' + MONTHS[+c.month.slice(5, 7) - 1].slice(0, 3) + "</small></div>"; }).join("") + "</div></div></div>";
   }
   /* ---------- действия ---------- */
+  function busyNow() { return S.busy && Date.now() - S.busy < 30000; }       // зависший запрос (телефон уснул) не блокирует кнопки навсегда
   function act(p) {
-    if (S.busy) return; S.busy = true;
+    if (busyNow()) return; S.busy = Date.now(); S.actErr = "";
     return p.then(function () { S.busy = false; S.orders = null; S.tasks = null; return load().then(function () { return S.open ? api("/orders/" + S.open + "/history").then(function (h) { S.history = h; }, function () { S.history = []; }) : null; }); })
       .then(function () {
         if (S.open && !find(S.open)) {              // задача ушла на стадию, которую роль не видит — это нормальная передача дальше
@@ -1937,10 +1945,10 @@
           toast("Готово: задача передана дальше и теперь вам не видна");
         }
         paint();
-      }, function (e) { S.busy = false; toast(String(e && e.message || e)); });
+      }, function (e) { S.busy = false; var msg = String(e && e.message || e); if (S.open) { S.actErr = msg; paint(); } toast(msg); });      // ошибка видна и в окне задачи
   }
   function closeAll() {
-    S.form = null; S.edit = null; S.nt = null; S.te = null; S.tm = false; S.oe = null; S.ke = null;
+    S.form = null; S.edit = null; S.nt = null; S.te = null; S.tm = false; S.oe = null; S.ke = null; S.actErr = "";
     var mr0 = document.getElementById("ds-modal"); if (mr0) mr0.innerHTML = "";
     if (S.open) { S.open = null; S.tab = "info"; if (/^#\/task\//.test(location.hash)) history.replaceState(null, "", "#/"); }
     paint();
@@ -2003,7 +2011,7 @@
       return api("/orders/" + coid + "/comments", { text: txt }).then(function () { S.cmDraft[coid] = ""; return api("/comments"); }).then(function (c) { S.cm = c; S.cmOpen[coid] = true; paint(); }, function (e) { toast(String(e)); });
     }
     if (d.open) {
-      S.open = +d.open; S.tab = "info"; S.edit = null; S.oe = null;
+      S.open = +d.open; S.tab = "info"; S.edit = null; S.oe = null; S.actErr = "";
       return api("/orders/" + S.open + "/history").then(function (h) { S.history = h; }, function () { S.history = []; }).then(paint);
     }
     if (d.csel) { var cc = (S.customers || []).filter(function (c) { return c.id === +d.csel; })[0]; if (cc) { S.cu.sel = cc.id; S.cu.draft = JSON.parse(JSON.stringify(cc)); S.cu.err = ""; } paint(); if (innerWidth < 900) { var cardEl = document.querySelector("#clients-app .dsg21 > div:last-child"); if (cardEl) cardEl.scrollIntoView({ behavior: "smooth", block: "start" }); } return; }
@@ -2096,13 +2104,15 @@
     if (d.create) return createOrder();
     var o = find(S.open); if (!o) return;
     if (d.go) {
+      if (busyNow()) return;
+      var ex = document.getElementById("dsExec"), id = ex ? +ex.value : 0;
+      if (d.needexec && !id && !o.executor_id) return toast("Сначала выберите исполнителя");
+      t.disabled = true; t.textContent = "Передаю…";                          // сразу видно, что нажатие принято
       if (d.needexec) {
-        var ex = document.getElementById("dsExec"), id = ex ? +ex.value : 0;
-        if (!id && !o.executor_id) return toast("Сначала выберите исполнителя");
         var chain = (id && id !== o.executor_id) ? api("/orders/" + o.id + "/assign", { executor_id: id }) : Promise.resolve();
-        return act(chain.then(function () { return api("/orders/" + o.id + "/stage", { stage: d.go }); }));
+        return act(chain.then(function () { return api("/orders/" + o.id + "/stage", { stage: d.go }); }).then(function () { toast("Готово: задача на этапе «" + d.go + "»"); }));
       }
-      return act(api("/orders/" + o.id + "/stage", { stage: d.go }));
+      return act(api("/orders/" + o.id + "/stage", { stage: d.go }).then(function () { toast("Готово: задача на этапе «" + d.go + "»"); }));
     }
     if (d.urgent != null && d.urgent !== "") return act(api("/orders/" + o.id + "/urgent", { urgent: d.urgent === "1" }));
     if (d.pay) return act(api("/orders/" + o.id + "/payment", { kind: d.pay }));

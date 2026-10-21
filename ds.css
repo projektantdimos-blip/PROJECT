@@ -762,3 +762,64 @@
   .x-comp textarea#tIn{background:#0e1621!important;border:0!important;color:#fff;min-height:44px;font-size:16px}
   .x-readinfo{background:#17212b;color:#fff}.x-rd.on{color:#6ab3f3}
 }
+
+/* Кнопка «Напомнить» в шапке диалога «Заказчики»: в одну строку, того же размера, что и соседние */
+#chat-app #chatHead #chatRemind{width:auto!important;height:32px;padding:0 13px!important;display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:none;white-space:nowrap;border-radius:10px;border:1px solid var(--blue)!important;background:color-mix(in srgb,var(--blue) 12%,var(--card))!important;color:var(--blue)!important;font-size:.82rem;font-weight:700;line-height:1}
+#chat-app #chatHead #chatRemind .rmi{font-size:1rem;line-height:1}
+#chat-app #chatHead #chatRemind:hover{background:var(--blue)!important;color:#fff!important}
+@media(max-width:760px){
+  #chat-app #chatHead #chatRemind{width:38px!important;height:38px;padding:0!important;border:0!important;background:transparent!important}
+  #chat-app #chatHead #chatRemind .rmtxt{display:none}
+  #chat-app #chatHead #chatRemind .rmi{font-size:1.25rem}
+}
+
+/* Команда на телефоне: подпись и «⋮» в шапке, меню сообщения по долгому нажатию */
+.x-hsub{display:block;font-size:.74rem;font-weight:400;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.x-th-h > div b{display:block}
+.x-hmore{display:none}
+.x-ctx{position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.5)}
+.x-ctxbox{position:absolute;display:flex;flex-direction:column;gap:8px;width:min(270px,calc(100vw - 16px))}
+.x-ctxrx{display:flex;flex-wrap:wrap;gap:4px;background:#17212b;border-radius:26px;padding:6px 10px;box-shadow:0 8px 24px rgba(0,0,0,.55)}
+.x-ctxrx button{border:0;background:none;font-size:1.55rem;line-height:1;padding:3px 4px;cursor:pointer;color:#8ea2b3}
+.x-ctxmenu{background:#17212b;border-radius:14px;overflow:hidden;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.55)}
+.x-ctxmenu button{display:flex;gap:12px;align-items:center;width:100%;padding:12px 14px;border:0;border-bottom:1px solid #0b121a;background:none;color:#fff;font:inherit;text-align:left;cursor:pointer}
+.x-ctxmenu button:last-of-type{border-bottom:0}
+.x-ctxmenu .rd{color:#6ab3f3}
+.x-ctxread{padding:9px 14px;font-size:.84rem;line-height:1.4;color:#cdd8e3;background:#0e1621}
+.x-msg.ctx .tx{box-shadow:0 0 0 2px #6ab3f3!important}
+.x-hmenu{position:fixed;z-index:700;right:8px;background:#17212b;color:#fff;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.55);overflow:hidden;min-width:210px}
+.x-hmenu button{display:block;width:100%;padding:12px 16px;border:0;border-bottom:1px solid #0b121a;background:none;color:#fff;font:inherit;text-align:left;cursor:pointer}
+.x-hmenu button:last-child{border-bottom:0}
+@media(pointer:coarse){.x-msg .tx{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}}
+@media(max-width:760px){
+  .x-th-h > span,.x-th-h > a.x-btn{display:none!important}
+  .x-th-h .x-hmore{display:inline-flex!important;font-size:1.25rem;padding:4px 10px!important}
+  .x-th-h [data-remind]{font-size:1.2rem;padding:4px 10px!important}
+  .x-hsub{color:#6d7f8f}
+}
+
+/* Команда: фото и файлы в сообщениях, плашка выбранного файла */
+.x-files{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.x-img{display:block;max-width:min(260px,100%);max-height:280px;min-width:120px;min-height:90px;border-radius:12px;object-fit:cover;background:rgba(127,127,127,.18);cursor:zoom-in}
+.x-img.bad{cursor:default;opacity:.5}
+.x-file{display:flex!important;align-items:center;gap:10px;text-align:left;padding:8px 10px!important;border-radius:12px;max-width:100%}
+.x-file .fi{font-size:1.6rem;line-height:1;flex:none}
+.x-file b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:210px}
+.x-file small{display:block;color:var(--muted);font-size:.76rem}
+.x-pend{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--line);background:var(--surface-2,rgba(127,127,127,.1));border-left:3px solid var(--blue)}
+.x-pend img{width:56px;height:56px;border-radius:10px;object-fit:cover;flex:none}
+.x-pend .pf{width:56px;height:56px;border-radius:10px;background:rgba(127,127,127,.18);display:grid;place-items:center;font-size:1.8rem;flex:none}
+.x-pend div{flex:1;min-width:0}.x-pend b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.x-pend small{color:var(--muted);font-size:.78rem}
+.x-pend button{border:0;background:none;color:var(--muted);font-size:1.1rem;cursor:pointer}
+.x-pend.busy{opacity:.7}
+.x-pend.img{flex-wrap:wrap}
+.x-pend.img > div{flex:1 1 calc(100% - 40px)}
+.x-pend.img img{order:3;width:auto;height:auto;max-width:min(320px,100%);max-height:200px;object-fit:contain;background:rgba(127,127,127,.18)}
+.x-imgbox{display:flex;flex-direction:column;gap:4px;max-width:min(260px,100%)}
+.x-imgname{font-size:.8rem;font-weight:600;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.x-lb{position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:56px 10px 10px}
+.x-lb img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
+.x-lbbar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:14px;padding:12px 14px;color:#fff;background:rgba(0,0,0,.4)}
+.x-lbbar span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.x-lbbar a{color:#6ab3f3;text-decoration:none}.x-lbbar button{border:0;background:none;color:#fff;font-size:1.3rem;cursor:pointer}
+@media(max-width:760px){.x-pend{background:#17212b;color:#fff;border-top-color:#0b121a;border-left-color:#6ab3f3}.x-pend small{color:#8ea2b3}.x-file{background:rgba(255,255,255,.08)!important;border:0!important;color:#fff}}

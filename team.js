@@ -62,7 +62,7 @@
   /* ================================================================
      КОМАНДА
      ================================================================ */
-  var S = { drafts: {}, reply: null, selMsg: 0, ft: "all", rooms: [], cur: "general", msgs: [], lastId: 0, urg: false, tick: 0, timer: null, users: [] };
+  var S = { imgs: {}, pend: null, drafts: {}, reply: null, selMsg: 0, ft: "all", rooms: [], cur: "general", msgs: [], lastId: 0, urg: false, tick: 0, timer: null, users: [] };
   var ROOM_IC = { general: "hash", buy: "wallet", calc: "calc", kp: "file" };
 
   function renderTeam() {
@@ -179,6 +179,8 @@
     }).catch(function (e) { $("tThread").innerHTML = '<div class="x-empty" style="padding:40px">' + E(e) + "</div>"; });
   }
   var RX = ["👍", "❤️", "😂", "🔥", "🤝", "👀", "🗿", "🤡", "💀", "🫡", "🥲", "😎", "🤯", "🙏"];
+  function fileIcon(n) { var x = (String(n).split(".").pop() || "").toLowerCase(); return /^(pdf)$/.test(x) ? "📕" : /^(doc|docx|rtf|odt)$/.test(x) ? "📘" : /^(xls|xlsx|csv|ods)$/.test(x) ? "📗" : /^(zip|rar|7z)$/.test(x) ? "🗜️" : /^(dwg|dxf)$/.test(x) ? "📐" : /^(mp4|mov|avi)$/.test(x) ? "🎞️" : /^(mp3|ogg|wav|m4a)$/.test(x) ? "🎵" : "📄"; }
+  function sizeTxt(n) { n = +n || 0; return n >= 1048576 ? (n / 1048576).toFixed(1).replace(".", ",") + " МБ" : Math.max(1, Math.round(n / 1024)) + " КБ"; }
   function reactionsHtml(m) {
     var ks = Object.keys(m.reactions || {}); if (!ks.length) return "";
     var mine = C.me ? C.me.name : "";
@@ -190,15 +192,20 @@
     var rdinfo = S.selMsg === m.id && me ? '<div class="x-readinfo"><b>Прочитали:</b> ' + ((m.read_by || []).length ? E(m.read_by.join(", ")) : "пока никто") + ((m.unread_by || []).length ? "<br><b>Не прочитали:</b> " + E(m.unread_by.join(", ")) : "") + "</div>" : "";
     var acts = rdinfo + (S.selMsg === m.id ? '<div class="x-macts"><button type="button" data-reply="' + m.id + '">↩ Ответить</button><button type="button" data-remindmsg="' + m.id + '" title="Напомнить мне про это сообщение">⏰</button><span class="x-rxpick">' + RX.map(function (e) { return '<button type="button" data-rx="' + m.id + '" data-e="' + e + '">' + e + "</button>"; }).join("") + "</span></div>" : "");
     return '<div class="x-msg ' + (m.urgent ? "urg " : "") + (me ? "me" : "") + (S.selMsg === m.id ? " sel" : "") + '" data-m="' + m.id + '" id="m' + m.id + '">' + ava(m.user, "sm") + '<div class="bd"><div class="nm">' + E(m.user) + "<small>" + when(m.ts) + '</small></div><div class="tx">' + quote
-      + (m.urgent ? '<div class="x-urgtag">' + ic("flame") + "Срочное</div>" : "") + E(m.text)
+      + (m.urgent ? '<div class="x-urgtag">' + ic("flame") + "Срочное</div>" : "") + E(m.files && m.files.length && m.text === "📎 " + m.files[0].name ? "" : m.text)
       + '<span class="x-tm">' + when(m.ts) + (me ? ' <span class="x-rd ' + ((m.read_by || []).length ? "on" : "") + '">' + ((m.read_by || []).length ? "✓✓" : "✓") + "</span>" : "") + "</span>"
-      + (m.files && m.files.length ? '<div class="x-files">' + m.files.map(function (f) { return '<button class="x-file" data-tfile="' + f.id + '" title="Скачать">📎 ' + E(f.name) + "<small>" + Math.max(1, Math.round(f.size / 1024)) + " КБ</small></button>"; }).join("") + "</div>" : "") + "</div>"
+      + (m.files && m.files.length ? '<div class="x-files">' + m.files.map(function (f) {
+        if (/^image\//.test(f.mime || "")) return '<div class="x-imgbox"><div class="x-imgname" title="' + E(f.name) + '">📎 ' + E(f.name) + '</div><img class="x-img" data-timg="' + f.id + '" data-mime="' + E(f.mime) + '" data-name="' + E(f.name) + '" alt="' + E(f.name) + '"' + (S.imgs[f.id] ? ' src="' + S.imgs[f.id] + '"' : "") + "></div>";
+        return '<button class="x-file" data-tfile="' + f.id + '" title="Скачать"><span class="fi">' + fileIcon(f.name) + "</span><span><b>" + E(f.name) + "</b><small>" + sizeTxt(f.size) + "</small></span></button>";
+      }).join("") + "</div>" : "") + "</div>"
       + reactionsHtml(m) + acts
       + (m.urgent ? '<div class="x-ack">' + ic("check") + (m.acks.length ? "Прочитали: " + E(m.acks.join(", ")) : "Пока никто не подтвердил") + (!me && !mine ? '<button data-ack="' + m.id + '">Прочитал(а)</button>' : "") + "</div>" : "") + "</div></div>";
   }
   /* ответы и реакции: нажатие на сообщение показывает панель «Ответить» и реакции */
   document.addEventListener("click", function (e) {
     var th = e.target.closest ? e.target.closest("#tThread") : null; if (!th) return;
+    if (e.target.closest("[data-nopend]")) { if (S.pend && !S.pend.busy) { if (S.pend.url) URL.revokeObjectURL(S.pend.url); S.pend = null; paintThread(true); } return; }
+    var im = e.target.closest(".x-img"); if (im) { if (im.src) openLb(im.src, im.dataset.name || "фото"); return; }
     var rb = e.target.closest("[data-rx]");
     if (rb) {
       C.call("/team/messages/" + rb.dataset.rx + "/react", { body: { emoji: rb.dataset.e } }).then(function (r) {
@@ -220,7 +227,77 @@
     if (gq) { var tgt = $("m" + gq.dataset.goto); if (tgt) { tgt.scrollIntoView({ block: "center" }); tgt.classList.add("flash"); setTimeout(function () { tgt.classList.remove("flash"); }, 1400); } return; }
     if (e.target.closest("a,button,input,textarea,.x-file,.x-ack")) return;
     var mm = e.target.closest(".x-msg");
-    if (mm) { var id = +mm.dataset.m; S.selMsg = S.selMsg === id ? 0 : id; paintThread(true); }
+    if (mm) { if (COARSE) return; var id = +mm.dataset.m; S.selMsg = S.selMsg === id ? 0 : id; paintThread(true); }
+  });
+  /* ---------- телефон: меню сообщения по долгому нажатию и меню «⋮» в шапке чата ---------- */
+  var COARSE = !!(window.matchMedia && matchMedia("(pointer:coarse)").matches);
+  function msgById(id) { return S.msgs.filter(function (x) { return x.id === +id; })[0]; }
+  function roomNow() { return S.rooms.filter(function (r) { return r.id === S.cur; })[0]; }
+  function closeCtx() { var c = $("xCtx"); if (c) c.remove(); var s = document.querySelector(".x-msg.ctx"); if (s) s.classList.remove("ctx"); }
+  function copyText(txt) {
+    try { if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(txt); } catch (e) {}
+    var a = document.createElement("textarea"); a.value = txt; document.body.appendChild(a); a.select(); try { document.execCommand("copy"); } catch (e) {} a.remove(); return Promise.resolve();
+  }
+  function rxRow(all) { return (all ? RX : RX.slice(0, 5)).map(function (e) { return '<button type="button" data-rx="' + e + '">' + e + "</button>"; }).join("") + (all ? "" : '<button type="button" class="more" data-more="1" aria-label="Все реакции">⌄</button>'); }
+  function openCtx(mid, rect) {
+    var m = msgById(mid); if (!m) return; closeCtx();
+    var me = C.me && m.user === C.me.name, nr = (m.read_by || []).length, nu = (m.unread_by || []).length;
+    var el = $("m" + mid); if (el) el.classList.add("ctx");
+    var bg = document.createElement("div"); bg.id = "xCtx"; bg.className = "x-ctx";
+    bg.innerHTML = '<div class="x-ctxbox" id="xCtxBox"><div class="x-ctxrx" id="xCtxRx">' + rxRow(false) + "</div>"
+      + '<div class="x-ctxmenu"><button type="button" data-a="reply">↩ <span>Ответить</span></button><button type="button" data-a="remind">⏰ <span>Напомнить мне</span></button><button type="button" data-a="copy">⧉ <span>Копировать</span></button>'
+      + (me ? '<button type="button" data-a="read" class="rd">✓✓ <span>Прочитали: ' + nr + " из " + (nr + nu) + '</span></button><div class="x-ctxread" id="xCtxRead" hidden>' + (nr ? "<b>Прочитали:</b> " + E(m.read_by.join(", ")) : "<b>Пока никто не прочитал</b>") + (nu ? "<br><b>Не прочитали:</b> " + E(m.unread_by.join(", ")) : "") + "</div>" : "") + "</div></div>";
+    document.body.appendChild(bg);
+    var box = $("xCtxBox"), bw = box.offsetWidth, bh = box.offsetHeight, r = rect || { left: 8, right: innerWidth - 8, bottom: innerHeight / 2 };
+    var top = Math.max(8, Math.min(r.bottom + 8, innerHeight - bh - 12)), left = me ? r.right - bw : r.left;
+    box.style.top = top + "px"; box.style.left = Math.max(8, Math.min(left, innerWidth - bw - 8)) + "px";
+    bg.onclick = function (e) {
+      if (e.target === bg) { closeCtx(); return; }
+      var b = e.target.closest("button"); if (!b) return;
+      if (b.dataset.more) { $("xCtxRx").innerHTML = rxRow(true); return; }
+      if (b.dataset.rx) {
+        C.call("/team/messages/" + mid + "/react", { body: { emoji: b.dataset.rx } }).then(function (res) { m.reactions = res.reactions; closeCtx(); paintThread(true); }).catch(function (er) { toast(E(er)); closeCtx(); });
+        return;
+      }
+      var a = b.dataset.a;
+      if (a === "read") { var rd = $("xCtxRead"); rd.hidden = !rd.hidden; return; }
+      closeCtx();
+      if (a === "reply") { S.reply = { id: m.id, user: m.user, text: m.text.slice(0, 120) }; paintThread(true); var ti = $("tIn"); if (ti) ti.focus(); }
+      else if (a === "remind") { var rm = roomNow(), nm = rm ? rm.name : "чат"; if (window.DSRemind) DSRemind.open({ text: "Вернуться к сообщению (" + nm + "): " + m.user + ": " + m.text.slice(0, 80), link: "#/team?room=" + encodeURIComponent(S.cur), label: "Команда · " + nm }); }
+      else if (a === "copy") copyText(m.text).then(function () { toast("Скопировано"); });
+    };
+  }
+  var lp = null;
+  document.addEventListener("touchstart", function (e) {
+    var tx = e.target.closest ? e.target.closest("#tThread .x-msg .tx") : null; if (!tx || e.target.closest("a,button,.x-file")) return;
+    var tc = e.touches[0], msg = tx.closest(".x-msg");
+    lp = { x: tc.clientX, y: tc.clientY, tm: setTimeout(function () { lp = null; try { if (navigator.vibrate) navigator.vibrate(15); } catch (er) {} openCtx(msg.dataset.m, tx.getBoundingClientRect()); }, 450) };
+  }, { passive: true });
+  document.addEventListener("touchmove", function (e) { if (lp) { var tc = e.touches[0]; if (Math.abs(tc.clientX - lp.x) > 10 || Math.abs(tc.clientY - lp.y) > 10) { clearTimeout(lp.tm); lp = null; } } }, { passive: true });
+  ["touchend", "touchcancel"].forEach(function (ev) { document.addEventListener(ev, function () { if (lp) { clearTimeout(lp.tm); lp = null; } }, { passive: true }); });
+  document.addEventListener("contextmenu", function (e) {
+    var tx = e.target.closest ? e.target.closest("#tThread .x-msg .tx") : null;
+    if (tx && COARSE) { e.preventDefault(); openCtx(tx.closest(".x-msg").dataset.m, tx.getBoundingClientRect()); }
+  });
+  document.addEventListener("click", function (e) {
+    var hm = e.target.closest ? e.target.closest("[data-hmore]") : null, old = $("xHmenu");
+    if (old) { old.remove(); if (hm) return; }
+    if (!hm) return;
+    var th = $("tThread"), items = [];
+    if (th.querySelector("[data-style]")) items.push(["🎨 Картинка и цвет", "style"]);
+    if (th.querySelector("[data-rename]")) items.push(["✎ Название", "rename"]);
+    var ln = th.querySelector(".x-th-h a.x-btn"); if (ln) items.push(["↗ Открыть задачу", "task"]);
+    if (!items.length) { toast("Для этого чата других действий нет"); return; }
+    var menu = document.createElement("div"); menu.id = "xHmenu"; menu.className = "x-hmenu";
+    menu.innerHTML = items.map(function (x) { return '<button type="button" data-h="' + x[1] + '">' + x[0] + "</button>"; }).join("");
+    document.body.appendChild(menu);
+    var hr = hm.getBoundingClientRect(); menu.style.top = (hr.bottom + 6) + "px";
+    menu.onclick = function (ev) {
+      var b = ev.target.closest("button"); if (!b) return; menu.remove();
+      if (b.dataset.h === "style") th.querySelector("[data-style]").click();
+      else if (b.dataset.h === "rename") th.querySelector("[data-rename]").click();
+      else if (b.dataset.h === "task") location.hash = ln.getAttribute("href");
+    };
   });
   function paintThread(keep) {
     var el = $("tThread"); if (!el) return;
@@ -230,14 +307,17 @@
     var wasBottom = true, old = el.querySelector(".x-msgs"), val = $("tIn") ? $("tIn").value : (S.drafts[S.cur] || "");
     var hadFocus = document.activeElement && document.activeElement.id === "tIn", ss = hadFocus ? document.activeElement.selectionStart : 0, se = hadFocus ? document.activeElement.selectionEnd : 0;
     if (old && keep) wasBottom = old.scrollHeight - old.scrollTop - old.clientHeight < 80;
-    el.innerHTML = '<div class="x-th-h"><button class="x-btn ghost x-back" data-back="1" style="padding:6px 10px">←</button>' + roomIcon(room) + "<div><b>" + E(room.name) + "</b></div>"
+    var hsub = room.kind === "group" ? (String(room.members || "").split(",").filter(Boolean).length + " участн.") : room.kind === "task" ? "Диалог по задаче" : room.kind === "dm" ? "Личный чат" : (room.descr || "Канал");
+    el.innerHTML = '<div class="x-th-h"><button class="x-btn ghost x-back" data-back="1" style="padding:6px 10px">←</button>' + roomIcon(room) + '<div><b>' + E(room.name) + '</b><small class="x-hsub">' + E(hsub) + "</small></div>"
       + '<button class="x-btn ghost" data-remind="1" title="Напомнить мне про этот чат" style="padding:7px 12px">⏰ <span class="rmtxt">Напомнить</span></button>'
       + (room.kind === "group" || (room.kind === "chan" && C.me && (C.me.position === "owner" || C.me.role === "admin")) ? '<span style="margin-left:auto;display:flex;gap:6px"><button class="x-btn ghost" data-style="1" style="padding:7px 12px" title="Картинка и цвет чата">🎨</button><button class="x-btn ghost" data-rename="1" style="padding:7px 12px" title="Переименовать чат">✎ Название</button></span>' : "")
-      + (room.kind === "task" && room.task_row ? '<a class="x-btn ghost" style="margin-left:auto;padding:7px 12px" href="#/task/' + room.task_row + '">Открыть задачу</a>' : "") + "</div>"
+      + (room.kind === "task" && room.task_row ? '<a class="x-btn ghost" style="margin-left:auto;padding:7px 12px" href="#/task/' + room.task_row + '">Открыть задачу</a>' : "") + '<button class="x-btn ghost x-hmore" data-hmore="1" aria-label="Ещё">⋮</button></div>'
       + (pin ? '<div class="x-pinned">' + ic("flame") + "<span>Срочное: " + E(pin.text) + "</span></div>" : "")
       + '<div class="x-msgs">' + (body || '<span class="x-day">Здесь пока пусто — напишите первое сообщение</span>') + "</div>"
       + (S.reply ? '<div class="x-replybar"><span>↩ <b>' + E(S.reply.user) + "</b>: " + E(S.reply.text) + '</span><button type="button" data-noreply="1" aria-label="Отменить ответ">✕</button></div>' : "")
-      + '<div class="x-comp"><button class="x-btn ghost" id="tAtt" title="Прикрепить файл (до 10 МБ). Файл можно перетащить прямо в окно чата" style="padding:12px 13px">📎</button><input type="file" id="tFile" hidden><textarea id="tIn" rows="1" placeholder="Написать в «' + E(room.name) + '»… (@Имя — упомянуть)" autocomplete="off"></textarea><button class="x-urgbtn ' + (S.urg ? "on" : "") + '" id="tUrg" title="Срочное: придёт всем участникам, даже в тихие часы">' + ic("flame") + 'Срочное</button><button class="x-btn primary" id="tSend" style="padding:12px 14px">' + ic("send") + "</button></div>";
+      + (S.pend ? '<div class="x-pend' + (S.pend.busy ? " busy" : "") + (S.pend.url ? " img" : "") + '">' + (S.pend.url ? "" : '<span class="pf">' + fileIcon(S.pend.name) + "</span>") + "<div><b>📎 " + E(S.pend.name) + "</b><small>" + (S.pend.busy ? "Отправляю…" : sizeTxt(S.pend.size) + " · можно добавить подпись и нажать «Отправить»") + '</small></div><button type="button" data-nopend="1" aria-label="Убрать файл">✕</button>'
+        + (S.pend.url ? '<img src="' + S.pend.url + '" alt="">' : "") + "</div>" : "")      /* фото: сверху имя файла, ниже картинка */
+      + '<div class="x-comp"><button class="x-btn ghost" id="tAtt" title="Прикрепить файл (до 10 МБ). Файл можно перетащить прямо в окно чата" style="padding:12px 13px">📎</button><input type="file" id="tFile" hidden><textarea id="tIn" rows="1" placeholder="' + (window.innerWidth <= 760 ? "Сообщение" : "Написать в «" + E(room.name) + "»… (@Имя — упомянуть)") + '" autocomplete="off"></textarea><button class="x-urgbtn ' + (S.urg ? "on" : "") + '" id="tUrg" title="Срочное: придёт всем участникам, даже в тихие часы">' + ic("flame") + 'Срочное</button><button class="x-btn primary" id="tSend" style="padding:12px 14px">' + ic("send") + "</button></div>";
     var m = el.querySelector(".x-msgs"); if (!keep || wasBottom) m.scrollTop = 1e6;
     var bk = el.querySelector("[data-back]"); if (bk) bk.onclick = function () { var ch = document.querySelector(".x-chat"); if (ch) ch.classList.remove("open"); };
     var ti = $("tIn"); ti.value = val;
@@ -248,10 +328,11 @@
     ti.onfocus = function () { setTimeout(function () { var mm = document.querySelector(".x-msgs"); if (mm) mm.scrollTop = 1e6; }, 350); };
     $("tSend").onclick = send;
     $("tAtt").onclick = function () { $("tFile").click(); };
-    $("tFile").onchange = function () { var f = this.files && this.files[0]; this.value = ""; if (f) sendFile(f); };
+    $("tFile").onchange = function () { var f = this.files && this.files[0]; this.value = ""; if (f) setPending(f); };
+    ti.onpaste = function (e) { var fs = e.clipboardData && e.clipboardData.files; if (fs && fs[0]) { e.preventDefault(); setPending(fs[0]); } };
     el.ondragover = function (e) { if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") >= 0) { e.preventDefault(); el.classList.add("x-drop"); } };
     el.ondragleave = function (e) { if (!el.contains(e.relatedTarget)) el.classList.remove("x-drop"); };
-    el.ondrop = function (e) { el.classList.remove("x-drop"); var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) { e.preventDefault(); sendFile(f); } };
+    el.ondrop = function (e) { el.classList.remove("x-drop"); var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) { e.preventDefault(); setPending(f); } };
     el.querySelectorAll("[data-tfile]").forEach(function (b) {
       b.onclick = function () {
         C.blob("/crm/team/files/" + b.dataset.tfile).then(function (r) {
@@ -261,6 +342,7 @@
       };
     });
     mentionBox($("tIn"));
+    loadImgs(el, !keep || wasBottom);
     var coarse = window.matchMedia && matchMedia("(pointer:coarse)").matches;      /* на телефоне Enter — новая строка, отправка кнопкой */
     $("tIn").onkeydown = function (e) { if (e.key === "Enter" && !e.shiftKey && !coarse && !(document.getElementById("tMent") && document.getElementById("tMent").children.length)) { e.preventDefault(); send(); } };
     $("tUrg").onclick = function () { S.urg = !S.urg; this.classList.toggle("on", S.urg); };
@@ -301,23 +383,68 @@
       else if (e.key === "Escape") close();
     }, true);
   }
-  function sendFile(f) {
+  /* вложения: файл сначала показывается над полем ввода (фото — картинкой), уходит вместе с подписью по «Отправить» */
+  function setPending(f) {
     if (!f) return;
-    if (f.size > 10 * 1024 * 1024) { toast("Файл больше 10 МБ"); return; }
-    var i = $("tIn"), text = i ? i.value.trim() : "", urgent = S.urg, rd = new FileReader();
-    rd.onload = function () {
-      var b64 = String(rd.result || "").split(",")[1];
-      toast("Загружаю «" + f.name + "»…");
-      C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/send-file", { body: { text: text, filename: f.name, mime: f.type || "application/octet-stream", data: b64, urgent: urgent } }).then(function () {
-        S.urg = false; S.drafts[S.cur] = ""; if ($("tIn")) $("tIn").value = "";
-        return C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages?after=" + S.lastId);
-      }).then(function (ms) { if (ms.length) { S.msgs = S.msgs.concat(ms); S.lastId = ms[ms.length - 1].id; } paintThread(); loadRooms(); })
-        .catch(function (e) { toast(E(e)); });
-    };
-    rd.onerror = function () { toast("Не удалось прочитать файл"); };
-    rd.readAsDataURL(f);
+    var isImg = /^image\//.test(f.type || "");
+    if (!isImg && f.size > 10 * 1024 * 1024) { toast("Файл больше 10 МБ"); return; }
+    if (f.size > 40 * 1024 * 1024) { toast("Файл слишком большой"); return; }
+    if (S.pend && S.pend.url) URL.revokeObjectURL(S.pend.url);
+    S.pend = { file: f, name: f.name || (isImg ? "фото.jpg" : "файл"), size: f.size, url: isImg ? URL.createObjectURL(f) : "", busy: false };
+    paintThread(true);
+    var ti = $("tIn"); if (ti) ti.focus();
+  }
+  function prepFile(f) {            /* большие фото уменьшаются до 1600 px: быстрее уходят и не упираются в лимит 10 МБ */
+    return new Promise(function (resolve) {
+      if (!/^image\/(jpeg|png|webp)$/.test(f.type || "") || f.size < 1024 * 1024) return resolve({ blob: f, name: f.name });
+      var img = new Image(), url = URL.createObjectURL(f);
+      img.onload = function () {
+        var k = Math.min(1, 1600 / Math.max(img.width, img.height)), cv = document.createElement("canvas");
+        cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url);
+        cv.toBlob(function (b) { resolve(b ? { blob: b, name: String(f.name || "фото").replace(/\.[^.]+$/, "") + ".jpg" } : { blob: f, name: f.name }); }, "image/jpeg", 0.85);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); resolve({ blob: f, name: f.name }); };
+      img.src = url;
+    });
+  }
+  function toB64(blob) { return new Promise(function (res, rej) { var rd = new FileReader(); rd.onload = function () { res(String(rd.result || "").split(",")[1]); }; rd.onerror = function () { rej("Не удалось прочитать файл"); }; rd.readAsDataURL(blob); }); }
+  function sendPending() {
+    var p = S.pend; if (!p || p.busy) return;
+    var i = $("tIn"), text = i ? i.value.trim() : "", room = S.cur, urgent = S.urg, reply = S.reply, last = S.lastId;
+    p.busy = true; paintThread(true);
+    prepFile(p.file).then(function (r) {
+      if (r.blob.size > 10 * 1024 * 1024) throw "Файл больше 10 МБ";
+      return toB64(r.blob).then(function (b64) {
+        return C.call("/team/rooms/" + encodeURIComponent(room) + "/send-file", { body: { text: text, filename: r.name, mime: r.blob.type || p.file.type || "application/octet-stream", data: b64, urgent: urgent, reply_to: reply ? reply.id : 0 } });
+      });
+    }).then(function () {
+      if (S.pend === p) { if (p.url) URL.revokeObjectURL(p.url); S.pend = null; }
+      S.urg = false; S.reply = null; S.drafts[room] = ""; if ($("tIn")) $("tIn").value = "";
+      return C.call("/team/rooms/" + encodeURIComponent(room) + "/messages?after=" + last);
+    }).then(function (ms) { if (S.cur === room) { if (ms.length) { S.msgs = S.msgs.concat(ms); S.lastId = ms[ms.length - 1].id; } paintThread(); } loadRooms(); })
+      .catch(function (e) { p.busy = false; toast(E(e)); if (S.cur === room) paintThread(true); });
+  }
+  /* фото в сообщениях подгружаются с сервера с авторизацией и показываются картинкой; нажатие открывает крупно */
+  function loadImgs(el, stick) {
+    var m = el.querySelector(".x-msgs");
+    [].forEach.call(el.querySelectorAll("img[data-timg]"), function (img) {
+      var id = img.dataset.timg; if (img.getAttribute("src")) return;
+      C.blob("/crm/team/files/" + id).then(function (r) {
+        var url = URL.createObjectURL(new Blob([r.blob], { type: img.dataset.mime || "image/jpeg" })); S.imgs[id] = url;
+        img.onload = function () { if (stick && m) m.scrollTop = 1e6; }; img.src = url;
+      }).catch(function () { img.alt = "Не удалось загрузить фото"; img.classList.add("bad"); });
+    });
+  }
+  function openLb(src, name) {
+    var old = $("xLb"); if (old) old.remove();
+    var lb = document.createElement("div"); lb.id = "xLb"; lb.className = "x-lb";
+    lb.innerHTML = '<div class="x-lbbar"><span>' + E(name) + '</span><a download="' + E(name) + '" href="' + src + '">Скачать</a><button type="button" aria-label="Закрыть">✕</button></div><img src="' + src + '" alt="">';
+    lb.onclick = function (e) { if (e.target === lb || e.target.tagName === "BUTTON") lb.remove(); };
+    document.body.appendChild(lb);
   }
   function send() {
+    if (S.pend) { sendPending(); return; }
     var i = $("tIn"), text = i.value.trim(); if (!text) return;
     var room = S.cur, urgent = S.urg, reply = S.reply, last = S.lastId;
     i.value = ""; i.style.height = "auto"; S.drafts[room] = ""; S.urg = false; S.reply = null;           /* набранное стирается сразу после нажатия «Отправить» */
