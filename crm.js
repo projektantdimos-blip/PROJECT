@@ -28,7 +28,7 @@
     var h = { "X-Api-Key": c.key, "Content-Type": "application/json" };
     if (opts.auth !== false && tok()) h["X-Session"] = tok();
     return fetch(c.url + "/api/crm" + path, {
-      method: opts.method || (opts.body ? "POST" : "GET"), cache: "no-store", headers: h,
+      method: opts.method || (opts.body ? "POST" : "GET"), headers: h,      // без cache:"no-store" — иначе предзапрос OPTIONS перед каждым запросом; не кэшировать велит мост
       body: opts.body ? JSON.stringify(opts.body) : undefined
     }).then(function (r) {
       if (r.status === 401 && opts.auth !== false && tok()) { C.me = null; setSession(""); emit("logout"); throw "Сессия истекла — войдите снова"; }
@@ -48,7 +48,7 @@
     if (!c.url || !c.key) return Promise.reject("Мост не подключён: адрес и ключ — в ⚙");
     var h = { "X-Api-Key": c.key };
     if (tok()) h["X-Session"] = tok();
-    return fetch(c.url + "/api" + path, { cache: "no-store", headers: h }).then(function (r) {
+    return fetch(c.url + "/api" + path, { headers: h }).then(function (r) {
       if (!r.ok) return r.json().then(function (j) { return j; }, function () { return {}; }).then(function (j) { throw (j && typeof j.detail === "string") ? j.detail : ("Ошибка сервера " + r.status); });
       var cd = r.headers.get("Content-Disposition") || "", m = /filename\*=UTF-8'[^']*'([^;]+)/i.exec(cd) || /filename="?([^";]+)"?/i.exec(cd), name = "документ";
       if (m) { try { name = decodeURIComponent(m[1]); } catch (e) { name = m[1]; } }

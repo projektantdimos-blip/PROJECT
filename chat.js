@@ -46,7 +46,7 @@
     if (!c.url || !c.key) return Promise.reject("NOCFG");
     opts = opts || {};
     return fetch(c.url + path, {
-      method: opts.method || "GET", cache: "no-store",
+      method: opts.method || "GET",          // без cache:"no-store": с ним браузер каждый раз заново спрашивает разрешение (OPTIONS); не кэшировать велит мост
       headers: { "X-Api-Key": c.key, "X-Session": sess(), "Content-Type": "application/json" },
       body: opts.body ? JSON.stringify(opts.body) : undefined
     }).then(function (r) {

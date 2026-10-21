@@ -113,6 +113,9 @@
       modalRoot().innerHTML = "";
       return;
     }
+    var key = kind + "|" + (el.id || "");
+    if (S.mounting === key) return;                // этот экран уже загружается (при запуске его открывают подряд несколько раз) — без второй загрузки
+    S.mounting = key;
     if (S.orders == null) { el.innerHTML = '<div class="ds dspage"><div class="loading">Загружаю…</div></div>'; }
     var need = S.orders == null ? load() : Promise.resolve();
     if ((kind === "tasks" || kind === "ov") && /^(owner|sales|ops)$/.test(pos())) need = need.then(loadKp);
@@ -131,12 +134,13 @@
     if (kind === "auto") need = need.then(loadAuto);
     if (kind === "report") need = need.then(loadReport);
     if (kind === "stats") need = need.then(loadStats);
+    var done = function () { if (S.mounting === key) S.mounting = ""; };
     need.then(function () { return S.open ? api("/orders/" + S.open + "/history").then(function (h2) { S.history = h2; }, function () { S.history = []; }) : null; })
-      .then(paint, function (e) { S.err = String(e); paint(); });
+      .then(paint, function (e) { S.err = String(e); paint(); }).then(done, done);
   }
   DS.route = function () { mount("tasks", root()); };
   DS.mount = mount;
-  DS.reload = function () { S.orders = null; S.history = null; if (S.mount) mount(S.mount.kind, S.mount.el); };
+  DS.reload = function () { S.orders = null; S.history = null; S.mounting = ""; if (S.mount) mount(S.mount.kind, S.mount.el); };
   /* ---------- экран «Задачи» ---------- */
   function needPhone(o) {
     if (!o.customer_id || !(S.customers || []).length) return false;
