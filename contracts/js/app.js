@@ -98,10 +98,7 @@
       await fetch(`/api/file?${q}&name=${encodeURIComponent(fileName(rec) + '.' + ext)}`, { method: 'PUT', body: blob });
     } catch (e) { console.error(e); }
   }
-  /* ---------- Вход по PIN (если на сервере включён: файл pins.json) ---------- */
-  let pin = ''; try { pin = localStorage.getItem('contracts_pin') || ''; } catch (e) {}
   const rawFetch = window.fetch.bind(window);
-  let asking = null;
   // Хранилище — мост CRM (адрес, ключ и сессия те же, что у CRM): /api/db → {мост}/api/cg/db
   function bridgeCfg() { try { const c = JSON.parse(localStorage.getItem('ds_bridge') || '{}'); return { url: String(c.url || '').replace(/\/+$/, ''), key: c.key || '' }; } catch (e) { return { url: '', key: '' }; } }
   window.fetch = (url, opts) => {
@@ -115,30 +112,6 @@
     return rawFetch(url, opts);
   };
   async function ensureAuth() { return; }   // вход выполняется в самой CRM
-  function askPin(msg) {
-    if (asking) return asking;
-    asking = new Promise(resolve => {
-      const err = h('div', { style: 'color:#b42318;min-height:1.3em;margin:6px 0' }, msg || '');
-      const inp = h('input', { type: 'password', inputmode: 'numeric', maxlength: '8', autocomplete: 'off', placeholder: 'PIN', style: 'width:100%;font-size:22px;text-align:center;letter-spacing:.3em;padding:10px;border:1px solid #c4ccd8;border-radius:8px' });
-      const btn = h('button', { class: 'btn primary', style: 'width:100%;margin-top:6px', type: 'button' }, 'Войти');
-      const box = h('div', { style: 'position:fixed;inset:0;background:#f3f5f8;z-index:200;display:flex;align-items:center;justify-content:center' },
-        h('div', { style: 'background:#fff;border:1px solid #d9dee6;border-radius:12px;padding:24px 28px;width:min(340px,92vw);box-shadow:0 4px 20px #0002' },
-          h('h2', { style: 'margin:0 0 4px' }, '🔥 Генератор договоров'), h('div', { style: 'color:#6b7785;margin-bottom:10px' }, 'Введите ваш PIN'), inp, err, btn));
-      const go = async () => {
-        const v = inp.value.trim(); if (!v) return;
-        btn.disabled = true;
-        try {
-          const r = await rawFetch('/api/auth', { headers: { 'X-Pin': v } });
-          if (r.ok) { pin = v; try { localStorage.setItem('contracts_pin', v); } catch (e) {} box.remove(); asking = null; resolve(); return; }
-          err.textContent = r.status === 401 && (await r.text()) === 'locked' ? 'Слишком много попыток. Подождите 10 минут.' : 'Неверный PIN';
-        } catch (e) { err.textContent = 'Нет связи с сервером'; }
-        btn.disabled = false; inp.value = ''; inp.focus();
-      };
-      btn.addEventListener('click', go); inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
-      document.body.append(box); inp.focus();
-    });
-    return asking;
-  }
   function refreshPage() { const on = document.querySelector('nav button.on'); if (on && on.dataset.p !== 'new') show(on.dataset.p); }
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
