@@ -555,40 +555,16 @@
   }
 
   /* ---------- правая панель: заказчик, связанные дела, быстрые действия (как в макете) ---------- */
-  function ic2(n) { return window.icon ? window.icon(n) : ""; }
-  var infoKey = "";
   function renderInfo(t) {
     if (!el.info) return;
     if (!t) { el.info.innerHTML = '<div class="chat-empty">Выберите диалог слева</div>'; return; }
     var ci = chInfo(t.channel), av = avUrl(t), ini = (t.title || "?").trim().charAt(0).toUpperCase(), name = t.title || t.peer;
-    if (window.MPBD && MPBD.render) {                              // боковая панель с вкладками: заказчик / создать заказчика / КП
-      var plane = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>';
-      el.info.innerHTML = '<button class="cp-close" id="cpClose">← К диалогу</button><div class="who"><div class="hava big" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div></div>" +
-        '<div id="chatPanel"></div>';
-      document.getElementById("cpClose").onclick = function () { el.wrap.classList.remove("show-info"); };
-      var h2 = document.getElementById("chatHand2"); if (h2) h2.onclick = function () { handoffDialog(t); };
-      MPBD.render(document.getElementById("chatPanel"), t, name);
-      return;
-    }
-    el.info.innerHTML = '<div class="who"><div class="hava big" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div><b>" + esc(name) + '</b><div class="sub">' + esc(t.peer) + '</div><span class="chat-pill" style="background:' + ci.color + '">' + esc(ci.label) + "</span></div>" +
-      '<div><h6>Заказчик</h6><div id="chatCl"><div class="chat-empty" style="padding:8px">Ищу в задачах и заявках…</div></div></div>' +
-      '<div><h6>Быстрые действия</h6>' +
-      '<a class="linkcard" id="qaKp">' + ic2("file") + "<span><b>Создать КП</b><small>по шаблону или с нуля</small></span></a>" +
-      '<a class="linkcard" id="qaNew">' + ic2("plus") + "<span><b>Создать заказчика</b><small>заявка в реестре КП</small></span></a>" +
-      "</div>";
-    var open = function (fn) { return function () { if (window.MPBK && MPBK[fn]) MPBK[fn](name, t.peer, t.id); else alert("Раздел «Заказчикы» не загружен — обновите страницу"); }; };
-    document.getElementById("qaKp").onclick = open("forThread");
-    document.getElementById("qaNew").onclick = open("createClient");
-    var key = t.id; infoKey = key;
-    if (window.MPBK && MPBK.summary) MPBK.summary(name, t.peer).then(function (r) {
-      var box = document.getElementById("chatCl"); if (!box || infoKey !== key) return;
-      if (!r) { box.innerHTML = '<div class="chat-empty" style="padding:10px 4px;text-align:left">Заказчик не найден в задачах и заявках. Нажмите «Создать заказчика», и его карточка появится в разделе «Заказчикы».</div>'; return; }
-      var c = r.c, h = '<a class="linkcard" data-go="#/clients/' + encodeURIComponent(c.key) + '"><span class="cl-mini">' + esc((c.name || "?").charAt(0)) + "</span><span><b>" + esc(c.name) + "</b><small>" + c.open.length + " в работе · заявок: " + c.live.length + "</small></span></a>";
-      c.open.slice(0, 3).forEach(function (x) { h += '<a class="linkcard" data-go="#/task/' + x.row + '">' + ic2("tasks") + "<span><b>" + esc(x.workType || "Работа") + "</b><small>" + esc(x.stage || "") + (x.deadline ? " · срок " + esc(String(x.deadline).split("-").reverse().join(".")) : "") + "</small></span></a>"; });
-      c.live.slice(0, 2).forEach(function (x) { h += '<a class="linkcard" data-go="#/kpreg/lead/' + x.row + '">' + ic2("list") + "<span><b>" + esc(x.object || "Заявка") + "</b><small>" + esc(x.status || "") + (+x.amount ? " · " + Math.round(+x.amount).toLocaleString("ru-RU") + " ₽" : "") + "</small></span></a>"; });
-      box.innerHTML = h;
-      Array.prototype.forEach.call(box.querySelectorAll("[data-go]"), function (a) { a.onclick = function () { location.hash = a.getAttribute("data-go"); }; });
-    });
+    if (!window.MPBD || !MPBD.render) return;                    // боковая панель с вкладками: заказчик / создать заказчика / КП (chatpanel.js)
+    el.info.innerHTML = '<button class="cp-close" id="cpClose">← К диалогу</button><div class="who"><div class="hava big" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div></div>" +
+      '<div id="chatPanel"></div>';
+    document.getElementById("cpClose").onclick = function () { el.wrap.classList.remove("show-info"); };
+    var h2 = document.getElementById("chatHand2"); if (h2) h2.onclick = function () { handoffDialog(t); };
+    MPBD.render(document.getElementById("chatPanel"), t, name);
   }
 
   /* ---------- фото собеседников (загружаются вручную) ---------- */
@@ -877,7 +853,7 @@
         var kid = st.draftKp; st.draftKp = 0;
         api("/api/ds/kp/" + kid + "/status", { method: "POST", body: { status: "КП отправлено" } }).then(null, function () {});
       }
-      if (r && r.file === false) setErr("В Max файл не передаётся — ушёл только текст. Отправьте файл по почте или в Telegram.");
+      if (r && r.file === false) setErr("Файл не передан — ушёл только текст. Отправьте файл ещё раз или по почте.");
       return Promise.all([loadMessages(false), loadThreads()]);
     }).then(null, function (e) { setErr(String(e)); }).then(function () {
       st.sending = false; el.send.textContent = "Отправить"; el.send.disabled = !curThread();

@@ -131,7 +131,7 @@
     return m;
   }
 
-  var TITLES = { risk: "Просрочено и зависло", tasks: "Задачи", scripts: "Скрипты", ov: "Задачи", load: "Занятость", cust: "База заказчиков", week: "План на неделю", kp: "Реестр КП", kpc: "Конструктор КП", contract: "Конструктор договора", report: "Недельный отчёт", stats: "Статистика", price: "Прайс", stages: "Этапы и сроки", auto: "Автоматизация", flow: "Конвейер заказа", tz: "Технические задания" };
+  var TITLES = { risk: "Просрочено и зависло", tasks: "Задачи", scripts: "Скрипты", load: "Занятость", cust: "База заказчиков", week: "План на неделю", kp: "Реестр КП", kpc: "Конструктор КП", contract: "Конструктор договора", report: "Недельный отчёт", stats: "Статистика", price: "Прайс", stages: "Этапы и сроки", auto: "Автоматизация", flow: "Конвейер заказа", tz: "Технические задания" };
   function mount(kind, el) {
     if (!el) return;
     S.mount = { kind: kind, el: el };
@@ -150,8 +150,8 @@
     if (S.orders == null) { el.innerHTML = '<div class="ds dspage"><div class="loading">Загружаю…</div></div>'; }
     // всё, что нужно экрану, — одновременно (раньше цепочкой: задачи → КП → комментарии…); черновик договора ждёт только список КП
     var jobs = [S.orders == null ? load() : null], add = function (f) { jobs.push(f()); };
-    if ((kind === "tasks" || kind === "ov") && KP_POS.indexOf(pos()) >= 0) add(loadKp);
-    if (kind === "ov" || kind === "tasks") add(loadComments);
+    if (kind === "tasks" && KP_POS.indexOf(pos()) >= 0) add(loadKp);
+    if (kind === "tasks") add(loadComments);
     if (kind === "week") add(loadWeek);
     if (kind === "scripts") add(loadScripts);
     if (kind === "risk") add(loadRisk);
@@ -219,16 +219,7 @@
       + '<span class="meta" style="margin-bottom:8px"><span class="pill ' + tn + '">' + (t.due ? "до " + dmy(t.due).slice(0, 5) + " · " : "") + E(leftText(t.left_days)) + "</span></span>"
       + '<span class="meta" style="gap:6px">' + btns.join("") + "</span></span></div>";
   }
-  function opsBoard(items, emptyText) {
-    if (!items.length) return '<div class="panel pad"><p class="sub" style="margin:0">' + emptyText + "</p></div>";
-    var cols = [["new", "Новые"], ["work", "В работе"], ["wait", "Ждёт ответа заказчика"]];
-    return '<div class="board">' + cols.map(function (c) {
-      var arr = items.filter(function (x) { return (x.state || "new") === c[0]; }).sort(function (a, b) { return (a.left_days == null ? 999 : a.left_days) - (b.left_days == null ? 999 : b.left_days); });
-      return '<div class="col"><div class="col-h"><b>' + c[1] + '</b><span class="n">' + arr.length + "</span></div>" + arr.map(taskCard).join("") + "</div>";
-    }).join("") + "</div>";
-  }
   function kpNo(n) { return "КП №" + String(n == null ? "" : n).replace(/^К-/, ""); }
-  var KP_COLS = [["Обращение", "Обращение"], ["Сбор вводных", "Сбор вводных"], ["КП отправлено", "КП отправлено"], ["Счёт отправлен", "Счёт отправлен · ждём оплату"]];
   function kpTone(k) { return k.last_days == null ? "muted" : k.last_days > 5 ? "bad" : k.last_days >= 3 ? "warn" : "info"; }
   function kpCard(k) {
     var tn = kpTone(k);
@@ -237,16 +228,6 @@
       + '<span class="ttl" style="display:block">' + E(k.object || "—") + "</span>"
       + '<span class="meta"><span class="pill ' + tn + '">' + (k.last_days == null ? "нет общения" : k.last_days === 0 ? "общались сегодня" : "без общения " + plural(k.last_days, ["день", "дня", "дней"])) + "</span>"
       + (k.issued_date ? '<span class="pill muted">выставлено ' + dmy(k.issued_date).slice(0, 5) + "</span>" : "") + (k.manager ? '<span class="pill muted">' + E(k.manager) + "</span>" : "") + "</span></span></a>";
-  }
-  function salesBoard() {
-    var kps = (S.kp || []).filter(function (k) { return !kpDone(k); });
-    var tasks = (S.tasks || []).filter(function (x) { return x.kind === "sales"; });
-    var cols = KP_COLS.map(function (c) {
-      var arr = kps.filter(function (k) { return k.status === c[0]; });
-      return '<div class="col"><div class="col-h"><b>' + c[1] + '</b><span class="n">' + arr.length + "</span></div>" + arr.map(kpCard).join("") + "</div>";
-    }).join("");
-    var tcol = '<div class="col"><div class="col-h"><b>Задачи продаж</b><span class="n">' + tasks.length + "</span></div>" + tasks.map(taskCard).join("") + "</div>";
-    return '<div class="board">' + cols + tcol + "</div>";
   }
   /* ---------- «Задачи»: проектные и организационные, канбан или список ---------- */
   var ORG_COLS = [["a1", "Обращение", "#378ADD"], ["a2", "Сбор вводных", "#534AB7"], ["a3", "КП и договор", "#BA7517"], ["p0", "Старт проекта", "#0F6E56"],
@@ -751,7 +732,7 @@
       if (!el.querySelector("#cgFrame")) el.innerHTML = '<div class="ds dspage">' + genScreen() + "</div>";
       return;
     }
-    el.innerHTML = k === "risk" ? '<div class="ds dspage">' + riskScreen() + "</div>" : k === "ov" ? screen() : k === "scripts" ? scriptsScreen() : k === "load" ? '<div class="ds dspage">' + loadScreen() + "</div>"
+    el.innerHTML = k === "risk" ? '<div class="ds dspage">' + riskScreen() + "</div>" : k === "scripts" ? scriptsScreen() : k === "load" ? '<div class="ds dspage">' + loadScreen() + "</div>"
       : k === "flow" ? '<div class="ds dspage">' + flowScreen() + "</div>" : k === "tz" ? '<div class="ds dspage">' + tzScreen() + "</div>"
       : k === "stages" ? '<div class="ds dspage">' + stagesScreen() + "</div>" : k === "auto" ? '<div class="ds dspage">' + autoScreen() + "</div>"
       : k === "price" ? '<div class="ds dspage">' + priceScreen() + "</div>" : k === "report" ? '<div class="ds dspage">' + reportScreen() + "</div>" : k === "stats" ? '<div class="ds dspage">' + statsScreen() + "</div>"
@@ -759,6 +740,7 @@
       : k === "cust" ? '<div class="ds dspage">' + custScreen() + "</div>" : k === "week" ? '<div class="ds dspage">' + weekScreen() + "</div>" : screen();
     if (q) { var qe = document.getElementById("dsQ"); if (qe) { qe.focus(); qe.setSelectionRange(qe.value.length, qe.value.length); } }
     fitKpWrap();
+    if (k === "load") fitLoadScroll();
     var m = modalRoot();
     if (S.ke) { m.innerHTML = keHtml(); return; }
     if (S.tm) { m.innerHTML = tmWrap(); return; }
@@ -818,16 +800,12 @@
   DS.closeAll = function () { S.form = S.edit = S.nt = S.te = S.ke = null; S.tm = false; S.oe = null; S.open = null; S.tab = "info"; var m = document.getElementById("ds-modal"); if (m) m.innerHTML = ""; };
   DS.ensureOrders = function () { return S.orders == null && C && C.loggedIn() ? load().then(null, function () {}) : Promise.resolve(); };
 
-  /* ---------- полный контроль руководителя и операционного менеджера: правка и удаление ---------- */
-  function fullCtl() { var p = pos(); return p === "owner" || p === "ops"; }
-  function taskCtl() { var p = pos(); return p === "owner" || p === "ops" || p === "design"; }
+  /* ---------- полный контроль руководителя, операционного менеджера и руководителя продаж: правка и удаление ---------- */
+  function fullCtl() { var p = pos(); return p === "owner" || p === "ops" || p === "sales"; }
+  function taskCtl() { return fullCtl() || pos() === "design"; }
   var OE_FIELD = 'style="width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface);color:var(--ink);font:inherit"';
-  function oeInp(label, key, type, extra) {
-    var v = S.oe[key]; if (v == null) v = "";
-    return '<div class="fld"><label>' + label + '</label><input ' + (type ? 'type="' + type + '" ' : "") + 'data-oe="' + key + '" value="' + E(v) + '" ' + OE_FIELD + (extra || "") + "></div>";
-  }
   function oeChk(label, key) { return '<label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" data-oech="' + key + '"' + (S.oe[key] ? " checked" : "") + "> " + label + "</label>"; }
-  function canMenu() { var p = pos(); return p === "owner" || p === "ops" || p === "design"; }
+  function canMenu() { return taskCtl(); }
   var PRIOS = [["Высокий", "1 · Высокий", "#e5483c"], ["Повышенный", "2 · Повышенный", "#f0924d"], ["Обычный", "3 · Обычный", "#1D9E75"], ["Низкий", "4 · Низкий", "#8794ab"]];
   function tmInp(label, key, type, ro) {
     var v = S.oe[key]; if (v == null) v = "";
@@ -937,67 +915,31 @@
   function monday() { var d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; }
   function addDays(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
   var DONE_ST = ["Сдано", "Закрыто"];
-  function overview() {
-    var p = pos(), canAll = p === "owner" || p === "sales" || p === "ops", f = S.ov, type = canAll ? f.type : "p";
-    var seg = canAll ? '<div class="bar" style="margin:0 0 16px"><div class="seg">' + [["p", "Проектные"], ["o", "Операционные"], ["s", "Продажи"]].map(function (x) { return '<button data-otype="' + x[0] + '" class="' + (type === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div></div>" : "";
-    var newBtn = (p === "owner" || p === "sales" || p === "ops") ? '<button class="btn accent" data-new="1">' + ic("plus") + "Новая задача</button>" : "";
-    var head = '<div class="head"><div><h1>Обзор</h1><p>Нажмите на показатель, чтобы увидеть именно эти задачи</p></div>' + newBtn + "</div>"
-      + "" + seg;
-    var search = '<div class="tools"><label class="search" style="flex:1;display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:10px 14px"><input id="dsQ" style="border:0;background:transparent;outline:0;width:100%" placeholder="Номер, заказчик, объект, исполнитель…" value="' + E(f.q) + '"></label></div>';
-    var q = (f.q || "").toLowerCase();
-    function tiles(arr) { return '<div class="tiles">' + arr.map(function (x) { return '<button class="tile ' + (f.tile === x[0] ? "on" : "") + '" data-tile="' + x[0] + '" style="--c:' + x[2] + '"><div class="n">' + x[3] + '</div><div class="l">' + x[1] + "</div></button>"; }).join("") + "</div>"; }
-    if (type === "o" || type === "s") {
-      var tk = (S.tasks || []).filter(function (x) { return type === "o" ? (x.kind === "ops" || x.kind === "acc") : x.kind === "sales"; });
-      var kp_ = type === "s" ? (S.kp || []).filter(function (k) { return !kpDone(k); }) : [];
-      var rows = tk.map(function (x) { return { kind: "t", left: x.left_days, wait: x.state === "wait", text: (x.title + " " + (x.assignee || "") + " " + (x.object || "")), html: taskCard(x) }; })
-        .concat(kp_.map(function (k) { return { kind: "k", left: k.last_days != null && k.last_days > 5 ? -1 : (k.last_days != null && k.last_days >= 3 ? 1 : 9), wait: k.status === "КП отправлено", text: (k.number + " " + k.customer + " " + k.object), html: kpCard(k) }; }));
-      var cnt = { all: rows.length, over: rows.filter(function (x) { return x.left != null && x.left < 0; }).length, hot: rows.filter(function (x) { return x.left != null && x.left >= 0 && x.left <= 2; }).length, wait: rows.filter(function (x) { return x.wait; }).length };
-      var tl = [["all", "В работе", "var(--org)", cnt.all], ["over", type === "s" ? "КП без общения 5+ дн. / просрочено" : "Просрочено", "var(--bad)", cnt.over], ["hot", "Горят (≤ 2 дн.)", "var(--accent)", cnt.hot], ["wait", type === "o" ? "Ждут ответа заказчика" : "КП ждут ответа", "var(--warn)", cnt.wait]];
-      var shown = rows.filter(function (x) {
-        if (f.tile === "over" && !(x.left != null && x.left < 0)) return false;
-        if (f.tile === "hot" && !(x.left != null && x.left >= 0 && x.left <= 2)) return false;
-        if (f.tile === "wait" && !x.wait) return false;
-        return !q || x.text.toLowerCase().indexOf(q) >= 0;
-      }).sort(function (a, b) { return (a.left == null ? 999 : a.left) - (b.left == null ? 999 : b.left); });
-      return head + tiles(tl) + search + '<div class="list">' + (shown.map(function (x) { return x.html; }).join("") || '<div class="note">Ничего не найдено</div>') + "</div>";
-    }
-    var all = S.orders || [], act_ = all.filter(function (o) { return DONE_ST.indexOf(o.stage) < 0; });
-    var hasMoney = can("money");
-    var cnt = {
-      active: act_.length,
-      over: act_.filter(function (o) { return o.left_days != null && o.left_days < 0; }).length,
-      hot: act_.filter(function (o) { return o.left_days != null && o.left_days >= 0 && o.left_days <= 2; }).length,
-      review: all.filter(function (o) { return o.stage === "На согласовании"; }).length,
-      edits: all.filter(function (o) { return o.edits > 0; }).length,
-      unpaid: hasMoney ? all.filter(function (o) { return !o.post_paid && o.stage !== "Закрыто"; }).length : 0
-    };
-    var visStages = S.meta.stages || [];
-    var T = [["active", "В работе", "var(--brand)"], ["over", "Просрочено", "var(--bad)"], ["hot", "Горят (≤ 2 дн.)", "var(--accent)"]];
-    if (visStages.indexOf("На согласовании") >= 0) T.push(["review", "На согласовании", "#e0a21c"]);
-    T.push(["edits", "Правок от заказчиков", "#8b6fe0"]);
-    if (hasMoney) T.push(["unpaid", "Не оплачено", "var(--ok)"]);
-    var list = all.filter(function (o) {
-      var isAct = DONE_ST.indexOf(o.stage) < 0, l = o.left_days;
-      if (f.tile === "active" && !isAct) return false;
-      if (f.tile === "over" && !(isAct && l != null && l < 0)) return false;
-      if (f.tile === "hot" && !(isAct && l != null && l >= 0 && l <= 2)) return false;
-      if (f.tile === "review" && o.stage !== "На согласовании") return false;
-      if (f.tile === "edits" && !(o.edits > 0)) return false;
-      if (f.tile === "unpaid" && (o.post_paid || o.stage === "Закрыто")) return false;
-      if (f.stage && o.stage !== f.stage) return false;
-      if (q && (o.number + " " + (o.customer || "") + " " + o.object + " " + (o.executor || "")).toLowerCase().indexOf(q) < 0) return false;
-      return true;
-    }).sort(function (a, b) { return (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0) || (a.left_days == null ? 9999 : a.left_days) - (b.left_days == null ? 9999 : b.left_days); });
-    var chips = '<div class="chips"><button class="chip ' + (!f.stage ? "on" : "") + '" data-ostage="">Все стадии</button>'
-      + visStages.map(function (s) { return '<button class="chip ' + (f.stage === s ? "on" : "") + '" data-ostage="' + E(s) + '"><i class="dot" style="background:' + (STAGE_COLOR[s] || "#999") + '"></i>' + E(s) + "</button>"; }).join("") + "</div>";
-    return head + tiles(T.map(function (x) { return [x[0], x[1], x[2], cnt[x[0]]]; })) + search + chips
-      + '<div class="ovlist">' + (list.map(ovRow).join("") || '<div class="note">Ничего не найдено</div>') + "</div>";
-  }
-
   /* ---------- «Занятость» ---------- */
   var ACTIVE_WORK = ["В проектировании", "Проверка", "Корректировка"];
   var WD = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
   function span(o) { if (o.stage === "Корректировка" && o.fix_start) return [o.fix_start, o.fix_end || o.fix_start]; return [o.plan_start || o.start_date || "", o.plan_end || o.due_date || ""]; }
+  /* «Занятость»: бегунок над шкалой и полоса прокрутки двигают одно и то же окно; подпись — видимые даты.
+     Открывается на выбранной дате (60 дней прошлого левее); после перерисовки — там же, где смотрели. */
+  function fitLoadScroll() {
+    var gp = document.querySelector("#cal-app .gpanel"), rg = document.getElementById("ldRange"), lab = document.getElementById("ldWin");
+    if (!gp || !rg) return;
+    var days = [].slice.call(gp.querySelectorAll(".ghead .gday")), name = gp.querySelector(".ghead .gname");
+    if (!days.length) return;
+    var cw = days[1] ? days[1].getBoundingClientRect().left - days[0].getBoundingClientRect().left : days[0].offsetWidth;
+    var max = Math.max(0, gp.scrollWidth - gp.clientWidth);
+    gp.scrollLeft = S.ldScroll != null ? S.ldScroll : Math.min(max, Math.round(60 * cw));
+    rg.max = String(max); rg.value = String(gp.scrollLeft); rg.disabled = !max;
+    var label = function () {
+      var vis = gp.clientWidth - (name ? name.getBoundingClientRect().width : 0);
+      var a = Math.max(0, Math.round(gp.scrollLeft / cw)), b = Math.min(days.length - 1, Math.round((gp.scrollLeft + vis) / cw) - 1);
+      var t = function (el) { return el.getAttribute("data-d") || ""; };
+      if (lab) lab.textContent = dmy(t(days[a])).slice(0, 5) + " — " + dmy(t(days[Math.max(a, b)]));
+    };
+    gp.onscroll = function () { S.ldScroll = gp.scrollLeft; rg.value = String(gp.scrollLeft); label(); };
+    rg.oninput = function () { gp.scrollLeft = +rg.value; };
+    label();
+  }
   function loadOrders() { return pos() === "designer" ? (S.lo || []) : (S.orders || []); }
   function staffAll() {
     var by = {};
@@ -1046,18 +988,20 @@
       }).join("") + "</div>";
     }
     /* месяц: компактная диаграмма — полосы упакованы по дорожкам, под строкой число задач в день, масштаб меняется вручную */
-    var off = Math.max(0, (S.ldo | 0)), dim = 35, iso = [], dow = [];
+    // окно: 60 дней прошлого + 35 вперёд от выбранной даты (S.ldo — сдвиг от сегодня); открывается на выбранной дате, прошлое — бегунком влево
+    var LD_BACK = 60, off = (S.ldo | 0) - LD_BACK, dim = LD_BACK + 35, iso = [], dow = [];
     for (var k = 0; k < dim; k++) { var dd = addDays(new Date(), off + k); iso.push(isoDay(dd)); dow.push((dd.getDay() + 6) % 7); }
     var z = S.ldz; if (!z) { try { z = +localStorage.getItem("ds_ldz") || 0; } catch (e) { z = 0; } z = z || 0.85; }
     z = Math.max(0.5, Math.min(1.6, z));
     var CW = 27, LW = 150, cols = LW + "px repeat(" + dim + "," + CW + "px)", minw = LW + dim * CW;
-    var nav = '<div class="ldnav"><div class="seg"><button data-ldn="-1"' + (off ? "" : " disabled") + '>← назад</button><button data-ldn="0" class="on">' + dmy(iso[0]).slice(0, 5) + " — " + dmy(iso[dim - 1]).slice(0, 5) + '</button><button data-ldn="1">вперёд →</button></div>'
+    var nav = '<div class="ldnav"><div class="seg"><button data-ldn="-1" title="На месяц назад">← месяц</button><button data-ldn="0"' + (S.ldo ? "" : ' class="on"') + '>Сегодня</button><button data-ldn="1" title="На месяц вперёд">месяц →</button></div>'
+      + '<input type="range" class="ldrange" id="ldRange" min="0" max="1000" value="0" title="Прокрутите, чтобы посмотреть прошлые и будущие дни"><span class="ldwin" id="ldWin"></span>'
       + '<span class="grow"></span><span class="vlab">Масштаб</span><div class="seg"><button data-ldz="-1" title="Уменьшить">−</button><button data-ldz="0" title="Сбросить масштаб">' + Math.round(z * 100) + '%</button><button data-ldz="1" title="Увеличить">+</button></div></div>'
       + (p === "owner" || p === "ops" || p === "design" ? '<div class="ldwho"><button class="btn ghost sm" data-ldmenu="1">👥 Кого показывать (' + people.length + ")</button>"
         + (S.ldMenu ? '<div class="ldpop"><b>Показывать в «Занятости»</b>' + staffAll().map(function (u) { var on = people.some(function (x) { return x.name === u.name; }); return '<button type="button" class="ldchk ' + (on ? "on" : "") + '" data-ldp="' + E(u.name) + '"><i>' + (on ? "✓" : "") + "</i>" + E(u.name) + "</button>"; }).join("") + '<button class="btn ghost sm" data-ldmenu="0" style="margin-top:8px">Готово</button></div>' : "") + "</div>" : "");
     var BAR = { work: "#5aa2ee", hot: "#f0924d", late: "#e5483c", done: "#3aa876", gray: "#8794ab" };
     var PAL = ["#4f8ef0", "#e0734a", "#2fa66a", "#8b6fe0", "#d4a017", "#1fb3b3", "#d9568a", "#6f7de0", "#8c9a2a", "#b0632f", "#3c9bd1", "#c24bb0"];
-    function barKind(o, un) { if (un) return "gray"; if (o.stage === "Сдано") return "done"; if (o.left_days != null && o.left_days < 0) return "late"; if (o.urgent || (o.left_days != null && o.left_days <= 2)) return "hot"; return "work"; }
+    function barKind(o, un) { if (un) return "gray"; if (o.stage === "Сдано" || o.stage === "Закрыто") return "done"; if (o.left_days != null && o.left_days < 0) return "late"; if (o.urgent || (o.left_days != null && o.left_days <= 2)) return "hot"; return "work"; }
     function taskColor(o) { var h = 0; String(o.number || o.id).split("").forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return PAL[(h + (+o.id || 0)) % PAL.length]; }
     function cellBg(i, row) {
       var we = dow[i] >= 5, td = iso[i] === today;
@@ -1089,12 +1033,12 @@
     var header = '<div class="ghead" style="grid-template-columns:' + cols + ';min-width:' + minw + 'px"><div class="gname">Сотрудник</div>'
       + iso.map(function (d, i) {
         var td = d === today, we = dow[i] >= 5;
-        return '<div class="gday' + (td ? " today" : "") + (we ? " we" : "") + '"><small>' + WD[dow[i]] + "</small><b>" + (td ? "<i>" + (+d.slice(8, 10)) + "</i>" : (+d.slice(8, 10))) + "</b></div>";
+        return '<div class="gday' + (td ? " today" : "") + (we ? " we" : "") + '" data-d="' + d + '"><small>' + WD[dow[i]] + "</small><b>" + (td ? "<i>" + (+d.slice(8, 10)) + "</i>" : (+d.slice(8, 10))) + "</b></div>";
       }).join("") + "</div>";
     var inWin = function (o) { var r = range(o); return !!r; };
     function person(u) {
       var color = personColor(u.name);
-      var mine = loadOrders().filter(function (o) { return (o.executor_id === u.id || o.executor === u.name) && (ACTIVE_WORK.indexOf(o.stage) >= 0 || o.stage === "На согласовании" || o.stage === "Сдано"); });
+      var mine = loadOrders().filter(function (o) { return (o.executor_id === u.id || o.executor === u.name) && (ACTIVE_WORK.indexOf(o.stage) >= 0 || o.stage === "На согласовании" || o.stage === "Сдано" || o.stage === "Закрыто"); });      // закрытые — чтобы было видно прошлое
       var L = lanes(mine), load = iso.map(function () { return 0; });
       L.items.forEach(function (x) { for (var i = x.r[0]; i <= x.r[1]; i++) load[i]++; });
       var rows = L.n + 1;
@@ -2214,8 +2158,8 @@
       return paint();
     }
     if (d.ldn != null && t.hasAttribute("data-ldn")) {
-      if (d.ldn === "0") { S.ldo = 0; return paint(); }
-      S.ldo = Math.max(0, (S.ldo | 0) + 35 * (+d.ldn)); return paint();
+      if (d.ldn === "0") { S.ldo = 0; S.ldScroll = null; return paint(); }
+      S.ldo = (S.ldo | 0) + 30 * (+d.ldn); S.ldScroll = null; return paint();      // назад — без ограничения «не раньше сегодня»
     }
     if (d.edit) { if (!(pos() === "owner" || pos() === "design")) return toast("Исполнителя и сроки назначает руководитель проектного отдела"); S.edit = +d.edit; S.open = null; return paint(); }
     if (d.saveplan) {
@@ -2367,7 +2311,7 @@
   bootStart();
 })();
 if (location.hash === '' || location.hash === '#/' || /^#\/task\//.test(location.hash)) { setTimeout(function () { if (document.getElementById('tasks-app') && document.getElementById('tasks-app').style.display !== 'none') DS.route(); }, 0); }
-(function () { var h = location.hash; var map = { '#/dash': ['ov', 'dash-app'], '#/cal': ['load', 'cal-app'] }; if (map[h]) setTimeout(function () { DS.mount(map[h][0], document.getElementById(map[h][1])); }, 0); })();
+(function () { var h = location.hash; var map = { '#/cal': ['load', 'cal-app'] }; if (map[h]) setTimeout(function () { DS.mount(map[h][0], document.getElementById(map[h][1])); }, 0); })();
 if (window.MPBC && typeof window.globalRouter === "function") {
   ["login", "logout", "ready"].forEach(function (ev) {
     window.MPBC.on(ev, function () { if (ev === "ready") window.DS_READY = true; window.globalRouter(); });

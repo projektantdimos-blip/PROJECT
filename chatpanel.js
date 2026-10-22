@@ -164,7 +164,7 @@
         + k.items.map(function (i, idx) { return '<div class="sv ' + (i.on ? "on" : "") + '"><input type="checkbox" data-sv="' + idx + '" ' + (i.on ? "checked" : "") + "><span>" + E(i.name) + '</span><input type="number" min="0" data-sp="' + idx + '" value="' + (+i.price || 0) + '"></div>'; }).join("")
         + '<div class="f" style="margin-top:8px"><label>Оплата</label><select id="dspPay">' + [["adv50", "Аванс 50%, остаток по акту"], ["adv30", "Аванс 30%, остаток по акту"], ["post100", "100% по акту"]].map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === k.pay ? " selected" : "") + ">" + x[1] + "</option>"; }).join("") + "</select></div>"
         + '<div class="tot"><b id="dspTot">' + money(total) + "</b>" + (adv ? "<div>Аванс " + money(adv) + ", остаток " + money(total - adv) + "</div>" : "<div>Без аванса, оплата по акту</div>") + "</div>"
-        + '<label class="note" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="dspPdf" ' + (k.pdf === false ? "" : "checked") + '> Приложить КП файлом PDF (Telegram и почта; в MAX уйдёт текст)</label>'
+        + '<label class="note" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="dspPdf" ' + (k.pdf === false ? "" : "checked") + '> Приложить КП файлом PDF (Telegram, MAX и почта)</label>'
         + (s.err ? '<div class="err">' + E(s.err) + "</div>" : "")
         + '<button class="x-btn primary" id="dspSend" style="width:100%;justify-content:center"' + (s.busy ? " disabled" : "") + ">Подготовить КП и вставить в окно ответа</button>";
       $("dspPdf").onchange = function () { k.pdf = this.checked; };

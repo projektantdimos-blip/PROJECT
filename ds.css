@@ -859,3 +859,11 @@
 .x-ment{max-height:min(320px,45vh);overflow-y:auto!important}
 .x-tm .x-ed{opacity:.75;font-style:italic;margin-left:2px}
 .x-editbar{border-left-color:var(--accent,#ee9264)!important}
+
+/* «Занятость»: бегунок по датам и закреплённая колонка с именами при прокрутке в прошлое */
+.ds .ldnav .ldrange{flex:1 1 240px;min-width:160px;max-width:520px;accent-color:var(--brand);cursor:pointer}
+.ds .ldnav .ldwin{color:var(--muted);font-size:.86rem;font-weight:700;white-space:nowrap;min-width:110px}
+.ds .gpanel .gname{position:sticky;left:0;z-index:4;background:var(--surface)}
+.ds .gpanel .ghead .gname{background:var(--surface-2)}
+.ds .gpanel::-webkit-scrollbar{height:12px}
+.ds .gpanel::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 45%,transparent);border-radius:8px}

@@ -1,5 +1,5 @@
-/* Service worker для push-уведомлений вкладки «Общение». Ничего не кеширует — только показывает
-   уведомления, пришедшие с моста (см. bridge/app/push.py и chat.js). */
+/* Service worker для push-уведомлений CRM. Ничего не кеширует — только показывает
+   уведомления, пришедшие с моста (см. bridge/app/push.py, chat.js и crm.js). */
 self.addEventListener('install', function (e) { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
 

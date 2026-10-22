@@ -1,6 +1,5 @@
-/* МПБ CRM v2 — этап 2б: связь с мостом (/api/crm), вход по PIN, уведомления, журнал изменений.
-   Адрес и ключ моста — те же, что у «Общения» (⚙, localStorage: ds_bridge). Личная сессия — localStorage: ds_session.
-   Если мост не подключён или вход не выполнен, остальное приложение работает как раньше. */
+/* Связь с сервером CRM (/api/crm): вход по PIN, опрос состояния, уведомления, push.
+   Адрес и ключ сервера — config.js или ⚙ (localStorage: ds_bridge). Личная сессия — localStorage: ds_session. */
 (function () {
   "use strict";
   var C = window.MPBC = { me: null, prefs: null, sync: null, bot: false, users: [] };
@@ -122,7 +121,6 @@
   function stopPolling() { if (timer) { clearInterval(timer); timer = null; } }
   /* яркое всплывающее уведомление сверху экрана + мигание вкладки; не требует разрешений браузера */
   var alertShown = {}, flashT = null;
-  function secNow() { return window.sectionForHash ? sectionForHash(location.hash) : ""; }
   window.DSAlert = {
     show: function (title, body, url, urgent, fn) {
       var box = $("dsAlerts"); if (!box) { box = document.createElement("div"); box.id = "dsAlerts"; document.body.appendChild(box); }
@@ -249,78 +247,6 @@
       var p = sub ? C.call("/me/push/unsubscribe", { body: { endpoint: sub.endpoint } }).catch(function () {}).then(function () { return sub.unsubscribe(); }) : Promise.resolve();
       return p;
     }).then(function () { try { localStorage.removeItem("ds_push_user"); } catch (e) {} emit("push"); });
-  };
-
-  /* ---------- журнал изменений: перехват сохранений задач и заявок ---------- */
-  var known = { tasks: {}, leads: {} };
-  C.known = known;
-  var TASK_KEYS = ["customer", "address", "contractNo", "workType", "startDate", "dueDate", "stage", "deadline", "siteContact", "siteContactPhone", "comment", "closed", "manager"];
-  var LEAD_KEYS = ["date", "customer", "contact", "phoneEmail", "funnel", "object", "essence", "amount", "status", "lastContact", "owner", "comment"];
-  var LABELS = { customer: "Заказчик", address: "Адрес", contractNo: "Договор", workType: "Вид работ", startDate: "Начало", dueDate: "Срок договора", stage: "Этап", deadline: "Дедлайн этапа", siteContact: "Контакт на объекте", siteContactPhone: "Телефон", comment: "Комментарий", closed: "Закрыта", manager: "Ответственный за заказчика",
-    date: "Дата заявки", contact: "Контакт", phoneEmail: "Телефон / Email", funnel: "Воронка", object: "Объект", essence: "Суть", amount: "Сумма", status: "Статус", lastContact: "Последний контакт", owner: "Кто выставил" };
-  function pick(o, keys) { var r = {}; keys.forEach(function (k) { if (o && o[k] !== undefined) r[k] = o[k]; }); return r; }
-  function diff(before, after, keys) { var ch = []; keys.forEach(function (k) { if (after[k] !== undefined && String(before[k] == null ? "" : before[k]) !== String(after[k] == null ? "" : after[k])) ch.push(k); }); return ch; }
-  function short(v) { v = String(v == null ? "" : v); return v.length > 80 ? v.slice(0, 77) + "…" : (v || "—"); }
-
-  function learn(fn, res) {
-    if (fn === "api_listTasks" && Array.isArray(res)) res.forEach(function (t) { known.tasks[t.row] = t; });
-    else if (fn === "api_getTask" && res && res.row) known.tasks[res.row] = res;
-    else if (fn === "api_kpregList" && Array.isArray(res)) res.forEach(function (l) { known.leads[l.row] = l; });
-  }
-  function record(fn, args, snap) {
-    if (!C.loggedIn()) return;
-    var e = null;
-    if (fn === "api_saveTask") {
-      var row = args[0], data = args[1] || {}, b = snap || {}, ch = diff(b, data, TASK_KEYS), name = "Задача · " + (data.customer || b.customer || "№" + row);
-      if (!ch.length) return;
-      if (ch.indexOf("stage") >= 0) e = { entity: name, action: "Этап", before: short(b.stage), after: short(data.stage) };
-      else e = { entity: name, action: "Изменено: " + ch.map(function (k) { return LABELS[k] || k; }).slice(0, 3).join(", "), before: short(b[ch[0]]), after: short(data[ch[0]]) };
-      if (snap) e.undo = { type: "task_save", row: row, data: pick(b, Object.keys(pick(data, TASK_KEYS))) };
-      known.tasks[row] = Object.assign({}, b, data);
-    } else if (fn === "api_createTask") e = { entity: "Задача · " + (args[0] || {}).customer, action: "Создана", before: "", after: short((args[0] || {}).stage) };
-    else if (fn === "api_deleteTask") { var bt = snap || {}; e = { entity: "Задача · " + (bt.customer || "№" + args[0]), action: "Удалена", before: short(bt.stage), after: "", undo: snap ? { type: "task_create", data: pick(bt, TASK_KEYS) } : null }; }
-    else if (fn === "api_kpregSave") {
-      var r2 = args[0], d2 = args[1] || {}, b2 = snap || {}, c2 = diff(b2, d2, LEAD_KEYS), n2 = "КП · " + (d2.customer || b2.customer || "заявка");
-      if (!c2.length) return;
-      if (c2.indexOf("status") >= 0) e = { entity: n2, action: "Статус", before: short(b2.status), after: short(d2.status) };
-      else e = { entity: n2, action: "Изменено: " + c2.map(function (k) { return LABELS[k] || k; }).slice(0, 3).join(", "), before: short(b2[c2[0]]), after: short(d2[c2[0]]) };
-      if (snap) e.undo = { type: "lead_save", row: r2, data: pick(b2, Object.keys(pick(d2, LEAD_KEYS))) };
-      known.leads[r2] = Object.assign({}, b2, d2);
-    } else if (fn === "api_kpregCreate") e = { entity: "КП · " + (args[0] || {}).customer, action: "Заявка создана", before: "", after: short((args[0] || {}).status) };
-    else if (fn === "api_kpregDelete") { var bl = snap || {}; e = { entity: "КП · " + (bl.customer || "заявка"), action: "Заявка удалена", before: short(bl.status), after: "", undo: snap ? { type: "lead_create", data: pick(bl, LEAD_KEYS) } : null }; }
-    if (e) C.call("/journal", { body: e }).catch(function () {});
-    if (e || /^api_(createTask|deleteTask|kpregCreate|kpregDelete)$/.test(fn)) pingAuto();
-  }
-  (function hook() {
-    var orig = window.callServer;
-    if (typeof orig !== "function" || orig.__mpb) return;
-    var wrapped = function (fn) {
-      var args = Array.prototype.slice.call(arguments, 1), p = orig.apply(this, arguments);
-      if (/^api_(listTasks|getTask|kpregList)$/.test(fn)) p.then(function (r) { learn(fn, r); }, function () {});
-      else if (/^api_(saveTask|createTask|deleteTask|kpregSave|kpregCreate|kpregDelete)$/.test(fn)) {
-        var src = /Task/.test(fn) ? known.tasks : known.leads, snap = null;
-        if (/save|delete/i.test(fn) && src[args[0]]) snap = JSON.parse(JSON.stringify(src[args[0]]));
-        p.then(function () { record(fn, args, snap); }, function () {});
-      }
-      return p;
-    };
-    wrapped.__mpb = true; window.callServer = wrapped;
-  })();
-
-  /* после изменения задач/заявок просим мост сразу сверить таблицу (автоматизации сработают без ожидания расписания) */
-  var pingT = null;
-  function pingAuto() { clearTimeout(pingT); pingT = setTimeout(function () { if (C.loggedIn()) C.call("/automation/ping", { body: {} }).catch(function () {}); }, 4000); }
-
-  /* отмена записи журнала */
-  C.undoEntry = function (e) {
-    var u = e.undo; if (!u) return Promise.reject("Это действие отменить нельзя");
-    var p;
-    if (u.type === "task_save") p = callServer("api_saveTask", u.row, Object.assign({}, known.tasks[u.row] ? pick(known.tasks[u.row], TASK_KEYS) : {}, u.data));
-    else if (u.type === "lead_save") p = callServer("api_kpregSave", u.row, Object.assign({}, known.leads[u.row] || {}, u.data));
-    else if (u.type === "task_create") p = callServer("api_createTask", u.data);
-    else if (u.type === "lead_create") p = callServer("api_kpregCreate", u.data);
-    else return Promise.reject("Неизвестный тип отмены");
-    return p.then(function () { return C.call("/journal/" + e.id + "/undone", { body: {} }); });
   };
 
   /* ---------- старт ---------- */

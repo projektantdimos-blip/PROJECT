@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <title>Проекты DS — CRM</title>
-<meta name="description" content="Задачи, коммерческие предложения и реестр КП — Мир пожарной безопасности">
+<meta name="description" content="Проекты DS — CRM проектного отдела: задачи, КП, договоры, переписка с заказчиками">
 <meta name="theme-color" content="#1f5c99">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -273,9 +273,9 @@ textarea{resize:vertical;min-height:64px}
 <!-- шрифты подгружаются без блокировки страницы: если Google Fonts недоступен (в РФ бывает), CRM всё равно откроется -->
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Onest:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Onest:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="theme-v2.css?v=20261022c">
+<link rel="stylesheet" href="theme-v2.css?v=20261022f">
 <script>try{var __t=localStorage.getItem("ds_theme");if(__t)document.documentElement.setAttribute("data-theme",__t)}catch(e){}</script>
-<link rel="stylesheet" href="ds.css?v=20261022c">
+<link rel="stylesheet" href="ds.css?v=20261022f">
 </head>
 <body>
 <div class="app">
@@ -291,7 +291,6 @@ textarea{resize:vertical;min-height:64px}
 <div id="kpreg-app" style="display:none"></div>
 <div id="kpc-app" class="kpc-scope" style="display:none"></div>
 <div id="chat-app" style="display:none"></div>
-<div id="dash-app" style="display:none"></div>
 <div id="cal-app" style="display:none"></div>
 <div id="my-app" style="display:none"></div>
 <div id="team-app" style="display:none"></div>
@@ -309,19 +308,9 @@ textarea{resize:vertical;min-height:64px}
 <div id="price-app" style="display:none"></div>
 <div id="scripts-app" style="display:none"></div>
 <div id="contracts-app" style="display:none"></div>
-<div id="to-app" style="display:none"><iframe id="to-frame" title="ТО МПБ" style="width:100%;height:calc(100vh - 110px);min-height:600px;border:0;display:block;background:var(--bg)"></iframe></div>
 </div></div>
 <nav class="bottomnav" id="bottomnav"></nav>
 <script>
-var STAGES = JSON.parse('[{"name":"Договор Подписать","who":"Алексей"},{"name":"Собрать данные","who":"Алексей"},{"name":"Обследовать","who":"Алексей"},{"name":"Расчет","who":"Дмитрий"},{"name":"Проектирование","who":"Дмитрий"},{"name":"Проверка расчета","who":"Дмитрий"},{"name":"Закупка оборудования","who":"Дмитрий"},{"name":"Забрать оборудование и доставить на объект","who":"Алексей"},{"name":"Запустить монтаж","who":"Алексей"},{"name":"Сбор данных для исполнительной документации","who":"Алексей"},{"name":"Разработать исполняк","who":"Дмитрий"},{"name":"Печать документов","who":"Алексей"},{"name":"Сдача работ","who":"Алексей"},{"name":"Работа сдана","who":"Игорь"}]');
-var PERSON_COLOR = {"Алексей":"var(--blue)","Максим":"var(--orange)","Дмитрий":"var(--ok)","Игорь":"var(--warn)"};
-var ALL_PEOPLE = Array.from(new Set(STAGES.map(function(s){ return s.who; })));
-
-var LOGO = "logo.png";                 /* шапка старого экрана задач МПБ (не используется); встроенная картинка убрана */
-
-var cache = { tasks: [] };
-var listFilter = { person: "Все", q: "", view: "list", kpi: "" };
-
 var ICONS={
   flow:'<circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7.5 12h4a3 3 0 0 0 3-3V6M7.5 12h4a3 3 0 0 1 3 3v3"/>',
   tasks:'<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h9"/>',
@@ -359,351 +348,13 @@ var ICONS={
   users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.6a3.5 3.5 0 010 6.8M18 14.2a6.5 6.5 0 013.5 5.8"/>'
 };
 function icon(n){ return '<svg class="i" viewBox="0 0 24 24">'+(ICONS[n]||"")+'</svg>'; }
-/* цвет вида работ (из комментариев: монтаж — зелёный, проекты/риски — жёлтый, ТО, испытания, аудит, документы) */
-function wtColor(w){
-  var s = " " + String(w||"").toLowerCase() + " ";
-  if (/монтаж/.test(s)) return "var(--t-montazh)";
-  if (/проект|риск|категор|[^а-яё]рк[^а-яё]/.test(s)) return "var(--t-proekt)";
-  if (/испыт|[^а-яё]рр[^а-яё]|сопротивл/.test(s)) return "var(--t-ispyt)";
-  if (/аудит/.test(s)) return "var(--t-audit)";
-  if (/документ|декларац/.test(s)) return "var(--t-docs)";
-  if (/[^а-яё]то[^а-яё]|обслуж/.test(s)) return "var(--t-to)";
-  return "var(--t-other)";
-}
-function kpiHtml(cls, ic, v, l, icc, k){
-  var on = k && listFilter.kpi === k;
-  return '<div class="kpi '+(cls||"")+(k?" click":"")+(on?" on":"")+'"'+(k?' data-k="'+k+'" role="button" tabindex="0" title="Показать только эти задачи (повторное нажатие — сбросить)"':"")+'><div class="ic '+(icc||"")+'">'+icon(ic)+'</div><div class="v">'+v+'</div><div class="l">'+l+'</div></div>';
-}
-function tasksKpis(all){
-  var open = all.filter(function(t){ return !t.closed; });
-  var soon = open.filter(function(t){ return deadlineStatus(t.deadline)==="soon"; }).length;
-  var over = open.filter(function(t){ return deadlineStatus(t.deadline)==="overdue"; }).length;
-  return '<div class="kpis">'
-    + kpiHtml("hero","layers",open.length,"Задач в работе",null,"open")
-    + kpiHtml("","clock",soon,"Дедлайн в ближайшие 2 дня","c-warn","soon")
-    + kpiHtml("","alert",over,"Просрочено","c-bad","over")
-    + kpiHtml("","check",all.length-open.length,"Закрыто","c-ok","closed")
-    + '</div>';
-}
-function taskCardHtml(t){
-  var dstat = deadlineStatus(t.deadline);
-  var pc = PERSON_COLOR[t.responsible] || '#888';
-  var idx = stageIndex(t.stage, t.workType), n = stagesFor(t.workType).length, segs = "";
-  for (var i = 0; i < n; i++) segs += '<i class="'+(i<idx?"d":i===idx?"c":"")+'"></i>';
-  return '<div class="task-card" data-row="'+t.row+'" style="--tc:'+wtColor(t.workType)+'">'
-    + '<div class="row1"><div class="cust">'+esc(t.customer||"(без названия)")+(t.closed?' <span class="badge closed">Закрыто</span>':'')+'</div><div class="worktype">'+esc(t.workType)+'</div></div>'
-    + '<div class="addr">'+esc(t.address)+'</div>'
-    + '<div class="prog"><div class="segs">'+segs+'</div><div class="lab"><b>'+esc(t.stage)+'</b><span>'+(idx+1)+' / '+n+'</span></div></div>'
-    + '<div class="meta">Договор '+esc(t.contractNo)+' · начало '+fmtDate(t.startDate)+' · срок по договору '+fmtDate(t.dueDate)+'</div>'
-    + '<div class="badges">'
-    +   (t.responsible ? '<span class="badge person" style="background:'+pc+'">'+esc(t.responsible)+'</span>' : '')
-    +   '<span class="badge deadline '+dstat+'">Дедлайн этапа: '+fmtDate(t.deadline)+'</span>'
-    + '</div>'
-    + '</div>';
-}
 function esc(s){
   if(s==null) s="";
   return String(s).split("&").join("&amp;").split("<").join("&lt;").split(">").join("&gt;").split('"').join("&quot;");
 }
-function fmtDate(d){ if(!d) return "—"; var p=String(d).split("-"); return p.length===3 ? (p[2]+"."+p[1]+"."+p[0]) : d; }
-function todayISO(){ return new Date().toISOString().slice(0,10); }
-function addDays(iso,n){ var d=new Date(iso); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
-function deadlineStatus(iso){
-  if(!iso) return "";
-  var today = todayISO(), soon = addDays(today,2);
-  if(iso < today) return "overdue";
-  if(iso <= soon) return "soon";
-  return "";
-}
-/* Набор этапов зависит от вида работ (stages.js); без него — общий список STAGES */
-function stagesFor(wt){ return (window.MPBS && MPBS.stagesFor) ? MPBS.stagesFor(wt) : STAGES; }
-function stageIndex(name, wt){ var st = stagesFor(wt); for(var i=0;i<st.length;i++){ if(st[i].name===name) return i; } return 0; }
-
-
-/* ---------- связь с таблицей ----------
-   Внутри Apps Script — google.script.run (как раньше).
-   Как отдельный файл/сайт/PWA — POST на URL веб-приложения (адрес и ключ в ⚙). */
-var DEFAULT_API_URL = "";   /* таблица МПБ здесь не используется: данные проектной CRM хранит мост (/api/ds) */
-function apiCfg(){
-  try { var c = JSON.parse(localStorage.getItem("ds_api") || "{}"); return { url: c.url || DEFAULT_API_URL, key: c.key || "" }; }
-  catch(e){ return { url: DEFAULT_API_URL, key: "" }; }
-}
-function callServer(fn){
-  var args = Array.prototype.slice.call(arguments, 1);
-  if (window.google && google.script && google.script.run) {
-    return new Promise(function(resolve, reject){
-      var runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(function(err){
-        reject(err && err.message ? err.message : String(err));
-      });
-      runner[fn].apply(runner, args);
-    });
-  }
-  var cfg = apiCfg();
-  if (!cfg.key || !cfg.url) return Promise.reject("Таблица не используется: данные проектной CRM хранит сервер CRM");
-  return fetch(cfg.url, {
-    method: "POST", redirect: "follow",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },   // без preflight
-    body: JSON.stringify({ key: cfg.key, fn: fn, args: args })
-  }).then(function(r){ return r.json(); }, function(){ throw "Нет связи с таблицей. Проверьте интернет и адрес в ⚙"; })
-    .then(function(j){ if (!j || !j.ok) throw (j && j.error) || "Ошибка сервера"; return j.data; });
-}
-
 function tasksRouter(){
-  if (window.DS) { DS.route(); }   /* экран «Задачи» проектной CRM — ds.js; прежний экран из таблицы МПБ отключён */
-  return;
-  var h = location.hash;
-  if(h.indexOf("#/task/")===0){
-    var row = +h.slice(7);
-    renderDetailLoading(true);
-    callServer("api_getTask", row).then(function(t){ renderDetail(t, false); }).catch(showError);
-    return;
-  }
-  if(h==="#/new"){ renderDetail(null, true); return; }
-  renderListLoading();
-  callServer("api_listTasks").then(function(tasks){ cache.tasks = tasks; renderList(); }).catch(showError);
+  if (window.DS) DS.route();       /* экран «Задачи» — ds.js */
 }
-function showError(msg){
-  document.getElementById("tasks-app").innerHTML =
-    '<div class="wrap"><div class="err">Ошибка: ' + esc(msg) + '. Обновите страницу или попробуйте ещё раз.</div>' +
-    '<button class="ghost" onclick="location.hash=\'#/\'; tasksRouter();">← К списку</button></div>';
-}
-
-function header(showBack){
-  return '<header class="top">'
-    + '<div class="brand"><img src="'+LOGO+'" alt="МПБ">'
-    +   '<div><h1>Задачи</h1><p>Договоры в работе — от подписания до сдачи работ</p></div>'
-    + '</div>'
-    + (showBack
-        ? '<button class="backlink" onclick="location.hash=\'#/\'; tasksRouter();">← К списку задач</button>'
-        : '<button class="refresh" onclick="tasksRouter()">⟳ Обновить</button>')
-    + '</header>';
-}
-
-function renderListLoading(){
-  document.getElementById("tasks-app").innerHTML = header(false) + '<div class="wrap"><div class="loading">Загружаю задачи из таблицы…</div></div>';
-}
-function renderDetailLoading(){
-  document.getElementById("tasks-app").innerHTML = header(true) + '<div class="wrap"><div class="loading">Загружаю задачу…</div></div>';
-}
-
-function renderList(){
-  var app = document.getElementById("tasks-app");
-  var tasks = cache.tasks.filter(function(t){
-    if(listFilter.person!=="Все" && t.responsible!==listFilter.person) return false;
-    if(listFilter.kpi){
-      var ds = deadlineStatus(t.deadline);
-      if(listFilter.kpi==="open" && t.closed) return false;
-      if(listFilter.kpi==="closed" && !t.closed) return false;
-      if(listFilter.kpi==="soon" && (t.closed || ds!=="soon")) return false;
-      if(listFilter.kpi==="over" && (t.closed || ds!=="overdue")) return false;
-    }
-    if(listFilter.q){
-      var q = listFilter.q.toLowerCase();
-      var hay = (t.customer+" "+t.address+" "+t.contractNo).toLowerCase();
-      if(hay.indexOf(q)===-1) return false;
-    }
-    return true;
-  });
-
-  var counts = {};
-  ALL_PEOPLE.forEach(function(p){ counts[p]=0; });
-  cache.tasks.forEach(function(t){ if(t.responsible) counts[t.responsible]=(counts[t.responsible]||0)+1; });
-  var chips = ALL_PEOPLE.map(function(p){
-    return '<span class="chip"><span class="dot" style="background:'+(PERSON_COLOR[p]||'#999')+'"></span>'+esc(p)+': '+(counts[p]||0)+' задач.</span>';
-  }).join("");
-
-  var tabs = ["Все"].concat(ALL_PEOPLE).map(function(p){
-    return '<button class="tab '+(listFilter.person===p?"active":"")+'" data-person="'+esc(p)+'">'+esc(p)+'</button>';
-  }).join("");
-
-  var viewToggle = '<div class="viewtoggle">'
-    + '<button data-view="list" class="'+(listFilter.view==="list"?"active":"")+'">'+icon("list")+' Список</button>'
-    + '<button data-view="board" class="'+(listFilter.view==="board"?"active":"")+'">'+icon("users")+' По исполнителям</button>'
-    + '</div>';
-
-  var bodyHtml;
-  if (listFilter.view === "board") {
-    bodyHtml = boardHtml(tasks);
-  } else {
-    var cards = tasks.map(taskCardHtml).join("");
-    if(!cards) cards = '<div class="empty">Ничего не найдено под текущий фильтр.</div>';
-    bodyHtml = '<div class="list">'+cards+'</div>';
-  }
-
-  app.innerHTML = header(false)
-    + '<div class="wrap">'
-    +   tasksKpis(cache.tasks)
-    +   '<div class="summary-row">'+chips+'</div>'
-    +   '<div class="toolbar">'
-    +     '<div class="tabs">'+(listFilter.view==="board"?"":tabs)+'</div>'
-    +     '<input type="text" id="q" name="task-filter-q" autocomplete="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other" placeholder="Поиск по заказчику, адресу, номеру договора…" value="'+esc(listFilter.q)+'">'
-    +     viewToggle
-    +     '<button class="primary" id="newBtn">+ Новая задача</button>'
-    +   '</div>'
-    +   bodyHtml
-    + '</div>';
-
-  Array.prototype.forEach.call(document.querySelectorAll("#tasks-app .kpi[data-k]"), function(k){
-    var go = function(){ listFilter.kpi = (listFilter.kpi === k.dataset.k) ? "" : k.dataset.k; renderList(); };
-    k.onclick = go; k.onkeydown = function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } };
-  });
-  var cardEls = document.querySelectorAll(".task-card");
-  for(var i=0;i<cardEls.length;i++){
-    (function(el){ el.onclick = function(){ location.hash = "#/task/"+el.dataset.row; }; })(cardEls[i]);
-  }
-  var tabEls = document.querySelectorAll(".tab");
-  for(var j=0;j<tabEls.length;j++){
-    (function(el){ el.onclick = function(){ listFilter.person = el.dataset.person; renderList(); }; })(tabEls[j]);
-  }
-  document.getElementById("q").oninput = function(e){
-    var pos = e.target.selectionStart;
-    listFilter.q = e.target.value;
-    renderList();
-    var qi = document.getElementById("q");
-    if(qi){ qi.focus(); try { qi.setSelectionRange(pos, pos); } catch(err){} }
-  };
-  document.getElementById("newBtn").onclick = function(){ location.hash = "#/new"; };
-  var viewEls = document.querySelectorAll(".viewtoggle button");
-  for(var k=0;k<viewEls.length;k++){
-    (function(el){ el.onclick = function(){ listFilter.view = el.dataset.view; renderList(); }; })(viewEls[k]);
-  }
-}
-
-function boardHtml(tasks){
-  var groups = {};
-  ALL_PEOPLE.forEach(function(p){ groups[p] = []; });
-  var noOne = [];
-  tasks.forEach(function(t){
-    if (t.responsible && groups[t.responsible]) groups[t.responsible].push(t);
-    else noOne.push(t);
-  });
-  var cols = ALL_PEOPLE.map(function(p){
-    var list = groups[p];
-    var body = list.length ? list.map(taskCardHtml).join("") : '<div class="empty2">Нет задач</div>';
-    return '<div class="board-col">'
-      + '<h3><span class="ava" style="background:'+(PERSON_COLOR[p]||'#888')+'">'+esc(p).charAt(0)+'</span>'+esc(p)+'<span class="cnt">'+list.length+'</span></h3>'
-      + '<div class="list">'+body+'</div>'
-      + '</div>';
-  }).join("");
-  if (noOne.length){
-    cols += '<div class="board-col"><h3><span class="dot" style="background:#999"></span>Без ответственного<span class="cnt">'+noOne.length+'</span></h3>'
-      + '<div class="list">'+noOne.map(taskCardHtml).join("")+'</div></div>';
-  }
-  return '<div class="board">'+cols+'</div>';
-}
-
-function renderDetail(task, isNew){
-  var app = document.getElementById("tasks-app");
-  var t = task || {row:null, customer:"", address:"", contractNo:"", workType:"", startDate:todayISO(), dueDate:"", stage:stagesFor("")[0].name, deadline:"", comment:"", siteContact:"", siteContactPhone:"", manager:"", closed:false};
-  /* этапы, шаги и ответственный для вида работ wt и текущего этапа stage */
-  function stageBlocks(wt, stage){
-    var st = stagesFor(wt), idx = -1, i;
-    for(i=0;i<st.length;i++){ if(st[i].name===stage){ idx = i; break; } }
-    var opts = (idx<0 ? '<option value="'+esc(stage)+'" selected>'+esc(stage)+' (нет в наборе этапов)</option>' : "")
-      + st.map(function(s,i){ return '<option value="'+esc(s.name)+'" '+(i===idx?"selected":"")+'>'+(i+1)+'. '+esc(s.name)+'</option>'; }).join("");
-    var steps = st.map(function(s,i){
-      var cls = i<idx ? "done" : (i===idx ? "current" : "");
-      return '<div class="step '+cls+'"><div class="circle">'+(i+1)+'</div><div class="lbl2">'+esc(s.name)+'</div></div>';
-    }).join("");
-    var who = idx>=0 ? st[idx].who : ((window.MPBS && MPBS.whoOf && MPBS.whoOf(stage, wt)) || t.responsible || "");
-    return {opts:opts, steps:steps, who:who, days: idx>=0 ? (st[idx].days||0) : 0, stage: stage};
-  }
-  var sb = stageBlocks(t.workType, t.stage);
-  var wtNames = [];
-  (window.MPBS && MPBS.poolNames ? MPBS.poolNames() : []).concat((cache.tasks||[]).map(function(x){ return x.workType; })).forEach(function(n){ if(n && wtNames.indexOf(n)<0) wtNames.push(n); });
-
-  var title = isNew ? "Новая задача" : ("Задача: "+esc(t.customer||"(без названия)"));
-  var respName = sb.who;
-
-  app.innerHTML = header(true)
-    + '<div class="wrap"><div class="card">'
-    +   '<h2>'+title+'</h2>'
-    +   '<div class="stepper">'+sb.steps+'</div>'
-    +   '<div class="field"><span class="lbl">Этап</span><select id="f_stage">'+sb.opts+'</select></div>'
-    +   '<div class="resp-readout"><span class="lbl" style="margin:0">Текущий ответственный:</span> <span class="badge person" id="respBadge" style="background:'+(PERSON_COLOR[respName]||'#888')+'">'+esc(respName)+'</span></div>'
-    +   '<div class="row2">'
-    +     '<label class="field"><span class="lbl">Заказчик</span><input type="text" id="f_customer" value="'+esc(t.customer)+'"></label>'
-    +     '<label class="field"><span class="lbl">Вид работы</span><input type="text" id="f_workType" list="wtList" value="'+esc(t.workType)+'"><datalist id="wtList">'+wtNames.map(function(n){ return '<option value="'+esc(n)+'">'; }).join("")+'</datalist></label>'
-    +   '</div>'
-    +   '<label class="field"><span class="lbl">Адрес объекта</span><input type="text" id="f_address" value="'+esc(t.address)+'"></label>'
-    +   '<div class="row2">'
-    +     '<label class="field"><span class="lbl">Номер договора</span><input type="text" id="f_contractNo" value="'+esc(t.contractNo)+'"></label>'
-    +     '<label class="field"><span class="lbl">Ответственный за заказчика</span><input type="text" id="f_manager" value="'+esc(t.manager)+'"></label>'
-    +   '</div>'
-    +   '<div class="row2">'
-    +     '<label class="field"><span class="lbl">Дата начала по договору</span><input type="date" id="f_startDate" value="'+esc(t.startDate)+'"></label>'
-    +     '<label class="field"><span class="lbl">Крайний срок по договору</span><input type="date" id="f_dueDate" value="'+esc(t.dueDate)+'"></label>'
-    +   '</div>'
-    +   '<label class="field"><span class="lbl">Дедлайн по текущему этапу</span><input type="date" id="f_deadline" value="'+esc(t.deadline)+'"><span id="dlHint" style="display:block;margin-top:5px;font-size:.8rem;color:var(--muted)"></span></label>'
-    +   '<div class="row2">'
-    +     '<label class="field"><span class="lbl">Ответственное лицо на объекте</span><input type="text" id="f_siteContact" value="'+esc(t.siteContact)+'"></label>'
-    +     '<label class="field"><span class="lbl">Телефон ответственного на объекте</span><input type="tel" id="f_siteContactPhone" value="'+esc(t.siteContactPhone)+'"></label>'
-    +   '</div>'
-    +   '<label class="field"><span class="lbl">Комментарий</span><textarea id="f_comment">'+esc(t.comment)+'</textarea></label>'
-    +   '<label class="closed-row"><input type="checkbox" id="f_closed" '+(t.closed?"checked":"")+'> Закрыто (при этапе «Работа сдана» уйдёт в архив)</label>'
-    +   '<div id="notice"></div>'
-    +   '<div class="actions">'
-    +     '<button class="primary" id="saveBtn">'+(isNew?"Создать задачу":"Сохранить изменения")+'</button>'
-    +     (isNew ? "" : '<button class="danger" id="delBtn">Удалить задачу</button>')
-    +     (isNew ? "" : '<button class="ghost" type="button" data-remind="'+t.row+'" data-cust="'+esc(t.customer)+'" onclick="if(window.MPBX)MPBX.remindTask(+this.dataset.remind,this.dataset.cust)">'+icon("bell")+' Напомнить</button>')
-    +     (isNew ? "" : '<button class="ghost" type="button" data-row="'+t.row+'" data-cust="'+esc(t.customer)+'" onclick="if(window.MPBT)MPBT.openTaskRoom(+this.dataset.row,this.dataset.cust)">'+icon("chat")+' Обсуждение</button>')
-    +     '<button class="ghost" type="button" onclick="location.hash=\'#/\'; tasksRouter();">Отмена</button>'
-    +   '</div>'
-    + '</div></div>';
-
-  /* вид работы или этап изменились: пересобираем набор этапов, шаги, ответственного и подсказку по сроку */
-  function refreshStages(){
-    var wt = document.getElementById("f_workType").value, sel = document.getElementById("f_stage"), cur = sel.value;
-    var st = stagesFor(wt), known = st.some(function(s){ return s.name===cur; });
-    if(!known && isNew) cur = st[0].name;
-    var b = stageBlocks(wt, cur);
-    sel.innerHTML = b.opts; sel.value = cur;
-    document.querySelector(".stepper").innerHTML = b.steps;
-    var badge = document.getElementById("respBadge");
-    badge.textContent = b.who; badge.style.background = PERSON_COLOR[b.who] || '#888';
-    var hint = document.getElementById("dlHint");
-    hint.innerHTML = b.days ? 'Обычно на этот этап — '+b.days+' дн. <a href="#" id="dlSet">поставить срок '+fmtDate(addDays(todayISO(), b.days))+'</a>' : "";
-    var set = document.getElementById("dlSet");
-    if(set) set.onclick = function(ev){ ev.preventDefault(); document.getElementById("f_deadline").value = addDays(todayISO(), b.days); };
-  }
-  document.getElementById("f_stage").onchange = refreshStages;
-  document.getElementById("f_workType").oninput = refreshStages;
-  refreshStages();
-
-  function setBusy(busy, label){
-    var b = document.getElementById("saveBtn");
-    b.disabled = busy; if(label) b.textContent = label;
-  }
-
-  document.getElementById("saveBtn").onclick = function(){
-    var data = {
-      customer: document.getElementById("f_customer").value.trim(),
-      workType: document.getElementById("f_workType").value.trim(),
-      address: document.getElementById("f_address").value.trim(),
-      contractNo: document.getElementById("f_contractNo").value.trim(),
-      manager: document.getElementById("f_manager").value.trim(),
-      startDate: document.getElementById("f_startDate").value,
-      dueDate: document.getElementById("f_dueDate").value,
-      stage: document.getElementById("f_stage").value,
-      deadline: document.getElementById("f_deadline").value,
-      siteContact: document.getElementById("f_siteContact").value.trim(),
-      siteContactPhone: document.getElementById("f_siteContactPhone").value.trim(),
-      comment: document.getElementById("f_comment").value.trim(),
-      closed: document.getElementById("f_closed").checked
-    };
-    setBusy(true, "Сохраняю…");
-    var p = isNew ? callServer("api_createTask", data) : callServer("api_saveTask", t.row, data);
-    p.then(function(){ location.hash = "#/"; }).catch(function(msg){ setBusy(false, isNew?"Создать задачу":"Сохранить изменения"); showError(msg); });
-  };
-
-  if(!isNew){
-    document.getElementById("delBtn").onclick = function(){
-      if(!confirm('Удалить задачу «'+t.customer+'»? Это действие необратимо.')) return;
-      callServer("api_deleteTask", t.row).then(function(){ location.hash = "#/"; }).catch(showError);
-    };
-  }
-}
-
 function sectionForHash(h){
   if (h.indexOf("#/price") === 0) return "price";
   if (h.indexOf("#/scripts") === 0) return "scripts";
@@ -711,8 +362,6 @@ function sectionForHash(h){
   if (h.indexOf("#/kpc") === 0) return "kpc";
   if (h.indexOf("#/contracts") === 0) return "contracts";
   if (h.indexOf("#/chat") === 0) return "chat";
-  if (h.indexOf("#/to") === 0) return "to";
-  if (h.indexOf("#/dash") === 0) return "dash";
   if (h.indexOf("#/risk") === 0) return "risk";
   if (h.indexOf("#/cal") === 0) return "cal";
   if (h.indexOf("#/my") === 0) return "my";
@@ -726,14 +375,14 @@ function sectionForHash(h){
 }
 /* Какие разделы видит каждая роль (позиция сотрудника в CRM). Это интерфейс; данные ограничиваются на сервере (этап 2). */
 var DS_ALLOWED = {
-  owner:    ["dash","flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","stats","log","auto","stages","me"],
-  design:   ["dash","tasks","cal","risk","my","clients","chat","team","report","me"],
-  sales:    ["dash","flow","tasks","cal","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","me"],
-  ops:      ["dash","flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","me"],
+  owner:    ["flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","stats","log","auto","stages","me"],
+  design:   ["tasks","cal","risk","my","clients","chat","team","report","me"],
+  sales:    ["flow","tasks","cal","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","me"],
+  ops:      ["flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","me"],
   acc:      ["tasks","kpreg","team","me"],
   designer: ["tasks","cal","my","team","me"]
 };
-var DS_HOME = { owner: "#/dash", design: "#/dash", sales: "#/dash", ops: "#/dash", acc: "#/", designer: "#/" };
+var DS_HOME = { owner: "#/", design: "#/", sales: "#/", ops: "#/", acc: "#/", designer: "#/" };
 function dsPosition(){ return (window.MPBC && MPBC.me) ? (MPBC.me.position || (MPBC.me.role === "admin" ? "owner" : "")) : ""; }
 var DS_READY = false, DS_HAS_TOKEN = false;
 try { DS_HAS_TOKEN = !!localStorage.getItem("ds_session"); } catch (e) {}
@@ -745,7 +394,7 @@ function dsAllowed(sec){
 }
 function renderTopNav(){
   var cur = sectionForHash(location.hash);
-  var own = { risk:1, scripts:1, tasks:1, dash:1, cal:1, my:1, chat:1, to:1, team:1, log:1, me:1, auto:1, stages:1, clients:1, report:1, stats:1, flow:1, tz:1 };
+  var own = { risk:1, scripts:1, tasks:1, cal:1, my:1, chat:1, team:1, log:1, me:1, auto:1, stages:1, clients:1, report:1, stats:1, flow:1, tz:1 };
   var pa = own[cur] ? cur : "commerce";
   var ok = dsAllowed;
   var b = function(go, ic, t, on, sec){ return ok(sec) ? '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+'<span>'+t+'</span></button>' : ""; };
@@ -754,7 +403,7 @@ function renderTopNav(){
   var comm = (ok("kpreg") || ok("kpc") || ok("contracts")) ? '<button data-goto="#/kpreg/" class="'+(pa==="commerce"?"active":"")+'">'+icon("briefcase")+'<span>Коммерция</span></button>' + (pa==="commerce" ? sub : "") : "";
   var lab = function(t, secs){ return secs.some(ok) ? '<div class="nav-label">'+t+'</div>' : ""; };
   document.getElementById("topnav").innerHTML =
-    lab("Работа", ["dash","flow","tasks","tz","cal","risk","my"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
+    lab("Работа", ["flow","tasks","tz","cal","risk","my"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
     + lab("Заказчики и продажи", ["clients","kpreg","kpc","contracts"]) + b("#/clients","users",pos==="design"?"Кому звонить":"База заказчиков",pa==="clients","clients") + comm
     + lab("Общение", ["team","chat","scripts","report"]) + b("#/team","team","Команда",pa==="team","team") + b("#/chat","chat","Заказчики",pa==="chat","chat") + b("#/scripts","list","Скрипты",pa==="scripts","scripts") + b("#/report","list","Недельный отчёт",pa==="report","report")
     + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
@@ -774,7 +423,7 @@ function renderTopNav(){
   if (window.MPBX && window.MPBX.badge) window.MPBX.badge();
   if (window.MPBC && window.MPBC.afterNav) window.MPBC.afterNav();
 }function globalRouter(){
-  if (location.hash.indexOf("#/dash") === 0) { location.hash = "#/"; return; }       // «Обзор» объединён с «Задачами»
+  if (location.hash.indexOf("#/dash") === 0) { location.hash = "#/"; return; }       // старые ссылки на «Обзор» ведут в «Задачи»
   var sec0 = sectionForHash(location.hash);
   if (!dsAllowed(sec0)) { var hm = dsPosition() ? (DS_HOME[dsPosition()] || '#/me') : '#/me'; if (location.hash !== hm) { location.hash = hm; return; } }
   renderTopNav();
@@ -789,14 +438,10 @@ function renderTopNav(){
   document.getElementById("contracts-app").style.display = (sec === "contracts") ? "block" : "none";
   if (sec === "contracts" && window.DS) DS.mount("contract", document.getElementById("contracts-app"));
   if (sec === "kpc" && window.DS) DS.mount("kpc", document.getElementById("kpc-app"));
-  document.getElementById("to-app").style.display = (sec === "to") ? "block" : "none";
-  if (sec === "to") { var tf = document.getElementById("to-frame"); if (!tf.getAttribute("src")) tf.setAttribute("src", "to-mpb.html"); }
-  document.getElementById("dash-app").style.display = (sec === "dash") ? "block" : "none";
   document.getElementById("cal-app").style.display = (sec === "cal") ? "block" : "none";
   document.getElementById("my-app").style.display = (sec === "my") ? "block" : "none";
   if (window.DSRemind) DSRemind.tabsVisible(sec === "my" && (dsPosition() === "designer" || dsPosition() === "design"));
-  if (sec === "dash" && window.DS) DS.mount("ov", document.getElementById("dash-app"));
-  else if (sec === "cal" && window.DS) DS.mount("load", document.getElementById("cal-app"));
+  if (sec === "cal" && window.DS) DS.mount("load", document.getElementById("cal-app"));
   else if (sec === "my" && window.DS && (dsPosition() === "designer" || dsPosition() === "design")) { if (window.DSRemind) DSRemind.designerMy(); else DS.mount("week", document.getElementById("my-app")); }
   else if (sec === "my" && window.MPBX && window.MPBX.render) window.MPBX.render(sec);
   document.getElementById("team-app").style.display = (sec === "team") ? "block" : "none";
@@ -828,9 +473,6 @@ function renderTopNav(){
   else if (sec === "tasks") { tasksRouter(); }
 }
 window.addEventListener("hashchange", globalRouter);
-/* «вошёл» и «готов» приходят при запуске подряд: одна перерисовка вместо двух, иначе задачи, КП и справочники грузятся дважды */
-var grT = 0;
-if (window.MPBC) { ["login","logout","ready"].forEach(function(e){ MPBC.on(e, function(){ if (e === "ready") DS_READY = true; clearTimeout(grT); grT = setTimeout(globalRouter, 0); }); }); }
 globalRouter();
 </script>
 <style>
@@ -847,9 +489,9 @@ globalRouter();
 #apiModal button{padding:9px 16px;border-radius:8px;font:inherit;cursor:pointer;border:1px solid #b9c4d0;background:var(--card);color:var(--ink)}
 #apiModal button.ok{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
 </style>
-<script src="noautofill.js?v=20261022c"></script>
-<script src="sound.js?v=20261022c"></script>
-<script src="chat.js?v=20261022c"></script>
+<script src="noautofill.js?v=20261022f"></script>
+<script src="sound.js?v=20261022f"></script>
+<script src="chat.js?v=20261022f"></script>
 <button id="apiGear" title="Настройки подключения" aria-label="Настройки">⚙</button>
 <div id="apiModal"><div class="box">
   <h2>Подключение к серверу CRM</h2>
@@ -860,7 +502,6 @@ globalRouter();
 </div></div>
 <script>
 (function(){
-  if (window.google && google.script && google.script.run) { document.getElementById("apiGear").style.display = "none"; return; }
   var m = document.getElementById("apiModal");
   window.openApiSettings = function(){
     var b = {}; try { b = JSON.parse(localStorage.getItem("ds_bridge") || "{}"); } catch(e){}
@@ -882,13 +523,13 @@ globalRouter();
   });
 })();
 </script>
-<script src="config.js?v=20261022c"></script>
-<script src="crm.js?v=20261022c"></script>
-<script src="extras.js?v=20261022c"></script>
-<script src="team.js?v=20261022c"></script>
-<script src="chatpanel.js?v=20261022c"></script>
-<script src="ds.js?v=20261022c"></script>
-<script src="remind.js?v=20261022c"></script>
+<script src="config.js?v=20261022f"></script>
+<script src="crm.js?v=20261022f"></script>
+<script src="extras.js?v=20261022f"></script>
+<script src="team.js?v=20261022f"></script>
+<script src="chatpanel.js?v=20261022f"></script>
+<script src="ds.js?v=20261022f"></script>
+<script src="remind.js?v=20261022f"></script>
 <script>
 (function(){
   var KEY = "ds_theme", t = "light";

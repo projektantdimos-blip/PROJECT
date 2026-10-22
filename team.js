@@ -10,7 +10,6 @@
   function p2(n) { return n < 10 ? "0" + n : "" + n; }
   var PALETTE = ["#3a86d6", "#2fa66a", "#ee9264", "#8b6fe0", "#1fb3b3", "#e0a21c", "#d8453a", "#6f6fe0"];
   function color(name) {
-    if (window.PERSON_COLOR && PERSON_COLOR[name] && PERSON_COLOR[name].charAt(0) === "#") return PERSON_COLOR[name];
     var h = 0; String(name).split("").forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return PALETTE[h % PALETTE.length];
   }
   var PPL = {};                                                  // имя -> {title, photo}: загружается после входа
@@ -626,16 +625,10 @@
     rows.forEach(function (l) {
       var d = dayLabel(l.ts); if (d !== day) { day = d; h += '<div class="x-lgd">' + d + "</div>"; }
       h += '<div class="x-lg">' + ava(l.user_name || "?", "sm") + "<div><b>" + E(l.user_name) + "</b> · " + E(l.action) + ' <span class="x-pill">' + E(l.entity) + "</span>" + (l.before || l.after ? '<div class="x-diff"><s>' + E(l.before || "—") + "</s>" + ic("arrow") + "<u>" + E(l.after || "—") + "</u></div>" : "") + '</div><div class="rt"><span class="tt">' + when(l.ts) + "</span>"
-        + (l.undo && !l.undone ? '<button class="x-btn ghost" style="padding:7px 12px" data-u="' + l.id + '">' + ic("undo") + "Отменить</button>" : (l.undone ? '<span class="x-pill">отменено</span>' : "")) + "</div></div>";
+        + "</div></div>";
     });
     $("lgOut").innerHTML = h || '<div class="x-empty">Записей пока нет</div>';
     $("lgChips").querySelectorAll(".x-chip").forEach(function (c) { c.onclick = function () { LG.f = c.dataset.f; paintLog(); }; });
-    $("lgOut").querySelectorAll("[data-u]").forEach(function (b) {
-      b.onclick = function () {
-        var e = LG.items.filter(function (x) { return x.id === +b.dataset.u; })[0]; b.disabled = true;
-        C.undoEntry(e).then(function () { e.undone = 1; paintLog(); toast("Изменение отменено"); }).catch(function (er) { b.disabled = false; toast(E(er)); });
-      };
-    });
   }
 
   /* ================================================================
