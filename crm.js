@@ -149,11 +149,11 @@
     return C.call("/sync").then(function (s) {
       var prev = C.sync; C.sync = s; paintBadges();
       if (prev) {
-        var dn = (s.notif_unread || 0) - (prev.notif_unread || 0), dt = (s.team_unread || 0) - (prev.team_unread || 0);
+        var dn = (s.notif_unread || 0) - (prev.notif_unread || 0);
         if (dn > 0) C.call("/notifications").then(function (r) { (r.items || []).filter(function (n) { return !n.is_read && !alertShown[n.id]; }).slice(0, 3).forEach(function (n) { alertShown[n.id] = 1; DSAlert.show(n.title, n.body, n.url, n.urgent); }); }).catch(function () {});
-        else if (dt > 0 && secNow() !== "team") DSAlert.show("Новое сообщение в «Команде»", "Нажмите, чтобы открыть", "#/team");
       }
-      if (prev && window.DSSound && ((s.notif_unread || 0) > (prev.notif_unread || 0) || (s.team_unread || 0) > (prev.team_unread || 0))) DSSound.play();
+      // плашка и звук — только на уведомления колокольчика (задачи, @упоминания, срочное); обычные сообщения чатов видны цифрой на «Команде»
+      if (prev && window.DSSound && (s.notif_unread || 0) > (prev.notif_unread || 0)) DSSound.play();
       (s.urgent || []).slice(0, 3).forEach(function (m) { if (!shownUrgent[m.id]) { shownUrgent[m.id] = 1; if (prev || Date.now() / 1000 - m.ts < 86400) urgentBanner(m); } });   // после входа — свежие неподтверждённые срочные тоже всплывают
       emit("sync", s);
     }).catch(function () {});

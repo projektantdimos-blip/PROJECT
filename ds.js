@@ -47,16 +47,46 @@
   function ic(n) { return '<svg class="i" viewBox="0 0 24 24">' + (ICON[n] || "") + "</svg>"; }
 
   /* ---------- загрузка ---------- */
+  var CUST_POS = ["owner", "sales", "ops", "design", "acc"], PEOPLE_POS = ["owner", "design", "ops"], KP_POS = ["owner", "sales", "ops"];
+  function lastPos() { try { return localStorage.getItem("ds_pos") || ""; } catch (e) { return ""; } }
+  /* Задачи, настройки роли, заказчики и сотрудники — одним залпом (раньше заказчики и сотрудники ждали настроек роли).
+     Роль берётся из входа или запомненная с прошлого раза; если она неизвестна или сменилась — догружаем после настроек. */
   function load() {
+    if (BOOT && BOOT.load) return BOOT.load;
     S.err = "";
-    return Promise.all([api("/meta"), api("/orders"), api("/tasks")]).then(function (r) {
+    var p0 = pos() || lastPos(), extra = [];
+    // не загрузилось (сессия истекла, нет сети) — остаётся null, при следующей загрузке запросим снова, а не будем показывать пустой список
+    function cust() { return S.customers == null ? api("/customers").then(function (c) { S.customers = c; }, function () { S.customers = null; }) : null; }
+    function people() { return S.people == null ? api("/people").then(function (x) { S.people = x; }, function () { S.people = null; }) : null; }
+    if (CUST_POS.indexOf(p0) >= 0) extra.push(cust());
+    if (PEOPLE_POS.indexOf(p0) >= 0) extra.push(people());
+    return Promise.all([api("/meta"), api("/orders"), api("/tasks")].concat(extra)).then(function (r) {
       S.meta = r[0]; S.orders = r[1]; S.tasks = r[2]; S.loadedAt = Date.now();
       var p = r[0].position;
-      var extra = [];
-      if (r[0].can.customers && S.customers == null) extra.push(api("/customers").then(function (c) { S.customers = c; }, function () { S.customers = []; }));
-      if ((p === "owner" || p === "design" || p === "ops") && S.people == null) extra.push(api("/people").then(function (x) { S.people = x; }, function () { S.people = []; }));
-      return Promise.all(extra);
+      try { localStorage.setItem("ds_pos", p || ""); } catch (e) {}
+      if (p === p0) return null;
+      return Promise.all([r[0].can.customers ? cust() : null, PEOPLE_POS.indexOf(p) >= 0 ? people() : null]);
     });
+  }
+  function loadComments() {
+    if (BOOT && BOOT.cm) return BOOT.cm;
+    return api("/comments").then(function (c) { S.cm = c; }, function () { S.cm = S.cm || {}; });
+  }
+  /* Сессия уже есть: данные первого экрана запрашиваются сразу, не дожидаясь ответа «кто вошёл» (crm.js).
+     Экран потом подхватывает уже идущие запросы, а не шлёт их заново; после первой отрисовки BOOT больше не нужен. */
+  var BOOT = null;
+  function bootShare(name, p) {
+    BOOT[name] = p.then(null, function (e) { if (BOOT) BOOT[name] = null; throw e; });       // ошибка (например, сессия истекла) — повторим обычным порядком
+    BOOT[name].catch(function () {});
+  }
+  function bootStart() {
+    var sess = ""; try { sess = localStorage.getItem("ds_session") || ""; } catch (e) {}
+    var p = lastPos(), home = !location.hash || /^#\/?($|task\/|dash)/.test(location.hash);
+    if (!sess || !p || !C || !C.configured || !C.configured()) return;
+    BOOT = {};
+    bootShare("load", load());
+    if (home && KP_POS.indexOf(p) >= 0) bootShare("kp", api("/kp").then(function (k) { S.kp = k; }, function () {}));      // тихо: роль могли сменить, ошибку не показываем
+    if (home) bootShare("cm", loadComments());
   }
   /* Приложение с иконки на телефоне не перезапускается днями: при возвращении в него подтягиваем свежие задачи
      (иначе этапы на экране устаревают и сервер отклоняет переход), а если на сайте новая версия — перезагружаем страницу. */
@@ -108,7 +138,8 @@
     var m = /^#\/task\/(\d+)/.exec(location.hash);
     if (m) S.open = +m[1];
     if (!C || !C.loggedIn()) {
-      el.innerHTML = '<div class="ds dspage"><div class="head"><div><h1>' + TITLES[kind] + '</h1><p>Войдите, чтобы увидеть данные вашей роли</p></div><button class="btn primary" id="dsLogin">Войти по PIN</button></div></div>';
+      if (BOOT) { el.innerHTML = '<div class="ds dspage"><div class="loading">Загружаю…</div></div>'; return; }      // сессия есть, вход ещё проверяется — данные уже идут
+      el.innerHTML ='<div class="ds dspage"><div class="head"><div><h1>' + TITLES[kind] + '</h1><p>Войдите, чтобы увидеть данные вашей роли</p></div><button class="btn primary" id="dsLogin">Войти по PIN</button></div></div>';
       var b = document.getElementById("dsLogin"); if (b) b.onclick = function () { C.requireLogin().then(function () { mount(kind, el); }); };
       modalRoot().innerHTML = "";
       return;
@@ -117,24 +148,26 @@
     if (S.mounting === key) return;                // этот экран уже загружается (при запуске его открывают подряд несколько раз) — без второй загрузки
     S.mounting = key;
     if (S.orders == null) { el.innerHTML = '<div class="ds dspage"><div class="loading">Загружаю…</div></div>'; }
-    var need = S.orders == null ? load() : Promise.resolve();
-    if ((kind === "tasks" || kind === "ov") && /^(owner|sales|ops)$/.test(pos())) need = need.then(loadKp);
-    if (kind === "week") need = need.then(loadWeek);
-    if (kind === "scripts") need = need.then(loadScripts);
-    if (kind === "risk") need = need.then(loadRisk);
-    if (kind === "ov" || kind === "tasks") need = need.then(function () { return api("/comments").then(function (c) { S.cm = c; }, function () { S.cm = S.cm || {}; }); });
-    if (kind === "load" && pos() === "designer") need = need.then(function () { return api("/load").then(function (r) { S.lo = r; }, function () { S.lo = []; }); });
-    if (kind === "kp" || kind === "kpc" || kind === "contract") need = need.then(loadKp);
-    if (kind === "price" || kind === "kpc") need = need.then(loadPrice);
-    if (kind === "contract") need = need.then(loadPrice).then(loadContractDraft);
-    if (kind === "price") need = need.then(loadCompany);
-    if (kind === "stages") need = need.then(loadStages);
-    if (kind === "flow") need = need.then(loadFlow);
-    if (kind === "tz") need = need.then(loadTz);
-    if (kind === "auto") need = need.then(loadAuto);
-    if (kind === "report") need = need.then(loadReport);
-    if (kind === "stats") need = need.then(loadStats);
-    var done = function () { if (S.mounting === key) S.mounting = ""; };
+    // всё, что нужно экрану, — одновременно (раньше цепочкой: задачи → КП → комментарии…); черновик договора ждёт только список КП
+    var jobs = [S.orders == null ? load() : null], add = function (f) { jobs.push(f()); };
+    if ((kind === "tasks" || kind === "ov") && KP_POS.indexOf(pos()) >= 0) add(loadKp);
+    if (kind === "ov" || kind === "tasks") add(loadComments);
+    if (kind === "week") add(loadWeek);
+    if (kind === "scripts") add(loadScripts);
+    if (kind === "risk") add(loadRisk);
+    if (kind === "load" && pos() === "designer") add(function () { return api("/load").then(function (r) { S.lo = r; }, function () { S.lo = []; }); });
+    if (kind === "kp" || kind === "kpc") add(loadKp);
+    if (kind === "contract") add(function () { return loadKp().then(loadContractDraft); });
+    if (kind === "price" || kind === "kpc" || kind === "contract") add(loadPrice);
+    if (kind === "price") add(loadCompany);
+    if (kind === "stages") add(loadStages);
+    if (kind === "flow") add(loadFlow);
+    if (kind === "tz") add(loadTz);
+    if (kind === "auto") add(loadAuto);
+    if (kind === "report") add(loadReport);
+    if (kind === "stats") add(loadStats);
+    var need = Promise.all(jobs);
+    var done = function () { BOOT = null; if (S.mounting === key) S.mounting = ""; };
     need.then(function () { return S.open ? api("/orders/" + S.open + "/history").then(function (h2) { S.history = h2; }, function () { S.history = []; }) : null; })
       .then(paint, function (e) { S.err = String(e); paint(); }).then(done, done);
   }
@@ -996,7 +1029,8 @@
       + "";
     var cardsHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">' + cards + "</div>", headBase = head;
     head += cardsHtml;
-    var open = p === "designer" ? "data-ro" : "data-open";
+    // проектировщик открывает окно своих задач (тех, что ему доступны); задачи коллег — только для просмотра
+    var openAttr = function (o) { return p !== "designer" || find(o.id) ? "data-open" : "data-ro"; };
     if (S.ld === "week") {
       var wkDays = []; for (var i = 0; i < 7; i++) wkDays.push(isoDay(addDays(mon, i)));
       var lbl = dmy(wkDays[0]).slice(0, 5) + " — " + dmy(wkDays[6]).slice(0, 5);
@@ -1005,7 +1039,7 @@
         return '<div class="panel"><div style="display:flex;gap:10px;align-items:center;padding:13px 15px;background:var(--surface-2);border-bottom:1px solid var(--line)">' + ava(u.name) + '<div style="flex:1"><b>' + E(u.name) + '</b><br><small style="color:var(--muted)">' + mine.length + " в плане · " + lbl + "</small></div></div>"
           + (mine.map(function (o) {
             var sp = span(o), tn = tone(o);
-            return '<button style="display:block;width:100%;text-align:left;padding:11px 15px;border-bottom:1px solid var(--line)" ' + open + '="' + o.id + '"><div style="display:flex;gap:10px;align-items:baseline"><span style="font-weight:800;color:var(--brand);font-size:1.15rem">№' + E(o.number) + '</span><span style="font-weight:600">' + E(o.object) + "</span></div>"
+            return '<button style="display:block;width:100%;text-align:left;padding:11px 15px;border-bottom:1px solid var(--line)" ' + openAttr(o) + '="' + o.id + '"><div style="display:flex;gap:10px;align-items:baseline"><span style="font-weight:800;color:var(--brand);font-size:1.15rem">№' + E(o.number) + '</span><span style="font-weight:600">' + E(o.object) + "</span></div>"
               + '<div style="margin-top:6px"><span class="pill ' + tn + '">' + E(leftText(o.left_days)) + '</span></div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:8px">'
               + wkDays.map(function (d) { var on = sp[0] && sp[1] && d >= sp[0] && d <= sp[1]; return '<span title="' + dmy(d).slice(0, 5) + '" style="height:9px;border-radius:3px;border:1px solid ' + (on ? (tn === "bad" ? "var(--bad)" : "var(--brand)") : "var(--line)") + ";background:" + (on ? (tn === "bad" ? "var(--bad)" : "var(--brand)") : "var(--surface-2)") + '"></span>'; }).join("") + "</div></button>";
           }).join("") || '<div class="note" style="padding:14px 15px;margin:0">Задач в плане нет</div>') + "</div>";
@@ -1049,7 +1083,7 @@
     }
     function barEl(x, un) {
       var o = x.o, kind = barKind(o, un), a_ = x.r[0], b_ = x.r[1], sp = span(o);
-      return '<div ' + open + '="' + o.id + '" title="' + E("№" + o.number + " · " + (o.object || "") + " · " + dmy(sp[0] || iso[0]) + " — " + dmy(sp[1] || sp[0] || iso[0]) + " · " + (o.executor || "не назначен") + " · " + o.stage) + '" style="grid-column:' + (a_ + 2) + "/" + (b_ + 3) + ";grid-row:" + (x.lane + 1) + ";background:" + (un ? BAR.gray : kind === "done" ? BAR.done : taskColor(o)) + (un ? ";color:#fff;opacity:.85" : "") + (kind === "late" ? ";box-shadow:inset 0 0 0 2px #e5483c,0 0 0 1px #e5483c" : kind === "hot" ? ";box-shadow:inset 4px 0 0 #f0924d" : "") + '" class="gbar' + (o.stage === "Корректировка" ? " fix" : "") + '">'
+      return '<div ' + openAttr(o) + '="' + o.id + '" title="' + E("№" + o.number + " · " + (o.object || "") + " · " + dmy(sp[0] || iso[0]) + " — " + dmy(sp[1] || sp[0] || iso[0]) + " · " + (o.executor || "не назначен") + " · " + o.stage) + '" style="grid-column:' + (a_ + 2) + "/" + (b_ + 3) + ";grid-row:" + (x.lane + 1) + ";background:" + (un ? BAR.gray : kind === "done" ? BAR.done : taskColor(o)) + (un ? ";color:#fff;opacity:.85" : "") + (kind === "late" ? ";box-shadow:inset 0 0 0 2px #e5483c,0 0 0 1px #e5483c" : kind === "hot" ? ";box-shadow:inset 4px 0 0 #f0924d" : "") + '" class="gbar' + (o.stage === "Корректировка" ? " fix" : "") + '">'
         + (o.stage === "Корректировка" ? "↻ К" + (o.fix_n || "") + " · " : "") + "№" + E(o.number) + " · " + E((o.object || "").split(",")[0]) + "</div>";
     }
     var header = '<div class="ghead" style="grid-template-columns:' + cols + ';min-width:' + minw + 'px"><div class="gname">Сотрудник</div>'
@@ -1229,7 +1263,10 @@
   var PRICE = [];
   var CT_TYPES = ["Проектирование СПС, СОУЭ", "Проектирование АУП, ВПВ", "Проектирование (комплекс)", "Обследование объекта", "Расчёт пожарного риска, категорирование", "Разработка исполнительной документации"];
   function execName() { return (S.comp && S.comp.name) || "ИП Шубинов Д.А."; }
-  function loadKp() { return api("/kp").then(function (k) { S.kp = k; }, function (e) { S.kp = []; S.err = String(e); }); }
+  function loadKp() {
+    if (BOOT && BOOT.kp) return BOOT.kp;
+    return api("/kp").then(function (k) { S.kp = k; }, function (e) { S.kp = []; S.err = String(e); });
+  }
   /* окно таблицы реестра КП заканчивается у нижнего края экрана: горизонтальная полоса прокрутки всегда на виду */
   function fitKpWrap() {
     var w = document.querySelector(".kpwrap"); if (!w || innerWidth <= 760) return;
@@ -2326,7 +2363,8 @@
     }).then(function () { S.form = null; S.customers = null; S.orders = null; DS.route(); }, function (er) { f.err = String(er); paint(); });
   }
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && (S.open || S.form) && document.getElementById("ds-modal")) closeAll(); });
-  if (C) { C.on("logout", function () { S.orders = S.meta = S.customers = S.people = S.tasks = null; S.open = null; var m = document.getElementById("ds-modal"); if (m) m.innerHTML = ""; }); }
+  if (C) { C.on("logout", function () { BOOT = null; S.orders = S.meta = S.customers = S.people = S.tasks = null; S.kp = S.cm = null; S.open = null; var m = document.getElementById("ds-modal"); if (m) m.innerHTML = ""; }); }
+  bootStart();
 })();
 if (location.hash === '' || location.hash === '#/' || /^#\/task\//.test(location.hash)) { setTimeout(function () { if (document.getElementById('tasks-app') && document.getElementById('tasks-app').style.display !== 'none') DS.route(); }, 0); }
 (function () { var h = location.hash; var map = { '#/dash': ['ov', 'dash-app'], '#/cal': ['load', 'cal-app'] }; if (map[h]) setTimeout(function () { DS.mount(map[h][0], document.getElementById(map[h][1])); }, 0); })();

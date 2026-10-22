@@ -272,6 +272,31 @@ def send_file_demo(tid: str, body: dict):
     db.add_message(th["channel"], th["peer"], "", f"outf-{time.time()}", "out", "Вы", "", f"[файл {body.get('filename')} {len(data)} байт] " + str(body.get("text", "")), time.time(), False)
     return {"ok": True, "file": True}
 
+@app.post("/api/threads/{tid}/messages/{mid}/edit", dependencies=[Depends(crm_auth.api_key)])
+def edit_demo(tid: str, mid: int, body: dict):
+    """Как в мосту, но без Telegram/MAX: только своё сообщение, письмо исправить нельзя."""
+    m = db.get_message(mid)
+    if not m or m["thread_id"] != tid or m.get("hidden"):
+        raise HTTPException(404, "Сообщение не найдено")
+    if m["direction"] != "out":
+        raise HTTPException(403, "Исправить или удалить можно только свои сообщения")
+    if m["channel"] == "mail":
+        raise HTTPException(400, "Отправленное письмо исправить нельзя — его можно только скрыть в CRM")
+    db.message_set_text(mid, str(body.get("text", "")).strip())
+    return {"ok": True}
+
+
+@app.post("/api/threads/{tid}/messages/{mid}/delete", dependencies=[Depends(crm_auth.api_key)])
+def delete_demo(tid: str, mid: int):
+    m = db.get_message(mid)
+    if not m or m["thread_id"] != tid or m.get("hidden"):
+        raise HTTPException(404, "Сообщение не найдено")
+    if m["direction"] != "out":
+        raise HTTPException(403, "Исправить или удалить можно только свои сообщения")
+    db.message_hide(mid)
+    return {"ok": True, "remote": m["channel"] != "mail"}
+
+
 @app.post("/api/threads/{tid}/read", dependencies=[Depends(crm_auth.api_key)])
 def mark_read(tid: str):
     db.set_unread(tid, 0)

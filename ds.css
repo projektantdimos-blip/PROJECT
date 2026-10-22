@@ -854,3 +854,8 @@
 .x-lbbar span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .x-lbbar a{color:#6ab3f3;text-decoration:none}.x-lbbar button{border:0;background:none;color:#fff;font-size:1.3rem;cursor:pointer}
 @media(max-width:760px){.x-pend{background:#17212b;color:#fff;border-top-color:#0b121a;border-left-color:#6ab3f3}.x-pend small{color:#8ea2b3}.x-file{background:rgba(255,255,255,.08)!important;border:0!important;color:#fff}}
+
+/* «Команда»: подсказка @упоминаний — все сотрудники, длинный список прокручивается */
+.x-ment{max-height:min(320px,45vh);overflow-y:auto!important}
+.x-tm .x-ed{opacity:.75;font-style:italic;margin-left:2px}
+.x-editbar{border-left-color:var(--accent,#ee9264)!important}

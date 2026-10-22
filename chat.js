@@ -103,6 +103,8 @@
     ".cm.out{align-self:flex-end;background:var(--blue-l);border-color:transparent}" +
     ".cm .sj{font-size:.78rem;font-weight:600;color:var(--muted);margin-bottom:3px}" +
     ".cm .mt{font-size:.7rem;color:var(--muted);margin-top:4px;text-align:right}" +
+    ".cm .cm-acts{float:left;display:inline-flex;gap:10px;margin-right:12px}.cm .cm-acts button{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;opacity:.8;text-decoration:underline dotted;text-underline-offset:2px}.cm .cm-acts button:hover{opacity:1;text-decoration-style:solid}.cm .cm-acts .cm-del[data-sure]{font-weight:700;opacity:1}" +
+    ".cm.cm-editing{outline:2px solid var(--accent,#ee9264);outline-offset:2px}" +
     ".cm .sj-b{margin:6px 0 0;padding-top:6px;border-top:1px dashed var(--line)}" +
     ".cm .fl{display:flex;flex-direction:column;gap:5px;margin-top:6px}" +
     ".cm .cf{display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--blue);font-size:.85rem;cursor:pointer;text-align:left;font-family:inherit;white-space:normal}" +
@@ -178,7 +180,7 @@
         '<button type="button" id="chatRefresh" title="Обновить сейчас">⟳</button></span></div></div>' +
         '<div id="chatThreads"></div></aside>' +
         '<section class="chat-thread"><div id="chatHead"></div><div id="chatAssign"></div><div id="chatMsgs"></div>' +
-        '<div id="chatComposer"><div id="chatFileBar" class="chat-filebar" hidden></div><button type="button" id="chatAttach" class="chat-attach" title="Прикрепить файл (до 10 МБ)">📎</button><input type="file" id="chatFile" hidden><button type="button" id="chatScripts" class="chat-attach" title="Скрипты: готовые тексты">📋</button><textarea id="chatText" placeholder="Ответ… (Ctrl+Enter — отправить)"></textarea><button id="chatSend">Отправить</button></div></section>' +
+        '<div id="chatComposer"><div id="chatFileBar" class="chat-filebar" hidden></div><div id="chatEditBar" class="chat-filebar chat-editbar" hidden></div><button type="button" id="chatAttach" class="chat-attach" title="Прикрепить файл (до 10 МБ)">📎</button><input type="file" id="chatFile" hidden><button type="button" id="chatScripts" class="chat-attach" title="Скрипты: готовые тексты">📋</button><textarea id="chatText" placeholder="Ответ… (Ctrl+Enter — отправить)"></textarea><button id="chatSend">Отправить</button></div></section>' +
         '<aside class="chat-info" id="chatInfoPane"></aside>' +
       '</div>';
     el.banner = document.getElementById("chatBanner");
@@ -195,6 +197,8 @@
     el.q.oninput = function () { st.q = el.q.value.trim().toLowerCase(); renderThreads(); };
     el.send.onclick = sendMsg;
     el.fileBar = document.getElementById("chatFileBar");
+    el.editBar = document.getElementById("chatEditBar");
+    el.editBar.onclick = function (e) { if (e.target.closest("[data-x]")) stopEdit(true); };
     el.box = document.getElementById("chatBox");
     el.wrap.addEventListener("dragover", function (e) {          // перенос файла в окно переписки
       var dt = e.dataTransfer;
@@ -228,6 +232,13 @@
     el.msgs.onclick = function (e) {
       var b = e.target.closest ? e.target.closest(".cf") : null;
       if (b) openFile(b.getAttribute("data-fid"), b.getAttribute("data-name"), b.getAttribute("data-mime"));
+      var ed = e.target.closest ? e.target.closest("[data-cmedit]") : null;
+      if (ed) { startEdit(+ed.getAttribute("data-cmedit")); return; }
+      var dl = e.target.closest ? e.target.closest("[data-cmdel]") : null;
+      if (dl) {                                                      // удаление — вторым нажатием
+        if (!dl.getAttribute("data-sure")) { dl.setAttribute("data-sure", "1"); dl.textContent = dl.getAttribute("data-ask"); return; }
+        delMsg(+dl.getAttribute("data-cmdel"));
+      }
     };
     var grow = function () { el.text.style.height = "auto"; el.text.style.height = Math.min(el.text.scrollHeight + 2, 340) + "px"; };
     el.text.addEventListener("input", grow);
@@ -532,9 +543,12 @@
         return '<div class="cm in">' + esc(flipBlocks(m.text)) + filesHtml(m.files) + subj +
           '<div class="mt">' + fmtFull(m.ts) + "</div></div>";
       }
-      return '<div class="cm ' + (m.direction === "out" ? "out" : "in") + '">' +
+      var acts = "", mail = t.channel === "mail";                // свои сообщения: исправить (Telegram, MAX) и удалить у заказчика; письмо — только скрыть в CRM
+      if (m.direction === "out") acts = '<span class="cm-acts">' + (mail ? "" : '<button type="button" data-cmedit="' + m.id + '">✎ Изменить</button>')
+        + '<button type="button" class="cm-del" data-cmdel="' + m.id + '" data-ask="' + (mail ? "Скрыть в CRM? У заказчика письмо останется" : "Точно удалить у заказчика?") + '">' + (mail ? "Скрыть" : "🗑 Удалить") + "</button></span>";
+      return '<div class="cm ' + (m.direction === "out" ? "out" : "in") + (st.edit && st.edit.id === m.id ? " cm-editing" : "") + '">' +
         subj + esc(m.text) + filesHtml(m.files) +
-        '<div class="mt">' + fmtFull(m.ts) + "</div></div>";
+        '<div class="mt">' + acts + fmtFull(m.ts) + (m.edited ? " · изм." : "") + "</div></div>";
     }).join("");
     loadThumbs();
     if (!keepScroll || atBottom) el.msgs.scrollTop = el.msgs.scrollHeight;
@@ -762,10 +776,7 @@
       var before = totalUnread(), known = st.threads.length > 0, was = {};
       st.threads.forEach(function (t) { was[t.id] = t.unread || 0; });
       st.threads = list; setErr("");
-      if (known && window.DSAlert) list.forEach(function (t) {
-        if ((t.unread || 0) > (was[t.id] || 0) && st.sel !== t.id) DSAlert.show(t.title || t.peer || "Новое сообщение", t.last_text || "Новое сообщение от заказчика", null, false, function () { location.hash = "#/chat"; setTimeout(function () { openThread(t.id); }, 300); });
-      });
-      if (known && window.DSSound && totalUnread() > before) DSSound.play();      // новое входящее сообщение
+      // новые сообщения заказчиков — цифрой на «Заказчиках» и в списке диалогов, без всплывающей плашки и звука (в колокольчике — только задачи и @упоминания)
       st.synced = new Date(); showSync();
       if (st.built) renderThreads();
       applyBadge();
@@ -779,13 +790,15 @@
     var id = st.sel; if (!id) return Promise.resolve();
     return api("/api/threads/" + encodeURIComponent(id) + "/messages").then(function (list) {
       if (id !== st.sel) return;
-      var changed = list.length !== st.msgs.length || (list.length && list[list.length - 1].id !== st.msgs[st.msgs.length - 1].id);
+      var sig = function (a) { return a.map(function (m) { return m.id + ":" + (m.edited || 0); }).join(","); };      // новые, удалённые и исправленные сообщения
+      var changed = sig(list) !== sig(st.msgs);
       st.msgs = list;
       if (changed || !keepScroll) renderThread(keepScroll);
     }, function (e) { setErr(String(e)); });
   }
 
   function openThread(id) {
+    if (st.edit) stopEdit(true);
     st.sel = id; st.msgs = [];
     renderThreads(); renderThread();
     loadMessages(false).then(function () { el.text.focus(); });
@@ -811,7 +824,45 @@
     });
   }
 
+  /* правка своего сообщения: текст в окне ответа, «Отправить» сохраняет; ✕ — отмена, набранное до правки возвращается */
+  function startEdit(id) {
+    var m = st.msgs.filter(function (x) { return x.id === id; })[0]; if (!m) return;
+    if (!st.edit) st.edit = { draft: el.text.value };
+    st.edit.id = id; st.edit.tid = st.sel;
+    el.editBar.hidden = false;
+    el.editBar.innerHTML = "✎ <b>Изменение сообщения</b> — у заказчика оно тоже поменяется <button type=\"button\" data-x=\"1\" title=\"Отменить\">✕</button>";
+    el.text.value = m.text; if (el.grow) el.grow(); el.text.focus();
+    el.send.textContent = "Сохранить"; renderThread(true);
+  }
+  function stopEdit(restore) {
+    var ed = st.edit; st.edit = null;
+    if (el.editBar) { el.editBar.hidden = true; el.editBar.innerHTML = ""; }
+    if (ed && restore) { el.text.value = ed.draft || ""; if (el.grow) el.grow(); }
+    if (el.send && !st.sending) el.send.textContent = "Отправить";
+    if (st.sel) renderThread(true);
+  }
+  function saveEdit() {
+    var ed = st.edit, text = el.text.value.trim();
+    if (!text) { setErr("Текст пустой. Чтобы убрать сообщение, нажмите «Удалить»"); return; }
+    st.sending = true; el.send.disabled = true; el.send.textContent = "Сохраняю…";
+    api("/api/threads/" + encodeURIComponent(ed.tid) + "/messages/" + ed.id + "/edit", { method: "POST", body: { text: text } }).then(function () {
+      setErr(""); el.text.value = ed.draft || ""; if (el.grow) el.grow(); st.edit = null;
+      if (el.editBar) { el.editBar.hidden = true; el.editBar.innerHTML = ""; }
+      return Promise.all([loadMessages(true), loadThreads()]);
+    }).then(null, function (e) { setErr(String(e)); }).then(function () {
+      st.sending = false; el.send.disabled = !curThread(); el.send.textContent = st.edit ? "Сохранить" : "Отправить";
+    });
+  }
+  function delMsg(id) {
+    var tid = st.sel;
+    api("/api/threads/" + encodeURIComponent(tid) + "/messages/" + id + "/delete", { method: "POST" }).then(function () {
+      if (st.edit && st.edit.id === id) stopEdit(true);
+      setErr(""); return Promise.all([loadMessages(true), loadThreads()]);
+    }, function (e) { setErr(String(e)); renderThread(true); });
+  }
+
   function sendMsg() {
+    if (st.edit) { if (st.edit.tid === st.sel) saveEdit(); else stopEdit(true); return; }
     var t = curThread(), text = el.text.value.trim(), f = st.file;
     if (!t || (!text && !f) || st.sending) return;
     st.sending = true; el.send.disabled = true; el.send.textContent = "Отправка…";
