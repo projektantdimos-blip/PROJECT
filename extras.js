@@ -271,7 +271,7 @@
       ["cal", "cal", "Занятость", "#/cal"], ["my", "bell", ps === "designer" ? "План на неделю" : "Мои задачи", "#/my"], ["clients", "users", ps === "design" ? "Кому звонить" : "База заказчиков", "#/clients"],
       ["kpreg", "list", "Реестр КП", "#/kpreg/"], ["kpc", "calc", "Конструктор КП", "#/kpc"], ["price", "list", "Прайс", "#/price"], ["contracts", "file", "Договоры", "#/contracts"],
       ["team", "team", "Команда", "#/team"], ["chat", "chat", "Заказчики", "#/chat"], ["report", "list", "Недельный отчёт", "#/report"], ["stats", "lock", "Статистика", "#/stats"],
-      ["stages", "layers", "Этапы и сроки", "#/stages"], ["auto", "zap", "Автоматизация", "#/auto"], ["log", "history", "Журнал", "#/log"], ["me", "user", "Кабинет", "#/me"]];
+      ["stages", "layers", "Этапы и сроки", "#/stages"], ["onec", "wallet", "Оплаты из 1С", "#/onec"], ["auto", "zap", "Автоматизация", "#/auto"], ["log", "history", "Журнал", "#/log"], ["me", "user", "Кабинет", "#/me"]];
     var L = ALL.filter(function (x) { return window.dsAllowed ? window.dsAllowed(x[0]) : true; }).map(function (x) { return [x[3], x[1], x[2]]; });
     var v = document.createElement("div"); v.className = "x-veil on";
     v.innerHTML = '<div class="x-sheet"><h3>Все разделы</h3><div class="grid">' + L.map(function (x) { return '<button data-g="' + x[0] + '">' + ic(x[1]) + x[2] + "</button>"; }).join("") + "</div></div>";

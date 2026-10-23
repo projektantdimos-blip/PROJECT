@@ -131,7 +131,7 @@
     return m;
   }
 
-  var TITLES = { risk: "Просрочено и зависло", tasks: "Задачи", scripts: "Скрипты", load: "Занятость", cust: "База заказчиков", week: "План на неделю", kp: "Реестр КП", kpc: "Конструктор КП", contract: "Конструктор договора", report: "Недельный отчёт", stats: "Статистика", price: "Прайс", stages: "Этапы и сроки", auto: "Автоматизация", flow: "Конвейер заказа", tz: "Технические задания" };
+  var TITLES = { risk: "Просрочено и зависло", tasks: "Задачи", scripts: "Скрипты", onec: "Оплаты из 1С", load: "Занятость", cust: "База заказчиков", week: "План на неделю", kp: "Реестр КП", kpc: "Конструктор КП", contract: "Конструктор договора", report: "Недельный отчёт", stats: "Статистика", price: "Прайс", stages: "Этапы и сроки", auto: "Автоматизация", flow: "Конвейер заказа", tz: "Технические задания" };
   function mount(kind, el) {
     if (!el) return;
     S.mount = { kind: kind, el: el };
@@ -164,6 +164,7 @@
     if (kind === "flow") add(loadFlow);
     if (kind === "tz") add(loadTz);
     if (kind === "auto") add(loadAuto);
+    if (kind === "onec") add(loadOnec);
     if (kind === "report") add(loadReport);
     if (kind === "stats") add(loadStats);
     var need = Promise.all(jobs);
@@ -734,7 +735,7 @@
     }
     el.innerHTML = k === "risk" ? '<div class="ds dspage">' + riskScreen() + "</div>" : k === "scripts" ? scriptsScreen() : k === "load" ? '<div class="ds dspage">' + loadScreen() + "</div>"
       : k === "flow" ? '<div class="ds dspage">' + flowScreen() + "</div>" : k === "tz" ? '<div class="ds dspage">' + tzScreen() + "</div>"
-      : k === "stages" ? '<div class="ds dspage">' + stagesScreen() + "</div>" : k === "auto" ? '<div class="ds dspage">' + autoScreen() + "</div>"
+      : k === "stages" ? '<div class="ds dspage">' + stagesScreen() + "</div>" : k === "auto" ? '<div class="ds dspage">' + autoScreen() + "</div>" : k === "onec" ? '<div class="ds dspage">' + onecScreen() + "</div>"
       : k === "price" ? '<div class="ds dspage">' + priceScreen() + "</div>" : k === "report" ? '<div class="ds dspage">' + reportScreen() + "</div>" : k === "stats" ? '<div class="ds dspage">' + statsScreen() + "</div>"
       : k === "kp" ? '<div class="ds dspage">' + kpScreen() + "</div>" : k === "kpc" ? '<div class="ds dspage">' + kpcScreen() + "</div>" : k === "contract" ? '<div class="ds dspage">' + contractScreen() + "</div>"
       : k === "cust" ? '<div class="ds dspage">' + custScreen() + "</div>" : k === "week" ? '<div class="ds dspage">' + weekScreen() + "</div>" : screen();
@@ -1713,6 +1714,47 @@
     return head + rules + log;
   }
 
+  /* ---------- оплаты из 1С (OData 1С:Fresh): что отмечено само и что разобрать вручную ---------- */
+  function loadOnec() {
+    return api("/1c/onec").then(function (r) { S.on = r; }, function (e) { S.on = null; S.onErr = String(e); });
+  }
+  function onecScreen() {
+    var r = S.on;
+    var head = '<div class="head"><div><h1>Оплаты из 1С</h1><p>Поступления на расчётный счёт из 1С отмечаются в задачах сами, когда плательщик — заказчик из CRM (по ИНН или названию), а номер договора или сумма совпадают с задачей'
+      + (r && r.configured ? " (проверка раз в " + r.minutes + " мин)" : "") + "</p></div>"
+      + (r && r.configured ? '<button class="btn ghost" data-onrun="1">Проверить сейчас</button>' : "") + "</div>";
+    if (!r) return head + '<div class="note">' + E(S.onErr || "Нет данных") + "</div>";
+    if (!r.configured) return head + '<div class="note">Связь с 1С ещё не настроена. Бухгалтер создаёт в 1С пользователя для OData, затем адрес базы, имя и пароль этого пользователя вписываются в настройки сервера (см. 1c/ИНСТРУКЦИЯ.md).</div>';
+    var when = function (ts) { if (!ts) return "ещё не было"; var d = new Date(ts * 1000); return d.toLocaleDateString("ru-RU") + " " + d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }); };
+    var stat = '<div class="panel pad" style="margin-bottom:16px">Последняя проверка: <b>' + when(r.last_run) + "</b>"
+      + (r.error ? '<div class="err" style="margin-top:8px">Ошибка связи с 1С: ' + E(r.error) + "</div>" : "") + "</div>";
+    var who = function (x) { return "<b>" + E(x.payer || "Плательщик не указан") + "</b>" + (x.inn ? ' <small class="sub">ИНН ' + E(x.inn) + "</small>" : ""); };
+    var att = r.items.filter(function (x) { return x.status === "unmatched" || x.status === "amb"; });
+    var fld = 'style="width:auto;max-width:100%;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink);font:inherit"';
+    var form = function (x) {
+        var rf = E(x.ref);
+        return '<div style="border-top:1px solid var(--line);padding:12px 0">'
+          + '<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between"><span>' + dmy(x.date) + " · " + who(x) + '</span><b style="white-space:nowrap">' + money(x.amount) + "</b></div>"
+          + '<div class="sub" style="margin:4px 0">' + E(x.purpose || "—") + "</div>"
+          + '<div style="color:var(--warn);margin-bottom:8px">' + E(x.note) + "</div>"
+          + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input data-onnum="' + rf + '" placeholder="№ задачи" value="' + E(x.num || "") + '" ' + fld + ' size="10">'
+          + '<select data-onkind="' + rf + '" ' + fld + '><option value="">аванс или по акту — определить само</option><option value="advance">это аванс</option><option value="post">это оплата по акту</option></select>'
+          + '<button class="btn primary sm" data-onassign="' + rf + '">Отнести к задаче</button>' + (x.status === "other" ? "" : '<button class="btn ghost sm" data-onignore="' + rf + '">Не по задаче</button>') + "</div></div>";
+      };
+    var todo = '<div class="panel pad" style="margin-bottom:16px"><h3>Не разобрано · ' + att.length + "</h3>"
+      + (att.length ? att.map(form).join("") : '<p class="note" style="margin:0">Всё разобрано</p>') + "</div>";
+    var oth = r.items.filter(function (x) { return x.status === "other"; });
+    var other = oth.length ? '<details class="panel pad" style="margin-bottom:16px"><summary style="cursor:pointer"><b>Прочие поступления · ' + oth.length + '</b> <span class="sub">— плательщиков нет в базе заказчиков CRM (ТО, оборудование и т. п.). Если это оплата по задаче — отнесите вручную и впишите ИНН в карточку заказчика</span></summary>'
+      + oth.map(form).join("") + "</details>" : "";
+    var ST = { ok: "Отмечено", skip: "Уже было отмечено", manual: "Разобрано вручную", ignored: "Не по задаче" };
+    var done = r.items.filter(function (x) { return ST[x.status]; });
+    var list = '<div class="panel"><table class="tbl"><tr><th style="width:100px">Дата</th><th>Плательщик</th><th style="width:130px">Сумма</th><th style="width:90px">Задача</th><th style="width:160px">Итог</th></tr>'
+      + (done.map(function (x) {
+        return "<tr><td>" + dmy(x.date) + "</td><td>" + who(x) + '<br><small class="sub">' + E(x.purpose) + "</small></td><td>" + money(x.amount) + "</td><td>" + (x.num ? "№" + E(x.num) : "—") + "</td><td>" + ST[x.status] + (x.status === "manual" || x.status === "ignored" ? '<br><small class="sub">' + E(x.note) + "</small>" : "") + "</td></tr>";
+      }).join("") || '<tr><td colspan="5" class="note">Пока ничего не учтено</td></tr>') + "</table></div>";
+    return head + stat + todo + other + list;
+  }
+
   /* ---------- прайс-лист ---------- */
   function loadPrice() {
     return api("/price").then(function (p) { S.price = p; if (!S.pd) S.pd = JSON.parse(JSON.stringify(p.items)); }, function (e) { S.price = null; S.err = String(e); });
@@ -2039,7 +2081,7 @@
     if (!inModal && !(S.mount && S.mount.el && S.mount.el.contains(e.target))) return;
     var bg = e.target.getAttribute && e.target.getAttribute("data-bg");
     if (bg) { closeAll(); return; }
-    var t = e.target.closest("[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch]");
+    var t = e.target.closest("[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch]");
     if (!t) return;
     var d = t.dataset;
     if (d.close) return closeAll();
@@ -2112,6 +2154,13 @@
     if (d.tzremind) return act2(api("/orders/" + d.tzremind + "/tz/remind", {}).then(function () { toast("Напоминание отправлено операционному менеджеру"); }), false);
     if (d.tzopen) { S.open = +d.tzopen; S.tab = "tz"; S.edit = null; return Promise.all([api("/orders/" + S.open + "/history").then(function (h) { S.history = h; }, function () { S.history = []; }), loadTzItem(S.open)]).then(paint); }
     if (d.stsave != null && t.hasAttribute("data-stsave")) return saveStages();
+    if (d.onrun != null && t.hasAttribute("data-onrun")) return act2(api("/1c/onec/run", {}).then(function (r) { S.on = r; var x = r.result || {}; toast(x.new ? "Новых платежей: " + x.new + (x.attention ? ", разобрать вручную: " + x.attention : "") : "Новых платежей нет"); }), false);
+    if (d.onassign) {
+      var nIn = document.querySelector('[data-onnum="' + d.onassign + '"]'), kIn = document.querySelector('[data-onkind="' + d.onassign + '"]');
+      var nv = nIn ? nIn.value.trim() : ""; if (!nv) return toast("Впишите номер задачи");
+      return act2(api("/1c/onec/" + encodeURIComponent(d.onassign) + "/assign", { num: nv, kind: kIn ? kIn.value : "" }).then(function (r) { S.on = r; S.orders = null; toast("Оплата отнесена к задаче №" + nv); return load(); }), false);
+    }
+    if (d.onignore) return act2(api("/1c/onec/" + encodeURIComponent(d.onignore) + "/ignore", {}).then(function (r) { S.on = r; toast("Платёж убран из «Не разобрано»"); }), false);
     if (d.aurun != null && t.hasAttribute("data-aurun")) return act2(api("/auto/run", {}).then(function (r) { var n = Object.keys(r.fired).reduce(function (a, k) { return a + r.fired[k]; }, 0); toast(n ? "Сработало правил: " + n : "Сейчас ничего не требует внимания"); return loadAuto(); }), false);
     if (d.doc) { var dd = d.doc.split(":"); return downloadDoc(+dd[0], dd[1], dd[2]); }
     if (d.compsave != null && t.hasAttribute("data-compsave")) return saveCompany();

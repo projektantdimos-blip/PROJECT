@@ -13,19 +13,20 @@
     if (ctx && ctx.state === "suspended") ctx.resume();
     return ctx;
   }
-  function chime(vol) {                         // двухтональный «динь-дон», как у мессенджеров и CRM
+  function chime(vol) {                         // весёлое «трень-трень-трень-дзинь!»: восходящее арпеджио соль-до-ми-до, тембр маримбы
     var a = audioCtx(); if (!a) return;
     var t0 = a.currentTime + 0.01, master = a.createGain();
     master.gain.value = vol; master.connect(a.destination);
-    [[880, 0, 0.22], [1318.5, 0.16, 0.5]].forEach(function (n) {
-      [1, 2].forEach(function (h) {
+    // нота: [частота, начало, длительность]; обертон: [кратность, форма, громкость, доля длительности]
+    [[784, 0, 0.2], [1046.5, 0.075, 0.2], [1318.5, 0.15, 0.22], [2093, 0.225, 0.6]].forEach(function (n) {
+      [[1, "sine", 0.75, 1], [2, "triangle", 0.15, 0.7], [4, "sine", 0.1, 0.3]].forEach(function (h) {   // 4-й обертон гаснет быстро — «деревянный» удар
         var o = a.createOscillator(), g = a.createGain();
-        o.type = h === 1 ? "sine" : "triangle"; o.frequency.value = n[0] * h;
-        var s = t0 + n[1], v = h === 1 ? 0.9 : 0.25;
+        o.type = h[1]; o.frequency.value = n[0] * h[0];
+        var s = t0 + n[1], d = n[2] * h[3];
         g.gain.setValueAtTime(0.0001, s);
-        g.gain.exponentialRampToValueAtTime(v, s + 0.012);
-        g.gain.exponentialRampToValueAtTime(0.0001, s + n[2]);
-        o.connect(g); g.connect(master); o.start(s); o.stop(s + n[2] + 0.05);
+        g.gain.exponentialRampToValueAtTime(h[2], s + 0.006);
+        g.gain.exponentialRampToValueAtTime(0.0001, s + d);
+        o.connect(g); g.connect(master); o.start(s); o.stop(s + d + 0.05);
       });
     });
   }

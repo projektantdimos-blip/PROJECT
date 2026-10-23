@@ -42,6 +42,7 @@
     body.innerHTML = '<p class="note">Загрузка…</p>';
     api("/threads/" + encodeURIComponent(t.id) + "/link?title=" + encodeURIComponent(name || "") + "&peer=" + encodeURIComponent(t.peer || "")).then(function (l) {
       s.link = l;
+      if (!document.body.contains(body)) return;           // пока ждали ответ, открыли другой диалог — панель уже другая
       if (s.tab === "k") tabKp(body, t, name, s, box); else tabCustomer(body, t, name, s, box);
     }, function (e) { body.innerHTML = '<p class="err">' + E(e) + "</p>"; });
   };

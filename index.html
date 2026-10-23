@@ -273,9 +273,9 @@ textarea{resize:vertical;min-height:64px}
 <!-- шрифты подгружаются без блокировки страницы: если Google Fonts недоступен (в РФ бывает), CRM всё равно откроется -->
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Onest:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Onest:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="theme-v2.css?v=20261023a">
+<link rel="stylesheet" href="theme-v2.css?v=20261023c">
 <script>try{var __t=localStorage.getItem("ds_theme");if(__t)document.documentElement.setAttribute("data-theme",__t)}catch(e){}</script>
-<link rel="stylesheet" href="ds.css?v=20261023a">
+<link rel="stylesheet" href="ds.css?v=20261023c">
 </head>
 <body>
 <div class="app">
@@ -300,6 +300,7 @@ textarea{resize:vertical;min-height:64px}
 <div id="stages-app" style="display:none"></div>
 <div id="clients-app" style="display:none"></div>
 <div id="report-app" style="display:none"></div>
+<div id="onec-app" style="display:none"></div>
 <script>(function(){var v=window.visualViewport;function f(){document.documentElement.style.setProperty("--vvh",(v?v.height:innerHeight)+"px");document.documentElement.style.setProperty("--vvt",(v?v.offsetTop:0)+"px");}f();if(v){v.addEventListener("resize",f);v.addEventListener("scroll",f);}window.addEventListener("orientationchange",f);})();</script>
 <div id="flow-app" style="display:none"></div>
 <div id="risk-app" style="display:none"></div>
@@ -370,16 +371,17 @@ function sectionForHash(h){
   if (h.indexOf("#/me") === 0) return "me";
   if (h.indexOf("#/auto") === 0) return "auto";
   if (h.indexOf("#/stages") === 0) return "stages";
+  if (h.indexOf("#/onec") === 0) return "onec";
   if (h.indexOf("#/clients") === 0) return "clients"; if (h.indexOf("#/report") === 0) return "report"; if (h.indexOf("#/stats") === 0) return "stats"; if (h.indexOf("#/flow") === 0) return "flow"; if (h.indexOf("#/tz") === 0) return "tz";
   return "tasks";
 }
 /* Какие разделы видит каждая роль (позиция сотрудника в CRM). Это интерфейс; данные ограничиваются на сервере (этап 2). */
 var DS_ALLOWED = {
-  owner:    ["flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","stats","log","auto","stages","me"],
+  owner:    ["flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","stats","log","auto","stages","onec","me"],
   design:   ["tasks","cal","risk","my","clients","chat","team","report","me"],
   sales:    ["flow","tasks","cal","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","me"],
   ops:      ["flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","me"],
-  acc:      ["tasks","kpreg","team","me"],
+  acc:      ["tasks","kpreg","team","onec","me"],
   designer: ["tasks","cal","my","team","me"]
 };
 var DS_HOME = { owner: "#/", design: "#/", sales: "#/", ops: "#/", acc: "#/", designer: "#/" };
@@ -394,7 +396,7 @@ function dsAllowed(sec){
 }
 function renderTopNav(){
   var cur = sectionForHash(location.hash);
-  var own = { risk:1, scripts:1, tasks:1, cal:1, my:1, chat:1, team:1, log:1, me:1, auto:1, stages:1, clients:1, report:1, stats:1, flow:1, tz:1 };
+  var own = { risk:1, scripts:1, tasks:1, cal:1, my:1, chat:1, team:1, log:1, me:1, auto:1, stages:1, onec:1, clients:1, report:1, stats:1, flow:1, tz:1 };
   var pa = own[cur] ? cur : "commerce";
   var ok = dsAllowed;
   var b = function(go, ic, t, on, sec){ return ok(sec) ? '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+'<span>'+t+'</span></button>' : ""; };
@@ -406,7 +408,7 @@ function renderTopNav(){
     lab("Работа", ["flow","tasks","tz","cal","risk","my"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
     + lab("Заказчики и продажи", ["clients","kpreg","kpc","contracts"]) + b("#/clients","users",pos==="design"?"Кому звонить":"База заказчиков",pa==="clients","clients") + comm
     + lab("Общение", ["team","chat","scripts","report"]) + b("#/team","team","Команда",pa==="team","team") + b("#/chat","chat","Заказчики",pa==="chat","chat") + b("#/scripts","list","Скрипты",pa==="scripts","scripts") + b("#/report","list","Недельный отчёт",pa==="report","report")
-    + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
+    + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","onec","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/onec","wallet","Оплаты из 1С",pa==="onec","onec") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
   var bn = function(go, ic, t, on){ return '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+t+'</button>'; };
   document.getElementById("bottomnav").innerHTML =
     (dsAllowed("tasks")?bn("#/","tasks",pos==="designer"?"Проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks"):"") + (dsAllowed("my")?bn("#/my","bell",pos==="designer"?"План":"Мои",pa==="my"):"") + (dsAllowed("team")?bn("#/team","team","Команда",pa==="team"):"") + (dsAllowed("chat")?bn("#/chat","chat","Заказчики",pa==="chat"):"")
@@ -451,6 +453,8 @@ function renderTopNav(){
   document.getElementById("stages-app").style.display = (sec === "stages") ? "block" : "none";
   if (sec === "stages" && window.DS) DS.mount("stages", document.getElementById("stages-app"));
   if (sec === "auto" && window.DS) DS.mount("auto", document.getElementById("auto-app"));
+  document.getElementById("onec-app").style.display = (sec === "onec") ? "block" : "none";
+  if (sec === "onec" && window.DS) DS.mount("onec", document.getElementById("onec-app"));
   document.getElementById("clients-app").style.display = (sec === "clients") ? "block" : "none";
   document.getElementById("report-app").style.display = (sec === "report") ? "block" : "none";
   document.getElementById("flow-app").style.display = (sec === "flow") ? "block" : "none";
@@ -489,9 +493,9 @@ globalRouter();
 #apiModal button{padding:9px 16px;border-radius:8px;font:inherit;cursor:pointer;border:1px solid #b9c4d0;background:var(--card);color:var(--ink)}
 #apiModal button.ok{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
 </style>
-<script src="noautofill.js?v=20261023a"></script>
-<script src="sound.js?v=20261023a"></script>
-<script src="chat.js?v=20261023a"></script>
+<script src="noautofill.js?v=20261023c"></script>
+<script src="sound.js?v=20261023c"></script>
+<script src="chat.js?v=20261023c"></script>
 <button id="apiGear" title="Настройки подключения" aria-label="Настройки">⚙</button>
 <div id="apiModal"><div class="box">
   <h2>Подключение к серверу CRM</h2>
@@ -523,13 +527,13 @@ globalRouter();
   });
 })();
 </script>
-<script src="config.js?v=20261023a"></script>
-<script src="crm.js?v=20261023a"></script>
-<script src="extras.js?v=20261023a"></script>
-<script src="team.js?v=20261023a"></script>
-<script src="chatpanel.js?v=20261023a"></script>
-<script src="ds.js?v=20261023a"></script>
-<script src="remind.js?v=20261023a"></script>
+<script src="config.js?v=20261023c"></script>
+<script src="crm.js?v=20261023c"></script>
+<script src="extras.js?v=20261023c"></script>
+<script src="team.js?v=20261023c"></script>
+<script src="chatpanel.js?v=20261023c"></script>
+<script src="ds.js?v=20261023c"></script>
+<script src="remind.js?v=20261023c"></script>
 <script>
 (function(){
   var KEY = "ds_theme", t = "light";
