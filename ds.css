@@ -11,6 +11,9 @@
 .ds .cchat{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
 .ds .cchat a{text-decoration:none}
 .ds .cchat span{color:var(--muted);font-size:.84rem}
+.ds .cchat .cth{display:inline-flex;gap:4px;align-items:center;color:inherit;font-size:inherit}
+.ds .cchat .cthx{width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer;font-size:.8rem;line-height:1;padding:0}
+.ds .cchat .cthx:hover{border-color:var(--bad);color:var(--bad)}
 .ds .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 17px;border-radius:12px;font-weight:700;font-size:.9rem;white-space:nowrap}
 .ds .btn.primary{background:linear-gradient(135deg,var(--brand-2),var(--brand));color:#fff;box-shadow:0 8px 20px color-mix(in srgb,var(--brand) 35%,transparent)}
 .ds .btn.accent{background:linear-gradient(135deg,#f6a982,var(--accent));color:#3d1b08}
@@ -867,3 +870,111 @@
 .ds .gpanel .ghead .gname{background:var(--surface-2)}
 .ds .gpanel::-webkit-scrollbar{height:12px}
 .ds .gpanel::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 45%,transparent);border-radius:8px}
+
+/* ===== Порядок в расположении блоков: окно программы для ПК (1280×820 и уже), планшет, телефон ===== */
+/* боковое меню: на невысоком окне пункты плотнее; если всё равно не влезают — видна тонкая полоса прокрутки */
+#topnav{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.28) transparent}
+@media(min-width:901px) and (max-height:940px){
+  #topnav .nav-label{padding:9px 12px 3px!important;margin-top:3px;font-size:.7rem!important}
+  #topnav .nav-label:first-child{padding-top:2px!important}
+  #topnav>button,#topnav .sub button{margin:1px 0}
+  body #topnav button{padding:4px 12px}
+}
+/* одинаковые поля слева/справа у всех разделов — заголовки и блоки стоят на одной линии */
+@media(min-width:901px){
+  .top,.kpc-scope .top{padding:clamp(14px,2.4vh,26px) clamp(16px,1.8vw,32px) 4px}
+  .wrap,#kpreg-app .wrap2,#kpreg-app .wrap,#team-app .wrap,#clients-app .wrap{max-width:none;padding-left:clamp(16px,1.8vw,32px)!important;padding-right:clamp(16px,1.8vw,32px)!important}
+  #chat-app{padding:10px clamp(16px,1.8vw,32px) 14px!important}
+}
+/* телефон/планшет: шестерёнка «Подключение» закреплена справа сверху — не перекрывает кнопки в шапке раздела */
+@media(max-width:900px){
+  .ds.dspage>.head,.ds.dspage>div>.head{padding-right:44px}
+  .top{padding-right:58px}
+  .subnavM{padding-right:58px}
+}
+@media(max-width:560px){.ds .tb .vlab{display:none}}
+/* плитки-показатели: шесть плиток — ровно 6 или 3 в ряд, без «хвоста» из двух */
+@media(min-width:1280px){.ds .tiles:has(>:nth-child(6):last-child){grid-template-columns:repeat(6,minmax(0,1fr))}}
+@media(min-width:561px) and (max-width:1279px){.ds .tiles:has(>:nth-child(6):last-child){grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* «Просрочено и зависло»: выпадающие списки по ширине содержимого, а не на всю строку */
+.ds .rkbar{flex-wrap:wrap}.ds .rkbar span{white-space:nowrap}
+.ds .rkbar select,.ds .rkact select{width:auto;max-width:100%}
+.ds .rkrow .rkact{justify-content:flex-end}
+/* «Автоматизация», история задачи: кружки на линии времени не наезжают на текст */
+.ds .ev::before{box-sizing:border-box}
+/* «Занятость»: у последней задачи в карточке нет лишней линии снизу */
+.ds .wk .panel>button:last-child{border-bottom:0}
+/* Реестр КП: объект и услуги читаются слева направо */
+.ds .kpt td.ell{text-align:left}
+/* Конструктор КП: старые стили .kpc-scope (flex:1, min-width:140px, полупрозрачность) не растягивают кнопки нового экрана */
+.kpc-scope .ds .btn{min-width:0;opacity:1}
+.kpc-scope .ds .btn.primary{flex:0 0 auto;padding:10px 17px}
+.kpc-scope .ds .btn.primary.sm,.kpc-scope .ds .btn.ghost.sm{padding:7px 12px}
+.kpc-scope .ds .dsv .btn.sm{width:36px;height:32px;padding:0;justify-content:center}
+/* Прайс-лист: название услуги шире примечания; на узком экране таблица прокручивается, а не сжимается */
+#price-app .tbl th:first-child{width:44%}
+#price-app .tbl{min-width:680px}
+/* Журнал: аватар, текст и время в одну строку, текст переносится внутри */
+.x-lg>div:not(.rt){flex:1 1 0;min-width:0}
+.x-lg .rt{flex:none}
+/* Личный кабинет: «Выйти» не уезжает под аватар; каналы (приложение, push, Telegram, MAX) — ровной сеткой */
+.prof2>div:nth-child(2){flex:1 1 240px;min-width:0}
+.x-chcards{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+@media(min-width:1700px){.x-chcards{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
+@media(max-width:480px){.x-chcards{grid-template-columns:minmax(0,1fr)!important}}
+.x-chc>.x-btn,.x-chc>.x-pill{margin-top:auto;justify-content:center}
+.x-chc>.x-pill{align-self:flex-start}
+/* «Команда»: на окне до 1500 px — две колонки (список и чат), панель участников скрыта, как на узких экранах;
+   раньше на 1024 она уезжала под список, а на 1280 чат сжимался и кнопки шапки налезали на соседнюю колонку */
+@media(min-width:901px) and (max-width:1500px){
+  .x-chat{grid-template-columns:300px minmax(0,1fr)!important}
+  .x-chat>.x-info{display:none}
+}
+@media(min-width:901px) and (max-width:1100px){.x-chat{grid-template-columns:260px minmax(0,1fr)!important}}
+@media(min-width:761px){
+  .x-th-h{flex-wrap:wrap;row-gap:8px}
+  .x-th-h>div{min-width:0;flex:1 1 150px}
+  .x-th-h>div b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+/* «Заказчики»: на окне до 1500 px — список и переписка; панель «Заказчик · КП» открывается кнопкой справа поверх чата */
+@media(min-width:901px) and (max-width:1500px){
+  #chat-app .chat-wrap{grid-template-columns:300px minmax(0,1fr)!important;position:relative}
+  #chat-app .chat-wrap .chat-info{display:none}
+  body #chat-app #chatHead .chat-infobtn{display:inline-flex!important}
+  #chat-app .chat-wrap.show-info .chat-info{display:flex!important;position:absolute;top:0;right:0;bottom:0;left:auto;width:min(430px,75%);z-index:6;border-left:1px solid var(--line);box-shadow:var(--shadow-l)}
+  #chat-app .chat-wrap.show-info .cp-close{display:inline-flex;align-self:flex-start;border:0;background:none;color:var(--blue);font:inherit;font-weight:700;font-size:.92rem;padding:4px 0;cursor:pointer}
+}
+@media(min-width:901px) and (max-width:1100px){#chat-app .chat-wrap{grid-template-columns:260px minmax(0,1fr)!important}}
+
+/* ===== Команда: цвет чата (строка списка и окно чата) и цвет автора сообщения ===== */
+.x-chat .x-dlg.rc{box-shadow:inset 4px 0 0 var(--rc)!important;background:color-mix(in srgb,var(--rc) 6%,transparent)!important}
+.x-chat .x-dlg.rc:hover{background:color-mix(in srgb,var(--rc) 12%,var(--card))!important}
+.x-chat .x-dlg.rc.on{background:color-mix(in srgb,var(--rc) 22%,var(--card))!important;box-shadow:inset 5px 0 0 var(--rc)!important}
+.x-prevrow{border:1px solid var(--line);border-radius:12px;width:100%;padding:10px 14px;display:flex;gap:12px;align-items:center}
+.x-prevrow .m{min-width:0}.x-prevrow .m b{display:block}.x-prevrow .m span{display:block;font-size:.8rem;color:var(--muted)}
+.x-thread.rc{background:color-mix(in srgb,var(--rc) 7%,var(--surface-2))!important;box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--rc) 45%,transparent)}
+.x-thread.rc .x-th-h{background:color-mix(in srgb,var(--rc) 30%,var(--card))!important;border-bottom:3px solid var(--rc)!important}
+.x-thread.rc .x-th-h b{color:var(--ink)}
+.x-thread.rc .x-comp{border-top:2px solid color-mix(in srgb,var(--rc) 55%,var(--line))!important}
+.x-msg.ac:not(.urg) .tx{background:color-mix(in srgb,var(--ac) 19%,var(--card))!important;border-color:color-mix(in srgb,var(--ac) 50%,var(--line))!important;box-shadow:inset 3px 0 0 var(--ac),var(--shadow-s)}
+.x-msg.ac .nm{color:color-mix(in srgb,var(--ac) 72%,var(--ink))!important}
+.x-msg.ac .x-ava:not([style*="url"]){background:var(--ac)!important}
+.x-aclink{float:right;border:0;background:none;color:var(--blue);font:inherit;font-size:.74rem;font-weight:700;text-transform:none;letter-spacing:0;cursor:pointer;padding:0}
+.x-acrow{display:grid;grid-template-columns:minmax(200px,1fr) auto;gap:10px 18px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.x-acrow .x-msg .bd{max-width:100%}.x-acrow .x-msg .tx{cursor:default}
+.x-acpick{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.x-acpick .x-pickc{flex-wrap:wrap;margin:0}
+.x-pickc{flex-wrap:wrap}
+.x-pickc button{flex:none;width:26px;height:26px;padding:0!important;border-radius:50%!important}
+.x-pickc button.on{outline:3px solid var(--ink)!important;outline-offset:2px;transform:scale(1.08)}
+@media(max-width:760px){
+  .x-chat .x-dlg.rc{background:color-mix(in srgb,var(--rc) 9%,transparent)!important}
+  .x-chat .x-dlg.rc.on{background:color-mix(in srgb,var(--rc) 24%,#17212b)!important}
+  .x-chat.open .x-thread.rc{background:color-mix(in srgb,var(--rc) 9%,var(--tg-bg,#0e1621))!important;box-shadow:none}
+  .x-thread.rc .x-th-h{background:color-mix(in srgb,var(--rc) 30%,var(--tg-bar,#17212b))!important}
+  .x-thread.rc .x-th-h b{color:#fff}
+  .x-thread.rc .x-msgs{background:transparent!important}
+  .x-msg.ac:not(.urg) .tx{background:color-mix(in srgb,var(--ac) 24%,var(--tg-in,#182533))!important;border:0!important;box-shadow:inset 3px 0 0 var(--ac),0 1px 1px rgba(0,0,0,.25)!important}
+  .x-msg.ac .nm{color:color-mix(in srgb,var(--ac) 65%,#fff)!important}
+  #me-app .x-msg.ac .tx{color:#fff}
+  .x-acrow{grid-template-columns:1fr}
+}

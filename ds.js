@@ -43,7 +43,7 @@
   }
   function can(k) { return S.meta && S.meta.can && S.meta.can[k]; }
   function find(id) { return (S.orders || []).filter(function (o) { return o.id === id; })[0]; }
-  var ICON = { plus: '<path d="M12 5v14M5 12h14"/>', lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>' };
+  var ICON = { plus: '<path d="M12 5v14M5 12h14"/>', down: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>', lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>' };
   function ic(n) { return '<svg class="i" viewBox="0 0 24 24">' + (ICON[n] || "") + "</svg>"; }
 
   /* ---------- загрузка ---------- */
@@ -670,11 +670,64 @@
     }
     var l = S.cth.list;
     if (!l) return "";
-    if (!l.length) return '<div class="cchat"><span>Диалог с заказчиком не найден: ни привязанного, ни совпавшего по почте, Telegram/MAX или телефону контакта</span></div>';
+    var add = '<button class="btn ghost sm" data-cthpick="' + o.id + '" title="Найти диалог Telegram, MAX или почты и привязать к заказчику задачи">＋ Привязать диалог</button>';
+    if (!l.length) return '<div class="cchat"><span>Диалог с заказчиком не найден ни по привязке, ни по контактам</span>' + add + "</div>";
     return '<div class="cchat">' + l.slice(0, 3).map(function (t) {      // how — диалог найден по контактам заказчика, а не по привязке
-      return '<a class="btn primary sm" href="#/chat?t=' + encodeURIComponent(t.id) + '" title="' + E(t.title + (t.how ? " — найден " + t.how : "")) + '">💬 Чат с заказчиком · ' + E(CH_NAME[t.channel] || t.channel) + "</a>";
-    }).join("") + "</div>";
+      return '<span class="cth"><a class="btn primary sm" href="#/chat?t=' + encodeURIComponent(t.id) + '" title="' + E(t.title + (t.how ? " — найден " + t.how + ", не привязан" : " — привязан к заказчику")) + '">💬 Чат с заказчиком · ' + E(CH_NAME[t.channel] || t.channel) + "</a>"
+        + (t.how ? '<button class="btn ghost sm" data-cthbind="' + E(t.id) + '" title="Найден ' + E(t.how) + ': закрепить диалог за заказчиком задачи">📌 Привязать</button>'
+          : '<button class="cthx" data-cthunlink="' + E(t.id) + '" title="Отвязать диалог «' + E(t.title) + '» от заказчика">✕</button>') + "</span>";
+    }).join("") + (l.length > 3 ? '<span>ещё ' + (l.length - 3) + "</span>" : "") + add + "</div>";
   }
+  /* Привязка диалога из окна задачи: поиск по имени, телефону, почте; подсказки — по контактам заказчика; один клик — привязать */
+  function cthReload(oid) { S.cth = null; if (S.open === oid) paint(); if (window.__chatTasksRefresh) window.__chatTasksRefresh(); }
+  function cthBind(oid, tid, label) {
+    return api("/orders/" + oid + "/threads", { thread_id: tid }).then(function (r) { toast("Диалог «" + label + "» привязан к заказчику «" + (r.customer || "") + "»"); cthReload(oid); }, function (e) { toast(String(e)); });
+  }
+  function cthPicker(oid) {
+    var o = find(oid) || {}, host = document.createElement("div"), bg = document.createElement("div"), seq = 0, timer = 0, rows = [];
+    host.className = "ds"; host.appendChild(bg);                  // стили окон — внутри .ds
+    bg.className = "modal-bg"; bg.style.cssText = "align-items:center;justify-content:center;padding:16px;z-index:420";
+    bg.innerHTML = '<div class="modal" style="width:min(520px,100%);height:auto;max-height:86vh;border-radius:20px"><div class="m-head"><div class="row"><h2 style="font-size:1.15rem">Привязать диалог к задаче №' + E(o.number || "") + "</h2>"
+      + '<button class="x" data-cthclose="1">✕</button></div><div style="color:var(--muted);margin-top:2px">Диалог закрепится за заказчиком «' + E(o.customer || "") + '» и будет открываться кнопкой «Чат с заказчиком»</div></div>'
+      + '<div class="m-body"><input id="cthQ" type="search" autocomplete="off" placeholder="Имя, телефон или почта собеседника" style="width:100%;padding:10px 12px;border:1px solid var(--brand-2);border-radius:11px;background:var(--surface);color:var(--ink);font:inherit;margin-bottom:10px">'
+      + '<div id="cthRes"><div class="note">Загрузка…</div></div></div></div>';
+    document.body.appendChild(host);
+    var q = bg.querySelector("#cthQ"), res = bg.querySelector("#cthRes");
+    var close = function () { host.remove(); document.removeEventListener("keydown", esc, true); };
+    var esc = function (e) { if (e.key === "Escape") { e.stopPropagation(); close(); } };
+    document.addEventListener("keydown", esc, true);
+    bg.onclick = function (e) {
+      if (e.target === bg || e.target.closest("[data-cthclose]")) return close();
+      var b = e.target.closest("[data-cthrow]");
+      if (b) { var t = rows[+b.getAttribute("data-cthrow")]; close(); cthBind(oid, t.id, t.title); }
+    };
+    function run() {
+      var my = ++seq;
+      api("/orders/" + oid + "/thread-search?q=" + encodeURIComponent(q.value.trim())).then(function (l) {
+        if (my !== seq) return;
+        rows = l || [];
+        res.innerHTML = rows.map(function (t, i) {
+          return '<button type="button" data-cthrow="' + i + '" style="display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:10px 12px;margin-bottom:8px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);cursor:pointer;font:inherit">'
+            + '<span style="flex:1;min-width:0"><b>' + E(t.title) + '</b> <small style="color:var(--muted)">· ' + E(CH_NAME[t.channel] || t.channel) + (t.peer && t.peer !== t.title ? " · " + E(t.peer) : "") + "</small>"
+            + '<small style="display:block;color:' + (t.why ? "var(--ok)" : "var(--muted)") + '">' + (t.why ? E(t.why) : "") + (t.linked ? (t.why ? " · " : "") + "сейчас привязан к «" + E(t.linked) + "» — перепривяжется" : t.why ? "" : "не привязан") + "</small></span>"
+            + '<b style="color:var(--blue);font-size:.84rem;white-space:nowrap">Привязать</b></button>';
+        }).join("") || '<div class="note">' + (q.value.trim() ? "Ничего не найдено" : "Подходящих диалогов не нашлось — введите имя, телефон или почту") + "</div>";
+      }, function (e) { res.innerHTML = '<div class="err">' + E(e) + "</div>"; });
+    }
+    q.oninput = function () { clearTimeout(timer); timer = setTimeout(run, 250); };
+    q.onkeydown = function (e) { if (e.key === "Enter" && rows[0]) { e.preventDefault(); close(); cthBind(oid, rows[0].id, rows[0].title); } };
+    run(); q.focus();
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-cthpick],[data-cthbind],[data-cthunlink]");
+    if (!b || !S.open) return;
+    e.preventDefault(); e.stopPropagation();
+    var oid = S.open, t = (S.cth && S.cth.list || []).filter(function (x) { return x.id === (b.getAttribute("data-cthbind") || b.getAttribute("data-cthunlink")); })[0];
+    if (b.hasAttribute("data-cthpick")) return cthPicker(+b.getAttribute("data-cthpick"));
+    if (b.hasAttribute("data-cthbind")) return cthBind(oid, t.id, t.title);
+    if (!confirm("Отвязать диалог «" + (t ? t.title : "") + "» от заказчика? Переписка не удаляется, привязать можно снова.")) return;
+    api("/threads/" + encodeURIComponent(b.getAttribute("data-cthunlink")) + "/link", { customer_id: 0 }).then(function () { toast("Диалог отвязан"); cthReload(oid); }, function (er) { toast(String(er)); });
+  }, true);
   function windowHtml(o) {
     var p = pos(), n = nextStep(o), showUrgent = o.stage === "Готов к проектированию" && (p === "owner" || p === "design" || p === "ops" || p === "sales");
     var nx = "";
@@ -970,7 +1023,7 @@
     var head = '<div class="head"><div><h1>Занятость</h1><p>Кто чем занят. Серым показаны задачи без исполнителя, готовые к проектированию.' + (canEdit ? " Нажмите на любую полоску: можно назначить исполнителя и сроки прямо здесь." : "") + '</p></div>'
       + '<div class="seg"><button data-ld="week" class="' + (S.ld === "week" ? "on" : "") + '">План на неделю</button><button data-ld="tl" class="' + (S.ld === "tl" ? "on" : "") + '">Месяц</button></div></div>'
       + "";
-    var cardsHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">' + cards + "</div>", headBase = head;
+    var cardsHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px">' + cards + "</div>", headBase = head;
     head += cardsHtml;
     // проектировщик открывает окно своих задач (тех, что ему доступны); задачи коллег — только для просмотра
     var openAttr = function (o) { return p !== "designer" || find(o.id) ? "data-open" : "data-ro"; };

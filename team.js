@@ -8,10 +8,19 @@
   function ic(n) { return window.icon ? window.icon(n) : ""; }
   function cur() { return window.sectionForHash ? sectionForHash(location.hash) : ""; }
   function p2(n) { return n < 10 ? "0" + n : "" + n; }
-  var PALETTE = ["#3a86d6", "#2fa66a", "#ee9264", "#8b6fe0", "#1fb3b3", "#e0a21c", "#d8453a", "#6f6fe0"];
-  function color(name) {
-    var h = 0; String(name).split("").forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return PALETTE[h % PALETTE.length];
-  }
+  /* общая палитра «Команды» (цвет чата и цвет автора): средняя яркость — белый текст на плитке и пастельные облачка читаются в обеих темах */
+  var COLORS = [["#3a86d6", "Синий"], ["#6f7de0", "Индиго"], ["#8b6fe0", "Фиолетовый"], ["#d9568a", "Розовый"], ["#d8453a", "Красный"], ["#d85a30", "Оранжевый"],
+    ["#d4a017", "Жёлтый"], ["#7f9e2c", "Оливковый"], ["#2fa66a", "Зелёный"], ["#1fb3b3", "Бирюзовый"], ["#a0662e", "Коричневый"], ["#64748b", "Серый"]];
+  var PALETTE = COLORS.map(function (c) { return c[0]; });
+  function hashOf(s) { var h = 0; String(s).split("").forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return h; }
+  /* цвет автора: у каждого сотрудника свой по номеру в базе (первые 12 не повторяются); свои цвета каждый задаёт в Личном кабинете — хранятся в этом браузере */
+  var AC_KEY = "ds_author_colors", AC = null;
+  function acAll() { if (!AC) { try { AC = JSON.parse(localStorage.getItem(AC_KEY) || "{}") || {}; } catch (e) { AC = {}; } } return AC; }
+  function acSave() { try { localStorage.setItem(AC_KEY, JSON.stringify(AC)); } catch (e) {} }
+  var AC_ORDER = ["#3a86d6", "#d85a30", "#2fa66a", "#d9568a", "#1fb3b3", "#d4a017", "#8b6fe0", "#d8453a", "#7f9e2c", "#6f7de0", "#a0662e", "#64748b"];      // соседние номера — несхожие цвета
+  function acDefault(name) { var p = PPL[String(name).toLowerCase()]; return AC_ORDER[(p && p.id ? p.id - 1 : hashOf(name)) % AC_ORDER.length]; }
+  function color(name) { return acAll()[String(name).toLowerCase()] || acDefault(name); }
+  function acOn() { return !acAll()._off; }
   var PPL = {};                                                  // имя -> {title, photo}: загружается после входа
   function ava(name, cls) {
     var p = PPL[String(name).toLowerCase()];
@@ -124,25 +133,42 @@
   }
   /* картинка чата: цветная плитка с эмодзи (у каналов и своих чатов выбирается), у задачи — номер, у личного — аватар */
   var ICONS = ["📢", "📐", "🏗️", "🚀", "🔥", "💼", "📞", "💬", "📋", "🧾", "🧮", "⚙️", "🔧", "🧯", "🏢", "🚚", "📅", "⭐", "🛒", "📄", "🎯", "💡", "🧰", "🛠️", "📦", "📊", "🗂️", "🔔", "✅", "🤝", "🌟", "🏠"];
-  var ICON_COLORS = ["#3a86d6", "#8b6fe0", "#1fb3b3", "#2fa66a", "#d4a017", "#d85a30", "#d9568a", "#6f7de0"];
-  var ROOM_DEF = { general: ["📢", "#3a86d6"], design: ["📐", "#8b6fe0"], ops: ["⚙️", "#1fb3b3"], sales: ["💼", "#ee9264"], acc: ["🧮", "#2fa66a"], buy: ["🛒", "#d4a017"], calc: ["🧮", "#2fa66a"], kp: ["📄", "#6f7de0"] };
-  function roomStyle(r) { var d = ROOM_DEF[r.id] || ["💬", "#3a86d6"]; return { icon: r.icon || d[0], color: r.color || d[1] }; }
+  var ICON_COLORS = PALETTE;
+  var ROOM_DEF = { general: ["📢", "#3a86d6"], design: ["📐", "#8b6fe0"], ops: ["⚙️", "#1fb3b3"], sales: ["💼", "#d85a30"], acc: ["🧮", "#2fa66a"], buy: ["🛒", "#d4a017"], calc: ["🧮", "#2fa66a"], kp: ["📄", "#6f7de0"] };
+  function taskNum(r) { var m = /№\s*(\d+[-\d]*)/.exec(r.name || ""); return m ? m[1] : ""; }
+  /* цвет чата общий для всех (хранится на мосте); пока не выбран — свой у каждого: у задачи по номеру, у личного — цвет собеседника */
+  function roomColor(r) {
+    if (r.color) return r.color;
+    if (ROOM_DEF[r.id]) return ROOM_DEF[r.id][1];
+    if (r.kind === "dm") return color(r.name);
+    return PALETTE[hashOf(r.kind === "task" ? taskNum(r) : r.id) % PALETTE.length];
+  }
+  function roomStyle(r) { var d = ROOM_DEF[r.id] || ["💬"]; return { icon: r.icon || d[0], color: roomColor(r) }; }
+  function canStyle(r) {
+    if (!C.me || !r) return false;
+    var pos = C.me.position, owner = pos === "owner" || C.me.role === "admin";
+    if (r.kind === "group") return owner || r.descr === "by:" + C.me.id;
+    if (r.kind === "chan") return owner;
+    if (r.kind === "task") return owner || ["design", "ops", "sales"].indexOf(pos) >= 0;
+    return r.kind === "dm";
+  }
   function roomIcon(r) {
     if (r.kind === "dm" && /^d\d+_\d+$/.test(r.id)) return ava(r.name, "sm");
     if (r.kind === "task") {
-      var m = /№\s*(\d+[-\d]*)/.exec(r.name || ""), n = m ? m[1] : "", h = 0; String(n).split("").forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) >>> 0; });
-      return '<span class="x-tile num" style="background:' + ICON_COLORS[h % ICON_COLORS.length] + '">' + (n ? "№<br>" + E(n.length > 5 ? n.slice(0, 5) : n) : "✔") + "</span>";
+      var n = taskNum(r);
+      return '<span class="x-tile num" style="background:' + roomColor(r) + '">' + (n ? "№<br>" + E(n.length > 5 ? n.slice(0, 5) : n) : "✔") + "</span>";
     }
     var s = roomStyle(r);
     return '<span class="x-tile" style="background:' + s.color + '">' + E(s.icon) + "</span>";
   }
-  /* выбор картинки и цвета: единый блок для нового чата и для смены у существующего */
-  function pickerHtml(sel) {
-    return '<div class="x-pickh">Картинка</div><div class="x-pick" id="gIcons">' + ICONS.map(function (i) { return '<button type="button" data-gi="' + i + '" class="' + (i === sel.icon ? "on" : "") + '">' + i + "</button>"; }).join("") + "</div>"
-      + '<div class="x-pickh">Цвет</div><div class="x-pickc" id="gColors">' + ICON_COLORS.map(function (c) { return '<button type="button" data-gc="' + c + '" class="' + (c === sel.color ? "on" : "") + '" style="background:' + c + '"></button>'; }).join("") + "</div>";
+  function swatches(id, cur, attr) { return '<div class="x-pickc" id="' + id + '">' + COLORS.map(function (c) { return '<button type="button" ' + attr + '="' + c[0] + '" class="' + (c[0] === cur ? "on" : "") + '" style="background:' + c[0] + '" title="' + c[1] + '" aria-label="' + c[1] + '"></button>'; }).join("") + "</div>"; }
+  /* выбор картинки и цвета: единый блок для нового чата и для смены у существующего (у задачи и личного — только цвет) */
+  function pickerHtml(sel, colorOnly) {
+    return (colorOnly ? "" : '<div class="x-pickh">Картинка</div><div class="x-pick" id="gIcons">' + ICONS.map(function (i) { return '<button type="button" data-gi="' + i + '" class="' + (i === sel.icon ? "on" : "") + '">' + i + "</button>"; }).join("") + "</div>")
+      + '<div class="x-pickh">Цвет — им окрашены строка в списке и окно чата, у всех сотрудников одинаково</div>' + swatches("gColors", sel.color, "data-gc");
   }
   function pickerBind(sel, onChange) {
-    var root = $("gIcons").parentNode;
+    var root = $("gColors").parentNode;
     root.onclick = function (e) {
       var i = e.target.closest("[data-gi]"), c = e.target.closest("[data-gc]");
       if (i) { sel.icon = i.dataset.gi; [].forEach.call($("gIcons").children, function (b) { b.classList.toggle("on", b === i); }); }
@@ -152,7 +178,7 @@
   }
   function roomItem(r) {
     var hasU = r.urgent_open > 0, last = r.last;
-    return '<div class="x-dlg ' + (r.id === S.cur ? "on" : "") + '" data-r="' + E(r.id) + '">' + roomIcon(r) + '<div class="m"><b>' + E(r.name) + (hasU ? '<span class="x-flame">' + ic("flame") + "</span>" : "") + "</b><span>" + (last ? E(last.user) + ": " + E(last.text) : "") + '</span></div><div class="tm">' + (last ? when(last.ts) : "") + "<br>" + (r.unread ? '<span class="x-un ' + (hasU ? "red" : "") + '">' + r.unread + "</span>" : "") + "</div></div>";
+    return '<div class="x-dlg rc ' + (r.id === S.cur ? "on" : "") + '" data-r="' + E(r.id) + '" style="--rc:' + roomColor(r) + '">' + roomIcon(r) + '<div class="m"><b>' + E(r.name) + (hasU ? '<span class="x-flame">' + ic("flame") + "</span>" : "") + "</b><span>" + (last ? E(last.user) + ": " + E(last.text) : "") + '</span></div><div class="tm">' + (last ? when(last.ts) : "") + "<br>" + (r.unread ? '<span class="x-un ' + (hasU ? "red" : "") + '">' + r.unread + "</span>" : "") + "</div></div>";
   }
   function paintRooms() {
     var el = $("tRooms"); if (!el) return;
@@ -203,7 +229,7 @@
     var acts = rdinfo + (S.selMsg === m.id ? '<div class="x-macts"><button type="button" data-reply="' + m.id + '">↩ Ответить</button><button type="button" data-remindmsg="' + m.id + '" title="Напомнить мне про это сообщение">⏰</button>'
       + (me ? '<button type="button" data-editmsg="' + m.id + '">✎ Изменить</button>' : "")
       + (me ? '<button type="button" class="x-del" data-delmsg="' + m.id + '">' + (S.delAsk === m.id ? "Точно удалить?" : "🗑 Удалить") + "</button>" : "") + '<span class="x-rxpick">' + RX.map(function (e) { return '<button type="button" data-rx="' + m.id + '" data-e="' + e + '">' + e + "</button>"; }).join("") + "</span></div>" : "");
-    return '<div class="x-msg ' + (m.urgent ? "urg " : "") + (me ? "me" : "") + (S.selMsg === m.id ? " sel" : "") + '" data-m="' + m.id + '" id="m' + m.id + '">' + ava(m.user, "sm") + '<div class="bd"><div class="nm">' + E(m.user) + "<small>" + when(m.ts) + '</small></div><div class="tx">' + quote
+    return '<div class="x-msg ' + (m.urgent ? "urg " : "") + (me ? "me" : "") + (S.selMsg === m.id ? " sel" : "") + (acOn() ? " ac" : "") + '" data-m="' + m.id + '" id="m' + m.id + '" style="--ac:' + color(m.user) + '">' + ava(m.user, "sm") + '<div class="bd"><div class="nm">' + E(m.user) + "<small>" + when(m.ts) + '</small></div><div class="tx">' + quote
       + (m.urgent ? '<div class="x-urgtag">' + ic("flame") + "Срочное</div>" : "") + E(autoCaption(m) ? "" : m.text)
       + '<span class="x-tm">' + when(m.ts) + (m.edited ? ' <span class="x-ed" title="Сообщение исправлено">изм.</span>' : "") + (me ? ' <span class="x-rd ' + ((m.read_by || []).length ? "on" : "") + '">' + ((m.read_by || []).length ? "✓✓" : "✓") + "</span>" : "") + "</span>"
       + (m.files && m.files.length ? '<div class="x-files">' + m.files.map(function (f) {
@@ -305,7 +331,7 @@
     if (old) { old.remove(); if (hm) return; }
     if (!hm) return;
     var th = $("tThread"), items = [];
-    if (th.querySelector("[data-style]")) items.push(["🎨 Картинка и цвет", "style"]);
+    if (th.querySelector("[data-style]")) items.push(["🎨 Цвет чата", "style"]);
     if (th.querySelector("[data-rename]")) items.push(["✎ Название", "rename"]);
     var ln = th.querySelector(".x-th-h a.x-btn"); if (ln) items.push(["↗ Открыть задачу", "task"]);
     if (!items.length) { toast("Для этого чата других действий нет"); return; }
@@ -328,10 +354,11 @@
     var wasBottom = true, old = el.querySelector(".x-msgs"), val = $("tIn") ? $("tIn").value : (S.drafts[S.cur] || "");
     var hadFocus = document.activeElement && document.activeElement.id === "tIn", ss = hadFocus ? document.activeElement.selectionStart : 0, se = hadFocus ? document.activeElement.selectionEnd : 0;
     if (old && keep) wasBottom = old.scrollHeight - old.scrollTop - old.clientHeight < 80;
+    el.classList.add("rc"); el.style.setProperty("--rc", roomColor(room));      /* окно чата в цвете чата: шапка, фон и полоса */
     var hsub = room.kind === "group" ? (String(room.members || "").split(",").filter(Boolean).length + " участн.") : room.kind === "task" ? "Диалог по задаче" : room.kind === "dm" ? "Личный чат" : (room.descr || "Канал");
     el.innerHTML = '<div class="x-th-h"><button class="x-btn ghost x-back" data-back="1" style="padding:6px 10px">←</button>' + roomIcon(room) + '<div><b>' + E(room.name) + '</b><small class="x-hsub">' + E(hsub) + "</small></div>"
       + '<button class="x-btn ghost" data-remind="1" title="Напомнить мне про этот чат" style="padding:7px 12px">⏰ <span class="rmtxt">Напомнить</span></button>'
-      + (room.kind === "group" || (room.kind === "chan" && C.me && (C.me.position === "owner" || C.me.role === "admin")) ? '<span style="margin-left:auto;display:flex;gap:6px"><button class="x-btn ghost" data-style="1" style="padding:7px 12px" title="Картинка и цвет чата">🎨</button><button class="x-btn ghost" data-rename="1" style="padding:7px 12px" title="Переименовать чат">✎ Название</button></span>' : "")
+      + (canStyle(room) ? '<span style="margin-left:auto;display:flex;gap:6px"><button class="x-btn ghost" data-style="1" style="padding:7px 12px" title="' + (room.kind === "group" || room.kind === "chan" ? "Картинка и цвет чата" : "Цвет чата") + '">🎨</button>' + (room.kind === "group" || room.kind === "chan" ? '<button class="x-btn ghost" data-rename="1" style="padding:7px 12px" title="Переименовать чат">✎ Название</button>' : "") + "</span>" : "")
       + (room.kind === "task" && room.task_row ? '<a class="x-btn ghost" style="margin-left:auto;padding:7px 12px" href="#/task/' + room.task_row + '">Открыть задачу</a>' : "") + '<button class="x-btn ghost x-hmore" data-hmore="1" aria-label="Ещё">⋮</button></div>'
       + (pin ? '<div class="x-pinned">' + ic("flame") + "<span>Срочное: " + E(pin.text) + "</span></div>" : "")
       + '<div class="x-msgs">' + (body || '<span class="x-day">Здесь пока пусто — напишите первое сообщение</span>') + "</div>"
@@ -512,10 +539,11 @@
     var el = $("tInfo"); if (!el) return;
     var room = S.rooms.filter(function (r) { return r.id === S.cur; })[0], urgs = S.msgs.filter(function (m) { return m.urgent; });
     el.innerHTML = (room && room.kind === "task" ? '<div><h6>Задача</h6><a class="x-linkcard" href="#/task/' + room.task_row + '"><span class="x-rm task">' + ic("tasks") + "</span><span><b>" + E(room.name) + "</b><small>Открыть карточку задачи</small></span></a></div>" : '<div><h6>' + (room && room.kind === "dm" ? "Личная переписка" : "О канале") + '</h6></div>')
-      + "<div><h6>" + (room && room.kind === "dm" ? "Участники" : "Сотрудники") + "</h6>" + ((room && room.kind === "dm" ? [C.me && C.me.name, room.name].filter(Boolean) : S.users).map(function (n) { return '<div class="x-member">' + ava(n, "sm") + E(n) + (C.me && n === C.me.name ? '<small style="margin-left:auto;color:var(--muted)">вы</small>' : "") + "</div>"; }).join("") || '<p class="x-empty" style="padding:6px">—</p>') + "</div>"
+      + "<div><h6>" + (room && room.kind === "dm" ? "Участники" : "Сотрудники") + '<button type="button" class="x-aclink" id="tAcLink" title="Цвет сообщений каждого сотрудника">🎨 цвета</button></h6>' + ((room && room.kind === "dm" ? [C.me && C.me.name, room.name].filter(Boolean) : S.users).map(function (n) { return '<div class="x-member">' + ava(n, "sm") + '<span style="color:color-mix(in srgb,' + color(n) + ' 70%,var(--ink));font-weight:600">' + E(n) + "</span>" + (C.me && n === C.me.name ? '<small style="margin-left:auto;color:var(--muted)">вы</small>' : "") + "</div>"; }).join("") || '<p class="x-empty" style="padding:6px">—</p>') + "</div>"
       + (room && room.kind === "chan" && room.id !== "general" && C.me && (C.me.position === "owner" || C.me.role === "admin") ? '<div id="tAccess"><h6>Кто видит канал</h6><p style="font-size:.84rem;color:var(--muted);margin:0">Загрузка…</p></div>' : "")
       + "<div><h6>Срочные в этом чате</h6>" + (urgs.slice(-4).map(function (m) { return '<div class="x-linkcard" style="background:var(--bad-l);border-color:transparent;color:var(--bad)">' + ic("flame") + "<span><b>" + E(m.user) + '</b><small style="color:inherit;opacity:.8">' + E(m.text.slice(0, 80)) + "</small></span></div>"; }).join("") || '<p style="font-size:.84rem;color:var(--muted);margin:0">Пока нет</p>') + "</div>";
     if (room && $("tAccess")) loadAccess(room.id);
+    $("tAcLink").onclick = function () { P.tab = "colors"; location.hash = "#/me"; };
   }
   function loadAccess(roomId) {
     var box = $("tAccess"); if (!box) return;
@@ -568,11 +596,11 @@
   document.addEventListener("click", function (e) {
     var sb = e.target.closest && e.target.closest("[data-style]"); if (sb && S.cur) {
       var rm = S.rooms.filter(function (r) { return r.id === S.cur; })[0]; if (!rm) return;
-      var sel = roomStyle(rm);
-      xmodal('<h3>Картинка чата</h3><div id="gPreview" style="display:flex;align-items:center;gap:12px;margin-bottom:8px"></div><div id="gPick"></div><div class="x-hint" id="gErr" style="color:var(--bad)"></div><div class="x-row"><button class="x-btn ghost" onclick="MPBT.closeModal()">Отмена</button><button class="x-btn primary" id="gGo">Сохранить</button></div>', true);
-      var prev = function () { $("gPreview").innerHTML = '<span class="x-tile big" style="background:' + sel.color + '">' + E(sel.icon) + "</span><b>" + E(rm.name) + "</b>"; };
-      $("gPick").innerHTML = pickerHtml(sel); pickerBind(sel, prev); prev();
-      $("gGo").onclick = function () { C.call("/../ds/rooms/" + encodeURIComponent(rm.id) + "/style", { body: { icon: sel.icon, color: sel.color } }).then(function () { T.closeModal(); return loadRooms(); }).then(function () { paintThread(true); toast("Картинка изменена"); }).catch(function (er) { $("gErr").textContent = String(er); }); };
+      var sel = roomStyle(rm), only = rm.kind !== "group" && rm.kind !== "chan";
+      xmodal('<h3>' + (only ? "Цвет чата" : "Картинка и цвет чата") + '</h3><div id="gPreview" style="display:flex;align-items:center;gap:12px;margin-bottom:8px"></div><div id="gPick"></div><div class="x-hint" id="gErr" style="color:var(--bad)"></div><div class="x-row"><button class="x-btn ghost" onclick="MPBT.closeModal()">Отмена</button><button class="x-btn primary" id="gGo">Сохранить</button></div>', true);
+      var prev = function () { $("gPreview").innerHTML = '<div class="x-dlg rc on x-prevrow" style="--rc:' + sel.color + '">' + roomIcon({ id: rm.id, kind: rm.kind, name: rm.name, icon: sel.icon, color: sel.color }) + '<div class="m"><b>' + E(rm.name) + "</b><span>Так чат выглядит в списке</span></div></div>"; };
+      $("gPick").innerHTML = pickerHtml(sel, only); pickerBind(sel, prev); prev();
+      $("gGo").onclick = function () { C.call("/../ds/rooms/" + encodeURIComponent(rm.id) + "/style", { body: { icon: sel.icon, color: sel.color } }).then(function () { T.closeModal(); return loadRooms(); }).then(function () { paintThread(true); toast(only ? "Цвет чата изменён" : "Картинка и цвет изменены"); }).catch(function (er) { $("gErr").textContent = String(er); }); };
       return;
     }
     var b = e.target.closest && e.target.closest("[data-rename]"); if (!b || !S.cur) return;
@@ -645,12 +673,12 @@
   function renderMe() {
     var el = $("me-app"), sub = "Настройки уведомлений, профиль и доступ сотрудников";
     if (!gate(el, "Личный кабинет", sub, renderMe)) return;
-    var u = C.me, tabs = [["notif", "bell", "Уведомления"], ["info", "user", "Профиль"]].concat(u.role === "admin" ? [["staff", "users", "Сотрудники"]] : []);
+    var u = C.me, tabs = [["notif", "bell", "Уведомления"], ["colors", "chat", "Цвета в чатах"], ["info", "user", "Профиль"]].concat(u.role === "admin" ? [["staff", "users", "Сотрудники"]] : []);
     el.innerHTML = head("Личный кабинет", sub) + '<div class="wrap"><div class="prof2">' + ava(u.name, "xl") + "<div><h2>" + E(u.name) + "</h2><p>" + (u.title ? E(u.title) + " · " : "") + (POS_TITLE[u.position] || (u.role === "admin" ? "Руководитель" : "Сотрудник")) + '</p><div class="pf-pills"><span>' + (u.tg ? "Telegram подключён" : "Telegram не подключён") + '</span><span>' + (u.max ? "MAX подключён" : "MAX не подключён") + '</span><span>' + (C.pushOn && C.pushOn() ? "Push включён" : "Push выключен") + '</span></div></div>' + '<div class="pf-stats"><div><b>' + ((C.sync || {}).notif_unread || 0) + '</b><small>новых уведомлений</small></div><div><b>' + ((C.sync || {}).team_unread || 0) + '</b><small>непрочитано в «Команде»</small></div><div><b>' + (((C.sync || {}).urgent || []).length) + '</b><small>срочных</small></div></div><button class="x-btn ghost" id="meOut">Выйти</button></div>'
       + '<div class="x-bar"><div class="x-seg" id="meTabs">' + tabs.map(function (t) { return '<button data-t="' + t[0] + '" class="' + (P.tab === t[0] ? "on" : "") + '">' + ic(t[1]) + t[2] + "</button>"; }).join("") + '</div></div><div id="meBody"></div></div>';
     $("meOut").onclick = function () { C.logout().then(renderMe); };
     $("meTabs").querySelectorAll("button").forEach(function (b) { b.onclick = function () { P.tab = b.dataset.t; renderMe(); }; });
-    if (P.tab === "notif") paintNotif(); else if (P.tab === "info") paintInfo2(); else paintStaff();
+    if (P.tab === "notif") paintNotif(); else if (P.tab === "colors") paintColors(); else if (P.tab === "info") paintInfo2(); else paintStaff();
   }
   function savePrefs(patch) { return C.call("/me/prefs", { body: patch }).then(function (p) { C.prefs = p; return p; }); }
   function paintNotif() {
@@ -659,8 +687,8 @@
       + '<div class="x-chcards">'
       + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("bell") + "</span><div><b>В приложении</b><small>Колокольчик в меню</small></div></div><span class=\"x-pill ok\">Всегда включено</span></div>"
       + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("phone") + "</span><div><b>Push на это устройство</b><small>" + (pushOk ? (pushOn ? "Подключено" : "Выключено") : (C.pushWhy ? C.pushWhy() : "") || "Недоступно на этом устройстве") + '</small></div></div><button class="x-btn ' + (pushOn ? "ghost" : "primary") + '" id="mePush" ' + "" + ">" + (pushOn ? "Отключить" : "Включить") + "</button></div>"
-      + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("send") + "</span><div><b>Telegram</b><small>" + (!C.bot ? "Бот не подключён на сервере" : tg ? "Подключён" : "Не привязан") + '</small></div></div>' + (C.bot ? '<button class="x-btn ' + (tg ? "ghost" : "primary") + '" id="meTg">' + (tg ? "Отвязать" : "Получить код") + "</button>" : '<span class="x-pill">нужен TG_BOT_TOKEN</span>') + '<div id="meTgCode"></div></div></div>'
-      + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("chat") + "</span><div><b>MAX</b><small>" + (mx ? "Подключён" : "Не привязан") + '</small></div></div><button class="x-btn ' + (mx ? "ghost" : "primary") + '" id="meMax">' + (mx ? "Отвязать" : "Получить код") + '</button><div id="meMaxCode"></div></div>'
+      + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("send") + "</span><div><b>Telegram</b><small>" + (!C.bot ? "Бот не подключён на сервере" : tg ? "Подключён" : "Не привязан") + '</small></div></div>' + (C.bot ? '<button class="x-btn ' + (tg ? "ghost" : "primary") + '" id="meTg">' + (tg ? "Отвязать" : "Получить код") + "</button>" : '<span class="x-pill">нужен TG_BOT_TOKEN</span>') + '<div id="meTgCode"></div></div>'
+      + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("chat") + "</span><div><b>MAX</b><small>" + (mx ? "Подключён" : "Не привязан") + '</small></div></div><button class="x-btn ' + (mx ? "ghost" : "primary") + '" id="meMax">' + (mx ? "Отвязать" : "Получить код") + '</button><div id="meMaxCode"></div></div></div>'
       + '<div class="x-panel" style="margin-bottom:18px"><div style="padding:18px 20px 4px"><h3>Что и куда присылать</h3><p class="x-sub">Отметьте, какие события вам важны и в каком канале о них сообщать</p></div><div style="overflow-x:auto"><table class="x-mx"><thead><tr><th>Событие</th><th>В приложении</th><th>Push</th><th>Telegram</th><th>MAX</th></tr></thead><tbody>'
       + EVENTS.map(function (e) { return "<tr><td>" + e[1] + "<small>" + e[2] + "</small></td>" + ["app", "push", "telegram", "max"].map(function (ch) { return '<td><button class="x-cb ' + (pr.events[e[0]][ch] ? "on" : "") + '" data-e="' + e[0] + '" data-c="' + ch + '">' + ic("check") + "</button></td>"; }).join("") + "</tr>"; }).join("")
       + "</tbody></table></div></div>"
@@ -672,8 +700,12 @@
       + '<h3 style="margin-top:16px">Звук в CRM</h3><p class="x-sub">Сигнал при новых сообщениях и уведомлениях, пока CRM открыта</p>'
       + '<div class="x-qrow"><div><b>Звук включён</b></div><button class="x-sw ' + (window.DSSound && DSSound.get().on ? "on" : "") + '" id="sndOn"></button></div>'
       + '<div class="x-qrow"><div><b>Громкость</b></div><input type="range" id="sndVol" min="0.1" max="1" step="0.1" value="' + (window.DSSound ? DSSound.get().vol : 0.9) + '" style="flex:1;margin-left:12px"></div>'
+      + (window.DSSound && DSSound.list ? '<div class="x-field" style="margin:6px 0 12px"><label>Мелодия <small style="color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400">— прозвучит сразу при выборе</small></label><select id="sndPick" style="width:100%">'
+        + DSSound.list().map(function (g) { return '<optgroup label="' + g[0] + '">' + g[1].map(function (x) { return '<option value="' + x[0] + '"' + (DSSound.get().snd === x[0] ? " selected" : "") + ">" + x[1] + "</option>"; }).join("") + "</optgroup>"; }).join("")
+        + "</select></div>" : "")
       + '<button class="x-btn ghost" id="sndTest" style="width:100%;justify-content:center">Проверить звук</button></div></div></div>';
-    var sOn = $("sndOn"), sVol = $("sndVol"), sTest = $("sndTest");
+    var sOn = $("sndOn"), sVol = $("sndVol"), sTest = $("sndTest"), sPick = $("sndPick");
+    if (sPick) sPick.onchange = function () { DSSound.set({ snd: sPick.value }); DSSound.test(); };
     if (sOn) sOn.onclick = function () { var on = !DSSound.get().on; DSSound.set({ on: on }); sOn.classList.toggle("on", on); };
     if (sVol) sVol.oninput = function () { DSSound.set({ vol: sVol.value }); };
     if (sTest) sTest.onclick = function () { DSSound.test(); };
@@ -693,6 +725,29 @@
     $("qTo").onchange = function () { savePrefs({ quiet: { to: this.value } }); };
     $("meTest").onclick = function () {
       C.call("/me/test", { body: {} }).then(function (r) { var names = { app: "в приложении", push: "push", telegram: "Telegram", max: "MAX" }, parts = Object.keys(r).map(function (k) { return names[k] + (r[k] ? " ✓" : " ✗"); }); $("meTestOut").textContent = parts.length ? "Отправлено: " + parts.join(", ") : "По вашим настройкам сейчас ничего не отправляется (тихие часы?)"; C.refresh(); }).catch(function (e) { $("meTestOut").textContent = String(e); });
+    };
+  }
+  /* цвета авторов сообщений: личная настройка (этот браузер); без неё у каждого сотрудника свой цвет из общей палитры */
+  function paintColors() {
+    var body = $("meBody"), ppl = (T.people || []).slice().sort(function (a, b) { return a.id - b.id; }), ac = acAll();
+    function row(u) {
+      var c = color(u.name), own = !!ac[u.name.toLowerCase()];
+      return '<div class="x-acrow" data-acu="' + E(u.name) + '"><div class="x-msg ac" style="--ac:' + c + '">' + ava(u.name, "sm") + '<div class="bd"><div class="nm">' + E(u.name) + (C.me && u.name === C.me.name ? " <small>это вы</small>" : "") + '</div><div class="tx">' + E(u.title || "Сообщение в чате") + "</div></div></div>"
+        + '<div class="x-acpick">' + swatches("acp" + u.id, c, "data-ac") + (own ? '<button type="button" class="x-btn ghost" data-acreset="1" style="padding:5px 10px">По умолчанию</button>' : '<small class="x-sub" style="margin:0">по умолчанию</small>') + "</div></div>";
+    }
+    body.innerHTML = '<div class="x-panel pad" style="max-width:860px"><h3>Цвет сообщений сотрудников</h3><p class="x-sub">В общих чатах облачко каждого автора окрашено в его цвет — сразу видно, кто пишет. По умолчанию у каждого свой цвет; здесь его можно поменять. Настройка личная: действует только у вас и только в этом браузере.</p>'
+      + '<div class="x-qrow"><div><b>Раскрашивать сообщения по авторам</b><small>Если выключить, все облачка будут одного цвета</small></div><button class="x-sw ' + (acOn() ? "on" : "") + '" id="acOn"></button></div>'
+      + '<div id="acList">' + (ppl.map(row).join("") || '<div class="x-empty">Список сотрудников загружается…</div>') + "</div>"
+      + '<div class="x-row" style="justify-content:flex-start"><button class="x-btn ghost" id="acAll">Вернуть все цвета по умолчанию</button></div>'
+      + '<p class="x-sub" style="margin-top:14px">Цвет самого чата (строка в списке и окно чата) задаётся кнопкой 🎨 в шапке чата и одинаков у всех.</p></div>';
+    if (!ppl.length) loadPeople().then(function () { if (P.tab === "colors" && (T.people || []).length) paintColors(); });
+    $("acOn").onclick = function () { if (acOn()) ac._off = 1; else delete ac._off; acSave(); this.classList.toggle("on", acOn()); };
+    $("acAll").onclick = function () { Object.keys(ac).forEach(function (k) { if (k !== "_off") delete ac[k]; }); acSave(); paintColors(); toast("Цвета сброшены"); };
+    $("acList").onclick = function (e) {
+      var r = e.target.closest("[data-acu]"); if (!r) return;
+      var k = r.dataset.acu.toLowerCase(), b = e.target.closest("[data-ac]");
+      if (b) ac[k] = b.dataset.ac; else if (e.target.closest("[data-acreset]")) delete ac[k]; else return;
+      acSave(); paintColors();
     };
   }
   function resizePhoto(file, cb) {                                // квадрат 160×160, JPEG — небольшой, хранится на сервере

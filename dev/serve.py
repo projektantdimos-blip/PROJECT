@@ -1,10 +1,10 @@
-"""Локальный стенд для проверки v2: раздаёт папку v2 и подмешивает демо-API (dev/mock.js)
-в каждую HTML-страницу. Только для разработки — в продакшен не загружается."""
+"""Локальный стенд: раздаёт папку web и подмешивает в каждую HTML-страницу dev/mock.js (адрес моста-стенда).
+Запуск: python web/dev/serve.py 8779 8795. Только для разработки — в продакшен не загружается."""
 import http.server, os, sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8778
-BRIDGE_PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 8790      # порт dev/crm_dev_app.py
+PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8779
+BRIDGE_PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 8795      # порт dev/crm_dev_app.py
 INJECT = b'<script>window.DEV_BRIDGE_PORT=%d</script><script src="/dev/mock.js"></script>' % BRIDGE_PORT
 
 

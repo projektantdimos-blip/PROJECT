@@ -155,7 +155,13 @@
     ".chat-wrap{position:relative}" +
     ".chat-wrap.drop::after{content:\"Отпустите файл, чтобы прикрепить к ответу\";position:absolute;inset:0;display:grid;place-items:center;background:rgba(31,92,153,.12);border:3px dashed var(--blue);border-radius:12px;font-weight:700;color:var(--blue);z-index:5;pointer-events:none}" +
     "#chatAssign:not(:empty){padding:7px 14px;background:var(--blue-l);border-bottom:1px solid var(--line);font-size:.84rem}" +
-    "#chatHead .hbtn.wide{width:auto;padding:0 10px;font-weight:600;font-size:.82rem;white-space:nowrap}";
+    "#chatHead .hbtn.wide{width:auto;padding:0 10px;font-weight:600;font-size:.82rem;white-space:nowrap}" +
+    /* метка привязки в шапке: к какому заказчику и задаче привязан диалог */
+    "#chat-app #chatHead .chat-link{flex:0 1 auto;min-width:0;max-width:260px;display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:15px;border:1px solid var(--line);background:var(--card);color:var(--muted);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap}" +
+    "#chat-app #chatHead .chat-link span{overflow:hidden;text-overflow:ellipsis}" +
+    "#chat-app #chatHead .chat-link.on{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:color-mix(in srgb,var(--ok) 10%,var(--card))}" +
+    "#chat-app #chatHead .chat-link.off{color:#BA7517;border-color:#EF9F27;background:color-mix(in srgb,#EF9F27 14%,var(--card))}" +
+    "@media(max-width:760px){#chat-app #chatHead .chat-link{width:32px;height:32px;padding:0;justify-content:center;border-width:2px}#chat-app #chatHead .chat-link span{display:none}}";
   document.head.appendChild(css2);
 
   /* ---------- каркас ---------- */
@@ -450,6 +456,7 @@
     var r = anchor.getBoundingClientRect();
     pop.style.cssText = "position:fixed;z-index:420;min-width:230px;background:var(--card,#fff);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.25);padding:6px;top:" + Math.min(r.bottom + 4, innerHeight - 190) + "px;left:" + Math.max(8, Math.min(r.left - 190, innerWidth - 246)) + "px";
     var items = [[th.unread ? "Пометить прочитанным" : "Пометить непрочитанным", "read"]];
+    if (canLink()) items.push(["🔗 Привязать к задаче / заказчику…", "link"]);
     if (myPos() !== "design" && myPos() !== "acc") { items.push(["＋ Задача по конвейеру…", "task"]); items.push(["Передать специалисту…", "hand"]); }
     pop.innerHTML = items.map(function (x, i) { return '<button type="button" data-a="' + x[1] + '" style="display:block;width:100%;text-align:left;padding:9px 12px;border:0;background:none;border-radius:8px;cursor:pointer;font:inherit;color:inherit">' + esc(x[0]) + "</button>"; }).join("");
     document.body.appendChild(pop);
@@ -467,8 +474,16 @@
         } else if (a === "task") {
           if (window.DS && DS.newTask) DS.newTask({ step: "a2", thread_id: th.id, thread_title: th.title || th.peer }); else setErr("Раздел задач ещё не загрузился — обновите страницу");
         } else if (a === "hand") handoffDialog(th);
+        else if (a === "link") { if (st.sel !== th.id) openThread(th.id); openLink(curThread() || th, true); }
       };
     });
+  }
+  /* Привязка диалога к задаче/заказчику: руководитель, продажи, операционный менеджер (панель «Заказчик», chatpanel.js) */
+  function canLink() { return crmOn() && ["owner", "sales", "ops"].indexOf(myPos()) >= 0; }
+  function openLink(t, find) {
+    el.wrap.classList.add("show-info");
+    if (find && window.MPBD && MPBD.find && !MPBD.find(t.id)) renderInfo(t);      // поиск ещё не на экране — перерисовать панель с курсором в поиске
+    if (el.info) el.info.scrollTop = 0;
   }
 
   /* режим «перевернуть письма»: блоки текста (разделённые пустой строкой) идут в обратном порядке */
@@ -502,6 +517,7 @@
     el.head.innerHTML = '<button class="back" id="chatBack" title="К списку">←</button>' +
       '<div class="hava" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div>" +
       '<div class="hmain"><b>' + esc(t.title || t.peer) + "</b><small>" + esc(t.peer) + "</small></div>" +
+      (canLink() ? '<button class="chat-link" id="chatLinkChip" data-tid="' + esc(t.id) + '" title="Привязка к заказчику и задаче">🔗 <span>…</span></button>' : "") +
       (t.channel === "mail" ? '<button class="hbtn" id="chatFlip" title="' + (flipOn() ? "Показать письма в обычном порядке" : "Перевернуть порядок частей письма (сверху вниз)") + '"' +
         (flipOn() ? ' style="border-color:var(--blue);color:var(--blue)"' : "") + ">⇅</button>" : "") +
       '<button class="hbtn" id="chatRemind" title="Напомнить мне про этот диалог" style="width:auto;padding:0 10px;white-space:nowrap">⏰<span class="rmtxt"> Напомнить</span></button>' +
@@ -511,6 +527,8 @@
       '<span class="chat-pill" style="background:' + ci.color + '">' + esc(ci.label) + "</span>" +
       '<input type="file" id="chatAvFile" accept="image/*" hidden>';
     document.getElementById("chatBack").onclick = function () { st.sel = null; renderThreads(); renderThread(); };
+    var lc = document.getElementById("chatLinkChip");
+    if (lc) lc.onclick = function () { openLink(t, !lc.classList.contains("on")); };
     var ub = document.getElementById("chatUnread");
     if (ub) ub.onclick = function () {
       t.unread = t.unread || 1; renderThreads(); applyBadge();
@@ -557,10 +575,13 @@
   /* ---------- правая панель: заказчик, связанные дела, быстрые действия (как в макете) ---------- */
   function renderInfo(t) {
     if (!el.info) return;
-    if (!t) { el.info.innerHTML = '<div class="chat-empty">Выберите диалог слева</div>'; return; }
+    if (!t) { el.info.removeAttribute("data-tid"); el.info.innerHTML = '<div class="chat-empty">Выберите диалог слева</div>'; return; }
     var ci = chInfo(t.channel), av = avUrl(t), ini = (t.title || "?").trim().charAt(0).toUpperCase(), name = t.title || t.peer;
-    if (!window.MPBD || !MPBD.render) return;                    // боковая панель с вкладками: заказчик / создать заказчика / КП (chatpanel.js)
-    el.info.innerHTML = '<button class="cp-close" id="cpClose">← К диалогу</button><div class="who"><div class="hava big" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div></div>" +
+    if (!window.MPBD || !MPBD.render) { window.__chatPanelReady = function () { if (st.sel === t.id) renderInfo(t); }; return; }      // боковая панель с вкладками: заказчик / создать заказчика / КП (chatpanel.js) — ещё грузится
+    var ae = document.activeElement;
+    if (el.info.getAttribute("data-tid") === t.id && ae && ae !== document.body && el.info.contains(ae)) { if (MPBD.chip) MPBD.chip(t); return; }      // идёт ввод в панели (поиск, форма) — не сбрасываем
+    el.info.setAttribute("data-tid", t.id);
+    el.info.innerHTML ='<button class="cp-close" id="cpClose">← К диалогу</button><div class="who"><div class="hava big" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div></div>" +
       '<div id="chatPanel"></div>';
     document.getElementById("cpClose").onclick = function () { el.wrap.classList.remove("show-info"); };
     var h2 = document.getElementById("chatHand2"); if (h2) h2.onclick = function () { handoffDialog(t); };
@@ -777,7 +798,7 @@
     if (st.edit) stopEdit(true);
     st.sel = id; st.msgs = [];
     renderThreads(); renderThread();
-    loadMessages(false).then(function () { el.text.focus(); });
+    loadMessages(false).then(function () { if (!(window.MPBD && MPBD.wantsFocus && MPBD.wantsFocus(id))) el.text.focus(); });      // открыт поиск привязки — курсор остаётся в нём
     var t = curThread();
     if (t && t.unread) {
       t.unread = 0; renderThreads(); applyBadge();

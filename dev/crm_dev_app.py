@@ -1,6 +1,6 @@
-"""Локальный стенд моста для проверки v2: настоящие CRM-маршруты (bridge/app) на временной базе, без Telegram и почты.
-Запуск:  python v2/dev/crm_dev_app.py        (нужны пакеты: fastapi, uvicorn, pywebpush)
-Демо-вход: сотрудники Алексей / Дмитрий / Максим / Игорь — PIN 1111, руководитель «Руководитель» — PIN 1234.
+"""Локальный стенд моста: настоящие CRM-маршруты (bridge/app) на временной базе, без Telegram и почты.
+Запуск:  python web/dev/crm_dev_app.py 8795   (нужны пакеты: fastapi, uvicorn, pywebpush)
+Демо-вход: «Руководитель» — PIN 1234, остальные сотрудники — PIN 1111.
 Только для разработки — в продакшен не загружать."""
 import asyncio
 import os
@@ -17,6 +17,7 @@ os.environ["DATA_DIR"] = str(DATA)
 os.environ["BRIDGE_KEY"] = "demo-key-demo-key-demo-key"
 os.environ["CRM_ADMIN_NAME"] = "Руководитель"
 os.environ["CRM_ADMIN_PIN"] = "1234"
+os.environ["SIPUNI_HOOK_TOKEN"] = "dev-sipuni-hook-0123456789"      # приёмник событий: /api/sipuni/hook/dev-sipuni-hook-0123456789
 sys.path.insert(0, str(HERE.parents[1] / "bridge"))
 
 import uvicorn                                           # noqa: E402
@@ -25,92 +26,40 @@ from fastapi.middleware.cors import CORSMiddleware      # noqa: E402
 
 from datetime import date, timedelta                                   # noqa: E402
 
-from app import appsscript, config, crm_auth, crm_auto, crm_auto_routes, crm_db, crm_clients, crm_kp, crm_routes, crm_sched, crm_to, crm_stage_routes, crm_stages as st, db, tg_bot, ds_orders, ds_reports, ds_routes, ds_auto   # noqa: E402
+from app import config, crm_auth, crm_db, crm_routes, crm_sched, db, onec, sipuni, sipuni_routes, tg_bot, uploads, ds_orders, ds_reports, ds_routes, ds_auto   # noqa: E402
 
 
-# --- поддельные таблица Google и Telegram: общие для приложения (через /dev/sheet) и для моста ---
-_SHEET_WHO = dict(st.STAGES)               # настоящая таблица считает «ответственного» по своему фиксированному списку
-
-def _iso(n):
-    return (date.today() + timedelta(days=n)).isoformat()
-
-
-def _task(row, c, a, k, wt, stage, dl, due, mgr="Алексей"):
-    return {"row": row, "customer": c, "address": a, "contractNo": k, "workType": wt, "startDate": _iso(-60), "dueDate": _iso(due), "stage": stage, "deadline": _iso(dl),
-            "comment": "", "siteContact": "Контактное лицо", "siteContactPhone": "+7 900 000-00-00", "manager": mgr, "closed": False, "responsible": _SHEET_WHO.get(stage, "")}
-
-
-def _lead(row, c, contact, ph, funnel, obj, amount, status, last, owner):
-    return {"row": row, "date": _iso(-20), "customer": c, "contact": contact, "phoneEmail": ph, "funnel": funnel, "object": obj, "essence": "", "amount": amount, "status": status, "lastContact": _iso(last), "owner": owner, "comment": ""}
-
-
-SHEET = {"tasks": {}, "leads": {}}
-for _t in [_task(2, "ТЦ «Меридиан»", "пр. Энергетиков, 14", "118/26", "Монтаж", "Запустить монтаж", 3, 50), _task(3, "Школа № 214", "ул. Лесная, 7", "121/26", "Монтаж", "Расчет", -1, 70),
-           _task(4, "ООО «Северный парк»", "Парковая ул., 2", "124/26", "Проектирование", "Проектирование", 5, 40), _task(5, "БЦ «Атлант»", "Невский пр., 88", "109/26", "Монтаж", "Печать документов", 1, 16),
-           _task(6, "Склад «ЛогистПро»", "Шушары, Московское ш., 3", "127/26", "Испытания", "Обследовать", 7, 22), _task(10, "Школа №214", "ул. Лесная, 7", "130/26", "Испытания", "Обследовать", 6, 30), _task(9, "АЗС «Север-Нефть»", "Выборгское ш., 120", "115/26", "Монтаж", "Закупка оборудования", 4, 57)]:
-    SHEET["tasks"][_t["row"]] = _t
-for _l in [_lead(2, "ТЦ «Меридиан»", "Сергей Петров", "+7 911 204-18-33", "Сайт", "Монтаж АПС, 3 этажа", 1240000, "Согласование условий", -1, "Алексей"),
-           _lead(3, "ООО «Северный парк»", "Андрей Лукин", "+7 905 118-60-09", "Сарафан", "Проект противопожарной защиты", 380000, "Переговоры", -6, "Дмитрий"),
-           _lead(4, "Склад «ЛогистПро»", "Павел Ермаков", "+7 911 903-44-70", "Алексей", "Испытания ВПВ", 215000, "КП отправлено", -2, "Алексей"),
-           _lead(8, "Склад Логист Про", "Павел Ермаков", "+7 911 903-44-70", "Сайт", "Монтаж АПС", 540000, "Переговоры", -9, "Дмитрий"),_lead(9, "Школа №214", "Ольга Ветрова", "o.vetrova@school214.example", "Сарафан", "Проверка ВПВ", 90000, "Новое обращение", -2, "Алексей"),_lead(7, "АЗС «Север-Нефть»", "Денис Руднев", "+7 911 800-90-31", "Сарафан", "Монтаж пожаротушения", 1939000, "Переговоры", -3, "Алексей")]:
-    SHEET["leads"][_l["row"]] = _l
-
-
-config.TO_BRIDGE_PIN = "0000"
-_m = date.today().month
-TO_DATA = {"objects": [
-    {"id": 1, "name": "ТЦ «Меридиан»", "address": "пр. Энергетиков, 14", "spec": "Дмитрий", "period": "Квартал", "first": (_m - 1) % 3 + 1, "years": {str(date.today().year): {"to": {}, "deadline": "", "reason": ""}}},
-    {"id": 2, "name": "Школа № 214", "address": "ул. Лесная, 7", "spec": "Алексей", "period": "Месяц", "first": 1, "years": {str(date.today().year): {"to": {str(_m): "no"}, "deadline": _iso(4), "reason": "Нет доступа в здание"}}},
-    {"id": 3, "name": "АЗС «Север-Нефть»", "address": "Выборгское ш., 120", "spec": "Дмитрий", "period": "Месяц", "first": 1, "years": {str(date.today().year): {"to": {str(_m): "yes"}, "deadline": "", "reason": ""}}},
-]}
-
-
-CLIENTS_META = {}
-
-
-def fake_sheet(fn, args):
-    t, l = SHEET["tasks"], SHEET["leads"]
-    if fn == "to_load":
-        return TO_DATA
-    if fn == "api_clientsList":
-        return [{"key": k, "name": v[0], "inn": v[1], "note": ""} for k, v in CLIENTS_META.items()]
-    if fn == "api_clientsSave":
-        if args[2]:
-            CLIENTS_META[args[0]] = (args[1], args[2])
-        else:
-            CLIENTS_META.pop(args[0], None)
-        return {"ok": True}
-    if fn == "api_listTasks":
-        return [dict(x) for x in t.values()]
-    if fn == "api_getTask":
-        return dict(t[args[0]])
-    if fn == "api_saveTask":
-        t[args[0]].update(args[1])
-        t[args[0]]["responsible"] = _SHEET_WHO.get(t[args[0]]["stage"], "")
-        return True
-    if fn == "api_createTask":
-        row = max(t) + 1
-        t[row] = {"row": row, **args[0], "responsible": _SHEET_WHO.get(args[0]["stage"], "")}
-        return {"row": row}
-    if fn == "api_deleteTask":
-        t.pop(args[0], None)
-        return True
-    if fn == "api_kpregList":
-        return [dict(x) for x in l.values()]
-    if fn == "api_kpregSave":
-        l[args[0]].update(args[1])
-        return True
-    if fn == "api_kpregCreate":
-        row = max(l) + 1
-        l[row] = {"row": row, **args[0]}
-        return {"row": row}
-    if fn == "api_kpregDelete":
-        l.pop(args[0], None)
-        return True
-    return True
-
-
+# --- поддельный Telegram-бот: сообщения складываются в TG_LOG (смотреть на /dev/tg) ---
 TG_LOG = []
+
+
+def fake_1c(url):
+    """Поддельная 1С (OData): три поступления — аванс по №431, оплата без номера договора, платёж по несуществующему №999."""
+    d = lambda ref, purpose, amount, payer, ago: {"Ref_Key": ref, "Number": "0000-" + ref[-2:], "Date": (date.today() - timedelta(days=ago)).isoformat() + "T10:00:00",
+                                                "Posted": True, "DeletionMark": False, "ВидОперации": "ОплатаПокупателя", "СуммаДокумента": amount,
+                                                "НазначениеПлатежа": purpose, "Контрагент": {"Description": payer, "ИНН": "7841084227"}}
+    return {"value": [d("dev-1c-01", "Оплата по договору № 431/26 от 01.10.2026, аванс 50%", 45000, "ПолярныйЩит", 2),
+                      d("dev-1c-02", "Оплата за проектные работы", 130000, "ИП Ядыкин", 1),
+                      d("dev-1c-03", "Оплата по договору № 999/26", 12000, "ООО «Спектр»", 1)]}
+
+
+SIPUNI_LOG = []
+
+
+def fake_sipuni(method, params, raw=False):
+    """Поддельный Sipuni: звонок из CRM записывается в SIPUNI_LOG (смотреть на /dev/sipuni), статистика — один пропущенный,
+    запись разговора — короткий беззвучный mp3."""
+    SIPUNI_LOG.append({"method": method, **params})
+    if method == "statistic/export":
+        t = time.strftime("%d.%m.%Y %H:%M:%S", time.localtime(time.time() - 1800))
+        return ("Тип;Статус;Время;Схема;Откуда;Куда;Кто ответил;Длительность звонка;Длительность разговора;Время ответа;Оценка;ID записи\n"
+                f"Входящий;Не отвечен;{t};Основная;79000000003;74951234567;;0:25;0:00;;;\n").encode("utf-8")
+    if method == "statistic/record":
+        return SILENT_MP3
+    return {"success": True}
+
+
+SILENT_MP3 = bytes.fromhex("fffb9064" + "00" * 413) * 8
 
 
 def fake_tg(method, payload):
@@ -124,22 +73,22 @@ def seed():
     ds_orders.init()
     ds_reports.init()
     ds_auto.init()
-    if not crm_db.kv_get(st.KV_KEY):                       # для показа: второй набор этапов — для испытаний
-        _p, _d = st.validate([{'id': 'std', 'name': 'Стандартный', 'keys': ['монтаж', 'проект'], 'stages': [{'name': n, 'who': w, 'days': 3} for n, w in st.STAGES]},
-                              {'id': 'test', 'name': 'Испытания', 'keys': ['испыт', 'рр'], 'stages': [{'name': 'Договор Подписать', 'who': 'Алексей', 'days': 2}, {'name': 'Обследовать', 'who': 'Алексей', 'days': 3},
-                               {'name': 'Провести испытания', 'who': 'Дмитрий', 'days': 5}, {'name': 'Оформить протокол', 'who': 'Дмитрий', 'days': 3}, {'name': 'Сдача работ', 'who': 'Алексей', 'days': 2}, {'name': 'Работа сдана', 'who': 'Игорь', 'days': 0}]}], 'std')
-        st.save(_p, _d, 'dev')
+    sipuni.init()
     crm_auth.bootstrap_admin()
-    crm_auto.seed_rules()
-    appsscript._post = fake_sheet
     tg_bot._http = fake_tg
     config.TG_BOT_ENABLED = True
+    config.ONEC_ODATA_URL, config.ONEC_ODATA_USER = "https://1c.demo/odata/standard.odata", "crm"
+    onec._http_get = fake_1c
+    config.SIPUNI_USER, config.SIPUNI_SECRET = "000000", "dev-secret"
+    sipuni._post = fake_sipuni
     for n in ("Алексей", "Дмитрий", "Максим", "Игорь"):
         if not crm_db.user_by_name(n):
             crm_auth.create_user(n, "1111")
     for n, pos in (("Иван", "design"), ("Мария", "sales"), ("Пётр", "ops"), ("Елена", "acc"), ("Ольга", "designer"), ("Кристина", "designer")):
         if not crm_db.user_by_name(n):
             crm_auth.create_user(n, "1111", "user", pos)
+    if not sipuni.ext_map():                                    # внутренние номера Sipuni: руководитель — 200, Мария (продажи) — 201
+        crm_db.kv_set(sipuni.EXT_KEY, {str(crm_db.user_by_name("Руководитель")["id"]): "200", str(crm_db.user_by_name("Мария")["id"]): "201"})
     for n, chat in (("Руководитель", 1000), ("Алексей", 1001), ("Дмитрий", 1002)):
         u = crm_db.user_by_name(n)
         if u and not u["tg_chat"]:
@@ -184,8 +133,6 @@ def seed():
         a, d, m = (crm_db.user_by_name(n)["id"] for n in ("Алексей", "Дмитрий", "Максим"))
         crm_db.msg_add("general", a, "Коллеги, в понедельник планёрка в 10:00", False)
         crm_db.msg_add("general", d, "Принято, подготовлю отчёт по закупкам", False)
-        crm_db.msg_add("buy", d, "Заказал извещатели ИП 212 — 150 шт., отгрузка во вторник", False)
-        crm_db.msg_add("calc", a, "Нужен расчёт по БЦ «Атлант», 3 этажа, около 240 извещателей", False)
         crm_db.msg_add("general", m, "Пожарная инспекция едет на Школу № 214 завтра в 11:00 — нужны журналы!", True)
 
 
@@ -198,32 +145,23 @@ async def lifespan(app):
 
 
 app = FastAPI(lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["X-Api-Key", "X-Session", "Content-Type"])
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["X-Api-Key", "X-Session", "Content-Type", "X-File-Name"])
 app.include_router(crm_routes.router)
 app.include_router(ds_routes.router)
-app.include_router(crm_auto_routes.router)
-app.include_router(crm_stage_routes.router)
-app.include_router(crm_kp.router)
-app.include_router(crm_clients.router)
-app.include_router(crm_to.router)
+app.include_router(sipuni_routes.router)
 
 
 from fastapi import Request                                # noqa: E402
 
 
-@app.post("/dev/sheet")
-async def dev_sheet(request: Request):
-    """Эмулирует Apps Script для приложения: тот же ответ {ok, data}, что и у /exec."""
-    body = await request.json()
-    try:
-        return {"ok": True, "data": fake_sheet(body.get("fn"), body.get("args") or [])}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
 @app.get("/dev/tg")
 def dev_tg():
     return TG_LOG
+
+
+@app.get("/dev/sipuni")
+def dev_sipuni():
+    return SIPUNI_LOG
 
 
 @app.post("/dev/tg/clear")
@@ -261,15 +199,20 @@ def send_demo(tid: str, body: dict):
     db.add_message(th["channel"], th["peer"], "", f"out-{time.time()}", "out", "Вы", "", str(body.get("text", "")), time.time(), False)
     return {"ok": True}
 
-@app.post("/api/threads/{tid}/send-file", dependencies=[Depends(crm_auth.api_key)])
-def send_file_demo(tid: str, body: dict):
+@app.post("/api/threads/{tid}/send-file")
+def send_file_demo(tid: str, body: dict, user=Depends(crm_auth.current_user)):
+    """Как в мосту, но без Telegram/MAX/почты: файл (base64 или номер загрузки) отмечается текстом в переписке."""
     import base64
     th = db.get_thread(tid)
     if not th:
         raise HTTPException(404, "Переписка не найдена")
-    data = base64.b64decode(body.get("data", ""))
-    assert data[:5] == b"%PDF-", "ожидался PDF"
-    db.add_message(th["channel"], th["peer"], "", f"outf-{time.time()}", "out", "Вы", "", f"[файл {body.get('filename')} {len(data)} байт] " + str(body.get("text", "")), time.time(), False)
+    if body.get("upload"):
+        src, name, _, size = uploads.take(body["upload"], user)
+        src.unlink(missing_ok=True)
+    else:
+        data = base64.b64decode(body.get("data", ""))
+        name, size = body.get("filename"), len(data)
+    db.add_message(th["channel"], th["peer"], "", f"outf-{time.time()}", "out", "Вы", "", f"[файл {name} {size} байт] " + str(body.get("text", "")), time.time(), False)
     return {"ok": True, "file": True}
 
 @app.post("/api/threads/{tid}/messages/{mid}/edit", dependencies=[Depends(crm_auth.api_key)])
@@ -309,4 +252,4 @@ def avatar(tid: str):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=int(sys.argv[1]) if len(sys.argv) > 1 else 8790, log_level="warning")
+    uvicorn.run(app, host="127.0.0.1", port=int(sys.argv[1]) if len(sys.argv) > 1 else 8795, log_level="warning")
