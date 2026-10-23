@@ -8,14 +8,15 @@
 
   var STAGE_COLOR = { "Ожидает аванс": "#b0883a", "Сбор данных": "#8794ab", "Готов к проектированию": "#2b8a9a", "В проектировании": "#3a86d6", "Проверка": "#8b6fe0", "На согласовании": "#e0a21c", "Корректировка": "#d9782f", "Сдано": "#1f9d63", "Закрыто": "#6a768c" };
   var STAGE_ORDER = ["Ожидает аванс", "Сбор данных", "Готов к проектированию", "В проектировании", "Проверка", "На согласовании", "Корректировка", "Сдано", "Закрыто"];
-  var ROLE_NAME = { owner: "Руководитель", design: "Руководитель проектного отдела", sales: "Руководитель отдела продаж", ops: "Операционный менеджер", acc: "Бухгалтер", designer: "Проектировщик" };
+  var ROLE_NAME = { owner: "Руководитель", design: "Руководитель проектного отдела", sales: "Руководитель отдела продаж", ops: "Операционный менеджер", acc: "Бухгалтер", designer: "Проектировщик", norm: "Нормативный специалист" };
   var ROLE_NOTE = {
     owner: "Вы видите всё, включая закрытый кабинет «Статистика».",
     design: "Вы видите проекты на стадиях «Готов к проектированию», «В проектировании», «Проверка» и «Корректировка». Звонки заказчикам делаете вы.",
     sales: "Проектные, операционные и продажи, заказчики, договоры, реестр КП и переписка.",
     ops: "Проектные, операционные и продажи, заказчики, договоры, реестр КП и переписка.",
     acc: "Закрытие проектов: акт, счёт, оплата и галочка «Закрыто».",
-    designer: "Только ваши проекты. Договорных сумм, контактов заказчиков и чужих проектов здесь нет."
+    designer: "Только ваши проекты. Договорных сумм, контактов заказчиков и чужих проектов здесь нет.",
+    norm: "Поставленные вам задачи (например, «Разработка пожарного риска») и диалоги ваших заказчиков. Финансов здесь нет."
   };
   var COL = { Ольга: "linear-gradient(135deg,#f5ab86,#e07a46)", Кристина: "linear-gradient(135deg,#bd96ee,#8a5fd0)", Иван: "linear-gradient(135deg,#46c28a,#238a58)", Мария: "linear-gradient(135deg,#5aa2ee,#2f6fbd)", Пётр: "linear-gradient(135deg,#4fc3c3,#1f9a9a)", Елена: "linear-gradient(135deg,#e58bb0,#c2527f)" };
 
@@ -42,6 +43,9 @@
     t.innerHTML = "<span>" + E(m) + "</span>"; t.className = "x-toast on"; clearTimeout(toast.h); toast.h = setTimeout(function () { t.className = "x-toast"; }, 4000);
   }
   function can(k) { return S.meta && S.meta.can && S.meta.can[k]; }
+  /* телефония Sipuni (calls.js): кнопка 📞 у номера и журнал звонков в карточке */
+  function callBtn(ph, oid, cid) { return window.DSCalls ? DSCalls.btn(ph, oid, cid) : ""; }
+  function callsPanel(kind, id) { return window.DSCalls ? DSCalls.panel(kind, id) : ""; }
   function find(id) { return (S.orders || []).filter(function (o) { return o.id === id; })[0]; }
   var ICON = { plus: '<path d="M12 5v14M5 12h14"/>', down: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>', lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>' };
   function ic(n) { return '<svg class="i" viewBox="0 0 24 24">' + (ICON[n] || "") + "</svg>"; }
@@ -152,7 +156,7 @@
     var jobs = [S.orders == null ? load() : null], add = function (f) { jobs.push(f()); };
     if (kind === "tasks" && KP_POS.indexOf(pos()) >= 0) add(loadKp);
     if (kind === "tasks") add(loadComments);
-    if (kind === "week") add(loadWeek);
+    if (kind === "week" && pos() !== "norm") add(loadWeek);
     if (kind === "scripts") add(loadScripts);
     if (kind === "risk") add(loadRisk);
     if (kind === "load" && pos() === "designer") add(function () { return api("/load").then(function (r) { S.lo = r; }, function () { S.lo = []; }); });
@@ -197,7 +201,7 @@
   /* ---------- операционные задачи и продажи: сроки, ответственные, состояния ---------- */
   function taskTone(t) { return t.left_days == null ? "muted" : t.left_days < 0 ? "bad" : t.left_days <= 2 ? "warn" : "info"; }
   function taskCard(t) {
-    var tn = taskTone(t), kindName = t.kind === "acc" ? "Бухгалтерия" : t.kind === "ops" ? "Операционная" : t.kind === "chat" ? "Переписка" : t.kind === "design" ? "Проектный отдел" : "Продажи";
+    var tn = taskTone(t), kindName = t.kind === "acc" ? "Бухгалтерия" : t.kind === "ops" ? "Операционная" : t.kind === "chat" ? "Переписка" : t.kind === "design" ? "Проектный отдел" : t.kind === "norm" ? "Нормативный специалист" : "Продажи";
     var btns = [];
     if (t.step === "a1" || t.step === "a2") {
       btns.push('<button class="btn ghost sm" data-lead="' + t.id + ':skip" title="Закрыть: по этому обращению задача не нужна">Задача не требуется</button>');
@@ -209,9 +213,10 @@
     if (t.state !== "wait") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':wait">Ждём ответа</button>');
     btns.push('<button class="btn ok sm" data-tstate="' + t.id + ':done">Выполнено</button>');
     if (taskCtl() || (t.author_id && C && C.me && t.author_id === C.me.id)) btns.push('<button class="btn ghost sm" data-tedit="' + t.id + '" title="Править задачу">✎</button><button class="btn ghost sm" data-tdel="' + t.id + '" title="Удалить задачу" style="color:var(--bad)">🗑</button>');
-    var openAttr = t.order_id ? ' data-open="' + t.order_id + '" title="Открыть карточку задачи"' : (t.thread_id ? ' data-chatopen="' + E(t.thread_id) + '" title="Открыть диалог"' : "");
+    var proj = t.order_id && pos() !== "norm";      /* нормативному специалисту карточка проекта не открывается — только номер и объект */
+    var openAttr = proj ? ' data-open="' + t.order_id + '" title="Открыть карточку задачи"' : (t.thread_id ? ' data-chatopen="' + E(t.thread_id) + '" title="Открыть диалог"' : "");
     return '<div class="task"' + openAttr + '><span class="stripe" style="--c:' + (tn === "bad" ? "var(--bad)" : tn === "warn" ? "var(--accent)" : "var(--org)") + '"></span><span class="body">'
-      + '<span class="r1">' + (t.order_id ? '<button class="num" style="color:var(--org);font-size:1.1rem" data-open="' + t.order_id + '">№' + E(t.order_number) + "</button>" : '<span class="num" style="color:var(--org);font-size:1.1rem">' + E(kindName) + "</span>")
+      + '<span class="r1">' + (proj ? '<button class="num" style="color:var(--org);font-size:1.1rem" data-open="' + t.order_id + '">№' + E(t.order_number) + "</button>" : t.order_id ? '<span class="num" style="color:var(--org);font-size:1.1rem">№' + E(t.order_number) + "</span>" : '<span class="num" style="color:var(--org);font-size:1.1rem">' + E(kindName) + "</span>")
       + "<span>" + E(t.assignee || "") + "</span></span>"
       + '<span class="ttl" style="display:block">' + E(t.title.replace(/:\s*№.*$/, "")) + "</span>"
       + (t.object ? '<span class="con" style="display:block">' + E(t.object) + "</span>" : "")
@@ -609,10 +614,10 @@
     if (o.customer && !designerView) {
       var phoneOf = cu && cu.contacts ? (cu.contacts.filter(function (x) { return x.phone && String(x.phone).trim(); })[0] || {}) : {};
       var phoneB = phoneOf.phone
-        ? '<div class="phoneb"><small>Сотовый телефон заказчика</small><b>' + E(phoneOf.phone) + (phoneOf.fio ? " · " + E(phoneOf.fio) : "") + "</b></div>"
+        ? '<div class="phoneb"><small>Сотовый телефон заказчика</small><b>' + E(phoneOf.phone) + (phoneOf.fio ? " · " + E(phoneOf.fio) : "") + "</b>" + callBtn(phoneOf.phone, o.id, o.customer_id) + "</div>"
         : '<div class="phoneb bad"><b>⚠ Не указан сотовый телефон заказчика</b><small>Менеджер: заполните контактное лицо и номер в карточке заказчика — без него руководителю проектного отдела нельзя позвонить.</small><a class="btn primary sm" href="#/clients" style="text-decoration:none">Заполнить в карточке</a></div>';
       cust = '<div class="panel pad"><h3>Заказчик</h3>' + phoneB + '<div class="kv" style="margin-top:10px"><span>Компания</span><span><b>' + E(o.customer) + "</b>" + (cu && cu.regular ? ' <span class="pill ok">постоянный</span>' : "") + "</span></div>"
-        + (cu && cu.contacts ? cu.contacts.map(function (x) { return '<div class="ctt" style="margin-top:10px"><b>' + E(x.fio) + "</b><small>" + E(x.pos || "должность не указана") + "</small><div>" + E(x.phone || "—") + "</div></div>"; }).join("") : "")
+        + (cu && cu.contacts ? cu.contacts.map(function (x) { return '<div class="ctt" style="margin-top:10px"><b>' + E(x.fio) + "</b><small>" + E(x.pos || "должность не указана") + "</small><div>" + E(x.phone || "—") + callBtn(x.phone, o.id, o.customer_id) + "</div></div>"; }).join("") : "")
         + (cu && cu.tz ? '<div class="kv"><span>Часовой пояс</span><span>' + E(cu.tz) + " · сейчас <b>" + nowIn(cu.tz) + "</b></span></div>" : "")
         + (cu && cu.comment ? '<div class="note">📝 Комментарий менеджера: ' + E(cu.comment) + "</div>" : "") + "</div>";
     }
@@ -631,7 +636,7 @@
       + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px"><a class="btn ghost sm" style="text-decoration:none" href="' + folderUrl(o, false) + '">Перейти в папку на сервере</a>'
       + (canCreate ? '<a class="btn ghost sm" style="text-decoration:none" href="' + folderUrl(o, true) + '">Создать папку</a>' : "") + "</div>"
       + '<div class="doc"><span>💬</span><div style="flex:1"><b>Чат проекта</b><small>Обсуждение задачи №' + E(o.number) + '</small></div><a class="btn ghost sm" style="text-decoration:none" href="#/team?room=t' + o.id + '">Открыть</a></div></div>';
-    return '<div class="grid g2">' + work + cust + mon + fol + "</div>";
+    return '<div class="grid g2">' + work + cust + mon + fol + (designerView ? "" : callsPanel("order", o.id)) + "</div>";
   }
   /* папку открывает server-link/open-folder.ps1 на компьютере сотрудника (свой протокол dsfolder://, не путается с кнопкой МПБ) */
   var FOLDER_ROOT = "\\\\176.197.21.187\\ServAmani\\Проектная компания\\Задачи";
@@ -815,7 +820,7 @@
     var n = S.nt; if (!n) return "";
     var fld = 'style="width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:var(--surface);color:var(--ink);font:inherit"';
     var users = S.assignable || [], ords = (S.orders || []).filter(function (o) { return DONE_ST.indexOf(o.stage) < 0 || o.id === +n.order; });
-    var POSN = { owner: "Руководитель", design: "Руководитель проектного отдела", sales: "Отдел продаж", ops: "Операционный менеджер", acc: "Бухгалтер", designer: "Проектировщик" };
+    var POSN = { owner: "Руководитель", design: "Руководитель проектного отдела", sales: "Отдел продаж", ops: "Операционный менеджер", acc: "Бухгалтер", designer: "Проектировщик", norm: "Нормативный специалист" };
     return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:16px"><div class="modal" style="width:min(560px,100%);height:auto;max-height:92vh;border-radius:20px">'
       + '<div class="m-head"><div class="row"><div><h2 style="font-size:1.2rem">Новая задача</h2>'
       + (n.thread ? '<div style="color:var(--muted);font-size:.86rem">Привязана к диалогу: ' + E(n.thread_title || n.thread) + "</div>" : "") + '</div><button class="x" data-close="1">✕</button></div></div><div class="m-body">'
@@ -1163,7 +1168,7 @@
         + (d.contacts || []).map(function (c, i) {
           return '<div class="ctt" style="margin-top:10px"><div class="fld" style="margin-bottom:8px"><label>ФИО</label><input data-cf="c.' + i + '.fio" value="' + E(c.fio) + '"' + ro + "></div>"
             + '<div><div class="fld" style="margin-bottom:8px"><label>Должность</label><input data-cf="c.' + i + '.pos" value="' + E(c.pos) + '"' + ro + "></div>"
-            + '<div class="fld" style="margin-bottom:0"><label>Сотовый телефон <span style="color:var(--bad)">*</span></label><input data-cf="c.' + i + '.phone" value="' + E(c.phone) + '" placeholder="+7 …"' + (c.phone ? "" : ' style="border-color:var(--bad);background:var(--bad-soft)"') + ro + "></div></div>"
+            + '<div class="fld" style="margin-bottom:0"><label>Сотовый телефон <span style="color:var(--bad)">*</span>' + (d.id ? callBtn(c.phone, 0, d.id) : "") + '</label><input data-cf="c.' + i + '.phone" value="' + E(c.phone) + '" placeholder="+7 …"' + (c.phone ? "" : ' style="border-color:var(--bad);background:var(--bad-soft)"') + ro + "></div></div>"
             + '<div class="fld" style="margin:8px 0 0"><label>E-mail (по нему диалоги привязываются к заказчику)</label><input data-cf="c.' + i + '.email" value="' + E(c.email || "") + '"' + ro + "></div>"
             + (canEdit && d.contacts.length > 1 ? '<button class="btn ghost sm" style="margin-top:8px" data-cdel="' + i + '">Убрать</button>' : "") + "</div>";
         }).join("")
@@ -1177,7 +1182,7 @@
         + (canEdit ? '<button class="btn primary block" data-csave="1">Сохранить</button>' : "")
         + (d.id && (p === "owner" || p === "ops") ? '<button class="btn ghost block" data-cdelcust="1" style="margin-top:8px;color:var(--bad)">Удалить заказчика</button>' : "")
         + (jobs.length ? '<h3 style="margin-top:16px">Задачи</h3>' + jobs.map(function (o) { return '<button class="doc" style="width:100%;text-align:left" data-open="' + o.id + '"><span>📁</span><div><b>№' + E(o.number) + " · " + E(o.object) + "</b><small>" + E(o.stage) + "</small></div></button>"; }).join("") : "")
-        + "</div>";
+        + "</div>" + (d.id ? callsPanel("customer", d.id) : "");
     }
     return head + '<div class="dsg21" style="align-items:start"><div class="panel">' + rows + "</div><div>" + det + "</div></div>";
   }
@@ -1215,11 +1220,12 @@
   /* «Мои задачи» руководителя проектного отдела: корректировки по замечаниям, переданные диалоги; рядом — план недели */
   function myTasksScreen() {
     var items = (S.tasks || []).slice().sort(function (a, b) { return (a.left_days == null ? 999 : a.left_days) - (b.left_days == null ? 999 : b.left_days); });
-    var head = '<div class="head"><div><h1>Мои задачи</h1><p>Личные задачи: корректировки по замечаниям заказчиков и диалоги, которые вам передали. Выполненные уходят из списка.</p></div></div>';
+    var head = '<div class="head"><div><h1>Мои задачи</h1><p>' + (pos() === "norm" ? "Задачи, поставленные вам (например, «Разработка пожарного риска»), и диалоги, которые вам передали." : "Личные задачи: корректировки по замечаниям заказчиков и диалоги, которые вам передали.") + ' Выполненные уходят из списка.</p></div></div>';
     if (!items.length) return head + '<div class="panel pad"><p class="sub" style="margin:0">Личных задач пока нет.</p></div>';
     return head + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">' + items.map(taskCard).join("") + "</div>";
   }
   function weekScreen() {
+    if (pos() === "norm") return myTasksScreen();
     if (pos() !== "design") return weekPlan();
     var tab = S.mt || "tasks", n = (S.tasks || []).length;
     var seg = '<div class="seg" style="margin-bottom:16px"><button data-mt="tasks" class="' + (tab === "tasks" ? "on" : "") + '">Мои задачи' + (n ? " · " + n : "") + '</button><button data-mt="week" class="' + (tab === "week" ? "on" : "") + '">План на неделю</button></div>';
@@ -2419,8 +2425,8 @@ if (window.MPBC && typeof window.globalRouter === "function") {
     window.MPBC.on(ev, function () { if (ev === "ready") window.DS_READY = true; window.globalRouter(); });
   });
 }
-(function () { var h = location.hash; var map = { '#/clients': ['cust', 'clients-app'], '#/my': ['week', 'my-app'] }; if (map[h]) setTimeout(function () { var p = window.dsPosition ? dsPosition() : ''; if (h === '#/my' && p !== 'designer' && p !== 'design') return; DS.mount(map[h][0], document.getElementById(map[h][1])); }, 0); })();
-DS.ownsMy = function () { var p = pos2(); return p === 'designer' || p === 'design'; }; function pos2() { return (window.MPBC && MPBC.me && (MPBC.me.position || (MPBC.me.role === 'admin' ? 'owner' : ''))) || ''; }
+(function () { var h = location.hash; var map = { '#/clients': ['cust', 'clients-app'], '#/my': ['week', 'my-app'] }; if (map[h]) setTimeout(function () { var p = window.dsPosition ? dsPosition() : ''; if (h === '#/my' && p !== 'designer' && p !== 'design' && p !== 'norm') return; DS.mount(map[h][0], document.getElementById(map[h][1])); }, 0); })();
+DS.ownsMy = function () { var p = pos2(); return p === 'designer' || p === 'design' || p === 'norm'; }; function pos2() { return (window.MPBC && MPBC.me && (MPBC.me.position || (MPBC.me.role === 'admin' ? 'owner' : ''))) || ''; }
 (function () { var h = location.hash; var map = { '#/kpc': ['kpc', 'kpc-app'], '#/contracts': ['contract', 'contracts-app'] }; var k = map[h] || (/^#\/kpreg/.test(h) ? ['kp', 'kpreg-app'] : null); if (k) setTimeout(function () { DS.mount(k[0], document.getElementById(k[1])); }, 0); })();
 (function () { var h = location.hash; var map = { '#/report': ['report', 'report-app'], '#/stats': ['stats', 'stats-app'] }; if (map[h]) setTimeout(function () { DS.mount(map[h][0], document.getElementById(map[h][1])); }, 0); })();
 (function () { if (location.hash === '#/price') setTimeout(function () { DS.mount('price', document.getElementById('price-app')); }, 0); })();

@@ -978,3 +978,31 @@
   #me-app .x-msg.ac .tx{color:#fff}
   .x-acrow{grid-template-columns:1fr}
 }
+/* ---------- Телефония Sipuni (calls.js): карточка «Звонит …», кнопка 📞, журнал звонков ---------- */
+#dsCalls{position:fixed;right:16px;bottom:16px;z-index:9998;display:flex;flex-direction:column;gap:10px;width:min(360px,calc(100vw - 32px));pointer-events:none}
+.ds-call{pointer-events:auto;display:flex;align-items:flex-start;gap:12px;background:linear-gradient(135deg,#119a5b,#25c07a);color:#fff;border-radius:16px;padding:14px;box-shadow:0 12px 34px rgba(17,140,80,.5),0 0 0 2px rgba(255,255,255,.35);animation:dsAlertIn .35s cubic-bezier(.2,1.4,.4,1)}
+.ds-call.talk{background:linear-gradient(135deg,#1f6fe0,#2b9bf0);box-shadow:0 12px 34px rgba(20,90,200,.45),0 0 0 2px rgba(255,255,255,.35)}
+.ds-call .ci{font-size:1.6rem;flex:none;line-height:1}
+.ds-call:not(.talk) .ci{animation:dsRing 1s ease-in-out infinite}
+.ds-call .ct{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+.ds-call .ct small{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;opacity:.85;font-weight:700}
+.ds-call .ct b{font-size:1.02rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ds-call .ct span{font-size:.86rem;opacity:.95}
+.ds-call .ca{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.ds-call .ca a{color:#fff;background:rgba(255,255,255,.22);border-radius:999px;padding:4px 10px;font-size:.82rem;font-weight:600;text-decoration:none}
+.ds-call>button{flex:none;background:rgba(255,255,255,.22);border:0;color:#fff;border-radius:50%;width:28px;height:28px;cursor:pointer}
+@keyframes dsRing{0%,100%{transform:rotate(0)}20%{transform:rotate(-14deg)}40%{transform:rotate(14deg)}60%{transform:rotate(-8deg)}80%{transform:rotate(8deg)}}
+.call-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin-left:8px;border-radius:50%;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:.9rem;vertical-align:middle;line-height:1}
+.call-btn:hover{background:var(--brand-soft);border-color:var(--brand)}
+.call-btn:disabled{opacity:.5;cursor:default}
+.calls-panel .cl-row{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line)}
+.calls-panel .cl-row:last-child{border-bottom:0}
+.calls-panel .cl-ic{flex:none;width:34px;text-align:center;font-weight:700;color:var(--ok,#2a9d5c)}
+.calls-panel .cl-row.miss .cl-ic{color:var(--bad)}
+.calls-panel .cl-t{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+.calls-panel .cl-t small{color:var(--muted)}
+.calls-panel .cl-tm{flex:none;color:var(--muted);font-size:.82rem}
+.calls-panel .cl-rec{margin-top:6px}
+.calls-panel .cl-audio{width:100%;max-width:340px;height:36px}
+.tel-ext{width:80px;border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--surface);color:var(--ink);margin-left:auto}
+@media (max-width:640px){#dsCalls{right:10px;left:10px;bottom:calc(76px + env(safe-area-inset-bottom));width:auto}}

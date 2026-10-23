@@ -273,9 +273,9 @@ textarea{resize:vertical;min-height:64px}
 <!-- шрифты подгружаются без блокировки страницы: если Google Fonts недоступен (в РФ бывает), CRM всё равно откроется -->
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Onest:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Onest:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="theme-v2.css?v=20261024d">
+<link rel="stylesheet" href="theme-v2.css?v=20261024e">
 <script>try{var __t=localStorage.getItem("ds_theme");if(__t)document.documentElement.setAttribute("data-theme",__t)}catch(e){}</script>
-<link rel="stylesheet" href="ds.css?v=20261024d">
+<link rel="stylesheet" href="ds.css?v=20261024e">
 </head>
 <body>
 <div class="app">
@@ -383,9 +383,10 @@ var DS_ALLOWED = {
   sales:    ["flow","tasks","cal","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","me"],
   ops:      ["flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","me"],
   acc:      ["tasks","kpreg","team","onec","me"],
-  designer: ["tasks","cal","my","team","me"]
+  designer: ["tasks","cal","my","team","me"],
+  norm:     ["my","chat","team","me"]          /* нормативный специалист: свои задачи и диалоги своих заказчиков */
 };
-var DS_HOME = { owner: "#/", design: "#/", sales: "#/", ops: "#/", acc: "#/", designer: "#/" };
+var DS_HOME = { owner: "#/", design: "#/", sales: "#/", ops: "#/", acc: "#/", designer: "#/", norm: "#/my" };
 function dsPosition(){ return (window.MPBC && MPBC.me) ? (MPBC.me.position || (MPBC.me.role === "admin" ? "owner" : "")) : ""; }
 var DS_READY = false, DS_HAS_TOKEN = false;
 try { DS_HAS_TOKEN = !!localStorage.getItem("ds_session"); } catch (e) {}
@@ -443,9 +444,10 @@ function renderTopNav(){
   if (sec === "kpc" && window.DS) DS.mount("kpc", document.getElementById("kpc-app"));
   document.getElementById("cal-app").style.display = (sec === "cal") ? "block" : "none";
   document.getElementById("my-app").style.display = (sec === "my") ? "block" : "none";
-  if (window.DSRemind) DSRemind.tabsVisible(sec === "my" && (dsPosition() === "designer" || dsPosition() === "design"));
+  var myDs = ["designer","design","norm"].indexOf(dsPosition()) >= 0;      /* «Мои задачи» из ds.js с вкладкой «Мои напоминания» */
+  if (window.DSRemind) DSRemind.tabsVisible(sec === "my" && myDs);
   if (sec === "cal" && window.DS) DS.mount("load", document.getElementById("cal-app"));
-  else if (sec === "my" && window.DS && (dsPosition() === "designer" || dsPosition() === "design")) { if (window.DSRemind) DSRemind.designerMy(); else DS.mount("week", document.getElementById("my-app")); }
+  else if (sec === "my" && window.DS && myDs) { if (window.DSRemind) DSRemind.designerMy(); else DS.mount("week", document.getElementById("my-app")); }
   else if (sec === "my" && window.MPBX && window.MPBX.render) window.MPBX.render(sec);
   document.getElementById("team-app").style.display = (sec === "team") ? "block" : "none";
   document.getElementById("log-app").style.display = (sec === "log") ? "block" : "none";
@@ -494,9 +496,9 @@ globalRouter();
 #apiModal button{padding:9px 16px;border-radius:8px;font:inherit;cursor:pointer;border:1px solid #b9c4d0;background:var(--card);color:var(--ink)}
 #apiModal button.ok{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
 </style>
-<script src="noautofill.js?v=20261024d"></script>
-<script src="sound.js?v=20261024d"></script>
-<script src="chat.js?v=20261024d"></script>
+<script src="noautofill.js?v=20261024e"></script>
+<script src="sound.js?v=20261024e"></script>
+<script src="chat.js?v=20261024e"></script>
 <button id="apiGear" title="Настройки подключения" aria-label="Настройки">⚙</button>
 <div id="apiModal"><div class="box">
   <h2>Подключение к серверу CRM</h2>
@@ -528,13 +530,14 @@ globalRouter();
   });
 })();
 </script>
-<script src="config.js?v=20261024d"></script>
-<script src="crm.js?v=20261024d"></script>
-<script src="extras.js?v=20261024d"></script>
-<script src="team.js?v=20261024d"></script>
-<script src="chatpanel.js?v=20261024d"></script>
-<script src="ds.js?v=20261024d"></script>
-<script src="remind.js?v=20261024d"></script>
+<script src="config.js?v=20261024e"></script>
+<script src="crm.js?v=20261024e"></script>
+<script src="extras.js?v=20261024e"></script>
+<script src="team.js?v=20261024e"></script>
+<script src="chatpanel.js?v=20261024e"></script>
+<script src="ds.js?v=20261024e"></script>
+<script src="calls.js?v=20261024e"></script>
+<script src="remind.js?v=20261024e"></script>
 <script>
 (function(){
   var KEY = "ds_theme", t = "light";

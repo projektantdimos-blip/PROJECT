@@ -84,7 +84,7 @@ def seed():
     for n in ("Алексей", "Дмитрий", "Максим", "Игорь"):
         if not crm_db.user_by_name(n):
             crm_auth.create_user(n, "1111")
-    for n, pos in (("Иван", "design"), ("Мария", "sales"), ("Пётр", "ops"), ("Елена", "acc"), ("Ольга", "designer"), ("Кристина", "designer")):
+    for n, pos in (("Иван", "design"), ("Мария", "sales"), ("Пётр", "ops"), ("Елена", "acc"), ("Ольга", "designer"), ("Кристина", "designer"), ("Нина", "norm")):
         if not crm_db.user_by_name(n):
             crm_auth.create_user(n, "1111", "user", pos)
     if not sipuni.ext_map():                                    # внутренние номера Sipuni: руководитель — 200, Мария (продажи) — 201
@@ -134,6 +134,19 @@ def seed():
         crm_db.msg_add("general", a, "Коллеги, в понедельник планёрка в 10:00", False)
         crm_db.msg_add("general", d, "Принято, подготовлю отчёт по закупкам", False)
         crm_db.msg_add("general", m, "Пожарная инспекция едет на Школу № 214 завтра в 11:00 — нужны журналы!", True)
+    if not crm_db.kv_get("dev_norm_seed"):          # нормативный специалист Нина: диалоги «Ядыкина» и «Фирмы-Фарпост», переданный диалог, задачи на расчёт
+        crm_db.kv_set("dev_norm_seed", 1)
+        own, ops, nina = (crm_db.user_by_name(n) for n in ("Руководитель", "Пётр", "Нина"))
+        cu = {c["name"]: c["id"] for c in ds_orders.customers_for(own)}
+        far = cu.get("ООО «Фирма-Фарпост»") or ds_orders.customer_upsert("ООО «Фирма-Фарпост»", True, "Asia/Vladivostok", "", [{"fio": "Андрей Ким", "pos": "Инженер", "phone": "+7 900 000-00-07"}])
+        for peer, title, text, cid in (("5", "Сергей Ядыкин", "Когда будет расчёт пожарного риска по складам?", cu.get("ИП Ядыкин")), ("6", "Андрей Ким", "Направляю поэтажные планы для расчёта", far)):
+            db.add_message("tg", peer, title, f"seed-{peer}", "in", title, "", text, now - 1800)
+            if cid:
+                ds_orders.thread_set_link(own, f"tg:{peer}", cid)
+        ds_orders.thread_handoff(ops, "tg:4", nina["id"], "Уточните исходные данные для расчёта")
+        o407 = next((o["id"] for o in ds_orders.list_orders(own) if o["number"] == "407"), 0)
+        ds_orders.task_create(ops, "Разработка пожарного риска", nina["id"], (date.today() + timedelta(days=4)).isoformat(), order_id=o407, note="Склады, АБК: расчёт по методике МЧС")
+        ds_orders.task_create(ops, "Разработка пожарного риска: торговый центр «Восток»", nina["id"], (date.today() + timedelta(days=1)).isoformat())
 
 
 @asynccontextmanager
@@ -179,19 +192,21 @@ async def dev_tg_press(request: Request):
 
 
 # --- минимальные маршруты «Общения» (читает те же таблицы, что боевой мост) ---
-@app.get("/api/threads", dependencies=[Depends(crm_auth.api_key)])
-def threads():
-    return db.list_threads()
+@app.get("/api/threads")
+def threads(user=Depends(crm_auth.ext_user)):
+    ts = db.list_threads()
+    only = crm_auth.handoff_only(user)               # как в мосту: руководителю проектного отдела и нормативному специалисту — только свои диалоги
+    return [t for t in ts if t["id"] in only] if only is not None else ts
 
 
-@app.get("/api/threads/{tid}/messages", dependencies=[Depends(crm_auth.api_key)])
+@app.get("/api/threads/{tid}/messages", dependencies=[Depends(crm_auth.ext_thread)])
 def messages(tid: str):
     if not db.get_thread(tid):
         raise HTTPException(404, "Переписка не найдена")
     return db.list_messages(tid)
 
 
-@app.post("/api/threads/{tid}/send", dependencies=[Depends(crm_auth.api_key)])
+@app.post("/api/threads/{tid}/send", dependencies=[Depends(crm_auth.ext_thread)])
 def send_demo(tid: str, body: dict):
     th = db.get_thread(tid)
     if not th:
@@ -200,7 +215,7 @@ def send_demo(tid: str, body: dict):
     return {"ok": True}
 
 @app.post("/api/threads/{tid}/send-file")
-def send_file_demo(tid: str, body: dict, user=Depends(crm_auth.current_user)):
+def send_file_demo(tid: str, body: dict, user=Depends(crm_auth.ext_thread)):
     """Как в мосту, но без Telegram/MAX/почты: файл (base64 или номер загрузки) отмечается текстом в переписке."""
     import base64
     th = db.get_thread(tid)
@@ -215,7 +230,7 @@ def send_file_demo(tid: str, body: dict, user=Depends(crm_auth.current_user)):
     db.add_message(th["channel"], th["peer"], "", f"outf-{time.time()}", "out", "Вы", "", f"[файл {name} {size} байт] " + str(body.get("text", "")), time.time(), False)
     return {"ok": True, "file": True}
 
-@app.post("/api/threads/{tid}/messages/{mid}/edit", dependencies=[Depends(crm_auth.api_key)])
+@app.post("/api/threads/{tid}/messages/{mid}/edit", dependencies=[Depends(crm_auth.ext_thread)])
 def edit_demo(tid: str, mid: int, body: dict):
     """Как в мосту, но без Telegram/MAX: только своё сообщение, письмо исправить нельзя."""
     m = db.get_message(mid)
@@ -229,7 +244,7 @@ def edit_demo(tid: str, mid: int, body: dict):
     return {"ok": True}
 
 
-@app.post("/api/threads/{tid}/messages/{mid}/delete", dependencies=[Depends(crm_auth.api_key)])
+@app.post("/api/threads/{tid}/messages/{mid}/delete", dependencies=[Depends(crm_auth.ext_thread)])
 def delete_demo(tid: str, mid: int):
     m = db.get_message(mid)
     if not m or m["thread_id"] != tid or m.get("hidden"):
@@ -240,7 +255,7 @@ def delete_demo(tid: str, mid: int):
     return {"ok": True, "remote": m["channel"] != "mail"}
 
 
-@app.post("/api/threads/{tid}/read", dependencies=[Depends(crm_auth.api_key)])
+@app.post("/api/threads/{tid}/read", dependencies=[Depends(crm_auth.ext_thread)])
 def mark_read(tid: str):
     db.set_unread(tid, 0)
     return {"ok": True}

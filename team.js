@@ -667,18 +667,19 @@
     ["mention", "Упоминание и личные сообщения", "Вас позвали через @Имя или написали лично"], ["chat", "Новое сообщение в чате", "Любое сообщение в каналах (может быть шумно)"],
     ["task", "Мне поставлена задача", "Договор подписан, задача пришла на ваш этап, назначены исполнителем, затянулась стадия"], ["deadline", "Скоро срок по договору", "За сколько дней — настраивает руководитель в «Автоматизации»"],
     ["overdue", "Срок по договору просрочен", "По вашей задаче срок по договору прошёл"], ["lead", "Оплата и КП", "Аванс и оплата получены, КП без ответа, аванс не пришёл"],
-    ["mail", "Заказчик написал", "Новые сообщения заказчиков в Telegram, MAX и почте"], ["digest", "Утренняя сводка", "Раз в день после 9:00: что просрочено, что на сегодня, кому не назначено (операционному менеджеру)"]];
-  var POS_TITLE = { owner: "Руководитель", design: "Руководитель проектного отдела", sales: "Руководитель отдела продаж", ops: "Операционный менеджер", acc: "Бухгалтер", designer: "Проектировщик" };
+    ["mail", "Заказчик написал", "Новые сообщения заказчиков в Telegram, MAX и почте"], ["digest", "Утренняя сводка", "Раз в день после 9:00: что просрочено, что на сегодня, кому не назначено (операционному менеджеру)"],
+    ["call", "Звонки", "Звонит заказчик на ваш внутренний номер (Sipuni), пропущенный звонок — задача «Перезвонить»"]];
+  var POS_TITLE = { owner: "Руководитель", design: "Руководитель проектного отдела", sales: "Руководитель отдела продаж", ops: "Операционный менеджер", acc: "Бухгалтер", designer: "Проектировщик", norm: "Нормативный специалист" };
 
   function renderMe() {
     var el = $("me-app"), sub = "Настройки уведомлений, профиль и доступ сотрудников";
     if (!gate(el, "Личный кабинет", sub, renderMe)) return;
-    var u = C.me, tabs = [["notif", "bell", "Уведомления"], ["colors", "chat", "Цвета в чатах"], ["info", "user", "Профиль"]].concat(u.role === "admin" ? [["staff", "users", "Сотрудники"]] : []);
+    var u = C.me, tabs = [["notif", "bell", "Уведомления"], ["colors", "chat", "Цвета в чатах"], ["info", "user", "Профиль"]].concat(window.DSCalls && (DSCalls.enabled || u.role === "admin") ? [["tel", "phone", "Телефония"]] : []).concat(u.role === "admin" ? [["staff", "users", "Сотрудники"]] : []);
     el.innerHTML = head("Личный кабинет", sub) + '<div class="wrap"><div class="prof2">' + ava(u.name, "xl") + "<div><h2>" + E(u.name) + "</h2><p>" + (u.title ? E(u.title) + " · " : "") + (POS_TITLE[u.position] || (u.role === "admin" ? "Руководитель" : "Сотрудник")) + '</p><div class="pf-pills"><span>' + (u.tg ? "Telegram подключён" : "Telegram не подключён") + '</span><span>' + (u.max ? "MAX подключён" : "MAX не подключён") + '</span><span>' + (C.pushOn && C.pushOn() ? "Push включён" : "Push выключен") + '</span></div></div>' + '<div class="pf-stats"><div><b>' + ((C.sync || {}).notif_unread || 0) + '</b><small>новых уведомлений</small></div><div><b>' + ((C.sync || {}).team_unread || 0) + '</b><small>непрочитано в «Команде»</small></div><div><b>' + (((C.sync || {}).urgent || []).length) + '</b><small>срочных</small></div></div><button class="x-btn ghost" id="meOut">Выйти</button></div>'
       + '<div class="x-bar"><div class="x-seg" id="meTabs">' + tabs.map(function (t) { return '<button data-t="' + t[0] + '" class="' + (P.tab === t[0] ? "on" : "") + '">' + ic(t[1]) + t[2] + "</button>"; }).join("") + '</div></div><div id="meBody"></div></div>';
     $("meOut").onclick = function () { C.logout().then(renderMe); };
     $("meTabs").querySelectorAll("button").forEach(function (b) { b.onclick = function () { P.tab = b.dataset.t; renderMe(); }; });
-    if (P.tab === "notif") paintNotif(); else if (P.tab === "colors") paintColors(); else if (P.tab === "info") paintInfo2(); else paintStaff();
+    if (P.tab === "notif") paintNotif(); else if (P.tab === "colors") paintColors(); else if (P.tab === "info") paintInfo2(); else if (P.tab === "tel" && window.DSCalls) DSCalls.paintMe($("meBody")); else paintStaff();
   }
   function savePrefs(patch) { return C.call("/me/prefs", { body: patch }).then(function (p) { C.prefs = p; return p; }); }
   function paintNotif() {

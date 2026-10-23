@@ -1,5 +1,5 @@
 /* Личные напоминания: быстрая кнопка «⏰ Напомнить» в диалогах («Команда» и «Заказчики») и вкладка «Мои напоминания»
-   в разделе «Мои задачи» у проектировщиков и руководителя проектного отдела. Напоминания хранятся на сервере (/reminders)
+   в разделе «Мои задачи» у проектировщиков, руководителя проектного отдела и нормативного специалиста. Напоминания хранятся на сервере (/reminders)
    и приходят в приложении, push и MAX — по настройкам сотрудника в личном кабинете. */
 (function () {
   "use strict";
@@ -66,7 +66,8 @@
   R.designerMy = function () {
     var el = bar(); if (!el) return;
     var tab = window.__myTab || "plan";
-    el.innerHTML = [["plan", "План на неделю"], ["rem", "Мои напоминания"]].map(function (x) { return '<button type="button" data-t="' + x[0] + '" class="' + (tab === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("");
+    var first = (window.dsPosition && dsPosition() === "norm") ? "Мои задачи" : "План на неделю";      /* у нормативного специалиста плана недели нет — его задачи */
+    el.innerHTML = [["plan", first], ["rem", "Мои напоминания"]].map(function (x) { return '<button type="button" data-t="' + x[0] + '" class="' + (tab === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("");
     el.style.display = "flex";
     el.onclick = function (e) { var b = e.target.closest("button[data-t]"); if (!b) return; window.__myTab = b.dataset.t; try { localStorage.setItem("ds_mytab", b.dataset.t); } catch (er) {} R.designerMy(); };
     if (tab === "rem") { window.__myRem = true; if (window.MPBX && MPBX.render) MPBX.render("my"); }

@@ -258,7 +258,7 @@
   /* «Передать специалисту»: кому передан диалог (список с сервера, новые первыми) */
   st.assign = [];
   st.box = "all";
-  var POSN = { owner: "Руководитель", design: "Руководитель проектного отдела", sales: "Руководитель отдела продаж", ops: "Операционный менеджер", acc: "Бухгалтер", designer: "Проектировщик" };
+  var POSN = { owner: "Руководитель", design: "Руководитель проектного отдела", sales: "Руководитель отдела продаж", ops: "Операционный менеджер", acc: "Бухгалтер", designer: "Проектировщик", norm: "Нормативный специалист" };
   function crmOn() { return !!(window.MPBC && MPBC.loggedIn && MPBC.loggedIn() && MPBC.me); }
   function me() { return window.MPBC && MPBC.me ? MPBC.me : null; }
   function myPos() { var m = me(); return m ? (m.position || (m.role === "admin" ? "owner" : "")) : ""; }
@@ -457,7 +457,7 @@
     pop.style.cssText = "position:fixed;z-index:420;min-width:230px;background:var(--card,#fff);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.25);padding:6px;top:" + Math.min(r.bottom + 4, innerHeight - 190) + "px;left:" + Math.max(8, Math.min(r.left - 190, innerWidth - 246)) + "px";
     var items = [[th.unread ? "Пометить прочитанным" : "Пометить непрочитанным", "read"]];
     if (canLink()) items.push(["🔗 Привязать к задаче / заказчику…", "link"]);
-    if (myPos() !== "design" && myPos() !== "acc") { items.push(["＋ Задача по конвейеру…", "task"]); items.push(["Передать специалисту…", "hand"]); }
+    if (["design", "acc", "norm"].indexOf(myPos()) < 0) { items.push(["＋ Задача по конвейеру…", "task"]); items.push(["Передать специалисту…", "hand"]); }
     pop.innerHTML = items.map(function (x, i) { return '<button type="button" data-a="' + x[1] + '" style="display:block;width:100%;text-align:left;padding:9px 12px;border:0;background:none;border-radius:8px;cursor:pointer;font:inherit;color:inherit">' + esc(x[0]) + "</button>"; }).join("");
     document.body.appendChild(pop);
     var close = function () { pop.remove(); document.removeEventListener("click", away, true); };

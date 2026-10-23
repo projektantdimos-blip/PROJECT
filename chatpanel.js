@@ -1,7 +1,8 @@
 /* Проекты DS — боковая панель диалога с заказчиком (переписка Telegram / MAX / почта):
    вкладка «Заказчик» (привязка диалога к заказчику, его задачи и КП) и вкладка «КП» (КП из диалога:
    услуги из прайс-листа, запись в реестр КП с датой выставления и отправка текста заказчику в этот же диалог).
-   Данные только с моста (/api/ds); доступ у продаж, операционного менеджера и руководителя. */
+   Данные только с моста (/api/ds); доступ у продаж, операционного менеджера и руководителя.
+   Нормативному специалисту — только карточка заказчика и его задачи по диалогу: без КП, проектов и передачи по конвейеру. */
 (function () {
   "use strict";
   var D = window.MPBD = {};
@@ -14,6 +15,7 @@
   function C() { return window.MPBC; }
   function api(path, body) { return C().call("/../ds" + path, body ? { body: body } : {}); }
   function toast(m) { if (window.MPBT && MPBT.toast) MPBT.toast(m); else if (window.toast) window.toast(m); }
+  function norm() { var m = C() && C().me; return !!m && m.position === "norm"; }
   function st(t) { return per[t.id] || (per[t.id] = { tab: "c", err: "", busy: false, link: null, kp: null }); }
 
   var css = document.createElement("style");
@@ -40,7 +42,7 @@
   D.render = function (box, t, name) {
     var s = st(t);
     if (!C() || !MPBC.loggedIn()) { box.innerHTML = '<div class="dsp"><p class="note">Войдите, чтобы работать с заказчиком.</p></div>'; return; }
-    box.innerHTML = '<div class="dsp"><div class="tabs">' + [["c", "Заказчик"], ["k", "КП из диалога"]].map(function (x) { return '<button data-t="' + x[0] + '" class="' + (s.tab === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + '</div><div id="dspBody"></div></div>';
+    box.innerHTML = '<div class="dsp"><div class="tabs">' + (norm() ? [["c", "Заказчик"]] : [["c", "Заказчик"], ["k", "КП из диалога"]]).map(function (x) { return '<button data-t="' + x[0] + '" class="' + (s.tab === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + '</div><div id="dspBody"></div></div>';
     box.querySelectorAll(".tabs button").forEach(function (b) { b.onclick = function () { s.tab = b.dataset.t; s.err = ""; D.render(box, t, name); }; });
     var body = $("dspBody");
     body.innerHTML = '<p class="note">Загрузка…</p>';
@@ -49,7 +51,7 @@
       s.link = l;
       setChip(t, l);
       if (!document.body.contains(body)) return;           // пока ждали ответ, открыли другой диалог — панель уже другая
-      if (s.tab === "k") tabKp(body, t, name, s, box); else tabCustomer(body, t, name, s, box);
+      if (s.tab === "k" && !norm()) tabKp(body, t, name, s, box); else tabCustomer(body, t, name, s, box);
       if (s.focusUntil > Date.now() && $("dspQ")) $("dspQ").focus();
     }, function (e) { body.innerHTML = '<p class="err">' + E(e) + "</p>"; });
   };
@@ -146,9 +148,10 @@
           return '<div class="pt"><b>' + E(String(k.title).replace(/:\s*№.*$/, "")) + "</b><small>" + E(due) + "</small>" + (k.note ? '<small>' + E(k.note) + "</small>" : "")
             + '<div class="pbtn"><button class="x-btn primary" data-tdone="' + k.id + ":" + (nx ? "next" : "done") + '">' + (nx ? "Выполнено → " + nx : "Выполнено") + "</button>"
             + (k.step === "a1" || k.step === "a2" ? '<button class="x-btn ghost" data-tdone="' + k.id + ':skip">Не требуется</button>' : "")
-            + (k.order_id ? '<a class="x-btn ghost" href="#/task/' + k.order_id + '" style="text-decoration:none">Открыть</a>' : "") + "</div></div>";
+            + (k.order_id && !norm() ? '<a class="x-btn ghost" href="#/task/' + k.order_id + '" style="text-decoration:none">Открыть</a>' : "") + "</div></div>";
         }).join("") + "</div>";
       }
+      if (norm()) { body.innerHTML = h; bindTasks(); return; }          /* нормативному специалисту — без проектов, КП и передачи по конвейеру */
       h += '<div class="pb pb-blue"><h5>В работе</h5>' + (l.orders.map(function (o) {
         return '<a class="pi" href="#/task/' + o.id + '"><b>№' + E(o.number) + " · " + E(o.object) + "</b><small>" + E(o.stage) + (o.system ? " · " + E(o.system) : "") + (o.executor ? " · " + E(o.executor) : "")
           + (o.left_days != null ? " · " + (o.left_days < 0 ? "просрочено " : "осталось ") + Math.abs(o.left_days) + " дн." : "") + "</small></a>";
@@ -165,7 +168,8 @@
       if (s.find) bindFind(t, s, function (p) { linkTo(box, t, name, s, p); });
       if ($("dspRelink")) $("dspRelink").onclick = function (e) { e.preventDefault(); s.find = true; s.sure = false; tabCustomer(body, t, name, s, box); $("dspQ").focus(); };
       if ($("dspFindX")) $("dspFindX").onclick = function (e) { e.preventDefault(); s.find = false; s.q = ""; tabCustomer(body, t, name, s, box); };
-      body.querySelectorAll("[data-tdone]").forEach(function (btn) {
+      bindTasks();
+      function bindTasks() { body.querySelectorAll("[data-tdone]").forEach(function (btn) {
         btn.onclick = function () {
           var p = btn.getAttribute("data-tdone").split(":"), id = p[0], act = p[1];
           var req = act === "done" ? api("/tasks/" + id + "/state", { state: "done" }) : api("/tasks/" + id + "/lead", { action: act });
@@ -175,7 +179,7 @@
             again(box, t, name);
           }, function (e) { toast(String(e)); });
         };
-      });
+      }); }
       if ($("dspLeadNew")) $("dspLeadNew").onclick = function () { if (window.DS && DS.newTask) DS.newTask({ step: "a2", thread_id: t.id, thread_title: name }); };
       $("dspNewTask").onclick = function () { if (window.DS && DS.newTask) DS.newTask({ thread_id: t.id, thread_title: name }); };
       $("dspHand").onclick = function () { if (window.__chatHandoff) window.__chatHandoff(); };
