@@ -337,9 +337,9 @@
       + '<div class="x-msgs">' + (body || '<span class="x-day">Здесь пока пусто — напишите первое сообщение</span>') + "</div>"
       + (S.editMsg ? '<div class="x-replybar x-editbar"><span>✎ <b>Изменение сообщения</b> — исправьте текст и нажмите «Отправить»</span><button type="button" data-noedit="1" aria-label="Отменить правку">✕</button></div>' : "")
       + (S.reply && !S.editMsg ? '<div class="x-replybar"><span>↩ <b>' + E(S.reply.user) + "</b>: " + E(S.reply.text) + '</span><button type="button" data-noreply="1" aria-label="Отменить ответ">✕</button></div>' : "")
-      + (S.pend ? '<div class="x-pend' + (S.pend.busy ? " busy" : "") + (S.pend.url ? " img" : "") + '">' + (S.pend.url ? "" : '<span class="pf">' + fileIcon(S.pend.name) + "</span>") + "<div><b>📎 " + E(S.pend.name) + "</b><small>" + (S.pend.busy ? "Отправляю…" : sizeTxt(S.pend.size) + " · можно добавить подпись и нажать «Отправить»") + '</small></div><button type="button" data-nopend="1" aria-label="Убрать файл">✕</button>'
+      + (S.pend ? '<div class="x-pend' + (S.pend.busy ? " busy" : "") + (S.pend.url ? " img" : "") + '">' + (S.pend.url ? "" : '<span class="pf">' + fileIcon(S.pend.name) + "</span>") + "<div><b>📎 " + E(S.pend.name) + "</b><small>" + (S.pend.busy ? (S.pend.pct != null && S.pend.pct < 100 ? "Загрузка " + S.pend.pct + "%" : "Отправляю…") : sizeTxt(S.pend.size) + " · можно добавить подпись и нажать «Отправить»") + '</small></div><button type="button" data-nopend="1" aria-label="Убрать файл">✕</button>'
         + (S.pend.url ? '<img src="' + S.pend.url + '" alt="">' : "") + "</div>" : "")      /* фото: сверху имя файла, ниже картинка */
-      + '<div class="x-comp"><button class="x-btn ghost" id="tAtt" title="Прикрепить файл (до 10 МБ). Файл можно перетащить прямо в окно чата" style="padding:12px 13px">📎</button><input type="file" id="tFile" hidden><textarea id="tIn" rows="1" placeholder="' + (window.innerWidth <= 760 ? "Сообщение" : "Написать в «" + E(room.name) + "»… (@Имя — упомянуть)") + '" autocomplete="off"></textarea><button class="x-urgbtn ' + (S.urg ? "on" : "") + '" id="tUrg" title="Срочное: придёт всем участникам, даже в тихие часы">' + ic("flame") + 'Срочное</button><button class="x-btn primary" id="tSend" style="padding:12px 14px">' + ic("send") + "</button></div>";
+      + '<div class="x-comp"><button class="x-btn ghost" id="tAtt" title="Прикрепить файл (до 50 МБ). Файл можно перетащить прямо в окно чата" style="padding:12px 13px">📎</button><input type="file" id="tFile" hidden><textarea id="tIn" rows="1" placeholder="' + (window.innerWidth <= 760 ? "Сообщение" : "Написать в «" + E(room.name) + "»… (@Имя — упомянуть)") + '" autocomplete="off"></textarea><button class="x-urgbtn ' + (S.urg ? "on" : "") + '" id="tUrg" title="Срочное: придёт всем участникам, даже в тихие часы">' + ic("flame") + 'Срочное</button><button class="x-btn primary" id="tSend" style="padding:12px 14px">' + ic("send") + "</button></div>";
     var m = el.querySelector(".x-msgs"); if (!keep || wasBottom) m.scrollTop = 1e6;
     var bk = el.querySelector("[data-back]"); if (bk) bk.onclick = function () { var ch = document.querySelector(".x-chat"); if (ch) ch.classList.remove("open"); };
     var ti = $("tIn"); ti.value = val;
@@ -410,14 +410,15 @@
   function setPending(f) {
     if (!f) return;
     var isImg = /^image\//.test(f.type || "");
-    if (!isImg && f.size > 10 * 1024 * 1024) { toast("Файл больше 10 МБ"); return; }
-    if (f.size > 40 * 1024 * 1024) { toast("Файл слишком большой"); return; }
+    var mb = C.MAX_FILE_MB || 50;
+    if (!isImg && f.size > mb * 1024 * 1024) { toast("Файл больше " + mb + " МБ"); return; }
+    if (f.size > 2 * mb * 1024 * 1024) { toast("Файл слишком большой"); return; }      // большие фото уменьшаются перед отправкой
     if (S.pend && S.pend.url) URL.revokeObjectURL(S.pend.url);
     S.pend = { file: f, name: f.name || (isImg ? "фото.jpg" : "файл"), size: f.size, url: isImg ? URL.createObjectURL(f) : "", busy: false };
     paintThread(true);
     var ti = $("tIn"); if (ti) ti.focus();
   }
-  function prepFile(f) {            /* большие фото уменьшаются до 1600 px: быстрее уходят и не упираются в лимит 10 МБ */
+  function prepFile(f) {            /* большие фото уменьшаются до 1600 px: быстрее уходят */
     return new Promise(function (resolve) {
       if (!/^image\/(jpeg|png|webp)$/.test(f.type || "") || f.size < 1024 * 1024) return resolve({ blob: f, name: f.name });
       var img = new Image(), url = URL.createObjectURL(f);
@@ -431,22 +432,21 @@
       img.src = url;
     });
   }
-  function toB64(blob) { return new Promise(function (res, rej) { var rd = new FileReader(); rd.onload = function () { res(String(rd.result || "").split(",")[1]); }; rd.onerror = function () { rej("Не удалось прочитать файл"); }; rd.readAsDataURL(blob); }); }
   function sendPending() {
     var p = S.pend; if (!p || p.busy) return;
     var i = $("tIn"), text = i ? i.value.trim() : "", room = S.cur, urgent = S.urg, reply = S.reply, last = S.lastId;
     p.busy = true; paintThread(true);
     prepFile(p.file).then(function (r) {
-      if (r.blob.size > 10 * 1024 * 1024) throw "Файл больше 10 МБ";
-      return toB64(r.blob).then(function (b64) {
-        return C.call("/team/rooms/" + encodeURIComponent(room) + "/send-file", { body: { text: text, filename: r.name, mime: r.blob.type || p.file.type || "application/octet-stream", data: b64, urgent: urgent, reply_to: reply ? reply.id : 0 } });
+      var bar = function (pct) { p.pct = pct; if (S.cur === room && S.pend === p) paintThread(true); };
+      return C.upload(r.blob, r.name, bar).then(function (up) {
+        return C.call("/team/rooms/" + encodeURIComponent(room) + "/send-file", { body: { text: text, filename: r.name, mime: r.blob.type || p.file.type || "application/octet-stream", upload: up, urgent: urgent, reply_to: reply ? reply.id : 0 } });
       });
     }).then(function () {
       if (S.pend === p) { if (p.url) URL.revokeObjectURL(p.url); S.pend = null; }
       S.urg = false; S.reply = null; S.drafts[room] = ""; if ($("tIn")) $("tIn").value = "";
       return C.call("/team/rooms/" + encodeURIComponent(room) + "/messages?after=" + last);
     }).then(function (ms) { if (S.cur === room) { addMsgs(ms); paintThread(); } loadRooms(); })
-      .catch(function (e) { p.busy = false; toast(E(e)); if (S.cur === room) paintThread(true); });
+      .catch(function (e) { p.busy = false; p.pct = null; toast(E(e)); if (S.cur === room) paintThread(true); });
   }
   /* фото в сообщениях подгружаются с сервера с авторизацией и показываются картинкой; нажатие открывает крупно */
   function loadImgs(el, stick) {

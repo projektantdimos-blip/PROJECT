@@ -41,6 +41,31 @@
     }, function () { throw "Сервер недоступен. Проверьте адрес моста в ⚙ и интернет"; });
   };
 
+  /* загрузка файла на мост потоком (до 50 МБ, как FILE_MAX_MB на сервере) → номер загрузки для send-file; onProgress(0–100) */
+  C.MAX_FILE_MB = 50;
+  C.upload = function (blob, name, onProgress) {
+    var c = cfg();
+    if (!c.url || !c.key) return Promise.reject("Мост не подключён: адрес и ключ — в ⚙");
+    if (blob.size > C.MAX_FILE_MB * 1024 * 1024) return Promise.reject("Файл больше " + C.MAX_FILE_MB + " МБ");
+    return new Promise(function (resolve, reject) {
+      var x = new XMLHttpRequest();
+      x.open("POST", c.url + "/api/crm/upload");
+      x.setRequestHeader("X-Api-Key", c.key);
+      if (tok()) x.setRequestHeader("X-Session", tok());
+      x.setRequestHeader("Content-Type", blob.type || "application/octet-stream");
+      x.setRequestHeader("X-File-Name", encodeURIComponent(name || blob.name || "файл"));
+      if (onProgress) x.upload.onprogress = function (e) { if (e.lengthComputable) onProgress(Math.round(e.loaded * 100 / e.total)); };
+      x.onload = function () {
+        var j = {}; try { j = JSON.parse(x.responseText || "{}"); } catch (e) {}
+        if (x.status >= 200 && x.status < 300 && j.upload) return resolve(j.upload);
+        if (x.status === 404) return reject("Загрузка больших файлов требует обновления сервера моста");
+        reject(typeof j.detail === "string" ? j.detail : ("Ошибка сервера " + x.status));
+      };
+      x.onerror = function () { reject("Связь прервалась при загрузке файла — попробуйте ещё раз"); };
+      x.send(blob);
+    });
+  };
+
   /* файл с моста (PDF/Word и т.п.): { blob, name } */
   C.blob = function (path) {
     var c = cfg();

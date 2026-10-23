@@ -180,7 +180,7 @@
         '<button type="button" id="chatRefresh" title="Обновить сейчас">⟳</button></span></div></div>' +
         '<div id="chatThreads"></div></aside>' +
         '<section class="chat-thread"><div id="chatHead"></div><div id="chatAssign"></div><div id="chatMsgs"></div>' +
-        '<div id="chatComposer"><div id="chatFileBar" class="chat-filebar" hidden></div><div id="chatEditBar" class="chat-filebar chat-editbar" hidden></div><button type="button" id="chatAttach" class="chat-attach" title="Прикрепить файл (до 10 МБ)">📎</button><input type="file" id="chatFile" hidden><button type="button" id="chatScripts" class="chat-attach" title="Скрипты: готовые тексты">📋</button><textarea id="chatText" placeholder="Ответ… (Ctrl+Enter — отправить)"></textarea><button id="chatSend">Отправить</button></div></section>' +
+        '<div id="chatComposer"><div id="chatFileBar" class="chat-filebar" hidden></div><div id="chatEditBar" class="chat-filebar chat-editbar" hidden></div><button type="button" id="chatAttach" class="chat-attach" title="Прикрепить файл (до 50 МБ, письмом — до 25 МБ)">📎</button><input type="file" id="chatFile" hidden><button type="button" id="chatScripts" class="chat-attach" title="Скрипты: готовые тексты">📋</button><textarea id="chatText" placeholder="Ответ… (Ctrl+Enter — отправить)"></textarea><button id="chatSend">Отправить</button></div></section>' +
         '<aside class="chat-info" id="chatInfoPane"></aside>' +
       '</div>';
     el.banner = document.getElementById("chatBanner");
@@ -211,7 +211,7 @@
       if (!f) return;
       e.preventDefault();
       if (!st.sel) { setErr("Сначала выберите диалог слева"); return; }
-      if (f.size > 10 * 1024 * 1024) { setErr("Файл больше 10 МБ"); return; }
+      if (tooBig(f)) return;
       st.file = f; showFileBar(); setErr("");
     });
     var fileIn = document.getElementById("chatFile");
@@ -219,7 +219,7 @@
     fileIn.onchange = function () {
       var f = fileIn.files && fileIn.files[0]; fileIn.value = "";
       if (!f) return;
-      if (f.size > 10 * 1024 * 1024) { setErr("Файл больше 10 МБ"); return; }
+      if (tooBig(f)) return;
       st.file = f; showFileBar(); setErr("");
     };
     el.fileBar.onclick = function (e) { if (e.target.getAttribute && e.target.getAttribute("data-x")) { st.file = null; showFileBar(); } };
@@ -789,15 +789,7 @@
     if (!el.fileBar) return;
     var f = st.file;
     el.fileBar.hidden = !f;
-    el.fileBar.innerHTML = f ? '📄 ' + esc(f.name) + ' · ' + Math.max(1, Math.round(f.size / 1024)) + ' КБ <button type="button" data-x="1" title="Убрать">✕</button>' : "";
-  }
-  function readB64(f) {
-    return new Promise(function (ok, bad) {
-      var r = new FileReader();
-      r.onload = function () { var s = String(r.result || ""); ok(s.slice(s.indexOf(",") + 1)); };
-      r.onerror = function () { bad("Не удалось прочитать файл"); };
-      r.readAsDataURL(f);
-    });
+    el.fileBar.innerHTML = f ? '📄 ' + esc(f.name) + ' · ' + fmtSize(f.size) + ' <button type="button" data-x="1" title="Убрать">✕</button>' : "";
   }
 
   /* правка своего сообщения: текст в окне ответа, «Отправить» сохраняет; ✕ — отмена, набранное до правки возвращается */
@@ -837,14 +829,23 @@
     }, function (e) { setErr(String(e)); renderThread(true); });
   }
 
+  function tooBig(f) {
+    var mb = (window.MPBC && MPBC.MAX_FILE_MB) || 50;
+    if (f.size > mb * 1024 * 1024) { setErr("Файл больше " + mb + " МБ"); return true; }
+    return false;
+  }
   function sendMsg() {
     if (st.edit) { if (st.edit.tid === st.sel) saveEdit(); else stopEdit(true); return; }
     var t = curThread(), text = el.text.value.trim(), f = st.file;
     if (!t || (!text && !f) || st.sending) return;
     st.sending = true; el.send.disabled = true; el.send.textContent = "Отправка…";
+    if (f && t.channel === "mail" && f.size > 25 * 1024 * 1024) {
+      setErr("Письмом можно отправить файл до 25 МБ — этот отправьте через Telegram или MAX");
+      st.sending = false; el.send.disabled = false; el.send.textContent = "Отправить"; return;
+    }
     var job = f
-      ? readB64(f).then(function (data) {
-          return api("/api/threads/" + encodeURIComponent(t.id) + "/send-file", { method: "POST", body: { text: text, filename: f.name, mime: f.type || "application/octet-stream", data: data } });
+      ? MPBC.upload(f, f.name, function (p) { el.send.textContent = p < 100 ? "Загрузка " + p + "%" : "Отправка…"; }).then(function (up) {
+          return api("/api/threads/" + encodeURIComponent(t.id) + "/send-file", { method: "POST", body: { text: text, filename: f.name, mime: f.type || "application/octet-stream", upload: up } });
         })
       : api("/api/threads/" + encodeURIComponent(t.id) + "/send", { method: "POST", body: { text: text } });
     job.then(function (r) {
