@@ -46,6 +46,8 @@
   /* телефония Sipuni (calls.js): кнопка 📞 у номера и журнал звонков в карточке */
   function callBtn(ph, oid, cid) { return window.DSCalls ? DSCalls.btn(ph, oid, cid) : ""; }
   function callsPanel(kind, id) { return window.DSCalls ? DSCalls.panel(kind, id) : ""; }
+  function callBar(contacts, oid, cid) { var b = window.DSCalls && DSCalls.bar ? DSCalls.bar(contacts, oid, cid) : ""; return b ? '<div class="callrow">' + b + "</div>" : ""; }
+  function taskCallHtml(o) { var cu = customerOf(o); return o.customer_id && cu && pos() !== "designer" ? callBar(cu.contacts, o.id, o.customer_id) : ""; }
   function find(id) { return (S.orders || []).filter(function (o) { return o.id === id; })[0]; }
   var ICON = { plus: '<path d="M12 5v14M5 12h14"/>', down: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>', lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>' };
   function ic(n) { return '<svg class="i" viewBox="0 0 24 24">' + (ICON[n] || "") + "</svg>"; }
@@ -761,7 +763,7 @@
     var money_ = can("money") && o.amount != null;
     return '<div class="modal-bg" data-bg="1"><div class="modal"><div class="m-head"><div class="row"><h2>№' + E(o.number) + (o.customer ? " · " + E(o.customer) : "") + "</h2>"
       + (o.urgent ? '<span class="pill urg">⚡ Срочно</span>' : "") + (money_ ? (o.post_paid ? '<span class="pill ok">₽ Оплачено</span>' : '<span class="pill warn">₽ Не оплачено</span>') : "")
-      + '<button class="x" data-close="1">✕</button></div><div style="color:var(--muted);margin-top:2px">' + E(o.object) + "</div>" + custChatHtml(o) + stepper(o) + "</div>"
+      + '<button class="x" data-close="1">✕</button></div><div style="color:var(--muted);margin-top:2px">' + E(o.object) + "</div>" + taskCallHtml(o) + custChatHtml(o) + stepper(o) + "</div>"
       + '<div class="m-body">' + nx + '<div class="tabs">' + tabs.map(function (t) { return '<button data-tab="' + t[0] + '" class="' + (S.tab === t[0] ? "on" : "") + '">' + t[1] + "</button>"; }).join("") + "</div>" + body + "</div></div></div>";
   }
   function formHtml() {
@@ -1161,7 +1163,7 @@
       var tzOpts = TZ.map(function (z) { return '<option value="' + z[0] + '"' + (d.tz === z[0] ? " selected" : "") + ">" + E(z[1]) + "</option>"; }).join("");
       if (!TZ.some(function (z) { return z[0] === d.tz; }) && d.tz) tzOpts += '<option value="' + E(d.tz) + '" selected>' + E(d.tz) + "</option>";
       var jobs = (S.orders || []).filter(function (o) { return o.customer_id === d.id; });
-      det = '<div class="panel pad"><h3>' + (d.id ? "Карточка заказчика" : "Новый заказчик") + "</h3>"
+      det = '<div class="panel pad"><h3>' + (d.id ? "Карточка заказчика" : "Новый заказчик") + "</h3>" + (d.id ? callBar(d.contacts, 0, d.id) : "")
         + '<div class="fld" style="margin-top:12px"><label>Наименование компании</label><input data-cf="name" value="' + E(d.name) + '"' + ro + "></div>"
         + '<div class="fld"><label><input type="checkbox" data-cfchk="1" ' + (d.regular ? "checked" : "") + ro + "> Постоянный заказчик</label></div>"
         + "<h3 style=\"margin-top:14px\">Контактные лица</h3>"

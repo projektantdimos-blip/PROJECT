@@ -1005,4 +1005,12 @@
 .calls-panel .cl-rec{margin-top:6px}
 .calls-panel .cl-audio{width:100%;max-width:340px;height:36px}
 .tel-ext{width:80px;border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--surface);color:var(--ink);margin-left:auto}
+.callrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 2px}
+.call-bar.none{opacity:.75;cursor:not-allowed}
+.call-pick{position:relative;display:inline-block}
+.call-menu{display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:50;min-width:240px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.18);padding:6px}
+.call-pick.on .call-menu{display:block}
+.call-menu button{display:flex;flex-direction:column;align-items:flex-start;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:8px 10px;cursor:pointer;color:var(--ink)}
+.call-menu button:hover{background:var(--brand-soft)}
+.call-menu small{color:var(--muted)}
 @media (max-width:640px){#dsCalls{right:10px;left:10px;bottom:calc(76px + env(safe-area-inset-bottom));width:auto}}

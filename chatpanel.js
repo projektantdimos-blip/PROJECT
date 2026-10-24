@@ -139,6 +139,7 @@
         + (s.find ? '<div class="pb pb-orange" style="margin:0 0 12px"><h5>Перепривязать к другой задаче или заказчику</h5>' + findHtml(s)
           + '<a href="#" id="dspFindX" class="note">Отмена</a></div>' : "");
       h += line("Контактное лицо", ct.fio + (ct.pos ? " · " + ct.pos : "")) + line("Телефон", ph) + line("Почта", ml);
+      if (window.DSCalls && DSCalls.bar) { var cb = DSCalls.bar(ph ? [{ fio: ct.fio, phone: ph }] : [], 0, c.id); if (cb) h += '<div class="callrow">' + cb + "</div>"; }     // звонок через Sipuni (calls.js)
       if (l.auto) h += '<p class="note">Диалог привязан автоматически: ' + E(l.auto) + ".</p>";
       var tasks = l.tasks || [], NEXTT = { a1: "Сбор вводных", a2: "КП" };
       if (tasks.length) {

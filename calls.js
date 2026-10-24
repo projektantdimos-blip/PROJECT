@@ -64,14 +64,37 @@
     if (!T.enabled || !phone || String(phone).replace(/\D/g, "").length < 10) return "";
     return '<button type="button" class="call-btn" data-dial="' + E(phone) + '" data-doid="' + (orderId || 0) + '" data-dcid="' + (customerId || 0) + '" title="Позвонить через Sipuni: сначала зазвонит ваш телефон">📞</button>';
   };
+  /* большая кнопка «Позвонить заказчику» в окнах задачи, заказчика и переписки.
+     contacts — [{fio, phone}]; без номера — неактивная «Номер отсутствует»; несколько номеров — выбор из списка */
+  var CALL_ROLES = { owner: 1, sales: 1, ops: 1, design: 1 };
+  T.bar = function (contacts, orderId, customerId) {
+    var me = C.me || {}, p = me.position || (me.role === "admin" ? "owner" : "");
+    if (!CALL_ROLES[p]) return "";
+    var list = (contacts || []).filter(function (x) { return x && String(x.phone || "").replace(/\D/g, "").length >= 10; });
+    if (!list.length) return '<button type="button" class="btn ghost sm call-bar none" disabled title="Впишите сотовый телефон в карточке заказчика">📵 Номер отсутствует</button>';
+    var data = ' data-doid="' + (orderId || 0) + '" data-dcid="' + (customerId || 0) + '"';
+    if (list.length === 1) {
+      var x = list[0];
+      return '<button type="button" class="btn primary sm call-bar" data-dial="' + E(x.phone) + '"' + data + ' title="' + E((x.fio ? x.fio + " · " : "") + x.phone) + ' — сначала зазвонит ваш телефон">📞 Позвонить заказчику</button>';
+    }
+    return '<span class="call-pick"><button type="button" class="btn primary sm call-bar" data-dialpick="1">📞 Позвонить заказчику ▾</button><span class="call-menu">'
+      + list.map(function (x) { return '<button type="button" data-dial="' + E(x.phone) + '"' + data + "><b>" + E(x.fio || "Контакт") + "</b><small>" + E(x.phone) + "</small></button>"; }).join("") + "</span></span>";
+  };
+  document.addEventListener("click", function (e) {
+    var pk = e.target.closest && e.target.closest("[data-dialpick]");
+    document.querySelectorAll(".call-pick.on").forEach(function (x) { if (!pk || x !== pk.parentNode) x.classList.remove("on"); });
+    if (pk) { e.preventDefault(); e.stopPropagation(); pk.parentNode.classList.toggle("on"); }
+  }, true);
+
   document.addEventListener("click", function (e) {
     var b = e.target.closest && e.target.closest("[data-dial]");
     if (!b) return;
     e.preventDefault(); e.stopPropagation();
+    var pick = b.closest(".call-pick"); if (pick) pick.classList.remove("on");
     if (b.disabled) return;
     b.disabled = true;
     api("/dial", { phone: b.getAttribute("data-dial"), order_id: +b.getAttribute("data-doid") || 0, customer_id: +b.getAttribute("data-dcid") || 0 })
-      .then(function (r) { toast("Звоним " + r.phone + ": сначала зазвонит ваш телефон (вн. " + r.ext + "), снимите трубку"); })
+      .then(function (r) { toast("Звоним " + r.phone + ": сначала зазвонит ваш телефон (вн. " + r.ext + "), снимите трубку — Sipuni соединит с заказчиком"); })
       .catch(function (err) { toast(String(err)); })
       .then(function () { setTimeout(function () { b.disabled = false; }, 4000); });
   }, true);
