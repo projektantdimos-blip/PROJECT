@@ -1009,6 +1009,7 @@
 .calls-panel .cl-rec{margin-top:6px}
 .calls-panel .cl-audio{width:100%;max-width:340px;height:36px}
 .tel-ext{width:80px;border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--card);color:var(--ink);margin-left:auto}
+.tel-ext.tel-mob{width:150px;margin-left:8px}
 .callrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 2px}
 .call-bar.none{opacity:.75;cursor:not-allowed}
 .call-pick{position:relative;display:inline-block}

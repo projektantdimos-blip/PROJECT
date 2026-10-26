@@ -42,7 +42,8 @@
   function onSync(s) {
     lastSync = s;
     var on = !!(s && s.calls);
-    if (on !== T.enabled) { T.enabled = on; setFast(on); }
+    if (on !== T.enabled) { T.enabled = on; setFast(on); if (on) api("/settings").then(function (st) { T.st = st; }).catch(function () {}); }
+    if (on && SP.state_call && SP.state_call.indexOf("cb") === 0) cbTrack(s.calls);
     if (!on) { paintLive([]); return; }
     s.calls.forEach(function (c) {
       if (c.state === "ring" && c.dir === "in" && !rung[c.id]) {
@@ -93,6 +94,7 @@
     var pick = b.closest(".call-pick"); if (pick) pick.classList.remove("on");
     if (b.disabled) return;
     var oid = +b.getAttribute("data-doid") || 0, cid = +b.getAttribute("data-dcid") || 0;
+    if (isPhone() && T.st && T.st.my_mobile) return cbCall(b.getAttribute("data-dial"), b.getAttribute("data-dwho") || "", oid, cid);   // с телефона — обычный звонок на свой мобильный
     if (SP.ready) return SP.call(b.getAttribute("data-dial"), b.getAttribute("data-dwho") || "", oid, cid);   // звонилка CRM: говорим прямо здесь
     b.disabled = true;
     api("/dial", { phone: b.getAttribute("data-dial"), order_id: oid, customer_id: cid })
@@ -181,6 +183,30 @@
     s.on("peerconnection", function () { attach(s); });
   }
   SP.incoming = incoming;
+  function isPhone() { return !!(window.matchMedia && matchMedia("(pointer: coarse)").matches) && Math.min(screen.width, screen.height) < 820; }
+  function cbCall(phone, who, oid, cid) {
+    if (SP.cur || (SP.state_call && SP.state_call !== "ended")) { toast("Сначала завершите текущий звонок"); return; }
+    var num = dialNum(phone);
+    SP.call_info = { dir: "out", who: who, phone: phone, oid: oid, mode: "mobile", num10: num.slice(-10) };
+    SP.state_call = "cb-wait"; SP.cb_id = ""; SP.cb_seen = false; SP.t0 = 0; SP.end = ""; SP.cb_at = Date.now();
+    paintPhone();
+    api("/dial", { phone: phone, order_id: oid || 0, customer_id: cid || 0, via: "mobile" })
+      .then(function (r) { SP.call_info.mobile = r.mobile; paintPhone(); C.refresh(); })
+      .catch(function (e) { SP.state_call = "ended"; SP.end = String(e); paintPhone(); });
+  }
+  function cbTrack(list) {
+    var i = SP.call_info || {}, c = (list || []).filter(function (x) { return x.dir === "out" && String(x.phone).replace(/\D/g, "").slice(-10) === i.num10; })[0];
+    if (c) {
+      SP.cb_id = c.id; SP.cb_seen = true;
+      var st = c.state === "talk" ? "cb-talk" : "cb-ring";
+      if (st === "cb-talk" && !SP.t0) SP.t0 = c.answered ? c.answered * 1000 : Date.now();
+      if (st !== SP.state_call) { SP.state_call = st; paintPhone(); }
+    } else if (SP.cb_seen || Date.now() - SP.cb_at > 120000) {
+      SP.state_call = "ended"; SP.end = SP.t0 ? "ok" : (SP.cb_seen ? "Не дозвонились" : "Звонок завершён");
+      SP.dur = SP.t0 ? Math.round((Date.now() - SP.t0) / 1000) : 0; paintPhone();
+      setTimeout(function () { if (SP.state_call === "ended") { SP.state_call = ""; paintPhone(); } }, 6000);
+    }
+  }
   function track(s, info) {
     SP.cur = s; SP.call_info = info; SP.t0 = 0; SP.state_call = info.dir === "in" ? "ringing-in" : "dialing"; SP.end = ""; SP.muted = false;
     s.on("progress", function () { if (info.dir === "out") { SP.state_call = "ringing"; paintPhone(); } });
@@ -208,17 +234,19 @@
     clearInterval(tick); tick = null;
     if (!st) { b.innerHTML = ""; document.body.classList.remove("sp-call"); return; }
     document.body.classList.add("sp-call");
-    var label = st === "dialing" ? "Соединяем…" : st === "ringing" ? "Идут гудки…" : st === "ringing-in" ? "Входящий звонок" : st === "talk" ? "Разговор" : (SP.end === "ok" ? "Звонок завершён" : SP.end);
-    var timer = st === "talk" ? ' <b class="sp-t" id="spT">' + mmss(Math.round((Date.now() - SP.t0) / 1000)) + "</b>" : st === "ended" && SP.dur ? ' <b class="sp-t">' + mmss(SP.dur) + "</b>" : "";
+    var label = st === "dialing" ? "Соединяем…" : st === "ringing" ? "Идут гудки…" : st === "ringing-in" ? "Входящий звонок" : st === "talk" || st === "cb-talk" ? "Разговор"
+      : st === "cb-wait" ? "Сейчас зазвонит ваш мобильный" + (i.mobile ? " " + i.mobile : "") + " — ответьте" : st === "cb-ring" ? "Вызываем заказчика…" : (SP.end === "ok" ? "Звонок завершён" : SP.end);
+    var timer = st === "talk" || st === "cb-talk" ? ' <b class="sp-t" id="spT">' + mmss(Math.round((Date.now() - SP.t0) / 1000)) + "</b>" : st === "ended" && SP.dur ? ' <b class="sp-t">' + mmss(SP.dur) + "</b>" : "";
     var btns = st === "ringing-in" ? '<button type="button" class="sp-b ok" data-sp="answer">📞 Ответить</button><button type="button" class="sp-b no" data-sp="hang">Отклонить</button>'
       : st === "ended" ? '<button type="button" class="sp-b" data-sp="close">Закрыть</button>'
+      : st.indexOf("cb") === 0 ? (SP.cb_id ? '<button type="button" class="sp-b no" data-sp="cbhang">Завершить</button>' : '<button type="button" class="sp-b" data-sp="close">Скрыть</button>')
       : '<button type="button" class="sp-b" data-sp="mute">' + (SP.muted ? "🔇 Микрофон выкл." : "🎙 Микрофон") + '</button><button type="button" class="sp-b no" data-sp="hang">Завершить</button>';
-    b.innerHTML = '<div class="sp-win ' + st + (SP.min ? " min" : "") + '"><div class="sp-h"><span>' + (i.dir === "in" ? "Входящий" : "Исходящий") + ' · звонок из CRM</span><button type="button" data-sp="min" title="Свернуть">' + (SP.min ? "▢" : "—") + "</button></div>"
+    b.innerHTML = '<div class="sp-win ' + (st === "cb-talk" ? "talk " : "") + st + (SP.min ? " min" : "") + '"><div class="sp-h"><span>' + (i.dir === "in" ? "Входящий" : "Исходящий") + (i.mode === "mobile" ? " · через ваш мобильный" : " · звонок из CRM") + '</span><button type="button" data-sp="min" title="Свернуть">' + (SP.min ? "▢" : "—") + "</button></div>"
       + '<div class="sp-who"><b>' + E(i.who || i.phone || "") + "</b><small>" + E([i.who ? i.phone : "", i.number ? "задача №" + i.number : ""].filter(Boolean).join(" · ")) + "</small></div>"
       + '<div class="sp-st">' + E(label) + timer + "</div>"
       + (i.oid && !SP.min ? '<a class="sp-link" href="#/task/' + i.oid + '">Открыть задачу</a>' : "")
       + '<div class="sp-btns">' + btns + "</div></div>";
-    if (st === "talk") tick = setInterval(function () { var t = $("spT"); if (t) t.textContent = mmss(Math.round((Date.now() - SP.t0) / 1000)); }, 1000);
+    if (st === "talk" || st === "cb-talk") tick = setInterval(function () { var t = $("spT"); if (t) t.textContent = mmss(Math.round((Date.now() - SP.t0) / 1000)); }, 1000);
   }
   document.addEventListener("click", function (e) {
     var b = e.target.closest && e.target.closest("[data-sp]");
@@ -229,6 +257,7 @@
     else if (a === "mute" && s) { SP.muted = !SP.muted; if (SP.muted) s.mute({ audio: true }); else s.unmute({ audio: true }); paintPhone(); }
     else if (a === "min") { SP.min = !SP.min; paintPhone(); }
     else if (a === "close") { SP.state_call = ""; paintPhone(); }
+    else if (a === "cbhang" && SP.cb_id) { api("/" + encodeURIComponent(SP.cb_id) + "/hangup", {}).catch(function (err) { toast(String(err)); }); }
   });
   window.addEventListener("beforeunload", function (e) { if (SP.cur) { e.preventDefault(); e.returnValue = "Идёт звонок"; } });
 
@@ -297,12 +326,13 @@
       if (st.owner) {
         h += '<div class="x-panel pad" style="margin-bottom:18px"><h3>Внутренние номера сотрудников</h3><p class="x-sub">Как в Sipuni (например, 201). У кого указан номер — тому CRM показывает карточку «Звонит …» и даёт звонить кнопкой 📞</p>'
           + st.staff.map(function (u) {
-            return '<div class="x-qrow"><div><b>' + E(u.name) + "</b><small>" + E(POS[u.position] || "") + '</small></div><input class="tel-ext" data-ext="' + u.id + '" value="' + E(u.ext) + '" inputmode="numeric" maxlength="6" placeholder="—"><button class="x-btn ghost" data-extsave="' + u.id + '" style="padding:7px 12px">Сохранить</button></div>';
+            return '<div class="x-qrow"><div><b>' + E(u.name) + "</b><small>" + E(POS[u.position] || "") + '</small></div><input class="tel-ext" data-ext="' + u.id + '" value="' + E(u.ext) + '" inputmode="numeric" maxlength="6" placeholder="вн. №"><input class="tel-ext tel-mob" data-mob="' + u.id + '" value="' + E(u.mobile || "") + '" inputmode="tel" placeholder="мобильный"><button class="x-btn ghost" data-extsave="' + u.id + '" style="padding:7px 12px">Сохранить</button></div>';
           }).join("") + "</div>";
       }
       h += '<div class="x-panel pad"><h3>Последние звонки</h3><p class="x-sub">' + (st.owner ? "Все звонки компании" : "Ваши звонки") + '</p><div class="calls-panel" style="margin-top:6px">' + rows(log) + "</div></div></div>";
       h += '<div class="x-sticky"><div class="x-panel pad"><h3>Мой номер</h3><p class="x-sub">' + (st.my_ext ? "Внутренний номер Sipuni: <b>" + E(st.my_ext) + "</b>" : "Внутренний номер не указан — его задаёт руководитель") + "</p>"
-        + (st.softphone ? '<p class="x-sub">Звонилка CRM: <span id="spState">' + spStateText() + "</span></p>" : "");
+        + (st.softphone ? '<p class="x-sub">Звонилка CRM: <span id="spState">' + spStateText() + "</span></p>" : "")
+        + (st.my_ext ? '<div class="x-field"><label>Мой мобильный — с телефона CRM звонит через него: отвечаете и говорите как по обычному телефону</label><input id="telMyMob" inputmode="tel" value="' + E(st.my_mobile || "") + '" placeholder="+7 …"></div><button class="x-btn ghost" id="telMyMobSave" style="width:100%;justify-content:center">Сохранить мобильный</button>' : "");
       if (st.owner) {
         var url = st.hook_path ? cfg().url + st.hook_path : "";
         h += '<h3 style="margin-top:16px">Подключение Sipuni</h3>'
@@ -313,10 +343,12 @@
       body.innerHTML = h + "</div></div></div>";
       body.querySelectorAll("[data-extsave]").forEach(function (b) {
         b.onclick = function () {
-          var inp = body.querySelector('[data-ext="' + b.dataset.extsave + '"]');
-          api("/ext", { user_id: +b.dataset.extsave, ext: inp.value.trim() }).then(function () { toast("Сохранено"); C.refresh(); T.paintMe(body); }).catch(function (e) { toast(String(e)); });
+          var id = +b.dataset.extsave, inp = body.querySelector('[data-ext="' + id + '"]'), mob = body.querySelector('[data-mob="' + id + '"]');
+          api("/ext", { user_id: id, ext: inp.value.trim() }).then(function () { return api("/mobile", { user_id: id, phone: mob.value.trim() }); })
+            .then(function (st) { if (st && st.my_ext !== undefined) T.st = st; toast("Сохранено"); C.refresh(); T.paintMe(body); }).catch(function (e) { toast(String(e)); });
         };
       });
+      if ($("telMyMobSave")) $("telMyMobSave").onclick = function () { api("/mobile", { phone: $("telMyMob").value.trim() }).then(function (st2) { T.st = st2; toast(st2.my_mobile ? "Мобильный сохранён" : "Мобильный убран"); T.paintMe(body); }).catch(function (e) { toast(String(e)); }); };
       if ($("telCopy")) $("telCopy").onclick = function () { var i = $("telHook"); i.select(); try { navigator.clipboard.writeText(i.value); } catch (e) { document.execCommand("copy"); } toast("Адрес скопирован"); };
       if ($("telPoll")) $("telPoll").onclick = function () { api("/poll", {}).then(function (r) { toast("Сверено: добавлено звонков — " + r.result.added); T.paintMe(body); }).catch(function (e) { toast(String(e)); }); };
     }).catch(function (e) { body.innerHTML = '<div class="x-panel"><div class="x-empty">' + E(e) + "</div></div>"; });
