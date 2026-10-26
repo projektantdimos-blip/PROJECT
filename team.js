@@ -158,7 +158,7 @@
     if (r.kind === "group") return owner || r.descr === "by:" + C.me.id;
     return owner && (r.kind === "task" || (r.kind === "chan" && r.id !== "general"));
   }
-  function noTask() { return !!(C.me && C.me.position === "norm"); }      /* нормативному специалисту карточка проекта не открывается */
+  function noTask() { return !!(C.me && C.me.position === "norm" && !C.me.executor); }      /* нормативному специалисту карточка проекта открывается, только если он исполнитель проектов */
   function roomIcon(r) {
     if (r.kind === "dm" && /^d\d+_\d+$/.test(r.id)) return ava(r.name, "sm");
     if (r.kind === "task") {

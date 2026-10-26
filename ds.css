@@ -406,6 +406,10 @@
 .ds .sc-i{display:block;width:100%;text-align:left;padding:9px 10px;border-radius:10px;border:1px solid transparent;background:none;cursor:pointer;color:var(--ink)}
 .ds .sc-i small{display:block;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ds .sc-i.on,.ds .sc-i:hover{background:var(--brand-soft);border-color:var(--brand)}
+.ds .sc-file{display:flex;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.ds .sc-file .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ds .sc-file .nm small{color:var(--muted)}
+.ds .sc-file .btn{padding:6px 10px}
 @media(max-width:800px){.ds .sc-wrap{grid-template-columns:1fr}}
 
 /* карточки внутри колонок не шире колонки; номера и суммы не переносятся и не выходят за рамку */
@@ -992,8 +996,8 @@
 .ds-call .ca a{color:#fff;background:rgba(255,255,255,.22);border-radius:999px;padding:4px 10px;font-size:.82rem;font-weight:600;text-decoration:none}
 .ds-call>button{flex:none;background:rgba(255,255,255,.22);border:0;color:#fff;border-radius:50%;width:28px;height:28px;cursor:pointer}
 @keyframes dsRing{0%,100%{transform:rotate(0)}20%{transform:rotate(-14deg)}40%{transform:rotate(14deg)}60%{transform:rotate(-8deg)}80%{transform:rotate(8deg)}}
-.call-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin-left:8px;border-radius:50%;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:.9rem;vertical-align:middle;line-height:1}
-.call-btn:hover{background:var(--brand-soft);border-color:var(--brand)}
+.call-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin-left:8px;border-radius:50%;border:1px solid var(--line);background:var(--card);cursor:pointer;font-size:.9rem;vertical-align:middle;line-height:1}
+.call-btn:hover{background:var(--blue-l);border-color:var(--blue)}
 .call-btn:disabled{opacity:.5;cursor:default}
 .calls-panel .cl-row{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line)}
 .calls-panel .cl-row:last-child{border-bottom:0}
@@ -1004,13 +1008,35 @@
 .calls-panel .cl-tm{flex:none;color:var(--muted);font-size:.82rem}
 .calls-panel .cl-rec{margin-top:6px}
 .calls-panel .cl-audio{width:100%;max-width:340px;height:36px}
-.tel-ext{width:80px;border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--surface);color:var(--ink);margin-left:auto}
+.tel-ext{width:80px;border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--card);color:var(--ink);margin-left:auto}
 .callrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 2px}
 .call-bar.none{opacity:.75;cursor:not-allowed}
 .call-pick{position:relative;display:inline-block}
-.call-menu{display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:50;min-width:240px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.18);padding:6px}
+.call-menu{display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:50;min-width:240px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.18);padding:6px}
 .call-pick.on .call-menu{display:block}
 .call-menu button{display:flex;flex-direction:column;align-items:flex-start;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:8px 10px;cursor:pointer;color:var(--ink)}
-.call-menu button:hover{background:var(--brand-soft)}
+.call-menu button:hover{background:var(--blue-l)}
 .call-menu small{color:var(--muted)}
+/* звонилка CRM (calls.js): окно звонка */
+#dsPhone{position:fixed;right:16px;bottom:16px;z-index:10000;width:min(340px,calc(100vw - 32px))}
+.sp-win{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:18px;box-shadow:0 16px 40px rgba(0,0,0,.28);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.sp-win.talk{border-color:var(--ok)}
+.sp-win.ringing-in{border-color:var(--ok);animation:dsAlertIn .35s cubic-bezier(.2,1.4,.4,1)}
+.sp-h{display:flex;align-items:center;justify-content:space-between;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
+.sp-h button{background:none;border:0;color:var(--muted);cursor:pointer;font-size:1rem;padding:2px 6px}
+.sp-who b{display:block;font-size:1.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-who small{color:var(--muted)}
+.sp-st{font-size:1rem;font-weight:600;display:flex;align-items:center;gap:8px}
+.sp-win.talk .sp-st{color:var(--ok)}
+.sp-win.ended .sp-st{color:var(--muted)}
+.sp-t{font-variant-numeric:tabular-nums;font-size:1.25rem}
+.sp-link{font-size:.86rem;color:var(--blue);text-decoration:none}
+.sp-btns{display:flex;gap:8px}
+.sp-b{flex:1;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px 8px;font-weight:600;cursor:pointer}
+.sp-b.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.sp-b.no{background:var(--bad);border-color:var(--bad);color:#fff}
+.sp-win.min .sp-who small,.sp-win.min .sp-btns .sp-b:not(.no){display:none}
+.sp-win.min{padding:10px 12px;gap:4px}
+body.sp-call #dsCalls{display:none}
+@media (max-width:640px){#dsPhone{right:10px;left:10px;bottom:calc(76px + env(safe-area-inset-bottom));width:auto}}
 @media (max-width:640px){#dsCalls{right:10px;left:10px;bottom:calc(76px + env(safe-area-inset-bottom));width:auto}}
