@@ -1157,7 +1157,6 @@
         var td = d === today, we = dow[i] >= 5;
         return '<div class="gday' + (td ? " today" : "") + (we ? " we" : "") + '" data-d="' + d + '"><small>' + WD[dow[i]] + "</small><b>" + (td ? "<i>" + (+d.slice(8, 10)) + "</i>" : (+d.slice(8, 10))) + "</b></div>";
       }).join("") + "</div>";
-    var inWin = function (o) { var r = range(o); return !!r; };
     function person(u) {
       var color = personColor(u.name);
       var mine = loadOrders().filter(function (o) { return (o.executor_id === u.id || o.executor === u.name) && (ACTIVE_WORK.indexOf(o.stage) >= 0 || o.stage === "На согласовании" || o.stage === "Сдано" || o.stage === "Закрыто"); });      // закрытые — чтобы было видно прошлое
