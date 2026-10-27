@@ -8,8 +8,17 @@
   var CH = {
     tg:   { label: "Telegram", color: "#2b8ac6" },
     mail: { label: "Почта",    color: "#ee9264" },
-    max:  { label: "Макс",     color: "#7a55a8" }
+    max:  { label: "MAX (личный)", color: "#7a55a8" },
+    maxbot: { label: "MAX",    color: "#7a55a8" }
   };
+  function botLink() { return (window.MPBC && MPBC.maxBot) || ""; }      // ссылка на MAX-бота компании (из /api/crm/me)
+  function copyLink(btn) {
+    var l = botLink();
+    if (!l) { alert("MAX-бот не подключён на сервере (MAX_BOT_TOKEN)"); return; }
+    var done = function () { var t = btn.textContent; btn.textContent = "✓"; setTimeout(function () { btn.textContent = t; }, 1500); };
+    if (navigator.clipboard) navigator.clipboard.writeText(l).then(done, function () { prompt("Ссылка на бота MAX:", l); });
+    else prompt("Ссылка на бота MAX:", l);
+  }
   var st = { threads: [], sel: null, msgs: [], filter: "all", q: "", err: "", built: false, sending: false, tick: 0 };
   var el = {};
 
@@ -145,7 +154,7 @@
     ".ct .rowmenu:hover{border-color:var(--blue);color:var(--blue)}" +
     ".ct .tkc{flex:none;background:#FAEEDA;color:#633806;border-radius:8px;padding:0 7px;font-size:.72rem;font-weight:700;line-height:20px;white-space:nowrap}.ct .tkc.over{background:#FCEBEB;color:#791F1F}" +
     ".mlogo{width:22px;height:22px;border-radius:50%;flex:none;align-self:center;display:grid;place-items:center;margin-right:2px}" +
-    ".mlogo.tg{background:#2b8ac6}.mlogo.max{background:#7a55a8}.mlogo.mail{background:#ee9264}" +
+    ".mlogo.tg{background:#2b8ac6}.mlogo.max,.mlogo.maxbot{background:#7a55a8}.mlogo.mail{background:#ee9264}" +
     ".ct .un{cursor:pointer;background:#ee9264;color:#3d1b08}.ct .un:hover{filter:brightness(.92)}" +
     ".ct{padding-left:4px}.ct .udot{width:20px;flex:none;align-self:center;display:grid;place-items:center;cursor:pointer;height:38px}" +
     ".ct .udot i{width:10px;height:10px;border-radius:50%;border:2px solid transparent;transition:.12s}" +
@@ -182,6 +191,7 @@
         '<aside class="chat-list"><div class="chat-tools"><button type="button" id="chatNew" class="chat-new">＋ Новое сообщение</button><div class="chat-box" id="chatBox"></div>' +
         '<div class="chat-chips" id="chatChips"></div><input id="chatQ" type="search" placeholder="Поиск по имени и тексту">' +
         '<div class="chat-sync"><span id="chatSyncT">Загрузка…</span><span class="right">' +
+        '<button type="button" id="chatBotLink" title="Скопировать ссылку на MAX-бота компании — для КП, подписи письма и сайта">🔗</button>' +
         '<button type="button" id="chatPush" title="Уведомления на этом устройстве">🔔</button>' +
         '<button type="button" id="chatRefresh" title="Обновить сейчас">⟳</button></span></div></div>' +
         '<div id="chatThreads"></div></aside>' +
@@ -230,6 +240,7 @@
     };
     el.fileBar.onclick = function (e) { if (e.target.getAttribute && e.target.getAttribute("data-x")) { st.file = null; showFileBar(); } };
     document.getElementById("chatRefresh").onclick = function () { refreshNow(); };
+    document.getElementById("chatBotLink").onclick = function () { copyLink(this); };
     document.getElementById("chatNew").onclick = function () { newMessageDialog(); };
     document.getElementById("chatScripts").onclick = function () { scriptsDialog(); };
     document.getElementById("chatPush").onclick = togglePush;
@@ -345,18 +356,25 @@
     var fld = "width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;margin:4px 0 10px;background:var(--card);color:var(--ink);font:inherit";
     bg.innerHTML = '<div style="background:var(--card,#fff);color:var(--ink);border-radius:16px;padding:20px 22px;width:min(480px,100%);box-shadow:0 20px 60px rgba(0,0,0,.3)">' +
       '<h3 style="margin:0 0 10px">Новое сообщение</h3>' +
-      '<label style="font-size:.8rem;color:var(--muted)">Канал</label><select id="nmCh" style="' + fld + '"><option value="mail">Почта</option><option value="tg">Telegram</option></select>' +
-      '<label style="font-size:.8rem;color:var(--muted)" id="nmToL">E-mail получателя</label><input id="nmTo" placeholder="client@company.ru" style="' + fld + '">' +
+      '<label style="font-size:.8rem;color:var(--muted)">Канал</label><select id="nmCh" style="' + fld + '"><option value="mail">Почта</option><option value="tg">Telegram</option><option value="maxbot">MAX</option></select>' +
+      '<div id="nmMax" style="display:none;margin:0 0 10px;line-height:1.45">Бот MAX не может написать первым. Отправьте заказчику ссылку на бота (в КП, письме, на сайте) — когда он напишет, диалог появится здесь, и ответить можно будет из CRM.' +
+        (botLink() ? '<div style="display:flex;gap:8px;margin-top:8px"><input readonly value="' + esc(botLink()) + '" style="' + fld + 'margin:0"><button type="button" id="nmCopy" style="padding:9px 14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;cursor:pointer;font:inherit;white-space:nowrap">Копировать</button></div>'
+          : '<div style="color:var(--bad);margin-top:6px">MAX-бот не подключён на сервере (MAX_BOT_TOKEN).</div>') + "</div>" +
+      '<div id="nmFields"><label style="font-size:.8rem;color:var(--muted)" id="nmToL">E-mail получателя</label><input id="nmTo" placeholder="client@company.ru" style="' + fld + '">' +
       '<div id="nmSubW"><label style="font-size:.8rem;color:var(--muted)">Тема</label><input id="nmSub" placeholder="Тема письма" style="' + fld + '"></div>' +
-      '<label style="font-size:.8rem;color:var(--muted)">Сообщение</label><textarea id="nmText" rows="5" style="' + fld + '"></textarea>' +
+      '<label style="font-size:.8rem;color:var(--muted)">Сообщение</label><textarea id="nmText" rows="5" style="' + fld + '"></textarea></div>' +
       '<div id="nmErr" style="color:var(--bad);min-height:18px"></div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px"><button id="nmCancel" style="padding:9px 16px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;cursor:pointer;font:inherit">Отмена</button>' +
       '<button id="nmGo" style="padding:9px 18px;border:0;background:var(--blue);color:#fff;border-radius:10px;cursor:pointer;font:inherit;font-weight:600">Отправить</button></div></div>';
     document.body.appendChild(bg);
     var close = function () { bg.remove(); };
     bg.onclick = function (e) { if (e.target === bg) close(); };
     bg.querySelector("#nmCancel").onclick = close;
+    if (bg.querySelector("#nmCopy")) bg.querySelector("#nmCopy").onclick = function () { copyLink(this); };
     bg.querySelector("#nmCh").onchange = function () {
-      var mail = this.value === "mail";
+      var mail = this.value === "mail", mx = this.value === "maxbot";
+      bg.querySelector("#nmMax").style.display = mx ? "" : "none";
+      bg.querySelector("#nmFields").style.display = mx ? "none" : "";
+      bg.querySelector("#nmGo").style.display = mx ? "none" : "";
       bg.querySelector("#nmToL").textContent = mail ? "E-mail получателя" : "Telegram: @имя или телефон +7…";
       bg.querySelector("#nmTo").placeholder = mail ? "client@company.ru" : "@username или +79991234567";
       bg.querySelector("#nmSubW").style.display = mail ? "" : "none";
@@ -384,7 +402,7 @@
   function visibleThreads() {
     return st.threads.filter(function (t) {
       if (st.box === "mine" && !myOpen().some(function (a) { return a.thread_id === t.id; })) return false;
-      if (st.filter !== "all" && t.channel !== st.filter) return false;
+      if (st.filter !== "all" && t.channel !== st.filter && !(st.filter === "max" && t.channel === "maxbot")) return false;      // «MAX» — и бот, и прежний личный аккаунт
       if (st.q && (t.title + " " + t.last_text + " " + t.peer).toLowerCase().indexOf(st.q) < 0) return false;
       return true;
     });

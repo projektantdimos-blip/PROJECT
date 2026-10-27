@@ -708,7 +708,7 @@
     }).join("") + "</div>";
   }
   /* «Чат с заказчиком»: диалоги «Переписки», привязанные к заказчику задачи (подгружаются при открытии окна) */
-  var CH_NAME = { tg: "Telegram", max: "MAX", mail: "почта" };
+  var CH_NAME = { tg: "Telegram", max: "MAX", maxbot: "MAX", mail: "почта" };
   function custChatHtml(o) {
     var p = pos();
     if (["owner", "sales", "ops"].indexOf(p) < 0 || !o.customer_id) return "";       // проектному отделу кнопка не нужна
@@ -1208,9 +1208,11 @@
     var head = '<div class="head"><div><h1>' + title + "</h1><p>" + (p === "design" ? "Заказчики ваших проектов: контакты, часовой пояс и комментарий менеджера. Звонки делаете вы." : "Компании, контактные лица, часовой пояс и комментарии менеджера") + "</p></div>"
       + (canEdit ? '<button class="btn accent" data-cnew="1">' + ic("plus") + "Новый заказчик</button>" : "") + "</div>"
       + "";
+    var q = S.cu.q || "", shown = 0;
     var rows = list.map(function (c) {
-      var m = (c.contacts && c.contacts[0]) || null;
-      return '<button style="display:flex;gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);width:100%;text-align:left;' + (S.cu.sel === c.id ? "background:var(--brand-soft);box-shadow:inset 3px 0 0 var(--brand)" : "") + '" data-csel="' + c.id + '">'
+      var m = (c.contacts && c.contacts[0]) || null, hit = custHit(c, q);
+      if (hit) shown++;
+      return '<button style="display:' + (hit ? "flex" : "none") + ';gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);width:100%;text-align:left;' + (S.cu.sel === c.id ? "background:var(--brand-soft);box-shadow:inset 3px 0 0 var(--brand)" : "") + '" data-csel="' + c.id + '">'
         + ava(c.name, "lg") + '<div style="min-width:0"><b>' + E(c.name) + "</b> " + (c.regular ? '<span class="pill ok">постоянный</span>' : "") + '<div style="color:var(--muted);font-size:.86rem">' + (m && m.fio ? E(m.fio) + (m.pos ? " · " + E(m.pos) : "") : "контакт не указан") + "</div></div>"
         + '<div style="margin-left:auto;text-align:right"><b style="font-size:1.25rem;display:block">' + (c.works || 0) + '</b><small style="color:var(--muted)">работ за всё время</small>'
         + (c.fill != null ? '<div class="fillbar" title="Заполненность карточки: ' + c.fill + '%"><i style="width:' + c.fill + '%;background:' + (c.fill < 40 ? "var(--bad,#d33)" : c.fill < 75 ? "var(--warn,#e8a317)" : "var(--ok,#2a9d5c)") + '"></i></div><small style="color:var(--muted)">карточка ' + c.fill + "%</small>" : "")
@@ -1246,7 +1248,28 @@
         + (jobs.length ? '<h3 style="margin-top:16px">Задачи</h3>' + jobs.map(function (o) { return '<button class="doc" style="width:100%;text-align:left" data-open="' + o.id + '"><span>📁</span><div><b>№' + E(o.number) + " · " + E(o.object) + "</b><small>" + E(o.stage) + "</small></div></button>"; }).join("") : "")
         + "</div>" + (d.id ? callsPanel("customer", d.id) : "");
     }
-    return head + '<div class="dsg21" style="align-items:start"><div class="panel">' + rows + "</div><div>" + det + "</div></div>";
+    var search = list.length ? '<div style="padding:10px 12px;border-bottom:1px solid var(--line)"><input type="search" id="cuQ" value="' + E(q) + '" placeholder="Поиск: название, ИНН, контакт, телефон, почта" autocomplete="off" style="width:100%;border:1px solid var(--line);border-radius:11px;padding:9px 12px;background:var(--surface)"></div>'
+      + '<div class="note" id="cuNone" style="padding:16px;margin:0;display:' + (shown ? "none" : "block") + '">Ничего не найдено</div>' : "";
+    return head + '<div class="dsg21" style="align-items:start"><div class="panel">' + search + rows + "</div><div>" + det + "</div></div>";
+  }
+  /* быстрый поиск по базе заказчиков: все слова запроса должны найтись (без учёта регистра и «ё»); телефон и ИНН — по цифрам, «8 900…» = «+7 900…» */
+  function custNorm(s) { return String(s || "").toLowerCase().replace(/ё/g, "е"); }
+  function custHit(c, q) {
+    q = custNorm(q).trim();
+    if (!q) return true;
+    var cs = c.contacts || [], digits = [c.inn].concat(cs.map(function (x) { return x.phone; })).map(function (x) { return String(x || "").replace(/\D/g, ""); });
+    var text = custNorm([c.name, c.inn, c.city].concat(cs.map(function (x) { return [x.fio, x.pos, x.phone, x.email].join(" "); })).join(" ") + " " + digits.join(" "));
+    if (/^[\d\s()+\-.]+$/.test(q)) {                          // похоже на телефон или ИНН — ищем цифры подряд в каждом номере
+      var qd = q.replace(/\D/g, ""), alt = qd.length > 1 && qd[0] === "8" ? "7" + qd.slice(1) : "";
+      if (qd && digits.some(function (d) { return d.indexOf(qd) >= 0 || (alt && d.indexOf(alt) === 0); })) return true;
+    }
+    return q.split(/\s+/).every(function (w) { return text.indexOf(w) >= 0; });
+  }
+  function custFilter() {
+    var q = S.cu.q || "", by = {}, shown = 0;
+    (S.customers || []).forEach(function (c) { by[c.id] = c; });
+    document.querySelectorAll("[data-csel]").forEach(function (b) { var c = by[+b.dataset.csel], hit = !!c && custHit(c, q); b.style.display = hit ? "flex" : "none"; if (hit) shown++; });
+    var none = document.getElementById("cuNone"); if (none) none.style.display = shown ? "none" : "block";
   }
   function reqBlock(d, ro) {
     if (d.inn === undefined && !pos().match(/^(owner|sales|ops)$/)) return "";          // роли без доступа к реквизитам блок не видят
@@ -2377,6 +2400,7 @@
     if (e.target.dataset && e.target.dataset.scf) { var cs_ = (S.sc || []).filter(function (x) { return x.id === S.scSel; })[0]; if (cs_) cs_[e.target.dataset.scf] = e.target.value; return; }
     if (e.target.dataset && e.target.dataset.cmd != null) { (S.cmDraft = S.cmDraft || {})[e.target.dataset.cmd] = e.target.value; return; }
     if (e.target.id === "dsQ") { S.ov.q = e.target.value; return paint(); }
+    if (e.target.id === "cuQ") { S.cu.q = e.target.value; return custFilter(); }
     var sd = e.target.dataset && e.target.dataset.sd;
     if (sd && S.stgD) { var sp_ = sd.split("."); if (S.stgD[sp_[0]]) S.stgD[sp_[0]][sp_[1]] = e.target.value; return; }
     var cmp = e.target.dataset && e.target.dataset.cmp;
@@ -2495,7 +2519,7 @@
     }).then(function () { S.form = null; S.customers = null; S.orders = null; DS.route(); }, function (er) { f.err = String(er); paint(); });
   }
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && (S.open || S.form) && document.getElementById("ds-modal")) closeAll(); });
-  if (C) { C.on("logout", function () { BOOT = null; S.orders = S.meta = S.customers = S.people = S.tasks = null; S.kp = S.cm = null; S.open = null; var m = document.getElementById("ds-modal"); if (m) m.innerHTML = ""; }); }
+  if (C) { C.on("logout", function () { BOOT = null; S.orders = S.meta = S.customers = S.people = S.tasks = null; S.cu.q = ""; S.kp = S.cm = null; S.open = null; var m = document.getElementById("ds-modal"); if (m) m.innerHTML = ""; }); }
   bootStart();
 })();
 if (location.hash === '' || location.hash === '#/' || /^#\/task\//.test(location.hash)) { setTimeout(function () { if (document.getElementById('tasks-app') && document.getElementById('tasks-app').style.display !== 'none') DS.route(); }, 0); }

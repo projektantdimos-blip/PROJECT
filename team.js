@@ -152,11 +152,11 @@
     if (r.kind === "task") return owner || ["design", "ops", "sales"].indexOf(pos) >= 0;
     return r.kind === "dm";
   }
-  function canPeople(r) {         /* добавить сотрудника в чат: канал (кроме «Общего») и чат задачи — руководитель, свой чат — ещё и создатель */
+  function canPeople(r) {         /* добавить сотрудника в чат: канал (кроме «Общего») и чат задачи — руководитель, операционный менеджер, руководитель продаж; свой чат — ещё и создатель */
     if (!C.me || !r) return false;
-    var owner = C.me.position === "owner" || C.me.role === "admin";
-    if (r.kind === "group") return owner || r.descr === "by:" + C.me.id;
-    return owner && (r.kind === "task" || (r.kind === "chan" && r.id !== "general"));
+    var lead = C.me.position === "owner" || C.me.role === "admin" || C.me.position === "ops" || C.me.position === "sales";
+    if (r.kind === "group") return lead || r.descr === "by:" + C.me.id;
+    return lead && (r.kind === "task" || (r.kind === "chan" && r.id !== "general"));
   }
   function noTask() { return !!(C.me && C.me.position === "norm" && !C.me.executor); }      /* нормативному специалисту карточка проекта открывается, только если он исполнитель проектов */
   function roomIcon(r) {
@@ -603,7 +603,7 @@
       }).catch(function (e) { $("gErr").textContent = String(e); });
     };
   }
-  /* «Участники»: руководитель (в своём чате — создатель) отмечает, кого добавить в чат — например, нормативного специалиста */
+  /* «Участники»: руководитель, операционный менеджер или руководитель продаж (в своём чате — и создатель) отмечает, кого добавить в чат — например, нормативного специалиста */
   function peopleDialog(room) {
     var grp = room.kind === "group";
     xmodal('<h3>Участники · ' + E(room.name) + '</h3><p class="x-sub">' + (grp ? "Отметьте, кто состоит в чате." : "Отмеченные сотрудники видят этот чат и пишут в него независимо от должности. Руководитель видит все чаты.")

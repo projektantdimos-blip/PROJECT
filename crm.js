@@ -86,13 +86,13 @@
   /* ---------- вход ---------- */
   C.init = function () {
     if (!tok() || !C.configured()) { emit("ready"); return Promise.resolve(); }
-    return C.call("/me").then(function (r) { C.me = r.user; C.prefs = r.prefs; C.bot = r.bot; startPolling(); emit("login", C.me); })
+    return C.call("/me").then(function (r) { C.me = r.user; C.prefs = r.prefs; C.bot = r.bot; C.maxBot = r.max_bot || ""; startPolling(); emit("login", C.me); })
       .catch(function () { /* сессия недействительна — просто не вошли */ }).then(function () { emit("ready"); });
   };
   C.login = function (name, pin) {
     return C.call("/auth/login", { auth: false, body: { name: name, pin: pin, tz: -new Date().getTimezoneOffset() } }).then(function (r) {
       setSession(r.token); C.me = r.user;
-      return C.call("/me").then(function (m) { C.prefs = m.prefs; C.bot = m.bot; startPolling(); emit("login", C.me); return C.me; });
+      return C.call("/me").then(function (m) { C.prefs = m.prefs; C.bot = m.bot; C.maxBot = m.max_bot || ""; startPolling(); emit("login", C.me); return C.me; });
     });
   };
   C.logout = function () {
