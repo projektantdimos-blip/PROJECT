@@ -114,9 +114,9 @@
       if (document.hidden || !C.loggedIn()) return;
       S.tick++;
       C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages?after=" + S.lastId).then(function (ms) {
-        if (addMsgs(ms)) { paintThread(true); C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/read", { body: {} }).then(function () { return loadRooms(); }); }
+        if (addMsgs(ms)) { paintPoll(); C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/read", { body: {} }).then(function () { return loadRooms(); }); }
         else if (S.tick % 4 === 0) loadRooms();
-        if (S.tick % 2 === 0) C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages").then(function (all) { var a = JSON.stringify(all.map(function (m) { return [m.id, m.reactions, m.read_by, m.text, m.edited]; })), b = JSON.stringify(S.msgs.map(function (m) { return [m.id, m.reactions, m.read_by, m.text, m.edited]; })); if (a !== b && (!all.length || all[all.length - 1].id <= S.lastId)) { S.msgs = all; S.lastId = all.length ? all[all.length - 1].id : S.lastId; paintThread(true); } }).catch(function () {});      // реакции, «прочитали» и удалённые сообщения
+        if (S.tick % 2 === 0) C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages").then(function (all) { var a = JSON.stringify(all.map(function (m) { return [m.id, m.reactions, m.read_by, m.text, m.edited]; })), b = JSON.stringify(S.msgs.map(function (m) { return [m.id, m.reactions, m.read_by, m.text, m.edited]; })); if (a !== b && (!all.length || all[all.length - 1].id <= S.lastId)) { S.msgs = all; S.lastId = all.length ? all[all.length - 1].id : S.lastId; paintPoll(); } }).catch(function () {});      // реакции, «прочитали» и удалённые сообщения
       }).catch(function () {});
     }, 4000);
   }
@@ -233,7 +233,7 @@
     var me = C.me && m.user === C.me.name, mine = m.acks && C.me && m.acks.indexOf(C.me.name) >= 0;
     var quote = m.reply ? '<div class="x-quote" data-goto="' + m.reply.id + '"><b>' + E(m.reply.user) + "</b><span>" + E(m.reply.text) + "</span></div>" : "";
     var rdinfo = S.selMsg === m.id && me ? '<div class="x-readinfo"><b>Прочитали:</b> ' + ((m.read_by || []).length ? E(m.read_by.join(", ")) : "пока никто") + ((m.unread_by || []).length ? "<br><b>Не прочитали:</b> " + E(m.unread_by.join(", ")) : "") + "</div>" : "";
-    var acts = rdinfo + (S.selMsg === m.id ? '<div class="x-macts"><button type="button" data-reply="' + m.id + '">↩ Ответить</button><button type="button" data-remindmsg="' + m.id + '" title="Напомнить мне про это сообщение">⏰</button>'
+    var acts = rdinfo + (S.selMsg === m.id ? '<div class="x-macts"><button type="button" data-reply="' + m.id + '">↩ Ответить</button><button type="button" data-copymsg="' + m.id + '" title="Скопировать текст сообщения">⧉ Копировать</button><button type="button" data-remindmsg="' + m.id + '" title="Напомнить мне про это сообщение">⏰</button>'
       + (me ? '<button type="button" data-editmsg="' + m.id + '">✎ Изменить</button>' : "")
       + (me ? '<button type="button" class="x-del" data-delmsg="' + m.id + '">' + (S.delAsk === m.id ? "Точно удалить?" : "🗑 Удалить") + "</button>" : "") + '<span class="x-rxpick">' + RX.map(function (e) { return '<button type="button" data-rx="' + m.id + '" data-e="' + e + '">' + e + "</button>"; }).join("") + "</span></div>" : "");
     return '<div class="x-msg ' + (m.urgent ? "urg " : "") + (me ? "me" : "") + (S.selMsg === m.id ? " sel" : "") + (acOn() ? " ac" : "") + '" data-m="' + m.id + '" id="m' + m.id + '" style="--ac:' + color(m.user) + '">' + ava(m.user, "sm") + '<div class="bd"><div class="nm">' + E(m.user) + "<small>" + when(m.ts) + '</small></div><div class="tx">' + quote
@@ -274,18 +274,28 @@
     if (e.target.closest("[data-noreply]")) { S.reply = null; paintThread(true); return; }
     var gq = e.target.closest("[data-goto]");
     if (gq) { var tgt = $("m" + gq.dataset.goto); if (tgt) { tgt.scrollIntoView({ block: "center" }); tgt.classList.add("flash"); setTimeout(function () { tgt.classList.remove("flash"); }, 1400); } return; }
+    var cpm = e.target.closest("[data-copymsg]");
+    if (cpm) { var m3 = msgById(cpm.dataset.copymsg); S.selMsg = 0; paintThread(true); if (m3) copyText(m3.text).then(function () { toast("Скопировано"); }); return; }
     if (e.target.closest("a,button,input,textarea,.x-file,.x-ack")) return;
     var mm = e.target.closest(".x-msg");
-    if (mm) { if (COARSE) return; var id = +mm.dataset.m; S.selMsg = S.selMsg === id ? 0 : id; paintThread(true); }
+    if (mm) { if (COARSE || selIn(mm)) return; var id = +mm.dataset.m; S.selMsg = S.selMsg === id ? 0 : id; paintThread(true); }      // выделили текст мышью — это не нажатие на сообщение
   });
+  /* пока в ленте выделен текст, фоновое обновление чат не перерисовывает (иначе выделение сбрасывается) — дорисуем, когда выделение снимут */
+  function selIn(node) { var s = window.getSelection && window.getSelection(); return !!(s && !s.isCollapsed && node && s.anchorNode && node.contains(s.anchorNode)); }
+  function paintPoll() { if (selIn(document.querySelector("#tThread .x-msgs"))) { S.paintLater = true; return; } paintThread(true); }
+  document.addEventListener("selectionchange", function () { if (S.paintLater && !selIn(document.querySelector("#tThread .x-msgs"))) { S.paintLater = false; paintThread(true); } });
   /* ---------- телефон: меню сообщения по долгому нажатию и меню «⋮» в шапке чата ---------- */
   var COARSE = !!(window.matchMedia && matchMedia("(pointer:coarse)").matches);
   function msgById(id) { return S.msgs.filter(function (x) { return x.id === +id; })[0]; }
   function roomNow() { return S.rooms.filter(function (r) { return r.id === S.cur; })[0]; }
   function closeCtx() { var c = $("xCtx"); if (c) c.remove(); var s = document.querySelector(".x-msg.ctx"); if (s) s.classList.remove("ctx"); }
-  function copyText(txt) {
-    try { if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(txt); } catch (e) {}
-    var a = document.createElement("textarea"); a.value = txt; document.body.appendChild(a); a.select(); try { document.execCommand("copy"); } catch (e) {} a.remove(); return Promise.resolve();
+  function copyText(txt) {                      // буфер обмена; если браузер не дал доступ — старым способом через скрытое поле
+    var old = function () { var a = document.createElement("textarea"); a.value = txt; document.body.appendChild(a); a.select(); try { document.execCommand("copy"); } catch (e) {} a.remove(); };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText)    // браузер может долго спрашивать разрешение — не ждём больше 0,8 с
+        return Promise.race([navigator.clipboard.writeText(txt), new Promise(function (ok, no) { setTimeout(no, 800); })]).then(null, old);
+    } catch (e) {}
+    old(); return Promise.resolve();
   }
   function rxRow(all) { return (all ? RX : RX.slice(0, 5)).map(function (e) { return '<button type="button" data-rx="' + e + '">' + e + "</button>"; }).join("") + (all ? "" : '<button type="button" class="more" data-more="1" aria-label="Все реакции">⌄</button>'); }
   function openCtx(mid, rect) {
@@ -708,12 +718,12 @@
   function renderMe() {
     var el = $("me-app"), sub = "Настройки уведомлений, профиль и доступ сотрудников";
     if (!gate(el, "Личный кабинет", sub, renderMe)) return;
-    var u = C.me, tabs = [["notif", "bell", "Уведомления"], ["colors", "chat", "Цвета в чатах"], ["info", "user", "Профиль"]].concat(window.DSCalls && (DSCalls.enabled || u.role === "admin") ? [["tel", "phone", "Телефония"]] : []).concat(u.role === "admin" ? [["staff", "users", "Сотрудники"]] : []);
+    var u = C.me, tabs = [["notif", "bell", "Уведомления"], ["colors", "chat", "Цвета в чатах"], ["info", "user", "Профиль"]].concat(window.DSCalls && (DSCalls.enabled || u.role === "admin") ? [["tel", "phone", "Телефония"]] : []).concat(u.role === "admin" ? [["staff", "users", "Сотрудники"]] : []).concat((u.role === "admin" || u.position === "owner") && window.DS && DS.botSettings ? [["maxbot", "chat", "MAX-бот"]] : []);
     el.innerHTML = head("Личный кабинет", sub) + '<div class="wrap"><div class="prof2">' + ava(u.name, "xl") + "<div><h2>" + E(u.name) + "</h2><p>" + (u.title ? E(u.title) + " · " : "") + (POS_TITLE[u.position] || (u.role === "admin" ? "Руководитель" : "Сотрудник")) + '</p><div class="pf-pills"><span>' + (u.tg ? "Telegram подключён" : "Telegram не подключён") + '</span><span>' + (u.max ? "MAX подключён" : "MAX не подключён") + '</span><span>' + (C.pushOn && C.pushOn() ? "Push включён" : "Push выключен") + '</span></div></div>' + '<div class="pf-stats"><div><b>' + ((C.sync || {}).notif_unread || 0) + '</b><small>новых уведомлений</small></div><div><b>' + ((C.sync || {}).team_unread || 0) + '</b><small>непрочитано в «Команде»</small></div><div><b>' + (((C.sync || {}).urgent || []).length) + '</b><small>срочных</small></div></div><button class="x-btn ghost" id="meOut">Выйти</button></div>'
       + '<div class="x-bar"><div class="x-seg" id="meTabs">' + tabs.map(function (t) { return '<button data-t="' + t[0] + '" class="' + (P.tab === t[0] ? "on" : "") + '">' + ic(t[1]) + t[2] + "</button>"; }).join("") + '</div></div><div id="meBody"></div></div>';
     $("meOut").onclick = function () { C.logout().then(renderMe); };
     $("meTabs").querySelectorAll("button").forEach(function (b) { b.onclick = function () { P.tab = b.dataset.t; renderMe(); }; });
-    if (P.tab === "notif") paintNotif(); else if (P.tab === "colors") paintColors(); else if (P.tab === "info") paintInfo2(); else if (P.tab === "tel" && window.DSCalls) DSCalls.paintMe($("meBody")); else paintStaff();
+    if (P.tab === "notif") paintNotif(); else if (P.tab === "colors") paintColors(); else if (P.tab === "info") paintInfo2(); else if (P.tab === "tel" && window.DSCalls) DSCalls.paintMe($("meBody")); else if (P.tab === "maxbot" && window.DS && DS.botSettings) DS.botSettings($("meBody")); else paintStaff();
   }
   function savePrefs(patch) { return C.call("/me/prefs", { body: patch }).then(function (p) { C.prefs = p; return p; }); }
   function paintNotif() {

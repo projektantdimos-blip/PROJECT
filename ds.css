@@ -992,19 +992,6 @@
   .x-acrow{grid-template-columns:1fr}
 }
 /* ---------- Телефония Sipuni (calls.js): карточка «Звонит …», кнопка 📞, журнал звонков ---------- */
-#dsCalls{position:fixed;right:16px;bottom:16px;z-index:9998;display:flex;flex-direction:column;gap:10px;width:min(360px,calc(100vw - 32px));pointer-events:none}
-.ds-call{pointer-events:auto;display:flex;align-items:flex-start;gap:12px;background:linear-gradient(135deg,#119a5b,#25c07a);color:#fff;border-radius:16px;padding:14px;box-shadow:0 12px 34px rgba(17,140,80,.5),0 0 0 2px rgba(255,255,255,.35);animation:dsAlertIn .35s cubic-bezier(.2,1.4,.4,1)}
-.ds-call.talk{background:linear-gradient(135deg,#1f6fe0,#2b9bf0);box-shadow:0 12px 34px rgba(20,90,200,.45),0 0 0 2px rgba(255,255,255,.35)}
-.ds-call .ci{font-size:1.6rem;flex:none;line-height:1}
-.ds-call:not(.talk) .ci{animation:dsRing 1s ease-in-out infinite}
-.ds-call .ct{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
-.ds-call .ct small{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;opacity:.85;font-weight:700}
-.ds-call .ct b{font-size:1.02rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ds-call .ct span{font-size:.86rem;opacity:.95}
-.ds-call .ca{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
-.ds-call .ca a{color:#fff;background:rgba(255,255,255,.22);border-radius:999px;padding:4px 10px;font-size:.82rem;font-weight:600;text-decoration:none}
-.ds-call>button{flex:none;background:rgba(255,255,255,.22);border:0;color:#fff;border-radius:50%;width:28px;height:28px;cursor:pointer}
-@keyframes dsRing{0%,100%{transform:rotate(0)}20%{transform:rotate(-14deg)}40%{transform:rotate(14deg)}60%{transform:rotate(-8deg)}80%{transform:rotate(8deg)}}
 .call-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin-left:8px;border-radius:50%;border:1px solid var(--line);background:var(--card);cursor:pointer;font-size:.9rem;vertical-align:middle;line-height:1}
 .call-btn:hover{background:var(--blue-l);border-color:var(--blue)}
 .call-btn:disabled{opacity:.5;cursor:default}
@@ -1028,8 +1015,26 @@
 .call-menu button:hover{background:var(--blue-l)}
 .call-menu small{color:var(--muted)}
 /* звонилка CRM (calls.js): окно звонка */
-#dsPhone{position:fixed;right:16px;bottom:16px;z-index:10000;width:min(340px,calc(100vw - 32px))}
+#dsPhone{position:fixed;right:16px;bottom:16px;z-index:10000;width:min(370px,calc(100vw - 32px))}
 .sp-win{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:18px;box-shadow:0 16px 40px rgba(0,0,0,.28);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.sp-top{display:flex;gap:12px;align-items:center;margin-top:2px}
+.sp-av{width:44px;height:44px;border-radius:50%;background:var(--blue-l);color:var(--blue);display:flex;align-items:center;justify-content:center;font-weight:700;flex:none}
+.sp-top .sp-who{flex:1;min-width:0}
+.sp-top .sp-who b{font-size:1.05rem}
+.sp-top .sp-who small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-top .sp-st{flex-direction:column;align-items:flex-end;gap:0;font-size:.8rem;text-align:right;flex:none}
+.sp-top .sp-t{font-size:1.35rem;line-height:1.1}
+.sp-ctx{border-top:1px solid var(--line);padding-top:8px;font-size:.84rem;line-height:1.45}
+.sp-ctx a{color:var(--blue);text-decoration:none}
+.sp-cap{color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;margin:4px 0 2px}
+.sp-prev{color:var(--muted);font-style:italic}
+.sp-lnk{background:none;border:0;padding:0;color:var(--blue);cursor:pointer;font:inherit}
+#spNote{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--ink);padding:8px 10px;font:inherit;font-size:.86rem;resize:vertical;min-height:52px}
+.sp-noterow{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+.sp-noterow select{border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--ink);padding:6px 8px}
+.sp-b.sm{flex:none;padding:7px 12px;font-size:.84rem}
+.sp-b:disabled{opacity:.6;cursor:default}
+.sp-win.min .sp-top .sp-who small{display:none}
 .sp-win.talk{border-color:var(--ok)}
 .sp-win.ringing-in{border-color:var(--ok);animation:dsAlertIn .35s cubic-bezier(.2,1.4,.4,1)}
 .sp-h{display:flex;align-items:center;justify-content:space-between;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
@@ -1047,7 +1052,6 @@
 .sp-b.no{background:var(--bad);border-color:var(--bad);color:#fff}
 .sp-win.min .sp-who small,.sp-win.min .sp-btns .sp-b:not(.no){display:none}
 .sp-win.min{padding:10px 12px;gap:4px}
-body.sp-call #dsCalls{display:none}
 @media (max-width:640px){#dsPhone{right:10px;left:10px;bottom:calc(76px + env(safe-area-inset-bottom));width:auto}}
 /* набор номера (calls.js): трубка у колокольчика и окно набора */
 .side .sbrand:has(.scall) .sbell{width:30px;height:30px;top:0;border-radius:10px}
@@ -1073,4 +1077,3 @@ body.sp-call #dsCalls{display:none}
 .dl-call{display:flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;background:var(--ok);color:#fff;font-weight:700;font-size:1rem;padding:12px;cursor:pointer}
 .dl-call:disabled{opacity:.45;cursor:default}
 @media (max-width:640px){.dl-bg{align-items:flex-end;padding:0}.dl-win{width:100%;border-radius:18px 18px 0 0;padding-bottom:calc(16px + env(safe-area-inset-bottom))}}
-@media (max-width:640px){#dsCalls{right:10px;left:10px;bottom:calc(76px + env(safe-area-inset-bottom));width:auto}}

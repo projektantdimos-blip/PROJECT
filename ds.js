@@ -750,7 +750,8 @@
     }
     var l = S.cth.list;
     if (!l) return "";
-    var add = '<button class="btn ghost sm" data-cthpick="' + o.id + '" title="Найти диалог Telegram, MAX или почты и привязать к заказчику задачи">＋ Привязать диалог</button>';
+    var add = '<button class="btn ghost sm" data-cthpick="' + o.id + '" title="Найти диалог Telegram, MAX или почты и привязать к заказчику задачи">＋ Привязать диалог</button>'
+      + '<button class="btn ghost sm" data-boto="' + o.id + '" data-botn="' + E(o.number || "") + '" title="Личная ссылка и QR на MAX-бота: заказчик переходит — диалог сам привязывается к задаче">Ссылка на MAX-бота</button>';
     if (!l.length) return '<div class="cchat"><span>Диалог с заказчиком не найден ни по привязке, ни по контактам</span>' + add + "</div>";
     return '<div class="cchat">' + l.slice(0, 3).map(function (t) {      // how — диалог найден по контактам заказчика, а не по привязке
       return '<span class="cth"><a class="btn primary sm" href="#/chat?t=' + encodeURIComponent(t.id) + '" title="' + E(t.title + (t.how ? " — найден " + t.how + ", не привязан" : " — привязан к заказчику")) + '">💬 Чат с заказчиком · ' + E(CH_NAME[t.channel] || t.channel) + "</a>"
@@ -798,6 +799,77 @@
     q.onkeydown = function (e) { if (e.key === "Enter" && rows[0]) { e.preventDefault(); close(); cthBind(oid, rows[0].id, rows[0].title); } };
     run(); q.focus();
   }
+  /* «Ссылка на MAX-бота»: личная ссылка https://max.ru/<бот>?start=<код> для заказчика или задачи (копируется сразу) и QR для КП и писем.
+     Заказчик открывает ссылку → бот получает код → диалог сам привязывается к заказчику. Писать первым бот не может — только отвечать. */
+  function botCopy(text, ok, quiet) {
+    var fail = function () { if (!quiet) prompt("Скопируйте ссылку:", text); };
+    try { if (navigator.clipboard) return navigator.clipboard.writeText(text).then(function () { toast(ok || "Ссылка скопирована"); }, fail); } catch (e) {}
+    fail();
+  }
+  function botPng(svg, name) {          // QR в PNG (для Word и писем SVG подходит не везде)
+    var img = new Image(), size = 600;
+    img.onload = function () {
+      var cv = document.createElement("canvas"); cv.width = cv.height = size;
+      var x = cv.getContext("2d"); x.imageSmoothingEnabled = false; x.drawImage(img, 0, 0, size, size);
+      var a = document.createElement("a"); a.href = cv.toDataURL("image/png"); a.download = name + ".png"; document.body.appendChild(a); a.click(); a.remove();
+    };
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  }
+  function botQrHtml(r, file) {
+    return '<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap"><div style="width:168px;height:168px;flex:none;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff">' + r.svg + "</div>"
+      + '<div style="flex:1;min-width:200px"><input readonly value="' + E(r.url) + '" onclick="this.select()" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;margin-bottom:10px">'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm" data-botcopy="1">Копировать ссылку</button><button class="btn ghost sm" data-botpng="' + E(file) + '">Скачать QR (PNG)</button><button class="btn ghost sm" data-botsvg="' + E(file) + '">QR (SVG)</button></div></div></div>';
+  }
+  function botWire(root, r) {
+    root.addEventListener("click", function (e) {
+      if (e.target.closest("[data-botcopy]")) botCopy(r.url);
+      var p = e.target.closest("[data-botpng]"); if (p) botPng(r.svg, p.getAttribute("data-botpng"));
+      var s = e.target.closest("[data-botsvg]");
+      if (s) { var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([r.svg], { type: "image/svg+xml" })); a.download = s.getAttribute("data-botsvg") + ".svg"; document.body.appendChild(a); a.click(); a.remove(); }
+    });
+  }
+  function botLinkModal(body, title) {
+    api("/maxbot/link", body).then(function (r) {
+      botCopy(r.url, "Ссылка на MAX-бота скопирована", true);      // после запроса браузер может не дать скопировать — тогда кнопкой
+      var host = document.createElement("div"), bg = document.createElement("div");
+      host.className = "ds"; host.appendChild(bg);
+      bg.className = "modal-bg"; bg.style.cssText = "align-items:center;justify-content:center;padding:16px;z-index:420";
+      var used = r.used ? "Уже подключались: " + r.used + " раз" + (r.last_name ? ", последний — " + E(r.last_name) : "") + (r.last_used ? ", " + new Date(r.last_used * 1000).toLocaleDateString("ru-RU") : "") : "По этой ссылке ещё никто не подключался";
+      bg.innerHTML = '<div class="modal" style="width:min(560px,100%);height:auto;max-height:90vh;border-radius:20px"><div class="m-head"><div class="row"><h2 style="font-size:1.15rem">Ссылка на MAX-бота · ' + E(title) + "</h2>"
+        + '<button class="x" data-botclose="1">✕</button></div><div style="color:var(--muted);margin-top:2px">Отправьте ссылку заказчику или вставьте QR в КП и письмо: когда он откроет ссылку и нажмёт «Начать», диалог сам привяжется к заказчику' + (body.order_id ? " и задаче" : "") + ".</div></div>"
+        + '<div class="m-body">' + botQrHtml(r, "MAX-бот " + r.code) + '<div class="note" style="margin-top:12px">' + used + ". Бот только отвечает: первым написать заказчику он не может, рассылки и уведомления о статусах через него запрещены правилами MAX.</div></div></div>";
+      document.body.appendChild(host);
+      var close = function () { host.remove(); document.removeEventListener("keydown", esc, true); };
+      var esc = function (e) { if (e.key === "Escape") { e.stopPropagation(); close(); } };
+      document.addEventListener("keydown", esc, true);
+      bg.addEventListener("click", function (e) { if (e.target === bg || e.target.closest("[data-botclose]")) close(); });
+      botWire(bg, r);
+    }, function (e) { toast(String(e)); });
+  }
+  /* Личный кабинет → «MAX-бот» (руководитель): общая ссылка и QR для подписи письма и сайта, текст приветствия */
+  DS.botSettings = function (el) {
+    el.innerHTML = '<div class="ds"><div class="panel pad">Загрузка…</div></div>';
+    api("/maxbot").then(function (r) {
+      el.innerHTML = '<div class="ds"><div class="panel pad"><h3>Общая ссылка на MAX-бота</h3><p class="sub">Для подписи письма, сайта и визиток. Кто перейдёт по ней, попадёт в «Заказчиков» без привязки — для конкретного заказчика берите личную ссылку в его карточке или в окне задачи.</p>'
+        + (r.url ? botQrHtml(r, "MAX-бот Проекты DS") : '<div class="err">MAX-бот не подключён на сервере или ещё не запустился</div>') + "</div>"
+        + '<div class="panel pad" style="margin-top:16px"><h3>Приветствие бота</h3><p class="sub">Бот отправляет его один раз — когда заказчик нажал «Начать» или впервые написал. Это ответ на действие заказчика; рассылки и уведомления о статусах через бота запрещены правилами MAX.</p>'
+        + '<textarea id="botGreet" rows="3" maxlength="1000" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:var(--surface);color:var(--ink);font:inherit"' + (r.can_edit ? "" : " disabled") + ">" + E(r.greeting) + "</textarea>"
+        + (r.can_edit ? '<div style="display:flex;gap:8px;margin-top:10px"><button class="btn primary sm" id="botGreetSave">Сохранить</button><button class="btn ghost sm" id="botGreetReset">Вернуть стандартный текст</button></div>' : '<p class="sub">Меняет руководитель.</p>') + "</div></div>";
+      if (r.url) botWire(el.firstChild, r);
+      var save = function (text) { api("/maxbot/greeting", { text: text }).then(function (x) { el.querySelector("#botGreet").value = x.greeting; toast("Приветствие сохранено"); }, function (e) { toast(String(e)); }); };
+      if (r.can_edit) {
+        el.querySelector("#botGreetSave").onclick = function () { save(el.querySelector("#botGreet").value); };
+        el.querySelector("#botGreetReset").onclick = function () { save(""); };
+      }
+    }, function (e) { el.innerHTML = '<div class="ds"><div class="panel pad"><div class="err">' + E(e) + "</div></div></div>"; });
+  };
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-botc],[data-boto]");
+    if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    if (b.hasAttribute("data-boto")) return botLinkModal({ order_id: +b.getAttribute("data-boto") }, "задача №" + b.getAttribute("data-botn"));
+    botLinkModal({ customer_id: +b.getAttribute("data-botc") }, b.getAttribute("data-botn") || "заказчик");
+  }, true);
   document.addEventListener("click", function (e) {
     var b = e.target.closest && e.target.closest("[data-cthpick],[data-cthbind],[data-cthunlink]");
     if (!b || !S.open) return;
@@ -1259,6 +1331,7 @@
       if (!TZ.some(function (z) { return z[0] === d.tz; }) && d.tz) tzOpts += '<option value="' + E(d.tz) + '" selected>' + E(d.tz) + "</option>";
       var jobs = (S.orders || []).filter(function (o) { return o.customer_id === d.id; });
       det = '<div class="panel pad"><h3>' + (d.id ? "Карточка заказчика" : "Новый заказчик") + "</h3>" + (d.id ? callBar(d.contacts, 0, d.id) : "")
+        + (d.id && ["owner", "sales", "ops"].indexOf(pos()) >= 0 ? '<button class="btn ghost sm" style="margin-top:10px" data-botc="' + d.id + '" data-botn="' + E(d.name) + '" title="Личная ссылка и QR на MAX-бота: заказчик переходит — диалог сам привязывается к нему">Ссылка на MAX-бота</button>' : "")
         + '<div class="fld" style="margin-top:12px"><label>Наименование компании</label><input data-cf="name" value="' + E(d.name) + '"' + ro + "></div>"
         + '<div class="fld"><label><input type="checkbox" data-cfchk="1" ' + (d.regular ? "checked" : "") + ro + "> Постоянный заказчик</label></div>"
         + "<h3 style=\"margin-top:14px\">Контактные лица</h3>"

@@ -247,6 +247,12 @@
     showSync();
     refreshPushBtn();
     el.msgs.onclick = function (e) {
+      var cp = e.target.closest ? e.target.closest("[data-cmcopy]") : null;
+      if (cp) {
+        var mc = st.msgs.filter(function (x) { return x.id === +cp.getAttribute("data-cmcopy"); })[0];
+        if (mc) copyTxt(mc.text).then(function () { cp.textContent = "✓ Скопировано"; setTimeout(function () { cp.textContent = "⧉ Копировать"; }, 1500); });
+        return;
+      }
       var b = e.target.closest ? e.target.closest(".cf") : null;
       if (b) openFile(b.getAttribute("data-fid"), b.getAttribute("data-name"), b.getAttribute("data-mime"));
       var ed = e.target.closest ? e.target.closest("[data-cmedit]") : null;
@@ -520,7 +526,19 @@
     return null;
   }
 
+  function copyTxt(txt) {                       // буфер обмена; если браузер не дал доступ — старым способом через скрытое поле
+    var old = function () { var a = document.createElement("textarea"); a.value = txt; document.body.appendChild(a); a.select(); try { document.execCommand("copy"); } catch (e) {} a.remove(); };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText)    // браузер может долго спрашивать разрешение — не ждём больше 0,8 с
+        return Promise.race([navigator.clipboard.writeText(txt), new Promise(function (ok, no) { setTimeout(no, 800); })]).then(null, old);
+    } catch (e) {}
+    old(); return Promise.resolve();
+  }
+  /* пока в переписке выделен текст, фоновое обновление её не перерисовывает (иначе выделение сбрасывается) — дорисуем, когда выделение снимут */
+  function selInMsgs() { var s = window.getSelection && window.getSelection(); return !!(s && !s.isCollapsed && el.msgs && s.anchorNode && el.msgs.contains(s.anchorNode)); }
+  document.addEventListener("selectionchange", function () { if (st.renderLater && !selInMsgs()) { st.renderLater = false; renderThread(true); } });
   function renderThread(keepScroll) {
+    if (keepScroll && selInMsgs()) { st.renderLater = true; return; }
     var t = curThread();
     el.wrap.classList.toggle("has-sel", !!t);
     el.text.disabled = el.send.disabled = !t || st.sending;
@@ -574,14 +592,16 @@
     var flip = flipOn() && t.channel === "mail";
     el.msgs.innerHTML = st.msgs.map(function (m) {
       var subj = m.subject ? '<div class="sj' + (flip && m.direction === "in" ? " sj-b" : "") + '">' + esc(m.subject) + "</div>" : "";
+      var copy = m.text ? '<button type="button" data-cmcopy="' + m.id + '" title="Скопировать текст сообщения">⧉ Копировать</button>' : "";
       if (flip && m.direction === "in") {
         // «перевёрнутое» письмо: подпись/ссылки сверху, затем текст, тема внизу
         return '<div class="cm in">' + esc(flipBlocks(m.text)) + filesHtml(m.files) + subj +
-          '<div class="mt">' + fmtFull(m.ts) + "</div></div>";
+          '<div class="mt">' + (copy ? '<span class="cm-acts">' + copy + "</span>" : "") + fmtFull(m.ts) + "</div></div>";
       }
       var acts = "", mail = t.channel === "mail";                // свои сообщения: исправить (Telegram, MAX) и удалить у заказчика; письмо — только скрыть в CRM
-      if (m.direction === "out") acts = '<span class="cm-acts">' + (mail ? "" : '<button type="button" data-cmedit="' + m.id + '">✎ Изменить</button>')
+      if (m.direction === "out") acts = '<span class="cm-acts">' + copy + (mail ? "" : '<button type="button" data-cmedit="' + m.id + '">✎ Изменить</button>')
         + '<button type="button" class="cm-del" data-cmdel="' + m.id + '" data-ask="' + (mail ? "Скрыть в CRM? У заказчика письмо останется" : "Точно удалить у заказчика?") + '">' + (mail ? "Скрыть" : "🗑 Удалить") + "</button></span>";
+      else if (copy) acts = '<span class="cm-acts">' + copy + "</span>";
       return '<div class="cm ' + (m.direction === "out" ? "out" : "in") + (st.edit && st.edit.id === m.id ? " cm-editing" : "") + '">' +
         subj + esc(m.text) + filesHtml(m.files) +
         '<div class="mt">' + acts + fmtFull(m.ts) + (m.edited ? " · изм." : "") + "</div></div>";
