@@ -80,6 +80,7 @@
 .ds .stp.done{--l:var(--ok);--r:var(--ok)}.ds .stp.cur{--l:var(--ok)}.ds .stp.done::after{background:var(--ok);border-color:var(--ok)}
 .ds .stp.cur::after{border-color:var(--brand);box-shadow:0 0 0 4px color-mix(in srgb,var(--brand) 25%,transparent)}
 .ds .stp.cur{color:var(--brand);font-weight:800}
+.ds .tzline{color:var(--muted);font-size:.86rem;margin-top:4px}.ds .tzline b{color:var(--ink)}
 .ds .m-body{padding:22px 26px 40px}
 .ds .next{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:16px 18px;border-radius:16px;background:linear-gradient(135deg,var(--brand-soft),var(--surface));border:1px solid var(--brand-2);margin-bottom:18px}
 .ds .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px}
@@ -735,10 +736,6 @@
 .ds .tbl.grid-c.kpt tr.hot td:first-child{box-shadow:inset 3px 0 0 var(--brand)}
 .ds .kpt .kpsum.post{color:var(--brand)}
 .ds .kpt .kplink{color:var(--brand);font-weight:700;text-decoration:underline;padding:0;font-size:inherit}
-.ds .kpt input.kpdate{display:block;margin-top:2px;width:122px;height:26px;padding:0 6px;border:1px dashed var(--line);border-radius:7px;background:transparent;color:var(--muted);font-size:.9em}
-.ds .kpt input.kpdate.on{border-style:solid;border-color:color-mix(in srgb,var(--ok) 45%,transparent);color:var(--ink)}
-.ds .kpt input.kpdate:focus{outline:0;border-color:var(--brand);border-style:solid}
-:root[data-theme="dark"] .ds .kpt input.kpdate{color-scheme:dark}
 /* «Оплачено»: спокойная бледно-зелёная плашка вместо яркой заливки */
 .ds .pill.paid,.ds .kpt select.paid{background:color-mix(in srgb,var(--ok) 14%,var(--surface))!important;color:color-mix(in srgb,var(--ok) 70%,var(--ink))!important;border:1px solid color-mix(in srgb,var(--ok) 38%,transparent)!important}
 :root[data-theme="dark"] .ds .pill.paid,:root[data-theme="dark"] .ds .kpt select.paid{background:color-mix(in srgb,var(--ok) 16%,var(--surface))!important;color:color-mix(in srgb,var(--ok) 65%,#fff)!important}

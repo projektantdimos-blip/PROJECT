@@ -26,7 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware      # noqa: E402
 
 from datetime import date, timedelta                                   # noqa: E402
 
-from app import config, crm_auth, crm_db, crm_routes, crm_sched, db, onec, sipuni, sipuni_routes, tg_bot, uploads, ds_orders, ds_reports, ds_routes, ds_auto   # noqa: E402
+from app import config, crm_auth, crm_db, crm_routes, crm_sched, db, max_bot, onec, sipuni, sipuni_routes, tg_bot, uploads, ds_orders, ds_reports, ds_routes, ds_auto   # noqa: E402
 
 
 # --- поддельный Telegram-бот: сообщения складываются в TG_LOG (смотреть на /dev/tg) ---
@@ -67,6 +67,24 @@ def fake_tg(method, payload):
     return {"ok": True}
 
 
+# --- поддельный MAX-бот: вызовы Bot API складываются в MAXBOT_LOG (смотреть на /dev/maxbot), сообщение заказчика — POST /dev/maxbot/in ---
+MAXBOT_LOG = []
+MAXBOT_STOPPED = {"9001"}          # кто остановил бота: им бот написать не может (как настоящий MAX — 403 chat.denied)
+
+
+def fake_maxbot(method, path, query, payload):
+    MAXBOT_LOG.append({"method": method, "path": path, **query, **({"payload": payload} if payload else {})})
+    if method == "POST" and path == "/messages" and str(query.get("user_id")) in MAXBOT_STOPPED:
+        raise max_bot.ApiError(403, "chat.denied", "chat.denied")
+    if method == "POST" and path == "/uploads":
+        return {"url": "https://fu.example/upload.do"}
+    if method == "UPLOAD":
+        return {"fileId": 1, "token": f"tok-{len(MAXBOT_LOG)}"}
+    if method == "POST" and path == "/messages":
+        return {"message": {"timestamp": int(time.time() * 1000), "body": {"mid": f"mid.dev{time.time_ns()}"}}}
+    return {"success": True}
+
+
 def seed():
     db.init()
     crm_db.init()
@@ -76,6 +94,7 @@ def seed():
     sipuni.init()
     crm_auth.bootstrap_admin()
     tg_bot._http = fake_tg
+    max_bot._http, max_bot.username = fake_maxbot, "proekty_ds_bot"
     config.TG_BOT_ENABLED = True
     config.ONEC_ODATA_URL, config.ONEC_ODATA_USER = "https://1c.demo/odata/standard.odata", "crm"
     onec._http_get = fake_1c
@@ -172,6 +191,34 @@ def dev_tg():
     return TG_LOG
 
 
+@app.get("/dev/maxbot")
+def dev_maxbot():
+    return MAXBOT_LOG
+
+
+@app.post("/dev/maxbot/in")
+async def dev_maxbot_in(request: Request):
+    """Заказчик пишет боту: {"user_id": 4242, "name": "Иван Петров", "text": "…"} — как событие message_created."""
+    b = await request.json()
+    uid = int(b.get("user_id") or 4242)
+    MAXBOT_STOPPED.discard(str(uid))
+    first, _, last = str(b.get("name") or "Иван Петров").partition(" ")
+    upd = {"update_type": "message_created", "message": {"sender": {"user_id": uid, "first_name": first, "last_name": last},
+           "recipient": {"chat_type": "dialog"}, "timestamp": int(time.time() * 1000), "body": {"mid": f"mid.in{time.time()}", "text": b.get("text", "")}}}
+    return {"result": max_bot.handle_update(upd)}
+
+
+@app.post("/dev/maxbot/start")
+async def dev_maxbot_start(request: Request):
+    """Заказчик открыл ссылку на бота и нажал «Начать»: {"user_id": 4243, "name": "…", "payload": "DS…"} — событие bot_started."""
+    b = await request.json()
+    uid = int(b.get("user_id") or 4243)
+    MAXBOT_STOPPED.discard(str(uid))
+    first, _, last = str(b.get("name") or "Пётр Сидоров").partition(" ")
+    upd = {"update_type": "bot_started", "user": {"user_id": uid, "first_name": first, "last_name": last}, "payload": b.get("payload")}
+    return {"result": max_bot.handle_update(upd)}
+
+
 @app.get("/dev/sipuni")
 def dev_sipuni():
     return SIPUNI_LOG
@@ -211,6 +258,12 @@ def send_demo(tid: str, body: dict):
     th = db.get_thread(tid)
     if not th:
         raise HTTPException(404, "Переписка не найдена")
+    if th["channel"] == "maxbot":                         # MAX-бот — как в мосту, через max_bot (Bot API подменён)
+        try:
+            max_bot.send_customer(th["peer"], str(body.get("text", "")))
+        except max_bot.NotStarted as e:
+            raise HTTPException(409, str(e))
+        return {"ok": True}
     db.add_message(th["channel"], th["peer"], "", f"out-{time.time()}", "out", "Вы", "", str(body.get("text", "")), time.time(), False)
     return {"ok": True}
 
@@ -227,6 +280,12 @@ def send_file_demo(tid: str, body: dict, user=Depends(crm_auth.ext_thread)):
     else:
         data = base64.b64decode(body.get("data", ""))
         name, size = body.get("filename"), len(data)
+    if th["channel"] == "maxbot":
+        try:
+            max_bot.send_file_customer(th["peer"], str(body.get("text", "")), name, data if not body.get("upload") else b"(dev)", body.get("mime") or "application/pdf")
+        except max_bot.NotStarted as e:
+            raise HTTPException(409, str(e))
+        return {"ok": True, "file": True}
     db.add_message(th["channel"], th["peer"], "", f"outf-{time.time()}", "out", "Вы", "", f"[файл {name} {size} байт] " + str(body.get("text", "")), time.time(), False)
     return {"ok": True, "file": True}
 

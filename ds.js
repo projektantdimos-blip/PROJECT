@@ -407,7 +407,7 @@
       + inp("Объект", "object")
       + '<div class="g2f">' + inp("Сумма, ₽", "amount", "number", 'min="0"') + inp("Аванс, ₽", "adv_sum", "number", 'min="0"') + "</div>"
       + '<div class="note" id="keRest" style="margin:-4px 0 10px">' + keRest(e) + "</div>"
-      + (+e.adv_sum > 0 ? inp("Дата оплаты аванса <small style=\"color:var(--muted);text-transform:none\">(пусто — аванс ещё не пришёл)</small>", "adv_date", "date") : "")
+      + (+e.adv_sum > 0 ? inp("Дата оплаты аванса <small style=\"color:var(--muted);text-transform:none\">(пусто — аванс ещё не пришёл" + (+e.order_id ? "" : "; с датой КП станет «Оплачено» и создастся задача") + ")</small>", "adv_date", "date") : "")
       + '<div class="fld"><label>Условия оплаты текстом</label><textarea rows="2" data-ke="pay_text">' + E(e.pay_text || "") + "</textarea></div>"
       + '<div class="g2f">' + inp("Дата выставления КП", "issued_date", "date") + '<div class="fld"><label>Менеджер</label><select data-ke="manager_id"><option value="0">—</option>' + mg.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +e.manager_id ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div></div>"
       + '<div class="fld"><label>Статус</label><select data-ke="status"' + (locked ? " disabled" : "") + ">" + KP_MANUAL.map(function (s) { return '<option value="' + E(s) + '"' + (s === e.status ? " selected" : "") + ">" + E(s) + "</option>"; }).join("") + "</select>"
@@ -470,18 +470,6 @@
       if (t.dataset.ke === "customer_id" || t.dataset.ke === "order_id" || t.dataset.ke === "adv_sum") modalRoot().innerHTML = keHtml();
     }
   });
-  /* дата оплаты аванса прямо в графе «Аванс» реестра КП: сохраняется, когда поле теряет фокус (или по Enter) */
-  function kpAdvSave(t) {
-    if (!t.dataset || t.dataset.kpadv == null || t.value === t.dataset.v || t.dataset.busy) return;
-    if (t.value && !/^20\d\d-/.test(t.value)) { toast("Проверьте год в дате"); t.value = t.dataset.v; return; }
-    t.dataset.busy = "1"; var kid = +t.dataset.kpadv, k = (S.kp || []).filter(function (x) { return x.id === kid; })[0]; S.kpHot = kid;
-    act2(api("/kp/" + kid + "/edit", { adv_date: t.value }).then(loadKp).then(function () {
-      toast(t.value ? "Аванс отмечен оплаченным " + dmy(t.value) : "Отметка об оплате аванса снята");
-      if (k && k.order_id) { S.orders = null; S.tasks = null; return load(); }
-    }), false);
-  }
-  document.addEventListener("focusout", function (e) { if (e.target.dataset && e.target.dataset.kpadv != null) kpAdvSave(e.target); });
-  document.addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.dataset && e.target.dataset.kpadv != null) kpAdvSave(e.target); });
   /* контакт заказчика и новый заказчик прямо в конструкторе КП */
   function kcSave() {
     var f = S.kpf, n = f.nc; if (!n) return;
@@ -693,7 +681,7 @@
         : '<div class="phoneb bad"><b>⚠ Не указан сотовый телефон заказчика</b><small>Менеджер: заполните контактное лицо и номер в карточке заказчика — без него руководителю проектного отдела нельзя позвонить.</small><a class="btn primary sm" href="#/clients" style="text-decoration:none">Заполнить в карточке</a></div>';
       cust = '<div class="panel pad"><h3>Заказчик</h3>' + phoneB + '<div class="kv" style="margin-top:10px"><span>Компания</span><span><b>' + E(o.customer) + "</b>" + (cu && cu.regular ? ' <span class="pill ok">постоянный</span>' : "") + "</span></div>"
         + (cu && cu.contacts ? cu.contacts.map(function (x) { return '<div class="ctt" style="margin-top:10px"><b>' + E(x.fio) + "</b><small>" + E(x.pos || "должность не указана") + "</small><div>" + E(x.phone || "—") + callBtn(x.phone, o.id, o.customer_id) + "</div></div>"; }).join("") : "")
-        + (cu && cu.tz ? '<div class="kv"><span>Часовой пояс</span><span>' + E(cu.tz) + " · сейчас <b>" + nowIn(cu.tz) + "</b></span></div>" : "")
+        + (cu && cu.tz ? '<div class="kv"><span>Часовой пояс</span><span>' + E(tzLabel(cu.tz)) + " · сейчас <b>" + nowIn(cu.tz) + "</b></span></div>" : "")
         + (cu && cu.comment ? '<div class="note">📝 Комментарий менеджера: ' + E(cu.comment) + "</div>" : "") + "</div>";
     }
     var mon = "";
@@ -729,6 +717,8 @@
     }
     return b.length ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">' + b.join("") + "</div>" : "";
   }
+  /* часовой пояс заказчика в шапке задачи: когда ему удобно звонить */
+  function tzLine(o) { var cu = customerOf(o); return cu && cu.tz ? '<div class="tzline">🕒 ' + E(tzLabel(cu.tz)) + " · сейчас у заказчика <b>" + nowIn(cu.tz) + "</b></div>" : ""; }
   function nowIn(tz) { try { return new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: tz }); } catch (e) { return "—"; } }
   function logTab() {
     var h = S.history || [];
@@ -908,7 +898,7 @@
     var money_ = can("money") && o.amount != null;
     return '<div class="modal-bg" data-bg="1"><div class="modal"><div class="m-head"><div class="row"><h2>№' + E(o.number) + (o.customer ? " · " + E(o.customer) : "") + "</h2>"
       + (o.urgent ? '<span class="pill urg">⚡ Срочно</span>' : "") + (money_ ? (o.post_paid ? '<span class="pill ok">₽ Оплачено</span>' : '<span class="pill warn">₽ Не оплачено</span>') : "")
-      + '<button class="x" data-close="1">✕</button></div><div style="color:var(--muted);margin-top:2px">' + E(o.object) + "</div>" + taskCallHtml(o) + custChatHtml(o) + stepper(o) + "</div>"
+      + '<button class="x" data-close="1">✕</button></div><div style="color:var(--muted);margin-top:2px">' + E(o.object) + "</div>" + tzLine(o) + taskCallHtml(o) + custChatHtml(o) + stepper(o) + "</div>"
       + '<div class="m-body">' + nx + '<div class="tabs">' + tabs.map(function (t) { return '<button data-tab="' + t[0] + '" class="' + (S.tab === t[0] ? "on" : "") + '">' + t[1] + "</button>"; }).join("") + "</div>" + body + "</div></div></div>";
   }
   function formHtml() {
@@ -1063,7 +1053,7 @@
   function tmRepaint() { if (S.tm) modalRoot().innerHTML = tmWrap(); else paint(); }
   function tmWrap() {
     var o = S.oe; if (!o) return "";
-    return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:12px"><div class="modal tm"><div class="m-head"><div class="row"><div><h2 style="font-size:1.25rem">№' + E(o.number) + " · " + E(o.customer || "") + '</h2></div><button class="x" data-close="1">✕</button></div></div><div class="m-body tm-body">' + tmHtml() + "</div></div></div>";
+    return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:12px"><div class="modal tm"><div class="m-head"><div class="row"><div><h2 style="font-size:1.25rem">№' + E(o.number) + " · " + E(o.customer || "") + '</h2>' + tzLine(o) + '</div><button class="x" data-close="1">✕</button></div></div><div class="m-body tm-body">' + tmHtml() + "</div></div></div>";
   }
   function tmOpen(id) {
     var o = find(+id); if (!o) return;
@@ -1484,8 +1474,7 @@
       }).join("") + "</div></div>";
     function advTxt(k) {
       if (!k.has_adv) return '<span style="color:var(--muted)">постоплата</span>';
-      if (canEdit && k.status !== "Отказ") return money(k.adv_sum) + "<small>" + (k.adv_paid ? "оплачен" : "дата оплаты") + '</small><input type="date" class="kpdate' + (k.adv_paid ? " on" : "") + '" data-kpadv="' + k.id + '" data-v="' + E(k.adv_paid ? k.adv_date : "") + '" value="' + E(k.adv_paid ? k.adv_date : "") + '" title="Дата оплаты аванса: выберите дату и щёлкните мимо поля. Пусто — аванс ещё не пришёл">';
-      return money(k.adv_sum) + (k.adv_paid ? "<small>оплачен " + dmy(k.adv_date).slice(0, 5) + "</small>" : (k.order_id ? "<small>ждём</small>" : ""));
+      return money(k.adv_sum) + (k.adv_paid ? "<br>оплачен " + dmy(k.adv_date) : k.order_id ? '<br><span style="color:var(--muted)">ждём</span>' : "");      // дата правится в окне «Править» и в задаче
     }
     function payDays(k) { try { var d = JSON.parse(k.contract_data || "{}").pay_days; return d ? " · " + d + " раб. дн. после акта" : ""; } catch (er) { return ""; } }
     function postTxt(k) { if (!k.order_id && !k.post_sum) return "—"; return money(k.post_sum) + (k.post_paid ? "<small>оплачена " + dmy(k.post_date).slice(0, 5) + "</small>" : (k.order_id ? "<small>ждём</small>" : "")); }
