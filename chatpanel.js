@@ -36,8 +36,68 @@
     + ".dsp .card em{margin-left:auto;font-style:normal;font-weight:700;font-size:.8rem;color:var(--blue);white-space:nowrap}.dsp .card:hover{border-color:var(--brand-2)}.dsp .card>span{min-width:0}"
     + ".dsp .lnk{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:-2px 0 10px;font-size:.82rem;color:var(--ok)}.dsp .lnk b{font-weight:700}.dsp .lnk a{color:var(--blue);font-weight:600}.dsp .lnk a[data-sure]{color:var(--bad)}"
     + ".dsp .och{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}.dsp .och button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:2px 8px;font:inherit;font-size:.76rem;cursor:pointer}.dsp .och button:hover{border-color:var(--blue);color:var(--blue)}"
-    + ".dsp .dsp-find input{border-color:var(--brand-2)}";
+    + ".dsp .dsp-find input{border-color:var(--brand-2)}"
+    + ".cnotes{border:1px solid var(--line);border-radius:14px;padding:11px 13px;margin-top:12px;background:var(--surface-2,var(--surface))}.cnotes h5{margin:0 0 8px;font-size:.74rem;text-transform:uppercase;letter-spacing:1px;font-weight:800;color:var(--muted)}"
+    + ".cnotes textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:10px;padding:7px 9px;background:var(--surface);color:var(--ink);font:inherit;font-size:.88rem;resize:vertical;box-sizing:border-box}"
+    + ".cnotes .cn-row{display:flex;gap:6px;justify-content:flex-end;margin:6px 0 4px}.cnotes .cn-row button{padding:5px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}.cnotes .cn-row button.pri{background:var(--blue,#378ADD);border-color:transparent;color:#fff}"
+    + ".cnotes .cn{padding:8px 0;border-top:1px dashed var(--line)}.cnotes .cn-h{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;font-size:.78rem;color:var(--muted)}.cnotes .cn-h b{color:var(--ink);font-size:.84rem}.cnotes .cn-h i{font-style:normal}"
+    + ".cnotes .cn-h .cn-a{margin-left:auto;display:flex;gap:2px}.cnotes .cn-h .cn-a button{border:0;background:none;color:var(--muted);cursor:pointer;font:inherit;font-size:.78rem;padding:0 4px}.cnotes .cn-h .cn-a button:hover{color:var(--blue)}.cnotes .cn-h .cn-a button[data-sure]{color:var(--bad)}"
+    + ".cnotes .cn-t{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.9rem;margin-top:2px}.cnotes .cn-none{color:var(--muted);font-size:.84rem;padding:4px 0 0}.cnotes .cn-err{color:var(--bad);font-size:.82rem;font-weight:600}";
   document.head.appendChild(css);
+
+  /* «Комментарии» о заказчике: лента с автором, датой и временем. Добавляет любой, кто видит заказчика; править и удалять —
+     автор и руководитель. Запись «без автора» — прежний «Комментарий менеджера» из карточки. tid — диалог, из которого открыт заказчик. */
+  var noteDrafts = {};                // набранный, но не добавленный комментарий не теряется при перерисовке панели
+  D.notes = function (el, cid, tid) {
+    var ns = { items: null, edit: 0, sure: 0, err: "", draft: noteDrafts[cid] || "" }, q = tid ? "?tid=" + encodeURIComponent(tid) : "";
+    function when(ts) { var d = new Date(ts * 1000); return d.toLocaleDateString("ru-RU") + " " + d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }); }
+    function load() {
+      return api("/customers/" + cid + "/notes" + q).then(function (r) { ns.items = r.items; ns.err = ""; draw(); }, function (e) { ns.items = []; ns.err = String(e); draw(); });
+    }
+    function draw() {
+      if (!document.body.contains(el)) return;
+      var list = (ns.items || []).slice().reverse();          // новые сверху; запись «без автора» — самая старая, внизу
+      el.innerHTML = '<div class="cnotes"><h5>Комментарии' + (list.length ? " · " + list.length : "") + "</h5>"
+        + '<textarea id="cnNew" placeholder="Комментарий о заказчике: договорённости, особенности, кому звонить…">' + E(ns.draft) + "</textarea>"
+        + '<div class="cn-row"><button class="pri" id="cnAdd">Добавить</button></div>'
+        + (ns.err ? '<div class="cn-err">' + E(ns.err) + "</div>" : "")
+        + (ns.items === null ? '<div class="cn-none">Загрузка…</div>' : list.map(function (n) {
+          var ed = ns.edit === n.id + 1;
+          return '<div class="cn"><div class="cn-h"><b>' + (n.user_name ? E(n.user_name) : "без автора") + "</b><i>" + (n.ts ? when(n.ts) : "") + (n.edited ? " · изм. " + when(n.edited) : "")
+            + (n.legacy ? " · из карточки" : "") + "</i>"
+            + (n.can_edit && !ed ? '<span class="cn-a"><button data-ne="' + n.id + '" title="Изменить">✎</button><button data-nd="' + n.id + '"' + (ns.sure === n.id + 1 ? ' data-sure="1">Удалить?' : ' title="Удалить">✕') + "</button></span>" : "") + "</div>"
+            + (ed ? '<textarea id="cnEd">' + E(n.text) + '</textarea><div class="cn-row"><button data-nx="1">Отмена</button><button class="pri" data-ns="' + n.id + '">Сохранить</button></div>'
+              : '<div class="cn-t">' + E(n.text) + "</div>") + "</div>";
+        }).join("") + (list.length ? "" : '<div class="cn-none">Комментариев пока нет</div>')) + "</div>";
+      var nw = el.querySelector("#cnNew");
+      nw.oninput = function () { ns.draft = noteDrafts[cid] = nw.value; };
+      nw.onkeydown = function (e) { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); add(); } };
+      el.querySelector("#cnAdd").onclick = add;
+      el.querySelectorAll("[data-ne]").forEach(function (b) { b.onclick = function () { ns.edit = +b.dataset.ne + 1; ns.sure = 0; draw(); var t = el.querySelector("#cnEd"); if (t) t.focus(); }; });
+      el.querySelectorAll("[data-nx]").forEach(function (b) { b.onclick = function () { ns.edit = 0; draw(); }; });
+      el.querySelectorAll("[data-ns]").forEach(function (b) {
+        b.onclick = function () {
+          b.disabled = true;
+          api("/customers/" + cid + "/notes/" + b.dataset.ns, { text: el.querySelector("#cnEd").value, tid: tid || "" }).then(function () { ns.edit = 0; return load(); }, function (e) { b.disabled = false; ns.err = String(e); draw(); });
+        };
+      });
+      el.querySelectorAll("[data-nd]").forEach(function (b) {          // удаление — вторым нажатием в течение 4 с
+        b.onclick = function () {
+          var id = +b.dataset.nd;
+          if (ns.sure !== id + 1) { ns.sure = id + 1; draw(); setTimeout(function () { if (ns.sure === id + 1) { ns.sure = 0; draw(); } }, 4000); return; }
+          ns.sure = 0;
+          api("/customers/" + cid + "/notes/" + id + "/delete" + q, {}).then(load, function (e) { ns.err = String(e); draw(); });
+        };
+      });
+    }
+    function add() {
+      var text = (ns.draft || "").trim();
+      if (!text) { el.querySelector("#cnNew").focus(); return; }
+      el.querySelector("#cnAdd").disabled = true;
+      api("/customers/" + cid + "/notes", { text: text, tid: tid || "" }).then(function () { ns.draft = noteDrafts[cid] = ""; return load(); }, function (e) { ns.err = String(e); draw(); });
+    }
+    draw(); load();
+  };
 
   D.render = function (box, t, name) {
     var s = st(t);
@@ -152,7 +212,9 @@
             + (k.order_id && !norm() ? '<a class="x-btn ghost" href="#/task/' + k.order_id + '" style="text-decoration:none">Открыть</a>' : "") + "</div></div>";
         }).join("") + "</div>";
       }
-      if (norm()) { body.innerHTML = h; bindTasks(); return; }          /* нормативному специалисту — без проектов, КП и передачи по конвейеру */
+      if (!l.service) h += '<div id="dspNotes"></div>';            // «Комментарии» о заказчике (у общей карточки amoCRM — нет)
+      function notes() { if ($("dspNotes")) D.notes($("dspNotes"), c.id, t.id); }
+      if (norm()) { body.innerHTML = h; bindTasks(); notes(); return; }          /* нормативному специалисту — без проектов, КП и передачи по конвейеру */
       h += '<div class="pb pb-blue"><h5>В работе</h5>' + (l.orders.map(function (o) {
         return '<a class="pi" href="#/task/' + o.id + '"><b>№' + E(o.number) + " · " + E(o.object) + "</b><small>" + E(o.stage) + (o.system ? " · " + E(o.system) : "") + (o.executor ? " · " + E(o.executor) : "")
           + (o.left_days != null ? " · " + (o.left_days < 0 ? "просрочено " : "осталось ") + Math.abs(o.left_days) + " дн." : "") + "</small></a>";
@@ -166,6 +228,7 @@
       h += '<button class="x-btn ghost" id="dspHand" style="width:100%;justify-content:center;margin-top:6px">Передать специалисту…</button></div>';
       h += '<button class="x-btn primary" id="dspNewTask" style="width:100%;justify-content:center;margin-top:10px">+ Новая задача</button>';
       body.innerHTML = h;
+      notes();
       if (s.find) bindFind(t, s, function (p) { linkTo(box, t, name, s, p); });
       if ($("dspRelink")) $("dspRelink").onclick = function (e) { e.preventDefault(); s.find = true; s.sure = false; tabCustomer(body, t, name, s, box); $("dspQ").focus(); };
       if ($("dspFindX")) $("dspFindX").onclick = function (e) { e.preventDefault(); s.find = false; s.q = ""; tabCustomer(body, t, name, s, box); };

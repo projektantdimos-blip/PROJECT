@@ -19,7 +19,7 @@
     if (navigator.clipboard) navigator.clipboard.writeText(l).then(done, function () { prompt("Ссылка на бота MAX:", l); });
     else prompt("Ссылка на бота MAX:", l);
   }
-  var st = { threads: [], sel: null, msgs: [], filter: "all", q: "", err: "", built: false, sending: false, tick: 0 };
+  var st = { threads: [], sel: null, msgs: [], filter: "all", q: "", err: "", built: false, sending: false, tick: 0, files: [] };
   var el = {};
 
   function cfg() {
@@ -162,8 +162,14 @@
     ".ct:hover .udot:not(.on) i{border-color:var(--blue)}" +
     ".ct .asg{background:#fdf0e9;color:#c96a2c;border-radius:8px;padding:0 7px;font-size:.72rem;font-weight:700;line-height:20px;flex:none;white-space:nowrap}" +
     ".chat-wrap{position:relative}" +
-    ".chat-wrap.drop::after{content:\"Отпустите файл, чтобы прикрепить к ответу\";position:absolute;inset:0;display:grid;place-items:center;background:rgba(31,92,153,.12);border:3px dashed var(--blue);border-radius:12px;font-weight:700;color:var(--blue);z-index:5;pointer-events:none}" +
-    "#chatAssign:not(:empty){padding:7px 14px;background:var(--blue-l);border-bottom:1px solid var(--line);font-size:.84rem}" +
+    "#chat-app .chat-filebar{flex-wrap:wrap}.fchip{display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:2px 4px 2px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:.82rem}" +
+    ".fchip>i{font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}#chat-app #chatComposer .chat-filebar .fchip button,.fchip button{margin-left:0;height:auto;padding:0 4px;background:none;border:0;border-radius:6px;box-shadow:none;color:var(--muted);cursor:pointer;font:inherit;font-weight:400}.fsum{color:var(--muted);font-size:.8rem}" +
+    ".nm-files{border:1px dashed var(--line);border-radius:10px;padding:8px 10px;margin:0 0 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}.nm-files.drop{border-color:var(--blue);background:rgba(31,92,153,.1)}" +
+    ".nm-files .nm-att{padding:5px 12px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:9px;cursor:pointer;font:inherit;font-size:.86rem}" +
+    ".chat-wrap.drop::after{content:\"Отпустите файлы, чтобы прикрепить к ответу\";position:absolute;inset:0;display:grid;place-items:center;background:rgba(31,92,153,.12);border:3px dashed var(--blue);border-radius:12px;font-weight:700;color:var(--blue);z-index:5;pointer-events:none}" +
+    "#chatAssign:not(:empty){padding:7px 14px;background:var(--blue-l);border-bottom:1px solid var(--line);font-size:.84rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap}" +
+    "#chatAssign .as-tx{flex:1;min-width:0}#chatAssign .as-ok{border:0;background:#1f9d55;color:#fff;font:inherit;font-weight:700;padding:5px 14px;border-radius:10px;cursor:pointer;white-space:nowrap}" +
+    "#chatAssign .as-ok:hover{background:#178a49}#chatAssign .as-ok:disabled{opacity:.6;cursor:default}#chatAssign .as-done{color:#1f9d55;font-weight:700;white-space:nowrap}" +
     "#chatHead .hbtn.wide{width:auto;padding:0 10px;font-weight:600;font-size:.82rem;white-space:nowrap}" +
     /* метка привязки в шапке: к какому заказчику и задаче привязан диалог */
     "#chat-app #chatHead .chat-link{flex:0 1 auto;min-width:0;max-width:260px;display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:15px;border:1px solid var(--line);background:var(--card);color:var(--muted);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap}" +
@@ -196,7 +202,7 @@
         '<button type="button" id="chatRefresh" title="Обновить сейчас">⟳</button></span></div></div>' +
         '<div id="chatThreads"></div></aside>' +
         '<section class="chat-thread"><div id="chatHead"></div><div id="chatAssign"></div><div id="chatMsgs"></div>' +
-        '<div id="chatComposer"><div id="chatFileBar" class="chat-filebar" hidden></div><div id="chatEditBar" class="chat-filebar chat-editbar" hidden></div><button type="button" id="chatAttach" class="chat-attach" title="Прикрепить файл (до 50 МБ, письмом — до 25 МБ)">📎</button><input type="file" id="chatFile" hidden><button type="button" id="chatScripts" class="chat-attach" title="Скрипты: готовые тексты">📋</button><textarea id="chatText" placeholder="Ответ… (Ctrl+Enter — отправить)"></textarea><button id="chatSend">Отправить</button></div></section>' +
+        '<div id="chatComposer"><div id="chatFileBar" class="chat-filebar" hidden></div><div id="chatEditBar" class="chat-filebar chat-editbar" hidden></div><button type="button" id="chatAttach" class="chat-attach" title="Прикрепить файлы (каждый до 50 МБ; письмом — до 25 МБ все вместе)">📎</button><input type="file" id="chatFile" multiple hidden><button type="button" id="chatScripts" class="chat-attach" title="Скрипты: готовые тексты">📋</button><textarea id="chatText" placeholder="Ответ… (Ctrl+Enter — отправить)"></textarea><button id="chatSend">Отправить</button></div></section>' +
         '<aside class="chat-info" id="chatInfoPane"></aside>' +
       '</div>';
     el.banner = document.getElementById("chatBanner");
@@ -223,22 +229,20 @@
     el.wrap.addEventListener("dragleave", function (e) { if (!el.wrap.contains(e.relatedTarget)) el.wrap.classList.remove("drop"); });
     el.wrap.addEventListener("drop", function (e) {
       el.wrap.classList.remove("drop");
-      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      if (!f) return;
+      var fl = e.dataTransfer && e.dataTransfer.files;
+      if (!fl || !fl.length) return;
       e.preventDefault();
       if (!st.sel) { setErr("Сначала выберите диалог слева"); return; }
-      if (tooBig(f)) return;
-      st.file = f; showFileBar(); setErr("");
+      setErr(addFiles(fl, st.files)); showFileBar();
     });
     var fileIn = document.getElementById("chatFile");
     document.getElementById("chatAttach").onclick = function () { fileIn.click(); };
     fileIn.onchange = function () {
-      var f = fileIn.files && fileIn.files[0]; fileIn.value = "";
-      if (!f) return;
-      if (tooBig(f)) return;
-      st.file = f; showFileBar(); setErr("");
+      var fl = Array.prototype.slice.call(fileIn.files || []); fileIn.value = "";
+      if (!fl.length) return;
+      setErr(addFiles(fl, st.files)); showFileBar();
     };
-    el.fileBar.onclick = function (e) { if (e.target.getAttribute && e.target.getAttribute("data-x")) { st.file = null; showFileBar(); } };
+    el.fileBar.onclick = function (e) { var x = e.target.getAttribute && e.target.getAttribute("data-x"); if (x) { st.files.splice(+x, 1); showFileBar(); } };
     document.getElementById("chatRefresh").onclick = function () { refreshNow(); };
     document.getElementById("chatBotLink").onclick = function () { copyLink(this); };
     document.getElementById("chatNew").onclick = function () { newMessageDialog(); };
@@ -280,7 +284,7 @@
   function me() { return window.MPBC && MPBC.me ? MPBC.me : null; }
   function myPos() { var m = me(); return m ? (m.position || (m.role === "admin" ? "owner" : "")) : ""; }
   function lastAssign(tid) { for (var i = 0; i < st.assign.length; i++) if (st.assign[i].thread_id === tid) return st.assign[i]; return null; }
-  function myOpen() { var m = me(); return m ? st.assign.filter(function (a) { return a.to_id === m.id; }) : []; }
+  function myOpen() { var m = me(); return m ? st.assign.filter(function (a) { return a.to_id === m.id && !a.done; }) : []; }
   function assignPill(t) {
     var a = lastAssign(t.id);
     return a ? '<span class="asg" title="Передан: ' + esc(a.to_name) + (a.note ? " — " + esc(a.note) : "") + '">→ ' + esc(a.to_name) + "</span>" : "";
@@ -291,12 +295,21 @@
   }
   function renderAssign() {
     if (!el.assign) return;
-    var t = curThread(), a = t ? lastAssign(t.id) : null;
-    el.assign.innerHTML = a ? "Передан специалисту: <b>" + esc(a.to_name) + "</b>" + (a.by_name ? " · от " + esc(a.by_name) : "") + (a.note ? " · «" + esc(a.note) + "»" : "") : "";
+    var t = curThread(), a = t ? lastAssign(t.id) : null, m = me();
+    var can = a && !a.done && m && (a.to_id === m.id || crmOn() && /^(owner|sales|ops)$/.test(myPos()));
+    el.assign.innerHTML = a ? '<span class="as-tx">Передан специалисту: <b>' + esc(a.to_name) + "</b>" + (a.by_name ? " · от " + esc(a.by_name) : "") + (a.note ? " · «" + esc(a.note) + "»" : "") + "</span>"
+      + (a.done ? '<span class="as-done">✓ выполнено</span>' : can ? '<button type="button" class="as-ok" id="chatAsgDone" title="Отметить переданный диалог выполненным">✓ Готово</button>' : "") : "";
+    var b = document.getElementById("chatAsgDone");
+    if (b) b.onclick = function () {
+      b.disabled = true; b.textContent = "…";
+      api("/api/ds/handoff/" + a.id + "/done", { method: "POST" }).then(function () {
+        return loadAssign();
+      }).then(function () { if (window.__chatTasksRefresh) window.__chatTasksRefresh(); }, function (e) { b.disabled = false; b.textContent = "✓ Готово"; setErr(String(e)); });
+    };
   }
   function renderBox() {
     if (!el.box) return;
-    var n = myOpen().length;
+    var n = Object.keys(myOpen().reduce(function (s, a) { s[a.thread_id] = 1; return s; }, {})).length;      // диалог, переданный дважды, считаем один раз
     el.box.innerHTML = '<button data-b="all" class="' + (st.box === "all" ? "on" : "") + '">Все диалоги</button><button data-b="mine" class="' + (st.box === "mine" ? "on" : "") + '">Мне передали' + (n ? " · " + n : "") + "</button>";
     Array.prototype.forEach.call(el.box.querySelectorAll("button"), function (b) { b.onclick = function () { st.box = b.getAttribute("data-b"); renderBox(); renderThreads(); }; });
   }
@@ -368,7 +381,8 @@
           : '<div style="color:var(--bad);margin-top:6px">MAX-бот не подключён на сервере (MAX_BOT_TOKEN).</div>') + "</div>" +
       '<div id="nmFields"><label style="font-size:.8rem;color:var(--muted)" id="nmToL">E-mail получателя</label><input id="nmTo" placeholder="client@company.ru" style="' + fld + '">' +
       '<div id="nmSubW"><label style="font-size:.8rem;color:var(--muted)">Тема</label><input id="nmSub" placeholder="Тема письма" style="' + fld + '"></div>' +
-      '<label style="font-size:.8rem;color:var(--muted)">Сообщение</label><textarea id="nmText" rows="5" style="' + fld + '"></textarea></div>' +
+      '<label style="font-size:.8rem;color:var(--muted)">Сообщение</label><textarea id="nmText" rows="5" style="' + fld + '"></textarea>' +
+      '<div class="nm-files" id="nmFiles" title="Перетащите файлы сюда"></div><input type="file" id="nmFile" multiple hidden></div>' +
       '<div id="nmErr" style="color:var(--bad);min-height:18px"></div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px"><button id="nmCancel" style="padding:9px 16px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;cursor:pointer;font:inherit">Отмена</button>' +
       '<button id="nmGo" style="padding:9px 18px;border:0;background:var(--blue);color:#fff;border-radius:10px;cursor:pointer;font:inherit;font-weight:600">Отправить</button></div></div>';
     document.body.appendChild(bg);
@@ -384,14 +398,39 @@
       bg.querySelector("#nmToL").textContent = mail ? "E-mail получателя" : "Telegram: @имя или телефон +7…";
       bg.querySelector("#nmTo").placeholder = mail ? "client@company.ru" : "@username или +79991234567";
       bg.querySelector("#nmSubW").style.display = mail ? "" : "none";
+      drawFiles();
     };
+    /* файлы к первому письму (и к сообщению в Telegram — уйдут следом за текстом): «📎 Приложить» или перетаскивание в окно */
+    var files = [], fbox = bg.querySelector("#nmFiles"), fin = bg.querySelector("#nmFile"), nmErr = bg.querySelector("#nmErr");
+    function drawFiles() {
+      var mail = bg.querySelector("#nmCh").value === "mail", sz = filesSize(files);
+      fbox.innerHTML = '<button type="button" class="nm-att" id="nmAtt">📎 Приложить</button>' + fileChips(files)
+        + '<span class="fsum">' + (files.length ? (files.length > 1 ? nFiles(files.length) + ", " : "") + fmtSize(sz) + (mail && sz > MAIL_MB * 1048576 ? ' — <b style="color:var(--bad)">больше ' + MAIL_MB + " МБ для письма</b>" : "") : "или перетащите файлы сюда") + "</span>";
+      bg.querySelector("#nmAtt").onclick = function () { fin.click(); };
+    }
+    fin.onchange = function () { nmErr.textContent = addFiles(Array.prototype.slice.call(fin.files || []), files); fin.value = ""; drawFiles(); };
+    fbox.onclick = function (e) { var x = e.target.getAttribute && e.target.getAttribute("data-x"); if (x) { files.splice(+x, 1); drawFiles(); } };
+    var box = bg.firstChild;
+    box.addEventListener("dragover", function (e) { if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") >= 0) { e.preventDefault(); fbox.classList.add("drop"); } });
+    box.addEventListener("dragleave", function (e) { if (!box.contains(e.relatedTarget)) fbox.classList.remove("drop"); });
+    box.addEventListener("drop", function (e) {
+      fbox.classList.remove("drop");
+      var fl = e.dataTransfer && e.dataTransfer.files; if (!fl || !fl.length) return;
+      e.preventDefault(); nmErr.textContent = addFiles(fl, files); drawFiles();
+    });
+    drawFiles();
     bg.querySelector("#nmGo").onclick = function () {
       var btn = this, body = { channel: bg.querySelector("#nmCh").value, to: bg.querySelector("#nmTo").value, subject: bg.querySelector("#nmSub").value, text: bg.querySelector("#nmText").value };
-      btn.disabled = true; btn.textContent = "Отправка…";
-      api("/api/threads/new", { method: "POST", body: body }).then(function (r) {
+      var withFiles = files.length && (body.channel === "mail" || body.channel === "tg");
+      if (withFiles && body.channel === "mail" && filesSize(files) > MAIL_MB * 1048576) { nmErr.textContent = "Письмом можно отправить до " + MAIL_MB + " МБ вложений вместе — уберите часть файлов"; return; }
+      btn.disabled = true; btn.textContent = "Отправка…"; nmErr.textContent = "";
+      (withFiles ? uploadAll(files, function (p) { btn.textContent = "Загрузка " + p + "%"; }) : Promise.resolve([])).then(function (toks) {
+        if (toks.length) { body.uploads = toks; btn.textContent = "Отправка…"; }
+        return api("/api/threads/new", { method: "POST", body: body });
+      }).then(function (r) {
         close(); setErr("");
         return loadThreads().then(function () { if (r && r.id) openThread(r.id); });
-      }, function (e) { btn.disabled = false; btn.textContent = "Отправить"; bg.querySelector("#nmErr").textContent = String(e); });
+      }, function (e) { btn.disabled = false; btn.textContent = "Отправить"; nmErr.textContent = String(e); });
     };
   }
 
@@ -846,9 +885,10 @@
 
   function showFileBar() {
     if (!el.fileBar) return;
-    var f = st.file;
-    el.fileBar.hidden = !f;
-    el.fileBar.innerHTML = f ? '📄 ' + esc(f.name) + ' · ' + fmtSize(f.size) + ' <button type="button" data-x="1" title="Убрать">✕</button>' : "";
+    var fs = st.files, t = curThread(), sz = filesSize(fs);
+    el.fileBar.hidden = !fs.length;
+    el.fileBar.innerHTML = fs.length ? fileChips(fs) + (fs.length > 1 ? '<span class="fsum">' + nFiles(fs.length) + ", " + fmtSize(sz)
+      + (t && t.channel === "mail" ? " — уйдут одним письмом" : t && t.channel !== "mail" ? " — уйдут сообщениями подряд" : "") + "</span>" : "") : "";
   }
 
   /* правка своего сообщения: текст в окне ответа, «Отправить» сохраняет; ✕ — отмена, набранное до правки возвращается */
@@ -888,27 +928,47 @@
     }, function (e) { setErr(String(e)); renderThread(true); });
   }
 
-  function tooBig(f) {
-    var mb = (window.MPBC && MPBC.MAX_FILE_MB) || 50;
-    if (f.size > mb * 1024 * 1024) { setErr("Файл больше " + mb + " МБ"); return true; }
-    return false;
+  /* несколько файлов в одном сообщении: каждый до MAX_FILE_MB, в письме — до MAIL_MB все вместе (как на мосту) */
+  var MAIL_MB = 25, MAX_FILES = 20;
+  function addFiles(list, into) {                 // добавляет подходящие файлы в into; возвращает текст ошибки ("" — всё хорошо)
+    var mb = (window.MPBC && MPBC.MAX_FILE_MB) || 50, bad = [];
+    Array.prototype.forEach.call(list || [], function (f) {
+      if (f.size > mb * 1024 * 1024) bad.push(f.name);
+      else if (into.length < MAX_FILES) into.push(f);
+    });
+    return bad.length ? "Больше " + mb + " МБ, не добавлено: " + bad.join(", ") : into.length >= MAX_FILES ? "В одном сообщении — не больше " + MAX_FILES + " файлов" : "";
+  }
+  function nFiles(n) { var d = n % 10, h = n % 100; return n + (d === 1 && h !== 11 ? " файл" : d >= 2 && d <= 4 && (h < 10 || h >= 20) ? " файла" : " файлов"); }
+  function filesSize(a) { return a.reduce(function (s, f) { return s + (f.size || 0); }, 0); }
+  function fileChips(a) {
+    return a.map(function (f, i) { return '<span class="fchip">📄 <i title="' + esc(f.name) + '">' + esc(f.name) + "</i> · " + fmtSize(f.size) + ' <button type="button" data-x="' + i + '" title="Убрать">✕</button></span>'; }).join("");
+  }
+  function uploadAll(files, onP) {               // по очереди, общий процент по объёму → номера загрузок
+    var total = filesSize(files) || 1, done = 0, toks = [];
+    return files.reduce(function (p, f) {
+      return p.then(function () {
+        return MPBC.upload(f, f.name, function (pc) { onP(Math.min(99, Math.round((done + f.size * pc / 100) * 100 / total))); })
+          .then(function (up) { done += f.size; toks.push(up); });
+      });
+    }, Promise.resolve()).then(function () { return toks; });
   }
   function sendMsg() {
     if (st.edit) { if (st.edit.tid === st.sel) saveEdit(); else stopEdit(true); return; }
-    var t = curThread(), text = el.text.value.trim(), f = st.file;
-    if (!t || (!text && !f) || st.sending) return;
-    st.sending = true; el.send.disabled = true; el.send.textContent = "Отправка…";
-    if (f && t.channel === "mail" && f.size > 25 * 1024 * 1024) {
-      setErr("Письмом можно отправить файл до 25 МБ — этот отправьте через Telegram или MAX");
-      st.sending = false; el.send.disabled = false; el.send.textContent = "Отправить"; return;
+    var t = curThread(), text = el.text.value.trim(), fs = st.files.slice();
+    if (!t || (!text && !fs.length) || st.sending) return;
+    if (fs.length && t.channel === "mail" && filesSize(fs) > MAIL_MB * 1024 * 1024) {
+      setErr("Письмом можно отправить до " + MAIL_MB + " МБ вложений вместе — разделите на несколько писем или отправьте через Telegram или MAX");
+      return;
     }
-    var job = f
-      ? MPBC.upload(f, f.name, function (p) { el.send.textContent = p < 100 ? "Загрузка " + p + "%" : "Отправка…"; }).then(function (up) {
-          return api("/api/threads/" + encodeURIComponent(t.id) + "/send-file", { method: "POST", body: { text: text, filename: f.name, mime: f.type || "application/octet-stream", upload: up } });
+    st.sending = true; el.send.disabled = true; el.send.textContent = "Отправка…";
+    var job = fs.length
+      ? uploadAll(fs, function (p) { el.send.textContent = "Загрузка " + p + "%"; }).then(function (toks) {
+          el.send.textContent = "Отправка…";
+          return api("/api/threads/" + encodeURIComponent(t.id) + "/send-file", { method: "POST", body: { text: text, filename: "", uploads: toks } });
         })
       : api("/api/threads/" + encodeURIComponent(t.id) + "/send", { method: "POST", body: { text: text } });
     job.then(function (r) {
-      el.text.value = ""; if (el.grow) el.grow(); setErr(""); st.file = null; showFileBar();
+      el.text.value = ""; if (el.grow) el.grow(); setErr(""); st.files = []; showFileBar();
       if (st.draftKp) {                              // КП ушло заказчику: статус «КП отправлено» и дата общения
         var kid = st.draftKp; st.draftKp = 0;
         api("/api/ds/kp/" + kid + "/status", { method: "POST", body: { status: "КП отправлено" } }).then(null, function () {});
@@ -925,7 +985,7 @@
     if (!el.text) return;
     el.text.value = text || "";
     if (el.grow) el.grow();
-    st.file = file || null; showFileBar();
+    st.files = file ? [file] : []; showFileBar();
     st.draftKp = kpId || 0;
     el.text.focus();
     try { el.text.scrollTop = 0; } catch (e) {}
@@ -975,6 +1035,8 @@
   window.__subRouters = window.__subRouters || {};
   window.__subRouters.chat = onShow;
 
+  // передачи диалогов («Передан специалисту», «Мне передали») — сразу после входа, а не при следующем опросе
+  window.addEventListener("load", function () { if (window.MPBC && MPBC.on) { MPBC.on("login", loadAssign); MPBC.on("ready", loadAssign); } if (crmOn()) loadAssign(); });
   if (cfg().key) loadThreads();
   if (inChat()) onShow();
 })();

@@ -956,6 +956,8 @@
     fitKpWrap();
     if (kpPos) { var nw = el.querySelector(".kpwrap"); if (nw) { nw.scrollTop = kpPos[0]; nw.scrollLeft = kpPos[1]; } if (scrollY !== kpPos[2]) scrollTo(scrollX, kpPos[2]); }
     if (k === "load") fitLoadScroll();
+    var cn = k === "cust" && document.getElementById("cuNotes");
+    if (cn && window.MPBD && MPBD.notes) MPBD.notes(cn, +cn.getAttribute("data-cid"));
     var m = modalRoot();
     if (S.ke) { m.innerHTML = keHtml(); return; }
     if (S.tm) { m.innerHTML = tmWrap(); return; }
@@ -1337,7 +1339,8 @@
         + '<div class="fld"><label>Город <small style="color:var(--muted)">(введите любой — часовой пояс подставится сам)</small></label><input data-cfcity="1" list="cityDl" value="' + E(d.city || "") + '" placeholder="Например: Красноярск"' + ro + '><datalist id="cityDl">' + cityNames().map(function (n) { return '<option value="' + E(n) + '">'; }).join("") + '</datalist><div class="note" id="cuCityNote" style="margin-top:4px"></div></div>'
         + '<div class="tzres" id="cuTzRes">🕒 ' + E(tzLabel(d.tz)) + ' · сейчас у заказчика <b id="cuNow">' + nowIn(d.tz) + "</b></div>"
         + '<details class="tzman"' + (d.city && !cityZone(d.city) ? " open" : "") + "><summary>Выбрать часовой пояс вручную</summary><select data-cftz=\"1\" id=\"cuTz\"" + ro + ">" + tzOpts + "</select></details>"
-        + '<div class="fld"><label>Комментарий менеджера</label><textarea data-cf="comment"' + ro + ">" + E(d.comment || "") + "</textarea></div>"
+        + (d.id ? '<div id="cuNotes" data-cid="' + d.id + '"></div>'          // «Комментарии»: лента с автором и временем (chatpanel.js → MPBD.notes)
+          : '<div class="fld"><label>Комментарий</label><textarea data-cf="comment" placeholder="Появится в «Комментариях» с вашим именем"' + ro + ">" + E(d.comment || "") + "</textarea></div>")
         + (S.cu.err ? '<div class="err">' + E(S.cu.err) + "</div>" : "")
         + (canEdit ? '<button class="btn primary block" data-csave="1">Сохранить</button>' : "")
         + (d.id && (p === "owner" || p === "ops") ? '<button class="btn ghost block" data-cdelcust="1" style="margin-top:8px;color:var(--bad)">Удалить заказчика</button>' : "")
@@ -1379,13 +1382,15 @@
   function saveCustomer() {
     var d = S.cu.draft; if (!d) return;
     if (!(d.name || "").trim()) { S.cu.err = "Укажите наименование компании"; return paint(); }
-    var body = { name: d.name.trim(), regular: !!d.regular, tz: d.tz, city: d.city || "", comment: d.comment || "", contacts: (d.contacts || []).filter(function (c) { return c.fio || c.pos || c.phone || c.email; }) };
+    var body = { name: d.name.trim(), regular: !!d.regular, tz: d.tz, city: d.city || "", contacts: (d.contacts || []).filter(function (c) { return c.fio || c.pos || c.phone || c.email; }) };
+    var first = d.id ? "" : (d.comment || "").trim();          // комментарий нового заказчика — первой записью в «Комментарии», с автором
+    if (!d.id) body.comment = "";
     ["inn", "kpp", "address", "bank_name", "bik", "rs", "ks", "signer_fio", "signer_pos"].forEach(function (k) { if (d[k] !== undefined) body[k] = d[k]; });
     var p = d.id ? api("/customers/" + d.id, body) : api("/customers", body);
     p.then(function (r) {
       S.customers = null; S.orders = null;
       var keep = d.id || (r && r.id) || null;
-      return load().then(function () { S.cu.sel = keep; var c = (S.customers || []).filter(function (x) { return x.id === keep; })[0]; S.cu.draft = c ? JSON.parse(JSON.stringify(c)) : null; S.cu.err = ""; paint(); toast("Сохранено"); });
+      return (first && keep ? api("/customers/" + keep + "/notes", { text: first }).then(null, function (er) { toast(String(er)); }) : Promise.resolve()).then(load).then(function () { S.cu.sel = keep; var c = (S.customers || []).filter(function (x) { return x.id === keep; })[0]; S.cu.draft = c ? JSON.parse(JSON.stringify(c)) : null; S.cu.err = ""; paint(); toast("Сохранено"); });
     }, function (er) { S.cu.err = String(er); paint(); });
   }
 
