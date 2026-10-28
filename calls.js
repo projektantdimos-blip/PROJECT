@@ -93,15 +93,18 @@
     e.preventDefault(); e.stopPropagation();
     var pick = b.closest(".call-pick"); if (pick) pick.classList.remove("on");
     if (b.disabled) return;
-    var oid = +b.getAttribute("data-doid") || 0, cid = +b.getAttribute("data-dcid") || 0;
-    if (isPhone() && T.st && T.st.my_mobile) return cbCall(b.getAttribute("data-dial"), b.getAttribute("data-dwho") || "", oid, cid);   // с телефона — обычный звонок на свой мобильный
-    if (SP.ready) return SP.call(b.getAttribute("data-dial"), b.getAttribute("data-dwho") || "", oid, cid);   // звонилка CRM: говорим прямо здесь
-    b.disabled = true;
-    api("/dial", { phone: b.getAttribute("data-dial"), order_id: oid, customer_id: cid })
+    T.dial(b.getAttribute("data-dial"), b.getAttribute("data-dwho") || "", +b.getAttribute("data-doid") || 0, +b.getAttribute("data-dcid") || 0, b);
+  }, true);
+  /* звонок: с телефона — обычный звонок на свой мобильный; на компьютере — звонилка CRM; без неё — callback Sipuni (сначала звонит ваш телефон) */
+  T.dial = function (phone, who, oid, cid, btn) {
+    if (isPhone() && T.st && T.st.my_mobile) return cbCall(phone, who, oid, cid);
+    if (SP.ready) return SP.call(phone, who, oid, cid);
+    if (btn) btn.disabled = true;
+    api("/dial", { phone: phone, order_id: oid || 0, customer_id: cid || 0 })
       .then(function (r) { toast("Звоним " + r.phone + ": сначала зазвонит ваш телефон (вн. " + r.ext + "), снимите трубку — Sipuni соединит с заказчиком"); })
       .catch(function (err) { toast(String(err)); })
-      .then(function () { setTimeout(function () { b.disabled = false; }, 4000); });
-  }, true);
+      .then(function () { if (btn) setTimeout(function () { btn.disabled = false; }, 4000); });
+  };
 
   /* ---------- звонилка CRM: разговор прямо в браузере через шлюз (gateway/, Asterisk ↔ Sipuni) ----------
      Мост отдаёт адрес шлюза и пароль своей линии (/calls/softphone); без них «Позвонить» работает через callback Sipuni. */
@@ -260,6 +263,91 @@
     else if (a === "cbhang" && SP.cb_id) { api("/" + encodeURIComponent(SP.cb_id) + "/hangup", {}).catch(function (err) { toast(String(err)); }); }
   });
   window.addEventListener("beforeunload", function (e) { if (SP.cur) { e.preventDefault(); e.returnValue = "Идёт звонок"; } });
+
+
+  /* ---------- набор номера: трубка у колокольчика (на телефоне — в нижнем меню) ----------
+     Цифры или поиск заказчика по названию, контакту, телефону; без ввода — последние звонки. Звонит тем же путём, что «Позвонить заказчику». */
+  var PH_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>';
+  var DL = { open: false, q: "", pick: null, cust: null, recent: null };
+  function dialerButtons() {
+    var me = C.me || {}, p = me.position || (me.role === "admin" ? "owner" : ""), on = T.enabled && CALL_ROLES[p];
+    var brand = document.querySelector(".side .sbrand"), sb = $("scall");
+    if (on && brand && !sb) {
+      sb = document.createElement("button"); sb.id = "scall"; sb.className = "sbell scall"; sb.type = "button";
+      sb.title = "Набрать номер"; sb.setAttribute("aria-label", "Набрать номер"); sb.setAttribute("data-dialer", "1"); sb.innerHTML = PH_SVG;
+      brand.appendChild(sb);
+    } else if (!on && sb) sb.remove();
+    var bn = $("bottomnav"), mb = bn && bn.querySelector("[data-dialer]");
+    if (on && bn && !mb) {
+      mb = document.createElement("button"); mb.type = "button"; mb.setAttribute("data-dialer", "1"); mb.innerHTML = PH_SVG + "Звонок";
+      var more = bn.querySelector("[data-more]"); bn.insertBefore(mb, more || null);
+    } else if (!on && mb) mb.remove();
+  }
+  setInterval(dialerButtons, 1500);            // нижнее меню перерисовывается при каждом переходе — возвращаем кнопку
+  C.on("logout", function () { dialerClose(); dialerButtons(); });
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-dialer]");
+    if (b) { e.preventDefault(); e.stopPropagation(); DL.open ? dialerClose() : dialerOpen(); }
+  }, true);
+  function dialerOpen() {
+    DL.open = true; DL.q = ""; DL.pick = null;
+    var bg = document.createElement("div"); bg.id = "dsDial"; bg.className = "dl-bg";
+    bg.innerHTML = '<div class="dl-win" role="dialog" aria-label="Набор номера"><div class="dl-h"><b>Набор номера</b><button type="button" class="dl-x" data-dlx="1" aria-label="Закрыть">✕</button></div>'
+      + '<input id="dlNum" class="dl-num" type="text" inputmode="tel" autocomplete="off" placeholder="Номер или имя заказчика">'
+      + '<div class="dl-who" id="dlWho"></div><div class="dl-list" id="dlList"></div>'
+      + '<div class="dl-pad">' + ["1", "2", "3", "4", "5", "6", "7", "8", "9", "+", "0", "⌫"].map(function (k) { return '<button type="button" data-dlk="' + k + '">' + k + "</button>"; }).join("") + "</div>"
+      + '<button type="button" class="dl-call" id="dlCall" disabled>' + PH_SVG + 'Позвонить</button></div>';
+    document.body.appendChild(bg);
+    var inp = $("dlNum");
+    inp.addEventListener("input", function () { DL.q = inp.value; DL.pick = null; dialerPaint(); });
+    inp.addEventListener("keydown", function (e) { if (e.key === "Enter") dialerGo(); if (e.key === "Escape") dialerClose(); });
+    bg.addEventListener("click", function (e) {
+      if (e.target === bg || e.target.closest("[data-dlx]")) return dialerClose();
+      var k = e.target.closest("[data-dlk]");
+      if (k) { var v = k.getAttribute("data-dlk"); inp.value = v === "⌫" ? inp.value.slice(0, -1) : inp.value + v; DL.q = inp.value; DL.pick = null; dialerPaint(); return; }
+      var it = e.target.closest("[data-dli]");
+      if (it) { DL.pick = DL.items[+it.getAttribute("data-dli")]; inp.value = DL.pick.phone; DL.q = inp.value; dialerPaint(true); return; }
+      if (e.target.closest("#dlCall")) dialerGo();
+    });
+    if (!isPhone()) inp.focus();
+    if (!DL.cust) C.call("/../ds/customers").then(function (l) { DL.cust = l || []; dialerPaint(); }).catch(function () { DL.cust = []; });
+    api("").then(function (l) { DL.recent = l || []; dialerPaint(); }).catch(function () { DL.recent = []; });
+    dialerPaint();
+  }
+  function dialerClose() { DL.open = false; var b = $("dsDial"); if (b) b.remove(); }
+  function dg(x) { return String(x || "").replace(/\D/g, ""); }
+  function fold(x) { return String(x || "").toLowerCase().replace(/ё/g, "е"); }
+  function dialerPaint(keepList) {
+    if (!DL.open) return;
+    var q = DL.q.trim(), d = dg(q), items = [];
+    if (!q) {                                                    // последние звонки, по одному на номер
+      var seen = {};
+      (DL.recent || []).forEach(function (r) { var k = dg(r.phone).slice(-10); if (k && !seen[k] && items.length < 6) { seen[k] = 1; items.push({ phone: r.phone, who: r.who !== r.phone ? r.who : "", cid: r.customer_id, oid: r.order_id, note: (r.dir === "out" ? "↗ " : "↙ ") + hm(r.ts) }); } });
+    } else if (d.length >= 3 || (!d && q.length >= 2)) {         // заказчики: телефон контакта, название, ФИО
+      var f = fold(q);
+      (DL.cust || []).forEach(function (c) {
+        (c.contacts || []).forEach(function (x) {
+          var pd = dg(x.phone);
+          if (pd.length < 10 || items.length >= 6) return;
+          if ((d && pd.indexOf(d.length > 10 ? d.slice(-10) : d) >= 0) || (!d && (fold(c.name).indexOf(f) >= 0 || fold(x.fio).indexOf(f) >= 0)))
+            items.push({ phone: x.phone, who: [/^Контакты amoCRM/.test(c.name) ? "" : c.name, x.fio].filter(Boolean).join(" · "), cid: c.id, oid: 0, note: "" });   // общая карточка amoCRM — только ФИО
+        });
+      });
+    }
+    DL.items = items;
+    if (!keepList) $("dlList").innerHTML = items.length ? (q ? "" : '<small class="dl-cap">Последние звонки</small>') + items.map(function (x, i) {
+      return '<button type="button" class="dl-it" data-dli="' + i + '"><b>' + E(x.who || x.phone) + "</b><small>" + E((x.who ? x.phone : "") + (x.note ? "  " + x.note : "")) + "</small></button>";
+    }).join("") : (q && !d ? '<small class="dl-cap">Никого не нашли — введите номер цифрами</small>' : "");
+    var num = DL.pick ? dg(DL.pick.phone) : d;
+    $("dlWho").textContent = DL.pick && DL.pick.who ? DL.pick.who : "";
+    $("dlCall").disabled = num.length < 10;
+  }
+  function dialerGo() {
+    var p = DL.pick, phone = p ? p.phone : DL.q.trim();
+    if (dg(phone).length < 10) { toast("Введите номер полностью: +7 и 10 цифр"); return; }
+    dialerClose();
+    T.dial(phone, p ? p.who : "", p ? p.oid : 0, p ? p.cid : 0);
+  }
 
   /* ---------- журнал звонков в карточках ---------- */
   var cache = {};

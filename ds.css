@@ -71,11 +71,13 @@
 .ds .m-head .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .ds .m-head h2{font-size:1.4rem}
 .ds .x{margin-left:auto;width:40px;height:40px;border-radius:12px;border:1px solid var(--line);font-size:1.2rem}
-.ds .stepper{display:flex;gap:0;margin-top:16px;overflow-x:auto}
-.ds .stp{flex:1;min-width:104px;text-align:center;position:relative;padding-top:20px;font-size:.74rem;color:var(--muted);font-weight:600}
-.ds .stp::before{content:"";position:absolute;left:0;right:0;top:7px;height:4px;background:var(--line)}
-.ds .stp::after{content:"";position:absolute;left:50%;top:0;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:var(--surface);border:4px solid var(--line)}
-.ds .stp.done::before,.ds .stp.cur::before{background:var(--ok)}.ds .stp.done::after{background:var(--ok);border-color:var(--ok)}
+/* шкала стадий: линия каждой ячейки — две половины (к предыдущей и к следующей стадии), поэтому зелёная заканчивается ровно на текущем кружке */
+.ds .stepper{display:flex;gap:0;margin-top:16px;overflow-x:auto;padding:6px 0 2px;scrollbar-width:thin}
+.ds .stp{--l:var(--line);--r:var(--line);flex:1;min-width:104px;text-align:center;position:relative;padding:30px 1px 0;font-size:.74rem;line-height:1.2;color:var(--muted);font-weight:600;text-wrap:balance}
+.ds .stp::before{content:"";position:absolute;left:0;right:0;top:10px;height:4px;background:linear-gradient(90deg,var(--l) 50%,var(--r) 50%)}
+.ds .stp:first-child::before{left:50%;background:var(--r)}.ds .stp:last-child::before{right:50%;background:var(--l)}
+.ds .stp::after{content:"";position:absolute;left:50%;top:0;width:24px;height:24px;margin-left:-12px;border-radius:50%;background:var(--surface);border:4px solid var(--line);box-sizing:border-box}
+.ds .stp.done{--l:var(--ok);--r:var(--ok)}.ds .stp.cur{--l:var(--ok)}.ds .stp.done::after{background:var(--ok);border-color:var(--ok)}
 .ds .stp.cur::after{border-color:var(--brand);box-shadow:0 0 0 4px color-mix(in srgb,var(--brand) 25%,transparent)}
 .ds .stp.cur{color:var(--brand);font-weight:800}
 .ds .m-body{padding:22px 26px 40px}
@@ -728,6 +730,18 @@
 .ds .kpt thead th:nth-child(4),.ds .kpt thead th:nth-child(9){width:1%}
 .ds .kpt td.mg{white-space:normal!important;max-width:90px}
 .ds .kpt .kpsum{display:block;margin-top:3px;font-size:.88em;color:var(--warn,#b7791f);font-weight:700;white-space:nowrap}
+/* реестр КП: строка, с которой только что работали (контакт, статус, правка) — подсвечена, чтобы не потерять её после обновления */
+.ds .tbl.grid-c.kpt tr.hot td{background:color-mix(in srgb,var(--brand) 13%,var(--surface))}
+.ds .tbl.grid-c.kpt tr.hot td:first-child{box-shadow:inset 3px 0 0 var(--brand)}
+.ds .kpt .kpsum.post{color:var(--brand)}
+.ds .kpt .kplink{color:var(--brand);font-weight:700;text-decoration:underline;padding:0;font-size:inherit}
+.ds .kpt input.kpdate{display:block;margin-top:2px;width:122px;height:26px;padding:0 6px;border:1px dashed var(--line);border-radius:7px;background:transparent;color:var(--muted);font-size:.9em}
+.ds .kpt input.kpdate.on{border-style:solid;border-color:color-mix(in srgb,var(--ok) 45%,transparent);color:var(--ink)}
+.ds .kpt input.kpdate:focus{outline:0;border-color:var(--brand);border-style:solid}
+:root[data-theme="dark"] .ds .kpt input.kpdate{color-scheme:dark}
+/* «Оплачено»: спокойная бледно-зелёная плашка вместо яркой заливки */
+.ds .pill.paid,.ds .kpt select.paid{background:color-mix(in srgb,var(--ok) 14%,var(--surface))!important;color:color-mix(in srgb,var(--ok) 70%,var(--ink))!important;border:1px solid color-mix(in srgb,var(--ok) 38%,transparent)!important}
+:root[data-theme="dark"] .ds .pill.paid,:root[data-theme="dark"] .ds .kpt select.paid{background:color-mix(in srgb,var(--ok) 16%,var(--surface))!important;color:color-mix(in srgb,var(--ok) 65%,#fff)!important}
 .ds .kpfun{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .ds .kpfun .pill{height:auto;min-height:30px;padding:4px 14px;flex-direction:column;align-items:flex-start;justify-content:center;line-height:1.2}
 .ds .kpfun .pill small{font-weight:600;opacity:.85}
@@ -1035,4 +1049,28 @@
 .sp-win.min{padding:10px 12px;gap:4px}
 body.sp-call #dsCalls{display:none}
 @media (max-width:640px){#dsPhone{right:10px;left:10px;bottom:calc(76px + env(safe-area-inset-bottom));width:auto}}
+/* набор номера (calls.js): трубка у колокольчика и окно набора */
+.side .sbrand:has(.scall) .sbell{width:30px;height:30px;top:0;border-radius:10px}
+.side .sbrand:has(.scall) .sbell svg{width:17px;height:17px}
+.side .sbrand .sbell.scall{top:34px}
+.dl-bg{position:fixed;inset:0;z-index:9990;background:rgba(5,12,25,.45);display:flex;align-items:flex-start;justify-content:center;padding:70px 16px 16px}
+.dl-win{width:min(340px,100%);background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 44px rgba(0,0,0,.35);padding:14px 16px 16px;display:flex;flex-direction:column;gap:10px}
+.dl-h{display:flex;align-items:center;justify-content:space-between}
+.dl-h b{font-size:1.02rem}
+.dl-x{background:none;border:0;color:var(--muted);font-size:1.05rem;cursor:pointer;padding:4px 6px}
+.dl-num{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);color:var(--ink);padding:11px 12px;font-size:1.15rem;font-variant-numeric:tabular-nums}
+.dl-who{min-height:1em;color:var(--ok);font-size:.86rem;font-weight:600}
+.dl-who:empty{display:none}
+.dl-list{display:flex;flex-direction:column;gap:2px;max-height:210px;overflow:auto}
+.dl-list:empty{display:none}
+.dl-cap{color:var(--muted);font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;padding:2px 2px 4px}
+.dl-it{display:flex;flex-direction:column;align-items:flex-start;text-align:left;background:none;border:0;border-radius:10px;padding:7px 9px;color:var(--ink);cursor:pointer}
+.dl-it:hover{background:var(--blue-l)}
+.dl-it small{color:var(--muted)}
+.dl-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.dl-pad button{border:1px solid var(--line);background:var(--surface-2);color:var(--ink);border-radius:12px;padding:11px 0;font-size:1.15rem;font-weight:600;cursor:pointer}
+.dl-pad button:active{background:var(--blue-l)}
+.dl-call{display:flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;background:var(--ok);color:#fff;font-weight:700;font-size:1rem;padding:12px;cursor:pointer}
+.dl-call:disabled{opacity:.45;cursor:default}
+@media (max-width:640px){.dl-bg{align-items:flex-end;padding:0}.dl-win{width:100%;border-radius:18px 18px 0 0;padding-bottom:calc(16px + env(safe-area-inset-bottom))}}
 @media (max-width:640px){#dsCalls{right:10px;left:10px;bottom:calc(76px + env(safe-area-inset-bottom));width:auto}}
