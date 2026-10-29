@@ -216,7 +216,8 @@
     if (t.state !== "work") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':work">В работу</button>');
     if (t.state !== "wait") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':wait">Ждём ответа</button>');
     btns.push('<button class="btn ok sm" data-tstate="' + t.id + ':done">Выполнено</button>');
-    if (taskCtl() || (t.author_id && C && C.me && t.author_id === C.me.id)) btns.push('<button class="btn ghost sm" data-tedit="' + t.id + '" title="Править задачу">✎</button><button class="btn ghost sm" data-tdel="' + t.id + '" title="Удалить задачу" style="color:var(--bad)">🗑</button>');
+    if (taskCtl() || taskMine(t)) btns.push('<button class="btn ghost sm" data-tedit="' + t.id + '" title="Править задачу: название, срок, комментарий">✎</button>');
+    if (taskCtl() || taskAuthor(t)) btns.push('<button class="btn ghost sm" data-tdel="' + t.id + '" title="Удалить задачу" style="color:var(--bad)">🗑</button>');
     var proj = t.order_id && (pos() !== "norm" || !!find(t.order_id));      /* нормативному специалисту карточка проекта открывается, только если он её исполнитель */
     var openAttr = proj ? ' data-open="' + t.order_id + '" title="Открыть карточку задачи"' : (t.thread_id ? ' data-chatopen="' + E(t.thread_id) + '" title="Открыть диалог"' : "");
     return '<div class="task"' + openAttr + '><span class="stripe" style="--c:' + (tn === "bad" ? "var(--bad)" : tn === "warn" ? "var(--accent)" : "var(--org)") + '"></span><span class="body">'
@@ -274,7 +275,8 @@
     var acts = "";
     if (u.step === "a1" || u.step === "a2") acts += '<button class="cmb" data-lead="' + u.id + ':skip" title="Задача не требуется">Не требуется</button><button class="cmb on" data-lead="' + u.id + ':next">Дальше →</button>';
     acts += '<button class="cmb" data-tstate="' + u.id + ':done" title="Выполнено">✓</button>';
-    if (taskCtl()) acts += '<button class="cmb" data-tedit="' + u.id + '" title="Править">✎</button><button class="cmb" data-tdel="' + u.id + '" title="Удалить" style="color:var(--bad)">🗑</button>';
+    if (taskCtl() || taskMine(u)) acts += '<button class="cmb" data-tedit="' + u.id + '" title="Править">✎</button>';
+    if (taskCtl() || taskAuthor(u)) acts += '<button class="cmb" data-tdel="' + u.id + '" title="Удалить" style="color:var(--bad)">🗑</button>';
     return '<div class="ovr"><div class="ovl"><span class="num">' + (u.order_number ? "№" + E(u.order_number) : "—") + '</span><span class="cu" title="' + E(u.title) + '">' + E((u.title || "").replace(/:\s*№.*$/, "")) + '</span><span class="ob">' + E(u.object || u.note || "") + "</span>"
       + '<span class="ex">' + E(u.assignee || "") + '</span><span class="pill ' + tn + '">' + (u.due ? "до " + dmy(u.due).slice(0, 5) + " · " : "") + E(leftText(u.left_days)) + '</span><span class="lc">' + (u.author ? "от " + E(u.author) : "") + "</span>" + acts + "</div></div>";
   }
@@ -1020,6 +1022,12 @@
   /* ---------- полный контроль руководителя, операционного менеджера и руководителя продаж: правка и удаление ---------- */
   function fullCtl() { var p = pos(); return p === "owner" || p === "ops" || p === "sales"; }
   function taskCtl() { return fullCtl() || pos() === "design"; }
+  function taskAuthor(t) { return !!(t.author_id && C && C.me && t.author_id === C.me.id); }
+  function taskMine(t) {                           // своя: поставлена мной, мне или моей должности
+    if (taskAuthor(t)) return true;
+    if (!C || !C.me) return false;
+    return t.assignee_id ? t.assignee_id === C.me.id : !!(t.assignee_pos && t.assignee_pos === pos());
+  }
   var OE_FIELD = 'style="width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface);color:var(--ink);font:inherit"';
   function oeChk(label, key) { return '<label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" data-oech="' + key + '"' + (S.oe[key] ? " checked" : "") + "> " + label + "</label>"; }
   function canMenu() { return taskCtl(); }
@@ -1085,16 +1093,17 @@
     return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:16px"><div class="modal" style="width:min(520px,100%);height:auto;max-height:92vh;border-radius:20px">'
       + '<div class="m-head"><div class="row"><h2 style="font-size:1.2rem">Правка задачи</h2><button class="x" data-close="1">✕</button></div></div><div class="m-body">'
       + '<div class="fld"><label>Название</label><input data-te="title" value="' + E(n.title) + '" ' + OE_FIELD + "></div>"
-      + '<div class="fld"><label>Исполнитель</label><select data-te="assignee_id" ' + OE_FIELD + '><option value="0">— по роли —</option>' + users.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +n.assignee_id ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div>"
+      + '<div class="fld"><label>Исполнитель' + (n.canAssign ? "" : ' <small style="text-transform:none;font-weight:400">— сменить может руководитель или тот, кто поставил задачу</small>') + '</label><select data-te="assignee_id" ' + (n.canAssign ? "" : "disabled ") + OE_FIELD + '><option value="0">— по роли —</option>' + users.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +n.assignee_id ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div>"
       + '<div class="g2f"><div class="fld"><label>Срок</label><input type="date" data-te="due" value="' + E(n.due || "") + '" ' + OE_FIELD + '></div>'
       + '<div class="fld"><label>Состояние</label><select data-te="state" ' + OE_FIELD + ">" + [["new", "Новая"], ["work", "В работе"], ["wait", "Ждёт ответа"]].map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === n.state ? " selected" : "") + ">" + s[1] + "</option>"; }).join("") + "</select></div></div>"
       + '<div class="fld"><label>Комментарий</label><textarea rows="3" data-te="note" ' + OE_FIELD + ">" + E(n.note || "") + "</textarea></div>"
       + (n.err ? '<div class="err">' + E(n.err) + "</div>" : "")
-      + '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" data-tesave="1">Сохранить</button><button class="btn ghost" data-tdel="' + n.id + '" style="color:var(--bad)">Удалить задачу</button></div></div></div></div>';
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" data-tesave="1">Сохранить</button>' + (n.canDel ? '<button class="btn ghost" data-tdel="' + n.id + '" style="color:var(--bad)">Удалить задачу</button>' : "") + '</div></div></div></div>';
   }
   function teOpen(id) {
     var t = (S.tasks || []).filter(function (x) { return x.id === +id; })[0]; if (!t) return;
-    var go = function () { S.te = { id: t.id, title: t.title, assignee_id: t.assignee_id || 0, due: t.due || "", note: t.note || "", state: t.state === "done" ? "new" : (t.state || "new"), err: "" }; modalRoot().innerHTML = teHtml(); };
+    var go = function () { S.te = { id: t.id, title: t.title, assignee_id: t.assignee_id || 0, due: t.due || "", note: t.note || "", state: t.state === "done" ? "new" : (t.state || "new"), err: "",
+      canAssign: taskCtl() || taskAuthor(t), canDel: taskCtl() || taskAuthor(t) }; modalRoot().innerHTML = teHtml(); };
     if (S.assignable == null) api("/users/assignable").then(function (u) { S.assignable = u; go(); }, function () { S.assignable = []; go(); }); else go();
   }
   function teSave() {

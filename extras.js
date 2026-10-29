@@ -174,13 +174,40 @@
   }
   function taskLabel(row) { var o = (window.DS && DS.orders ? DS.orders() : []).filter(function (x) { return x.id === +row; })[0]; return o ? o.label : "Задача"; }
 
+  var myEdit = 0;                                  // какое напоминание сейчас правят
+  function opts(list, val) { return list.map(function (o) { return '<option value="' + o[0] + '"' + (String(o[0]) === String(val) ? " selected" : "") + ">" + o[1] + "</option>"; }).join(""); }
+  function todoEditHtml(x) {
+    return '<div class="x-todo x-todo-ed" data-id="' + x.id + '"><div class="bx">'
+      + '<input type="text" data-f="t" value="' + E(x.t) + '" maxlength="300" placeholder="Что нужно сделать">'
+      + '<div class="x-opts"><div class="x-opt"><label>Дата</label><input type="date" data-f="d" value="' + E(x.d || iso(today())) + '"></div>'
+      + '<div class="x-opt"><label>Время</label><input type="time" data-f="tm" value="' + E(x.tm || "09:00") + '"></div>'
+      + '<div class="x-opt"><label>Напомнить</label><select data-f="b">' + opts(BEFORE, x.b || 0) + "</select></div>"
+      + '<div class="x-opt"><label>Повтор</label><select data-f="rep">' + opts(REPS, x.rep || "") + "</select></div></div>"
+      + '<div class="x-ed-acts"><button class="x-btn primary" data-a="save">Сохранить</button><button class="x-btn ghost" data-a="cancel">Отмена</button></div></div></div>';
+  }
   function todoHtml(x) {
+    if (myEdit === x.id && !x.done) return todoEditHtml(x);
     var d = pd(x.d), over = d && d < today() && !x.done;
     return '<div class="x-todo ' + (x.done ? "done" : "") + '" data-id="' + x.id + '"><button class="ck" data-a="ck" title="Выполнено">' + ic("check") + '</button><div class="bx"><div class="tt">' + E(x.t) + '</div><div class="mt">'
       + '<span class="x-pill ' + (over ? "over" : "blue") + '">' + ic("bell") + (d ? when(d) : "без даты") + (x.tm ? ", " + E(x.tm) : "") + " · " + beforeLabel(x.b || 0) + "</span>"
       + (x.rep ? '<span class="x-pill">' + ic("repeat") + repLabel(x.rep) + "</span>" : "")
       + (x.task ? '<span class="x-pill acc" style="cursor:pointer" data-a="task">' + ic("tasks") + E(x.tl || taskLabel(x.task)) + "</span>" : "")
-      + (x.link ? '<span class="x-pill acc" style="cursor:pointer" data-a="lnk" title="Открыть диалог">' + ic("chat") + E(x.tl || "Открыть диалог") + "</span>" : "") + '</div></div><button class="del" data-a="del" title="Удалить">' + ic("trash") + "</button></div>";
+      + (x.link ? '<span class="x-pill acc" style="cursor:pointer" data-a="lnk" title="Открыть диалог">' + ic("chat") + E(x.tl || "Открыть диалог") + "</span>" : "") + "</div></div>"
+      + (x.done ? "" : '<button class="del" data-a="ed" title="Изменить текст, день и время">✎</button>') + '<button class="del" data-a="del" title="Удалить">' + ic("trash") + "</button></div>";
+  }
+  function saveEdit(x, r) {
+    var v = function (f) { return r.querySelector('[data-f="' + f + '"]').value; };
+    var t = v("t").trim(); if (!t) { r.querySelector('[data-f="t"]').focus(); return; }
+    var nx = { t: t, d: v("d") || iso(today()), tm: v("tm") || "09:00", b: +v("b") || 0, rep: v("rep") };
+    var f = fireAtLocal({ d: nx.d, tm: nx.tm, b: nx.b });
+    var btn = r.querySelector('[data-a="save"]'); btn.disabled = true;
+    var done = function () { myEdit = 0; paintMy(); X.badge(); toast("Напоминание изменено" + (f && f <= Date.now() ? " — сработает сразу" : "")); tick(); };
+    if (x.server) {
+      MPBC.call("/reminders/" + x.id + "/edit", { body: { title: nx.t, d: nx.d, tm: nx.tm, before: nx.b, fire_ts: f / 1000, rep: nx.rep, task_row: x.task || 0, task_label: x.tl || "", link: x.link || "" } })
+        .then(function () { return myLoad(); }).then(done).catch(function (e) { btn.disabled = false; toast(E(e)); });
+      return;
+    }
+    x.t = nx.t; x.d = nx.d; x.tm = nx.tm; x.b = nx.b; x.rep = nx.rep; x.fired = false; mySave(); done();
   }
   function paintMy() {
     if (window.DS && DS.ownsMy && DS.ownsMy() && !window.__myRem) return;
@@ -242,6 +269,13 @@
     body.querySelectorAll("#myWk div").forEach(function (b) { b.onclick = function () { mySel = (mySel === b.dataset.d) ? null : b.dataset.d; paintMy(); }; });
     body.querySelectorAll(".x-todo").forEach(function (r) {
       var x = myList().filter(function (z) { return z.id === +r.dataset.id; })[0]; if (!x) return;
+      if (r.classList.contains("x-todo-ed")) {                                   // открыта правка
+        r.querySelector('[data-a="save"]').onclick = function () { saveEdit(x, r); };
+        r.querySelector('[data-a="cancel"]').onclick = function () { myEdit = 0; paintMy(); };
+        r.querySelector('[data-f="t"]').onkeydown = function (e) { if (e.key === "Enter") saveEdit(x, r); if (e.key === "Escape") { myEdit = 0; paintMy(); } };
+        return;
+      }
+      var ed = r.querySelector('[data-a="ed"]'); if (ed) ed.onclick = function () { myEdit = x.id; paintMy(); var i = document.querySelector('.x-todo-ed [data-f="t"]'); if (i) { i.focus(); i.select(); } };
       r.querySelector('[data-a="ck"]').onclick = function () { var was = x.done; setDone(x, !was); if (!was) toast("Готово", function () { setDone(x, false); }); };
       r.querySelector('[data-a="del"]').onclick = function () {
         if (x.server) {

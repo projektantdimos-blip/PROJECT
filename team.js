@@ -249,7 +249,16 @@
   /* ответы и реакции: нажатие на сообщение показывает панель «Ответить» и реакции */
   document.addEventListener("click", function (e) {
     var th = e.target.closest ? e.target.closest("#tThread") : null; if (!th) return;
-    if (e.target.closest("[data-nopend]")) { if (S.pend && !S.pend.busy) { if (S.pend.url) URL.revokeObjectURL(S.pend.url); S.pend = null; paintThread(true); } return; }
+    var np = e.target.closest("[data-nopend]");
+    if (np) {                                                  /* ✕ у файла: убрать его из отправки */
+      if (S.pend && !S.pend.busy) {
+        var it = S.pend.items.splice(+np.dataset.nopend, 1)[0];
+        if (it && it.url) URL.revokeObjectURL(it.url);
+        if (!S.pend.items.length) S.pend = null;
+        paintThread(true);
+      }
+      return;
+    }
     var im = e.target.closest(".x-img"); if (im) { if (im.src) openLb(im.src, im.dataset.name || "фото"); return; }
     var em = e.target.closest("[data-editmsg]"); if (em) { S.selMsg = 0; startEdit(msgById(em.dataset.editmsg)); return; }
     if (e.target.closest("[data-noedit]")) { stopEdit(); return; }
@@ -384,9 +393,8 @@
       + '<div class="x-msgs">' + (body || '<span class="x-day">Здесь пока пусто — напишите первое сообщение</span>') + "</div>"
       + (S.editMsg ? '<div class="x-replybar x-editbar"><span>✎ <b>Изменение сообщения</b> — исправьте текст и нажмите «Отправить»</span><button type="button" data-noedit="1" aria-label="Отменить правку">✕</button></div>' : "")
       + (S.reply && !S.editMsg ? '<div class="x-replybar"><span>↩ <b>' + E(S.reply.user) + "</b>: " + E(S.reply.text) + '</span><button type="button" data-noreply="1" aria-label="Отменить ответ">✕</button></div>' : "")
-      + (S.pend ? '<div class="x-pend' + (S.pend.busy ? " busy" : "") + (S.pend.url ? " img" : "") + '">' + (S.pend.url ? "" : '<span class="pf">' + fileIcon(S.pend.name) + "</span>") + "<div><b>📎 " + E(S.pend.name) + "</b><small>" + (S.pend.busy ? (S.pend.pct != null && S.pend.pct < 100 ? "Загрузка " + S.pend.pct + "%" : "Отправляю…") : sizeTxt(S.pend.size) + " · можно добавить подпись и нажать «Отправить»") + '</small></div><button type="button" data-nopend="1" aria-label="Убрать файл">✕</button>'
-        + (S.pend.url ? '<img src="' + S.pend.url + '" alt="">' : "") + "</div>" : "")      /* фото: сверху имя файла, ниже картинка */
-      + '<div class="x-comp"><button class="x-btn ghost" id="tAtt" title="Прикрепить файл (до 50 МБ). Файл можно перетащить прямо в окно чата" style="padding:12px 13px">📎</button><input type="file" id="tFile" hidden><textarea id="tIn" rows="1" placeholder="' + (window.innerWidth <= 760 ? "Сообщение" : "Написать в «" + E(room.name) + "»… (@Имя — упомянуть)") + '" autocomplete="off"></textarea><button class="x-urgbtn ' + (S.urg ? "on" : "") + '" id="tUrg" title="Срочное: придёт всем участникам, даже в тихие часы">' + ic("flame") + 'Срочное</button><button class="x-btn primary" id="tSend" style="padding:12px 14px">' + ic("send") + "</button></div>";
+      + pendHtml()
+      + '<div class="x-comp"><button class="x-btn ghost" id="tAtt" title="Прикрепить файлы (каждый до 50 МБ, можно несколько сразу). Файлы можно перетащить прямо в окно чата" style="padding:12px 13px">📎</button><input type="file" id="tFile" multiple hidden><textarea id="tIn" rows="1" placeholder="' + (window.innerWidth <= 760 ? "Сообщение" : "Написать в «" + E(room.name) + "»… (@Имя — упомянуть)") + '" autocomplete="off"></textarea><button class="x-urgbtn ' + (S.urg ? "on" : "") + '" id="tUrg" title="Срочное: придёт всем участникам, даже в тихие часы">' + ic("flame") + 'Срочное</button><button class="x-btn primary" id="tSend" style="padding:12px 14px">' + ic("send") + "</button></div>";
     var m = el.querySelector(".x-msgs"); if (!keep || wasBottom) m.scrollTop = 1e6;
     var bk = el.querySelector("[data-back]"); if (bk) bk.onclick = function () { var ch = document.querySelector(".x-chat"); if (ch) ch.classList.remove("open"); };
     var ti = $("tIn"); ti.value = val;
@@ -397,11 +405,11 @@
     ti.onfocus = function () { setTimeout(function () { var mm = document.querySelector(".x-msgs"); if (mm) mm.scrollTop = 1e6; }, 350); };
     $("tSend").onclick = send;
     $("tAtt").onclick = function () { $("tFile").click(); };
-    $("tFile").onchange = function () { var f = this.files && this.files[0]; this.value = ""; if (f) setPending(f); };
-    ti.onpaste = function (e) { var fs = e.clipboardData && e.clipboardData.files; if (fs && fs[0]) { e.preventDefault(); setPending(fs[0]); } };
+    $("tFile").onchange = function () { var fs = [].slice.call(this.files || []); this.value = ""; if (fs.length) setPending(fs); };
+    ti.onpaste = function (e) { var fs = e.clipboardData && e.clipboardData.files; if (fs && fs[0]) { e.preventDefault(); setPending([].slice.call(fs)); } };
     el.ondragover = function (e) { if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") >= 0) { e.preventDefault(); el.classList.add("x-drop"); } };
     el.ondragleave = function (e) { if (!el.contains(e.relatedTarget)) el.classList.remove("x-drop"); };
-    el.ondrop = function (e) { el.classList.remove("x-drop"); var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) { e.preventDefault(); setPending(f); } };
+    el.ondrop = function (e) { el.classList.remove("x-drop"); var fs = e.dataTransfer && e.dataTransfer.files; if (fs && fs.length) { e.preventDefault(); setPending([].slice.call(fs)); } };
     el.querySelectorAll("[data-tfile]").forEach(function (b) {
       b.onclick = function () {
         C.blob("/crm/team/files/" + b.dataset.tfile).then(function (r) {
@@ -453,17 +461,36 @@
       else if (e.key === "Escape") close();
     }, true);
   }
-  /* вложения: файл сначала показывается над полем ввода (фото — картинкой), уходит вместе с подписью по «Отправить» */
-  function setPending(f) {
-    if (!f) return;
-    var isImg = /^image\//.test(f.type || "");
-    var mb = C.MAX_FILE_MB || 50;
-    if (!isImg && f.size > mb * 1024 * 1024) { toast("Файл больше " + mb + " МБ"); return; }
-    if (f.size > 2 * mb * 1024 * 1024) { toast("Файл слишком большой"); return; }      // большие фото уменьшаются перед отправкой
-    if (S.pend && S.pend.url) URL.revokeObjectURL(S.pend.url);
-    S.pend = { file: f, name: f.name || (isImg ? "фото.jpg" : "файл"), size: f.size, url: isImg ? URL.createObjectURL(f) : "", busy: false };
+  /* вложения: файлы сначала показываются над полем ввода (фото — картинкой), уходят одним сообщением вместе с подписью по «Отправить».
+     Можно выбрать или перетащить несколько сразу; лишний убирается крестиком */
+  var MAX_FILES = 20;
+  function nFiles(n) { var d = n % 10, h = n % 100; return n + (d === 1 && h !== 11 ? " файл" : d >= 2 && d <= 4 && (h < 10 || h >= 20) ? " файла" : " файлов"); }
+  function setPending(list) {
+    var mb = C.MAX_FILE_MB || 50, big = [];
+    if (S.pend && S.pend.busy) return;
+    var p = S.pend || { items: [], busy: false };
+    (list || []).forEach(function (f) {
+      var isImg = /^image\//.test(f.type || "");
+      if ((!isImg && f.size > mb * 1024 * 1024) || f.size > 2 * mb * 1024 * 1024) { big.push(f.name || "файл"); return; }      // большие фото уменьшаются перед отправкой
+      if (p.items.length >= MAX_FILES) return;
+      p.items.push({ file: f, name: f.name || (isImg ? "фото.jpg" : "файл"), size: f.size, url: isImg ? URL.createObjectURL(f) : "" });
+    });
+    if (big.length) toast("Больше " + mb + " МБ, не добавлено: " + big.join(", "));
+    if (p.items.length >= MAX_FILES && list.length > p.items.length) toast("В одном сообщении — не больше " + MAX_FILES + " файлов");
+    S.pend = p.items.length ? p : null;
     paintThread(true);
     var ti = $("tIn"); if (ti) ti.focus();
+  }
+  function pendHtml() {
+    var p = S.pend; if (!p) return "";
+    var one = p.items.length === 1, tot = p.items.reduce(function (s, x) { return s + x.size; }, 0);
+    var st = p.busy ? (p.pct != null && p.pct < 100 ? "Загрузка " + p.pct + "%" : "Отправляю…") : "";
+    return p.items.map(function (it, i) {
+      var big = one && it.url;                                  /* одно фото: сверху имя файла, ниже картинка; несколько — миниатюры */
+      return '<div class="x-pend' + (p.busy ? " busy" : "") + (big ? " img" : "") + '">' + (it.url ? (big ? "" : '<img src="' + it.url + '" alt="">') : '<span class="pf">' + fileIcon(it.name) + "</span>")
+        + "<div><b>📎 " + E(it.name) + "</b><small>" + (one ? (st || sizeTxt(it.size) + " · можно добавить подпись и нажать «Отправить»") : sizeTxt(it.size)) + "</small></div>"
+        + (p.busy ? "" : '<button type="button" data-nopend="' + i + '" aria-label="Убрать файл">✕</button>') + (big ? '<img src="' + it.url + '" alt="">' : "") + "</div>";
+    }).join("") + (one ? "" : '<div class="x-pend x-pendsum"><div><small>' + (st || nFiles(p.items.length) + " · " + sizeTxt(tot) + " · уйдут одним сообщением, можно добавить подпись") + "</small></div></div>");
   }
   function prepFile(f) {            /* большие фото уменьшаются до 1600 px: быстрее уходят */
     return new Promise(function (resolve) {
@@ -482,14 +509,19 @@
   function sendPending() {
     var p = S.pend; if (!p || p.busy) return;
     var i = $("tIn"), text = i ? i.value.trim() : "", room = S.cur, urgent = S.urg, reply = S.reply, last = S.lastId;
-    p.busy = true; paintThread(true);
-    prepFile(p.file).then(function (r) {
-      var bar = function (pct) { p.pct = pct; if (S.cur === room && S.pend === p) paintThread(true); };
-      return C.upload(r.blob, r.name, bar).then(function (up) {
-        return C.call("/team/rooms/" + encodeURIComponent(room) + "/send-file", { body: { text: text, filename: r.name, mime: r.blob.type || p.file.type || "application/octet-stream", upload: up, urgent: urgent, reply_to: reply ? reply.id : 0 } });
+    p.busy = true; p.pct = 0; paintThread(true);
+    var total = p.items.reduce(function (s, x) { return s + x.size; }, 0) || 1, done = 0, toks = [], first = null;
+    p.items.reduce(function (chain, it) {                    /* по очереди; общий процент — по объёму всех файлов */
+      return chain.then(function () { return prepFile(it.file); }).then(function (r) {
+        if (!first) first = r;
+        var bar = function (pct) { p.pct = Math.min(99, Math.round((done + it.size * pct / 100) * 100 / total)); if (S.cur === room && S.pend === p) paintThread(true); };
+        return C.upload(r.blob, r.name, bar).then(function (up) { done += it.size; toks.push(up); });
       });
+    }, Promise.resolve()).then(function () {
+      p.pct = 100; if (S.cur === room && S.pend === p) paintThread(true);
+      return C.call("/team/rooms/" + encodeURIComponent(room) + "/send-file", { body: { text: text, filename: first.name, mime: first.blob.type || "application/octet-stream", upload: toks[0], uploads: toks.slice(1), urgent: urgent, reply_to: reply ? reply.id : 0 } });
     }).then(function () {
-      if (S.pend === p) { if (p.url) URL.revokeObjectURL(p.url); S.pend = null; }
+      if (S.pend === p) { p.items.forEach(function (x) { if (x.url) URL.revokeObjectURL(x.url); }); S.pend = null; }
       S.urg = false; S.reply = null; S.drafts[room] = ""; if ($("tIn")) $("tIn").value = "";
       return C.call("/team/rooms/" + encodeURIComponent(room) + "/messages?after=" + last);
     }).then(function (ms) { if (S.cur === room) { addMsgs(ms); paintThread(); } loadRooms(); })
