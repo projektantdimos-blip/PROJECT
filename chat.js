@@ -194,6 +194,16 @@
     ".ml-subj{font-size:.82rem;color:var(--muted);margin-bottom:4px}.ml-text{white-space:pre-wrap}.ml-sig{display:block;margin:8px 0 2px}" +
     ".ml-re{display:inline-flex;gap:4px;margin:2px 0 8px;padding:3px 9px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:.8rem;cursor:pointer}" +
     ".ml-quote{border-left:2px solid var(--line);padding:4px 10px;margin:4px 0 8px;color:var(--muted);font-size:.85rem;white-space:pre-wrap}.ml-flash{box-shadow:0 0 0 2px var(--blue)}" +
+    ".ml-card .fl{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}" +          /* вложения письма — плашки как в мессенджерах */
+    ".ml-card .cf{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:10px;align-items:center;max-width:300px;padding:7px 12px 7px 9px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit;text-align:left;cursor:pointer;transition:.12s}" +
+    ".ml-card .cf:hover{border-color:var(--blue);box-shadow:0 4px 12px rgba(31,92,153,.14)}" +
+    ".ml-card .cf .ti{grid-row:span 2;display:grid;place-items:center;width:30px;height:34px}.ml-card .cf .ti svg{width:30px;height:34px}" +
+    ".ml-card .cf.img .ti{width:44px;height:44px;border-radius:8px;overflow:hidden;background:var(--bg)}.ml-card .cf.img .ti img{width:44px;height:44px;object-fit:cover}" +
+    ".ml-card .cf .tn{display:block;font-size:.84rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}" +
+    ".ml-card .cf .sz{display:block;font-size:.72rem;color:var(--muted)}" +
+    ".ml-card .cm-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}" +
+    ".ml-card .cm-acts button{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--muted);font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;transition:.15s}" +
+    ".ml-card .cm-acts button:hover{color:var(--blue);border-color:var(--blue)}.ml-card .cm-acts .cm-del:hover,.ml-card .cm-acts .cm-del[data-sure]{color:var(--bad);border-color:var(--bad)}" +
     "#chatMailHint{padding:6px 12px;font-size:.8rem;color:var(--muted);border-top:1px solid var(--line)}" +
     "body.chat-fs #chat-app .chat-tools[data-title]::before{content:attr(data-title)!important}";
   document.head.appendChild(css3);
@@ -212,7 +222,8 @@
     "@media(min-width:761px){" +
       "#chat-app #chatMsgs{gap:2px;padding:14px 22px}" +
       "#chat-app .cm{max-width:min(620px,70%);padding:7px 12px 6px;font-size:15px;line-height:1.45;box-shadow:none}" +
-      "#chat-app .cm.in{background:var(--card);border:1px solid var(--line)}#chat-app .cm.out{background:var(--blue-l);border:1px solid transparent}" +
+      "#chat-app .cm.in{background:var(--card);border:1px solid var(--line)}#chat-app .cm.out{background:var(--blue-l);border:1px solid transparent;color:var(--ink)}" +
+      "#chat-app .cm.out .sj,#chat-app .cm.out .mt{color:var(--muted)}#chat-app .cm.out .cf{background:var(--card);border-color:var(--line);color:var(--blue)}" +      /* тема красит своё в белый текст на синем — у нас светлый пузырь */
       "#chat-app .cm.g-one,#chat-app .cm.g-first{margin-top:8px}" +
       "#chat-app .cm.in.g-one{border-radius:16px 16px 16px 5px}#chat-app .cm.in.g-first{border-radius:16px 16px 16px 6px}#chat-app .cm.in.g-mid{border-radius:6px 16px 16px 6px}#chat-app .cm.in.g-last{border-radius:6px 16px 16px 5px}" +
       "#chat-app .cm.out.g-one{border-radius:16px 16px 5px 16px}#chat-app .cm.out.g-first{border-radius:16px 16px 6px 16px}#chat-app .cm.out.g-mid{border-radius:16px 6px 6px 16px}#chat-app .cm.out.g-last{border-radius:16px 6px 5px 16px}" +
