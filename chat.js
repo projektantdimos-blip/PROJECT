@@ -180,6 +180,8 @@
   document.head.appendChild(css2);
   var css3 = document.createElement("style");          // почта цепочкой писем
   css3.textContent =
+    ".ml-head,.ml-row,.ml-card,.ml-all{flex-shrink:0}" +          /* окно сообщений — flex-колонка: без этого при многих письмах строки сжимаются и текст обрезается */
+    ".ml-all{align-self:center;margin:0 0 8px;padding:5px 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--blue);font:inherit;font-size:.82rem;cursor:pointer}" +
     ".ml-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:0 2px 10px;font-size:1.02rem}.ml-head span{color:var(--muted);font-size:.8rem;white-space:nowrap}" +
     ".ml-row{padding:9px 12px;margin:0 0 6px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--muted);font-size:.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}" +
     ".ml-row b{color:var(--ink);font-weight:600}.ml-row.out,.ml-card.out{background:rgba(58,134,214,.09);border-color:rgba(58,134,214,.35)}" +
@@ -662,8 +664,11 @@
     var list = st.msgs, last = list.length - 1, subj = threadSubj(), byId = {};
     list.forEach(function (m) { byId[m.id] = m; });
     var html = '<div class="ml-head"><b>' + esc(subj || "Без темы") + "</b><span>" + nLetters(list.length) + "</span></div>";
+    var from = st.mall ? 0 : Math.max(0, last - 3), hidden = list.slice(0, from).filter(function (m) { return !st.mopen[m.id]; }).length;
+    if (hidden) html += '<button type="button" class="ml-all" data-mlall="1">Показать ещё ' + nLetters(hidden) + "</button>";      // длинная переписка: видны последние письма
     return html + list.map(function (m, i) {
       var out = m.direction === "out", who = out ? "Вы" : (m.sender || t.title || t.peer);
+      if (i < from && !st.mopen[m.id]) return "";
       if (i !== last && !st.mopen[m.id]) {
         return '<div class="ml-row' + (out ? " out" : "") + '" data-mlopen="' + m.id + '" title="Развернуть письмо"><b>' + esc(who) + "</b> · " + fmtFull(m.ts) + " — "
           + esc(firstLine(m.text) || "(без текста)") + (m.files && m.files.length ? " · 📎 " + m.files.length : "") + "</div>";
@@ -687,6 +692,7 @@
   }
   function mailClick(e) {                       // true — нажатие обработано
     var g = function (a) { return e.target.closest ? e.target.closest("[" + a + "]") : null; }, b, id;
+    if ((b = g("data-mlall"))) { st.mall = true; renderThread(true); return true; }
     if ((b = g("data-mlopen"))) { st.mopen[+b.getAttribute("data-mlopen")] = 1; renderThread(true); return true; }
     if ((b = g("data-mlclose"))) { delete st.mopen[+b.getAttribute("data-mlclose")]; renderThread(true); return true; }
     if ((b = g("data-mlfull"))) { st.mfull[+b.getAttribute("data-mlfull")] = 1; renderThread(true); return true; }
@@ -938,7 +944,7 @@
 
   function openThread(id) {
     if (st.edit) stopEdit(true);
-    st.sel = id; st.msgs = []; st.mopen = {}; st.mfull = {};
+    st.sel = id; st.msgs = []; st.mopen = {}; st.mfull = {}; st.mall = false;
     renderThreads(); renderThread();
     loadMessages(false).then(function () { if (!(window.MPBD && MPBD.wantsFocus && MPBD.wantsFocus(id))) el.text.focus(); });      // открыт поиск привязки — курсор остаётся в нём
     var t = curThread();
