@@ -273,9 +273,9 @@ textarea{resize:vertical;min-height:64px}
 <!-- шрифты подгружаются без блокировки страницы: если Google Fonts недоступен (в РФ бывает), CRM всё равно откроется -->
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Onest:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Onest:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="theme-v2.css?v=20261029c">
+<link rel="stylesheet" href="theme-v2.css?v=20261029m">
 <script>try{var __t=localStorage.getItem("ds_theme");if(__t)document.documentElement.setAttribute("data-theme",__t)}catch(e){}</script>
-<link rel="stylesheet" href="ds.css?v=20261029c">
+<link rel="stylesheet" href="ds.css?v=20261029m">
 </head>
 <body>
 <div class="app">
@@ -320,6 +320,7 @@ var ICONS={
   calc:'<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 18.5h.01M12 18.5h.01M16 18.5h.01"/>',
   file:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5zM14 3v5h5M9 13h6M9 17h6"/>',
   chat:'<path d="M21 12a8 8 0 01-11.6 7.1L4 20l1-4.6A8 8 0 1121 12z"/>',
+  mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
   wrench:'<path d="M14.7 6.3a4 4 0 005 5l-9.4 9.4a2.1 2.1 0 01-3-3l9.4-9.4a4 4 0 00-2-2z"/>',
   layers:'<path d="M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5M3 17.5l9 5 9-5"/>',
   clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -364,6 +365,7 @@ function sectionForHash(h){
   if (h.indexOf("#/kpc") === 0) return "kpc";
   if (h.indexOf("#/contracts") === 0) return "contracts";
   if (h.indexOf("#/chat") === 0) return "chat";
+  if (h.indexOf("#/mail") === 0) return "mail";
   if (h.indexOf("#/risk") === 0) return "risk";
   if (h.indexOf("#/cal") === 0) return "cal";
   if (h.indexOf("#/my") === 0) return "my";
@@ -378,13 +380,13 @@ function sectionForHash(h){
 }
 /* Какие разделы видит каждая роль (позиция сотрудника в CRM). Это интерфейс; данные ограничиваются на сервере (этап 2). */
 var DS_ALLOWED = {
-  owner:    ["flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","stats","log","auto","stages","onec","me"],
-  design:   ["tasks","cal","risk","my","clients","chat","team","report","me"],
-  sales:    ["flow","tasks","cal","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","me"],
-  ops:      ["flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","scripts","team","report","me"],
+  owner:    ["flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","stats","log","auto","stages","onec","me"],
+  design:   ["tasks","cal","risk","my","clients","chat","mail","team","report","me"],
+  sales:    ["flow","tasks","cal","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","me"],
+  ops:      ["flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","me"],
   acc:      ["tasks","kpreg","team","onec","me"],
   designer: ["tasks","cal","my","team","me"],
-  norm:     ["my","chat","team","me"]          /* нормативный специалист: свои задачи и диалоги своих заказчиков */
+  norm:     ["my","chat","mail","team","me"]          /* нормативный специалист: свои задачи и диалоги своих заказчиков */
 };
 var DS_HOME = { owner: "#/", design: "#/", sales: "#/", ops: "#/", acc: "#/", designer: "#/", norm: "#/my" };
 function dsPosition(){ return (window.MPBC && MPBC.me) ? (MPBC.me.position || (MPBC.me.role === "admin" ? "owner" : "")) : ""; }
@@ -399,7 +401,7 @@ function dsAllowed(sec){
 }
 function renderTopNav(){
   var cur = sectionForHash(location.hash);
-  var own = { risk:1, scripts:1, tasks:1, cal:1, my:1, chat:1, team:1, log:1, me:1, auto:1, stages:1, onec:1, clients:1, report:1, stats:1, flow:1, tz:1 };
+  var own = { risk:1, scripts:1, tasks:1, cal:1, my:1, chat:1, mail:1, team:1, log:1, me:1, auto:1, stages:1, onec:1, clients:1, report:1, stats:1, flow:1, tz:1 };
   var pa = own[cur] ? cur : "commerce";
   var ok = dsAllowed;
   var b = function(go, ic, t, on, sec){ return ok(sec) ? '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+'<span>'+t+'</span></button>' : ""; };
@@ -410,11 +412,11 @@ function renderTopNav(){
   document.getElementById("topnav").innerHTML =
     lab("Работа", ["flow","tasks","tz","cal","risk","my"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
     + lab("Заказчики и продажи", ["clients","kpreg","kpc","contracts"]) + b("#/clients","users",pos==="design"?"Кому звонить":"База заказчиков",pa==="clients","clients") + comm
-    + lab("Общение", ["team","chat","scripts","report"]) + b("#/team","team","Команда",pa==="team","team") + b("#/chat","chat","Заказчики",pa==="chat","chat") + b("#/scripts","list","Скрипты",pa==="scripts","scripts") + b("#/report","list","Недельный отчёт",pa==="report","report")
+    + lab("Общение", ["team","chat","mail","scripts","report"]) + b("#/team","team","Внутренние",pa==="team","team") + b("#/chat","chat","Мессенджеры",pa==="chat","chat") + b("#/mail","mail","Почта",pa==="mail","mail") + b("#/scripts","list","Скрипты",pa==="scripts","scripts") + b("#/report","list","Недельный отчёт",pa==="report","report")
     + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","onec","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/onec","wallet","Оплаты из 1С",pa==="onec","onec") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
   var bn = function(go, ic, t, on){ return '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+t+'</button>'; };
   document.getElementById("bottomnav").innerHTML =
-    (dsAllowed("tasks")?bn("#/","tasks",pos==="designer"?"Проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks"):"") + (dsAllowed("my")?bn("#/my","bell",pos==="designer"?"План":"Мои",pa==="my"):"") + (dsAllowed("team")?bn("#/team","team","Команда",pa==="team"):"") + (dsAllowed("chat")?bn("#/chat","chat","Заказчики",pa==="chat"):"")
+    (dsAllowed("tasks")?bn("#/","tasks",pos==="designer"?"Проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks"):"") + (dsAllowed("my")?bn("#/my","bell",pos==="designer"?"План":"Мои",pa==="my"):"") + (dsAllowed("team")?bn("#/team","team","Внутренние",pa==="team"):"") + (dsAllowed("chat")?bn("#/chat","chat","Мессенджеры",pa==="chat"):"") + (dsAllowed("mail")?bn("#/mail","mail","Почта",pa==="mail"):"")
     + '<button data-more="1">'+icon("menu")+'Ещё</button>';
   document.getElementById("subnavM").innerHTML = pa==="commerce"
     ? [["#/kpreg/","Реестр КП","kpreg"],["#/kpc","Конструктор КП","kpc"],["#/price","Прайс","price"],["#/contracts","Договоры","contracts"]].map(function(x){ return '<button data-goto="'+x[0]+'" class="tab '+(cur===x[2]?"active":"")+'">'+x[1]+'</button>'; }).join("")
@@ -435,11 +437,11 @@ function renderTopNav(){
   var sec = sectionForHash(location.hash);
   if (window.__lastSec && window.__lastSec !== sec && location.hash.indexOf("#/task/") !== 0 && window.DS && DS.closeAll) DS.closeAll();      // окно задачи не должно висеть поверх другого раздела
   window.__lastSec = sec;
-  document.body.classList.toggle("chat-fs", sec === "chat");
+  document.body.classList.toggle("chat-fs", sec === "chat" || sec === "mail");
   document.getElementById("tasks-app").style.display = (sec === "tasks") ? "block" : "none";
   document.getElementById("kpreg-app").style.display = (sec === "kpreg") ? "block" : "none";
   document.getElementById("kpc-app").style.display = (sec === "kpc") ? "block" : "none";
-  document.getElementById("chat-app").style.display = (sec === "chat") ? "block" : "none";
+  document.getElementById("chat-app").style.display = (sec === "chat" || sec === "mail") ? "block" : "none";      /* мессенджеры и почта — одно окно, разный список */
   document.getElementById("contracts-app").style.display = (sec === "contracts") ? "block" : "none";
   if (sec === "contracts" && window.DS) DS.mount("contract", document.getElementById("contracts-app"));
   if (sec === "kpc" && window.DS) DS.mount("kpc", document.getElementById("kpc-app"));
@@ -476,7 +478,7 @@ function renderTopNav(){
   if (sec === "scripts" && window.DS) DS.mount("scripts", document.getElementById("scripts-app"));
   if (sec === "price" && window.DS) DS.mount("price", document.getElementById("price-app"));
   if ((sec === "team" || sec === "log" || sec === "me") && window.MPBT && window.MPBT.render) window.MPBT.render(sec);
-  if (sec === "chat" && window.__subRouters && window.__subRouters.chat) window.__subRouters.chat();
+  if ((sec === "chat" || sec === "mail") && window.__subRouters && window.__subRouters.chat) window.__subRouters.chat();
   if (sec === "kpreg") { if (window.DS) DS.mount("kp", document.getElementById("kpreg-app")); }
   else if (sec === "tasks") { tasksRouter(); }
 }
@@ -497,9 +499,9 @@ globalRouter();
 #apiModal button{padding:9px 16px;border-radius:8px;font:inherit;cursor:pointer;border:1px solid #b9c4d0;background:var(--card);color:var(--ink)}
 #apiModal button.ok{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
 </style>
-<script src="noautofill.js?v=20261029c"></script>
-<script src="sound.js?v=20261029c"></script>
-<script src="chat.js?v=20261029c"></script>
+<script src="noautofill.js?v=20261029m"></script>
+<script src="sound.js?v=20261029m"></script>
+<script src="chat.js?v=20261029m"></script>
 <button id="apiGear" title="Настройки подключения" aria-label="Настройки">⚙</button>
 <div id="apiModal"><div class="box">
   <h2>Подключение к серверу CRM</h2>
@@ -531,14 +533,14 @@ globalRouter();
   });
 })();
 </script>
-<script src="config.js?v=20261029c"></script>
-<script src="crm.js?v=20261029c"></script>
-<script src="extras.js?v=20261029c"></script>
-<script src="team.js?v=20261029c"></script>
-<script src="chatpanel.js?v=20261029c"></script>
-<script src="ds.js?v=20261029c"></script>
-<script src="calls.js?v=20261029c"></script>
-<script src="remind.js?v=20261029c"></script>
+<script src="config.js?v=20261029m"></script>
+<script src="crm.js?v=20261029m"></script>
+<script src="extras.js?v=20261029m"></script>
+<script src="team.js?v=20261029m"></script>
+<script src="chatpanel.js?v=20261029m"></script>
+<script src="ds.js?v=20261029m"></script>
+<script src="calls.js?v=20261029m"></script>
+<script src="remind.js?v=20261029m"></script>
 <script>
 (function(){
   var KEY = "ds_theme", t = "light";

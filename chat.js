@@ -178,6 +178,20 @@
     "#chat-app #chatHead .chat-link.off{color:#BA7517;border-color:#EF9F27;background:color-mix(in srgb,#EF9F27 14%,var(--card))}" +
     "@media(max-width:760px){#chat-app #chatHead .chat-link{width:32px;height:32px;padding:0;justify-content:center;border-width:2px}#chat-app #chatHead .chat-link span{display:none}}";
   document.head.appendChild(css2);
+  var css3 = document.createElement("style");          // почта цепочкой писем
+  css3.textContent =
+    ".ml-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:0 2px 10px;font-size:1.02rem}.ml-head span{color:var(--muted);font-size:.8rem;white-space:nowrap}" +
+    ".ml-row{padding:9px 12px;margin:0 0 6px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--muted);font-size:.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}" +
+    ".ml-row b{color:var(--ink);font-weight:600}.ml-row.out,.ml-card.out{background:rgba(58,134,214,.09);border-color:rgba(58,134,214,.35)}" +
+    ".ml-card{padding:12px 14px;margin:0 0 8px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);line-height:1.5;overflow-wrap:anywhere;transition:box-shadow .3s}" +
+    ".ml-top{display:flex;gap:8px;align-items:baseline;margin-bottom:4px}.ml-top span{color:var(--muted);font-size:.8rem;margin-left:auto}" +
+    ".ml-top button,.ml-more,.ml-sig{background:none;border:0;padding:0;color:var(--muted);font:inherit;font-size:.8rem;cursor:pointer}.ml-more{color:var(--blue);margin:4px 0}" +
+    ".ml-subj{font-size:.82rem;color:var(--muted);margin-bottom:4px}.ml-text{white-space:pre-wrap}.ml-sig{display:block;margin:8px 0 2px}" +
+    ".ml-re{display:inline-flex;gap:4px;margin:2px 0 8px;padding:3px 9px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:.8rem;cursor:pointer}" +
+    ".ml-quote{border-left:2px solid var(--line);padding:4px 10px;margin:4px 0 8px;color:var(--muted);font-size:.85rem;white-space:pre-wrap}.ml-flash{box-shadow:0 0 0 2px var(--blue)}" +
+    "#chatMailHint{padding:6px 12px;font-size:.8rem;color:var(--muted);border-top:1px solid var(--line)}" +
+    "body.chat-fs #chat-app .chat-tools[data-title]::before{content:attr(data-title)!important}";
+  document.head.appendChild(css3);
 
   /* ---------- каркас ---------- */
   function buildSetup() {
@@ -191,7 +205,7 @@
 
   function build() {
     root.innerHTML =
-      '<header class="top"><div class="brand"><div><h1>Заказчики</h1><p>Почта, Telegram и MAX — в одном окне, с привязкой к заказчикам и задачам</p></div></div></header>' +
+      '<header class="top"><div class="brand"><div><h1 id="chatTitle">Мессенджеры</h1><p id="chatSub">Telegram и MAX — с привязкой к заказчикам и задачам</p></div></div></header>' +
       '<div id="chatBanner"></div>' +
       '<div class="chat-wrap" id="chatWrap">' +
         '<aside class="chat-list"><div class="chat-tools"><button type="button" id="chatNew" class="chat-new">＋ Новое сообщение</button><div class="chat-box" id="chatBox"></div>' +
@@ -251,6 +265,7 @@
     showSync();
     refreshPushBtn();
     el.msgs.onclick = function (e) {
+      if (mailClick(e)) return;
       var cp = e.target.closest ? e.target.closest("[data-cmcopy]") : null;
       if (cp) {
         var mc = st.msgs.filter(function (x) { return x.id === +cp.getAttribute("data-cmcopy"); })[0];
@@ -419,6 +434,7 @@
       e.preventDefault(); nmErr.textContent = addFiles(fl, files); drawFiles();
     });
     drawFiles();
+    if (mode() !== "mail") { bg.querySelector("#nmCh").value = "tg"; bg.querySelector("#nmCh").onchange(); }      // в «Мессенджерах» — сразу Telegram
     bg.querySelector("#nmGo").onclick = function () {
       var btn = this, body = { channel: bg.querySelector("#nmCh").value, to: bg.querySelector("#nmTo").value, subject: bg.querySelector("#nmSub").value, text: bg.querySelector("#nmText").value };
       var withFiles = files.length && (body.channel === "mail" || body.channel === "tg");
@@ -435,7 +451,10 @@
   }
 
   function renderChips() {
-    var items = [["all", "Все"], ["tg", "Telegram"], ["max", "MAX"], ["mail", "Почта"]];
+    if (mode() === "mail") { el.chips.innerHTML = ""; el.chips.hidden = true; return; }
+    el.chips.hidden = false;
+    if (st.filter === "mail") st.filter = "all";
+    var items = [["all", "Все"], ["tg", "Telegram"], ["max", "MAX"]];
     el.chips.innerHTML = items.map(function (i) {
       return '<button data-f="' + i[0] + '" class="' + (st.filter === i[0] ? "on" : "") + '">' + i[1] + "</button>";
     }).join("");
@@ -446,6 +465,7 @@
 
   function visibleThreads() {
     return st.threads.filter(function (t) {
+      if (!inMode(t)) return false;
       if (st.box === "mine" && !myOpen().some(function (a) { return a.thread_id === t.id; })) return false;
       if (st.filter !== "all" && t.channel !== st.filter && !(st.filter === "max" && t.channel === "maxbot")) return false;      // «MAX» — и бот, и прежний личный аккаунт
       if (st.q && (t.title + " " + t.last_text + " " + t.peer).toLowerCase().indexOf(st.q) < 0) return false;
@@ -550,16 +570,6 @@
   }
 
   /* режим «перевернуть письма»: блоки текста (разделённые пустой строкой) идут в обратном порядке */
-  function flipOn() {
-    try { return localStorage.getItem("ds_chat_flip") !== "0"; } catch (e) { return true; }
-  }
-  function setFlip(on) { try { localStorage.setItem("ds_chat_flip", on ? "1" : "0"); } catch (e) {} }
-  function flipBlocks(text) {
-    var blocks = String(text || "").replace(/\r/g, "").split(/\n[ \t]*\n+/).map(function (b) { return b.replace(/^\n+|\n+$/g, ""); })
-      .filter(function (b) { return b.trim() !== ""; });
-    return blocks.reverse().join("\n\n");
-  }
-
   function curThread() {
     for (var i = 0; i < st.threads.length; i++) if (st.threads[i].id === st.sel) return st.threads[i];
     return null;
@@ -586,6 +596,7 @@
       renderInfo(null);
       el.head.innerHTML = '<b style="color:var(--muted);font-weight:400">Выберите переписку слева</b>';
       el.msgs.innerHTML = "";
+      mailHint(null);
       return;
     }
     var ci = chInfo(t.channel), av = avUrl(t), ini = (t.title || "?").trim().charAt(0).toUpperCase();
@@ -593,8 +604,6 @@
       '<div class="hava" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div>" +
       '<div class="hmain"><b>' + esc(t.title || t.peer) + "</b><small>" + esc(t.peer) + "</small></div>" +
       (canLink() ? '<button class="chat-link" id="chatLinkChip" data-tid="' + esc(t.id) + '" title="Привязка к заказчику и задаче">🔗 <span>…</span></button>' : "") +
-      (t.channel === "mail" ? '<button class="hbtn" id="chatFlip" title="' + (flipOn() ? "Показать письма в обычном порядке" : "Перевернуть порядок частей письма (сверху вниз)") + '"' +
-        (flipOn() ? ' style="border-color:var(--blue);color:var(--blue)"' : "") + ">⇅</button>" : "") +
       '<button class="hbtn" id="chatRemind" title="Напомнить мне про этот диалог" style="width:auto;padding:0 10px;white-space:nowrap">⏰<span class="rmtxt"> Напомнить</span></button>' +
       '<button class="hbtn" id="chatAv" title="Загрузить фото собеседника">📷</button>' +
       (t.avatar_ts ? '<button class="hbtn" id="chatAvDel" title="Убрать фото">✕</button>' : "") +
@@ -616,10 +625,8 @@
     };
     document.getElementById("chatRemind").onclick = function () {
       var nm = t.title || t.peer;
-      if (window.DSRemind) DSRemind.open({ text: "Ответить: " + nm, link: "#/chat?t=" + encodeURIComponent(t.id), label: "Заказчики · " + nm });
+      if (window.DSRemind) DSRemind.open({ text: "Ответить: " + nm, link: (t.channel === "mail" ? "#/mail?t=" : "#/chat?t=") + encodeURIComponent(t.id), label: "Заказчики · " + nm });
     };
-    var flipBtn = document.getElementById("chatFlip");
-    if (flipBtn) flipBtn.onclick = function () { setFlip(!flipOn()); renderThread(false); };
     renderAssign();
     renderInfo(t);
     document.getElementById("chatInfoBtn").onclick = function () { el.wrap.classList.add("show-info"); };
@@ -628,15 +635,9 @@
     var del = document.getElementById("chatAvDel");
     if (del) del.onclick = function () { if (confirm("Убрать фото у «" + (t.title || t.peer) + "»?")) removeAvatar(t.id); };
     var atBottom = el.msgs.scrollHeight - el.msgs.scrollTop - el.msgs.clientHeight < 60;
-    var flip = flipOn() && t.channel === "mail";
-    el.msgs.innerHTML = st.msgs.map(function (m) {
-      var subj = m.subject ? '<div class="sj' + (flip && m.direction === "in" ? " sj-b" : "") + '">' + esc(m.subject) + "</div>" : "";
+    el.msgs.innerHTML = t.channel === "mail" ? mailHtml(t) : st.msgs.map(function (m) {
+      var subj = m.subject ? '<div class="sj' + "" + '">' + esc(m.subject) + "</div>" : "";
       var copy = m.text ? '<button type="button" data-cmcopy="' + m.id + '" title="Скопировать текст сообщения">⧉ Копировать</button>' : "";
-      if (flip && m.direction === "in") {
-        // «перевёрнутое» письмо: подпись/ссылки сверху, затем текст, тема внизу
-        return '<div class="cm in">' + esc(flipBlocks(m.text)) + filesHtml(m.files) + subj +
-          '<div class="mt">' + (copy ? '<span class="cm-acts">' + copy + "</span>" : "") + fmtFull(m.ts) + "</div></div>";
-      }
       var acts = "", mail = t.channel === "mail";                // свои сообщения: исправить (Telegram, MAX) и удалить у заказчика; письмо — только скрыть в CRM
       if (m.direction === "out") acts = '<span class="cm-acts">' + copy + (mail ? "" : '<button type="button" data-cmedit="' + m.id + '">✎ Изменить</button>')
         + '<button type="button" class="cm-del" data-cmdel="' + m.id + '" data-ask="' + (mail ? "Скрыть в CRM? У заказчика письмо останется" : "Точно удалить у заказчика?") + '">' + (mail ? "Скрыть" : "🗑 Удалить") + "</button></span>";
@@ -645,8 +646,70 @@
         subj + esc(m.text) + filesHtml(m.files) +
         '<div class="mt">' + acts + fmtFull(m.ts) + (m.edited ? " · изм." : "") + "</div></div>";
     }).join("");
+    mailHint(t);
     loadThumbs();
     if (!keepScroll || atBottom) el.msgs.scrollTop = el.msgs.scrollHeight;
+  }
+
+  /* ---------- почта: цепочка писем — старые свёрнуты в строку, у ответа «↩ Ответ на письмо», цитата и подпись спрятаны ---------- */
+  var RE_PFX = /^\s*((re|fwd?|ответ)\s*(\[\d+\])?\s*:\s*)+/i;
+  function baseSubj(s) { return String(s || "").replace(RE_PFX, "").trim(); }
+  function threadSubj() { for (var i = st.msgs.length - 1; i >= 0; i--) if (st.msgs[i].subject) return baseSubj(st.msgs[i].subject); return ""; }
+  function nLetters(n) { var d = n % 10, h = n % 100; return n + (d === 1 && h !== 11 ? " письмо" : d >= 2 && d <= 4 && (h < 10 || h >= 20) ? " письма" : " писем"); }
+  function firstLine(txt) { var l = String(txt || "").split("\n").filter(function (x) { return x.trim(); })[0] || ""; return l.length > 110 ? l.slice(0, 110) + "…" : l; }
+  function mailHtml(t) {
+    st.mopen = st.mopen || {}; st.mfull = st.mfull || {};
+    var list = st.msgs, last = list.length - 1, subj = threadSubj(), byId = {};
+    list.forEach(function (m) { byId[m.id] = m; });
+    var html = '<div class="ml-head"><b>' + esc(subj || "Без темы") + "</b><span>" + nLetters(list.length) + "</span></div>";
+    return html + list.map(function (m, i) {
+      var out = m.direction === "out", who = out ? "Вы" : (m.sender || t.title || t.peer);
+      if (i !== last && !st.mopen[m.id]) {
+        return '<div class="ml-row' + (out ? " out" : "") + '" data-mlopen="' + m.id + '" title="Развернуть письмо"><b>' + esc(who) + "</b> · " + fmtFull(m.ts) + " — "
+          + esc(firstLine(m.text) || "(без текста)") + (m.files && m.files.length ? " · 📎 " + m.files.length : "") + "</div>";
+      }
+      var tg = m.reply_mid ? byId[m.reply_mid] : null, re = "";
+      if (tg) re = '<button type="button" class="ml-re" data-mlgo="' + tg.id + '">↩ Ответ на ' + (tg.direction === "out" ? "ваше письмо" : "письмо") + " от " + fmtFull(tg.ts) + "</button>";
+      else if (m.quote) re = '<button type="button" class="ml-re" data-mlq="' + m.id + '">↩ Ответ на письмо · показать цитату</button>';
+      var txt = m.text || "", long = txt.length > 700 && !st.mfull[m.id];        // длинное письмо — первые ~10 строк и «Показать полностью»
+      var copy = txt ? '<button type="button" data-cmcopy="' + m.id + '" title="Скопировать текст письма">⧉ Копировать</button>' : "";
+      var acts = '<span class="cm-acts">' + copy + (out ? '<button type="button" class="cm-del" data-cmdel="' + m.id + '" data-ask="Скрыть в CRM? У заказчика письмо останется">Скрыть</button>' : "") + "</span>";
+      return '<div class="ml-card' + (out ? " out" : "") + '" id="ml' + m.id + '">'
+        + '<div class="ml-top"><b>' + esc(who) + "</b><span>" + fmtFull(m.ts) + "</span>" + (i !== last ? '<button type="button" data-mlclose="' + m.id + '" title="Свернуть">свернуть</button>' : "") + "</div>"
+        + (m.subject && baseSubj(m.subject) !== subj ? '<div class="ml-subj">' + esc(m.subject) + "</div>" : "")
+        + re + (m.quote ? '<div class="ml-quote" id="mq' + m.id + '" hidden>' + esc(m.quote) + "</div>" : "")
+        + '<div class="ml-text">' + esc(long ? txt.slice(0, 700) + "…" : txt) + "</div>"
+        + (long ? '<button type="button" class="ml-more" data-mlfull="' + m.id + '">Показать полностью</button>' : "")
+        + (m.sig ? '<button type="button" class="ml-sig" data-mlsig="' + m.id + '">··· подпись</button><div class="ml-quote" id="ms' + m.id + '" hidden>' + esc(m.sig) + "</div>" : "")
+        + filesHtml(m.files)
+        + '<div class="mt">' + acts + (m.edited ? "изм." : "") + "</div></div>";
+    }).join("");
+  }
+  function mailClick(e) {                       // true — нажатие обработано
+    var g = function (a) { return e.target.closest ? e.target.closest("[" + a + "]") : null; }, b, id;
+    if ((b = g("data-mlopen"))) { st.mopen[+b.getAttribute("data-mlopen")] = 1; renderThread(true); return true; }
+    if ((b = g("data-mlclose"))) { delete st.mopen[+b.getAttribute("data-mlclose")]; renderThread(true); return true; }
+    if ((b = g("data-mlfull"))) { st.mfull[+b.getAttribute("data-mlfull")] = 1; renderThread(true); return true; }
+    if ((b = g("data-mlq")) || (b = g("data-mlsig"))) {
+      var box = document.getElementById(b.hasAttribute("data-mlq") ? "mq" + b.getAttribute("data-mlq") : "ms" + b.getAttribute("data-mlsig"));
+      if (box) box.hidden = !box.hidden;
+      return true;
+    }
+    if ((b = g("data-mlgo"))) {                  // к письму, на которое ответ: разворачиваем и подсвечиваем
+      id = +b.getAttribute("data-mlgo"); st.mopen[id] = 1; renderThread(true);
+      var card = document.getElementById("ml" + id);
+      if (card) { card.scrollIntoView({ block: "center", behavior: "smooth" }); card.classList.add("ml-flash"); setTimeout(function () { card.classList.remove("ml-flash"); }, 1600); }
+      return true;
+    }
+    return false;
+  }
+  function mailHint(t) {                        // над полем ответа: письмо уйдёт в эту же переписку
+    var c = document.getElementById("chatComposer"); if (!c) return;
+    var h = document.getElementById("chatMailHint");
+    if (!h) { h = document.createElement("div"); h.id = "chatMailHint"; c.parentNode.insertBefore(h, c); }
+    var on = !!(t && t.channel === "mail" && st.msgs.length);
+    h.hidden = !on;
+    if (on) { var sj = threadSubj(); h.textContent = "↩ Ответ уйдёт в эту же переписку" + (sj ? ": «Re: " + sj + "»" : "") + " · с цитатой последнего письма"; }
   }
 
   /* ---------- правая панель: заказчик, связанные дела, быстрые действия (как в макете) ---------- */
@@ -836,12 +899,14 @@
   }
   window.__chatBadge = function () { applyBadge(); };
   function applyBadge() {
-    var un = totalUnread();      // счётчик и в заголовке вкладки браузера
+    var un = totalUnread(), n = { "#/chat": 0, "#/mail": 0 };      // счётчик и в заголовке вкладки браузера
     document.title = (un ? "(" + un + ") " : "") + "Проекты DS — CRM";
-    var n = totalUnread();
-    document.querySelectorAll('#topnav button[data-goto="#/chat"], #bottomnav button[data-goto="#/chat"]').forEach(function (b) {
-      var old = b.querySelector(".chat-badge"); if (old) old.remove();
-      if (n) { var s = document.createElement("span"); s.className = "chat-badge"; s.textContent = n > 99 ? "99+" : n; b.appendChild(s); }
+    st.threads.forEach(function (t) { n[t.channel === "mail" ? "#/mail" : "#/chat"] += t.unread || 0; });
+    ["#/chat", "#/mail"].forEach(function (go) {
+      document.querySelectorAll('#topnav button[data-goto="' + go + '"], #bottomnav button[data-goto="' + go + '"]').forEach(function (b) {
+        var old = b.querySelector(".chat-badge"); if (old) old.remove();
+        if (n[go]) { var s = document.createElement("span"); s.className = "chat-badge"; s.textContent = n[go] > 99 ? "99+" : n[go]; b.appendChild(s); }
+      });
     });
   }
 
@@ -873,7 +938,7 @@
 
   function openThread(id) {
     if (st.edit) stopEdit(true);
-    st.sel = id; st.msgs = [];
+    st.sel = id; st.msgs = []; st.mopen = {}; st.mfull = {};
     renderThreads(); renderThread();
     loadMessages(false).then(function () { if (!(window.MPBD && MPBD.wantsFocus && MPBD.wantsFocus(id))) el.text.focus(); });      // открыт поиск привязки — курсор остаётся в нём
     var t = curThread();
@@ -1002,12 +1067,32 @@
   };
 
   /* ---------- показ / опрос ---------- */
-  function inChat() { return location.hash.indexOf("#/chat") === 0; }
+  function inChat() { return /^#\/(chat|mail)/.test(location.hash); }
+  function mode() { return location.hash.indexOf("#/mail") === 0 ? "mail" : "msg"; }
+  function inMode(t) { return (t.channel === "mail") === (mode() === "mail"); }
+  function applyMode() {                        // «Мессенджеры» ↔ «Почта»: список, фильтры, заголовок
+    if (st.mode === mode()) return;
+    st.mode = mode();
+    var cur = curThread(); if (cur && !inMode(cur)) { st.sel = null; st.msgs = []; }
+    var tools = document.querySelector("#chat-app .chat-tools"); if (tools) tools.setAttribute("data-title", st.mode === "mail" ? "Почта" : "Мессенджеры");
+    var nb = document.getElementById("chatNew"); if (nb) nb.textContent = st.mode === "mail" ? "＋ Новое письмо" : "＋ Новое сообщение";
+    var h1 = document.getElementById("chatTitle"), sub = document.getElementById("chatSub");
+    if (h1) h1.textContent = st.mode === "mail" ? "Почта" : "Мессенджеры";
+    if (sub) sub.textContent = st.mode === "mail" ? "Письма заказчиков цепочками, ответ уходит в ту же переписку" : "Telegram и MAX — с привязкой к заказчикам и задачам";
+    renderChips(); renderThreads(); renderThread();
+  }
 
   function onShow() {
     var c = cfg();
     if (!c.url || !c.key) { buildSetup(); return; }
+    var want = (location.hash.match(/[?&]t=([^&]+)/) || [])[1];
+    want = want ? decodeURIComponent(want) : "";
+    if (want && (want.indexOf("mail:") === 0) !== (mode() === "mail")) {      // ссылка на письмо из «Мессенджеров» (и наоборот) — в нужный раздел
+      location.replace("#/" + (want.indexOf("mail:") === 0 ? "mail" : "chat") + "?t=" + encodeURIComponent(want));
+      return;
+    }
     if (!st.built) build();
+    applyMode();
     loadThreads().then(function () {
       var m = location.hash.match(/[?&]t=([^&]+)/);
       if (m) { var tid = decodeURIComponent(m[1]); if (st.sel !== tid && st.threads.some(function (x) { return x.id === tid; })) openThread(tid); }
