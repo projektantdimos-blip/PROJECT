@@ -163,6 +163,7 @@
     if (kind === "week" && pos() !== "norm") add(loadWeek);
     if (kind === "scripts") add(loadScripts);
     if (kind === "risk") add(loadRisk);
+    if (kind === "load") add(function () { return api("/load/history").then(function (r) { S.lh = r; }, function () { S.lh = []; }); });      // кто что делал раньше
     if (kind === "load" && pos() === "designer") add(function () { return api("/load").then(function (r) { S.lo = r; }, function () { S.lo = []; }); });
     if (kind === "kp" || kind === "kpc") add(loadKp);
     if (kind === "contract") add(function () { return loadKp().then(loadContractDraft); });
@@ -1255,6 +1256,12 @@
     }
     function barEl(x, un) {
       var o = x.o, kind = barKind(o, un), a_ = x.r[0], b_ = x.r[1], sp = span(o);
+      if (o.hist) {                            // сделано раньше (по журналу задачи) — бледная полоса
+        var HK = { work: "✓ ", fix: "↻ К" + (o.fix_n || "") + " · ", review: "👁 проверка · " }, HN = { work: "проектирование", fix: "корректировка", review: "проверка" };
+        return '<div ' + openAttr(o) + '="' + o.id + '" title="' + E("№" + o.number + " · " + (o.object || "") + " · " + HN[o.hist] + " · " + dmy(o.plan_start) + " — " + dmy(o.plan_end) + " · " + o.who + " · сделано")
+          + '" style="grid-column:' + (a_ + 2) + "/" + (b_ + 3) + ";grid-row:" + (x.lane + 1) + ";background:" + taskColor(o) + ';opacity:.5" class="gbar hist">'
+          + HK[o.hist] + "№" + E(o.number) + " · " + E(o.object || "") + "</div>";
+      }
       return '<div ' + openAttr(o) + '="' + o.id + '" title="' + E("№" + o.number + " · " + (o.object || "") + " · " + dmy(sp[0] || iso[0]) + " — " + dmy(sp[1] || sp[0] || iso[0]) + " · " + (o.executor || "не назначен") + " · " + o.stage) + '" style="grid-column:' + (a_ + 2) + "/" + (b_ + 3) + ";grid-row:" + (x.lane + 1) + ";background:" + (un ? BAR.gray : kind === "done" ? BAR.done : taskColor(o)) + (un ? ";color:#fff;opacity:.85" : "") + (kind === "late" ? ";box-shadow:inset 0 0 0 2px #e5483c,0 0 0 1px #e5483c" : kind === "hot" ? ";box-shadow:inset 4px 0 0 #f0924d" : "") + '" class="gbar' + (o.stage === "Корректировка" ? " fix" : "") + '">'
         + (o.stage === "Корректировка" ? "↻ К" + (o.fix_n || "") + " · " : "") + "№" + E(o.number) + " · " + E((o.object || "").split(",")[0]) + "</div>";
     }
@@ -1266,7 +1273,10 @@
     function person(u) {
       var color = personColor(u.name);
       var mine = loadOrders().filter(function (o) { return (o.executor_id === u.id || o.executor === u.name) && (ACTIVE_WORK.indexOf(o.stage) >= 0 || o.stage === "На согласовании" || o.stage === "Сдано" || o.stage === "Закрыто"); });      // закрытые — чтобы было видно прошлое
-      var L = lanes(mine), load = iso.map(function () { return 0; });
+      var past = (S.lh || []).filter(function (h) { return h.user_id === u.id || h.who === u.name; }).map(function (h) {
+        return { id: h.order_id, number: h.number, object: h.object, stage: "", plan_start: h.start, plan_end: h.end, hist: h.kind, fix_n: h.fix_n, who: h.who };
+      }).filter(function (h) { return !mine.some(function (o) { var sp = span(o); return o.id === h.id && sp[0] && h.plan_end >= sp[0]; }); });      // не дублируем текущий план той же задачи
+      var L = lanes(mine.concat(past)), load = iso.map(function () { return 0; });
       L.items.forEach(function (x) { for (var i = x.r[0]; i <= x.r[1]; i++) load[i]++; });
       var rows = L.n + 1;
       var until = ""; mine.forEach(function (o) { if (o.stage === "Сдано") return; var e_ = span(o)[1] || span(o)[0]; if (e_ && e_ > until) until = e_; });
@@ -1284,7 +1294,7 @@
         + bg + UL.items.map(function (x) { return barEl(x, true); }).join("") + "</div>";
     })() : "";
     var nodates = loadOrders().filter(function (o) { return o.executor && ACTIVE_WORK.indexOf(o.stage) >= 0 && !span(o)[0] && !span(o)[1]; });
-    var legend = '<div class="glegend"><span>Цвет полосы — своя у каждой задачи</span><span><i style="background:' + BAR.hot + '"></i>Оранжевая кромка — горит</span><span><i style="background:' + BAR.late + '"></i>Красная рамка — просрочено</span><span><i style="background:' + BAR.done + '"></i>Сдано</span>'
+    var legend = '<div class="glegend"><span>Цвет полосы — своя у каждой задачи</span><span><i style="background:#8794ab;opacity:.5"></i>Бледные — уже сделано: ✓ проектирование, ↻ корректировка, 👁 проверка</span><span><i style="background:' + BAR.hot + '"></i>Оранжевая кромка — горит</span><span><i style="background:' + BAR.late + '"></i>Красная рамка — просрочено</span><span><i style="background:' + BAR.done + '"></i>Сдано</span>'
       + '<span><i style="background:' + BAR.gray + '"></i>Серые — не назначены, на стадии «Готов к проектированию»: от даты постановки до последнего дня договора</span><span class="muted">Полоска снизу — число задач в день (красная ≥ 3)</span></div>'
       + (nodates.length ? '<div class="glegend">Без дат (не на шкале): ' + nodates.map(function (o) { return '<a href="#/task/' + o.id + '">№' + E(o.number || "—") + "</a>"; }).join(" ") + "</div>" : "");
     var bodyHtml = people.map(person).join("") + unBlock;

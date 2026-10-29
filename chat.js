@@ -153,8 +153,11 @@
     ".ct .rowmenu{flex:none;width:28px;height:24px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:0;font-weight:800}" +
     ".ct .rowmenu:hover{border-color:var(--blue);color:var(--blue)}" +
     ".ct .tkc{flex:none;background:#FAEEDA;color:#633806;border-radius:8px;padding:0 7px;font-size:.72rem;font-weight:700;line-height:20px;white-space:nowrap}.ct .tkc.over{background:#FCEBEB;color:#791F1F}" +
-    ".mlogo{width:22px;height:22px;border-radius:50%;flex:none;align-self:center;display:grid;place-items:center;margin-right:2px}" +
-    ".mlogo.tg{background:#2b8ac6}.mlogo.max,.mlogo.maxbot{background:#7a55a8}.mlogo.mail{background:#ee9264}" +
+    ".ct .ava,#chatHead .hava,.chat-info .hava{position:relative}" +          /* значок канала в углу аватара: Telegram или MAX */
+    ".chb{position:absolute;right:-3px;bottom:-3px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;overflow:hidden;box-shadow:0 0 0 2px var(--card,#fff)}" +
+    ".chb.tg{background:#2AABEE}.chb svg{width:11px;height:11px}.chb img{width:100%;height:100%;display:block}" +
+    "#chatHead .hava .chb{width:15px;height:15px;right:-2px;bottom:-2px}#chatHead .hava .chb svg{width:9px;height:9px}" +
+    "body.chat-fs #chat-app .chb{box-shadow:0 0 0 2px #17212b}body.chat-fs #chat-app .ct .ava .chb{width:21px;height:21px}" +
     ".ct .un{cursor:pointer;background:#ee9264;color:#3d1b08}.ct .un:hover{filter:brightness(.92)}" +
     ".ct{padding-left:4px}.ct .udot{width:20px;flex:none;align-self:center;display:grid;place-items:center;cursor:pointer;height:38px}" +
     ".ct .udot i{width:10px;height:10px;border-radius:50%;border:2px solid transparent;transition:.12s}" +
@@ -194,6 +197,45 @@
     "#chatMailHint{padding:6px 12px;font-size:.8rem;color:var(--muted);border-top:1px solid var(--line)}" +
     "body.chat-fs #chat-app .chat-tools[data-title]::before{content:attr(data-title)!important}";
   document.head.appendChild(css3);
+  var css4 = document.createElement("style");          // переписка в мессенджерах: дни, группы, панель действий, шапка, поле ответа
+  css4.textContent =
+    "#chat-app .cday{align-self:center;flex-shrink:0;margin:10px 0 4px;padding:2px 12px;border-radius:999px;font-size:.75rem;color:var(--muted);background:var(--card);border:1px solid var(--line)}" +
+    "#chat-app .cm{position:relative;flex-shrink:0}" +
+    "#chat-app .cm .mt{float:right;margin:6px 0 0 12px;font-size:.7rem;line-height:1;color:var(--muted);white-space:nowrap}" +
+    "#chat-app .cm-tools{position:absolute;top:-14px;right:8px;display:none;gap:2px;padding:2px 4px;border-radius:999px;background:var(--card);border:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.12);z-index:2}" +
+    "#chat-app .cm.in .cm-tools{right:auto;left:8px}" +
+    "#chat-app .cm-tools button{border:0;background:none;padding:2px 6px;font:inherit;font-size:.85rem;color:var(--muted);cursor:pointer;border-radius:999px;white-space:nowrap}" +
+    "#chat-app .cm-tools button:hover{background:var(--bg);color:var(--ink)}#chat-app .cm-tools .cm-del[data-sure]{color:var(--bad)}" +
+    "#chat-app .cm:hover .cm-tools,#chat-app .cm.acts-on .cm-tools,#chat-app .cm-tools:has([data-sure]){display:inline-flex}" +
+    ".cmenu{position:fixed;z-index:500;display:flex;flex-direction:column;min-width:240px;padding:6px;border-radius:12px;background:var(--card);border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.18)}" +
+    ".cmenu button{border:0;background:none;text-align:left;padding:9px 12px;border-radius:8px;font:inherit;color:var(--ink);cursor:pointer}.cmenu button:hover{background:var(--bg)}" +
+    "@media(min-width:761px){" +
+      "#chat-app #chatMsgs{gap:2px;padding:14px 22px}" +
+      "#chat-app .cm{max-width:min(620px,70%);padding:7px 12px 6px;font-size:15px;line-height:1.45;box-shadow:none}" +
+      "#chat-app .cm.in{background:var(--card);border:1px solid var(--line)}#chat-app .cm.out{background:var(--blue-l);border:1px solid transparent}" +
+      "#chat-app .cm.g-one,#chat-app .cm.g-first{margin-top:8px}" +
+      "#chat-app .cm.in.g-one{border-radius:16px 16px 16px 5px}#chat-app .cm.in.g-first{border-radius:16px 16px 16px 6px}#chat-app .cm.in.g-mid{border-radius:6px 16px 16px 6px}#chat-app .cm.in.g-last{border-radius:6px 16px 16px 5px}" +
+      "#chat-app .cm.out.g-one{border-radius:16px 16px 5px 16px}#chat-app .cm.out.g-first{border-radius:16px 16px 6px 16px}#chat-app .cm.out.g-mid{border-radius:16px 6px 6px 16px}#chat-app .cm.out.g-last{border-radius:16px 6px 5px 16px}" +
+      "#chat-app .cm .cf.tile:not(.img){flex-direction:row;width:auto;max-width:300px;gap:10px;padding:7px 10px;border-radius:10px;text-align:left;margin:2px 0 4px}" +
+      "#chat-app .cm .cf.tile:not(.img) .ti{width:30px;height:34px;flex:none;background:none;border-radius:0}#chat-app .cm .cf.tile:not(.img) .ti svg{width:30px;height:34px}" +
+      "#chat-app .cm .cf.tile:not(.img) .tn{display:block}#chat-app .cm .cf.tile:not(.img) .sz{display:block;font-size:.72rem}" +
+      "#chat-app .cm .cf.tile:not(.img){align-items:center}#chat-app .cm .cf.tile:not(.img) .tn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}" +
+      "#chat-app #chatHead .hbtn{border-radius:50%;width:34px;height:34px}#chat-app #chatHead #chatRemind{border-radius:999px}" +
+      "#chat-app #chatAssign{padding:5px 16px!important;font-size:.8rem!important;background:var(--bg)!important;border-bottom:1px solid var(--line)}" +
+      "#chat-app #chatAssign .as-ok{padding:3px 10px!important;font-size:.78rem!important;border-radius:999px!important}" +
+      "#chat-app #chatComposer{align-items:center;gap:8px;padding:10px 16px}" +
+      "#chat-app #chatComposer .chat-attach{border-radius:50%!important;width:40px!important;height:40px!important}" +
+      "#chat-app #chatComposer textarea{border-radius:22px;padding:10px 16px;min-height:44px}" +
+      "#chat-app #chatComposer #chatSend{border-radius:999px;padding:0 20px}" +
+    "}" +
+    "@media(max-width:760px){" +
+      "#chat-app .cday{background:rgba(0,0,0,.35)!important;border:0!important;color:#fff}" +
+      "#chat-app .cm.g-first,#chat-app .cm.g-one{margin-top:6px}" +
+      "#chat-app .cm.in.g-first,#chat-app .cm.in.g-mid{border-bottom-left-radius:6px!important}#chat-app .cm.in.g-mid,#chat-app .cm.in.g-last{border-top-left-radius:6px!important}" +
+      "#chat-app .cm.out.g-first,#chat-app .cm.out.g-mid{border-bottom-right-radius:6px!important}#chat-app .cm.out.g-mid,#chat-app .cm.out.g-last{border-top-right-radius:6px!important}" +
+      "#chat-app .cm .mt{color:inherit;opacity:.65}#chat-app .cm-tools{top:-16px}" +
+    "}";
+  document.head.appendChild(css4);
 
   /* ---------- каркас ---------- */
   function buildSetup() {
@@ -266,12 +308,19 @@
     document.getElementById("chatPush").onclick = togglePush;
     showSync();
     refreshPushBtn();
+    el.msgs.addEventListener("contextmenu", function (e) {      // телефон: долгое нажатие на сообщение — «копировать / изменить / удалить»
+      var b = e.target.closest ? e.target.closest(".cm") : null;
+      if (!b || !b.querySelector(".cm-tools") || (window.matchMedia && matchMedia("(hover: hover)").matches)) return;
+      e.preventDefault();
+      Array.prototype.forEach.call(el.msgs.querySelectorAll(".cm.acts-on"), function (x) { if (x !== b) x.classList.remove("acts-on"); });
+      b.classList.toggle("acts-on");
+    });
     el.msgs.onclick = function (e) {
       if (mailClick(e)) return;
       var cp = e.target.closest ? e.target.closest("[data-cmcopy]") : null;
       if (cp) {
         var mc = st.msgs.filter(function (x) { return x.id === +cp.getAttribute("data-cmcopy"); })[0];
-        if (mc) copyTxt(mc.text).then(function () { cp.textContent = "✓ Скопировано"; setTimeout(function () { cp.textContent = "⧉ Копировать"; }, 1500); });
+        if (mc) copyTxt(mc.text).then(function () { var was = cp.innerHTML; cp.textContent = cp.textContent.length > 2 ? "✓ Скопировано" : "✓"; setTimeout(function () { cp.innerHTML = was; }, 1500); });
         return;
       }
       var b = e.target.closest ? e.target.closest(".cf") : null;
@@ -494,11 +543,6 @@
     var o = st.taskCnt[t.id];
     return o ? '<span class="tkc' + (o.over ? " over" : "") + '" title="Активные задачи по диалогу">' + o.n + " " + (o.n % 10 === 1 && o.n % 100 !== 11 ? "задача" : (o.n % 10 >= 2 && o.n % 10 <= 4 && (o.n % 100 < 10 || o.n % 100 >= 20)) ? "задачи" : "задач") + "</span>" : "";
   }
-  function chLogo(ch) {
-    if (ch === "tg") return '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3 2 11l6 2.3L10 20l3.3-4.2L18 19z"/></svg>';
-    if (ch === "mail") return '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
-    return '<b style="color:#fff;font-size:12px;font-weight:800;line-height:1">M</b>';
-  }
   function renderThreads() {
     var list = visibleThreads(), keep = el.threads.scrollTop;      // при автообновлении не сбрасываем прокрутку списка
     if (!list.length) {
@@ -508,8 +552,7 @@
     el.threads.innerHTML = list.map(function (t) {
       var ci = chInfo(t.channel), ini = (t.title || "?").trim().charAt(0).toUpperCase(), av = avUrl(t);
       return '<div class="ct' + (t.id === st.sel ? " on" : "") + '" data-id="' + esc(t.id) + '">' +
-        '<span class="mlogo ' + esc(t.channel) + '" title="' + esc(ci.label) + '">' + chLogo(t.channel) + "</span>" +
-        '<div class="ava" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div>" +
+        '<div class="ava" style="' + avStyle(t, av) + '">' + (av ? "" : esc(ini)) + chBadge(t) + "</div>" +
         '<div class="mid"><div class="r1"><span class="nm">' + esc(t.title || t.peer) + '</span><span class="tm">' + fmtTime(t.last_ts) + "</span></div>" +
         '<div class="r2"><span class="pv">' + esc(t.last_text) + "</span>" + assignPill(t) + taskChip(t) + (t.unread ? '<span class="un" title="Закрыть: отметить прочитанным">' + t.unread + " ✕</span>" : "") + '<button class="rowmenu" type="button" title="Действия с диалогом" aria-label="Действия с диалогом">⋯</button></div></div></div>';
     }).join("");
@@ -603,14 +646,12 @@
     }
     var ci = chInfo(t.channel), av = avUrl(t), ini = (t.title || "?").trim().charAt(0).toUpperCase();
     el.head.innerHTML = '<button class="back" id="chatBack" title="К списку">←</button>' +
-      '<div class="hava" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div>" +
+      '<div class="hava" style="' + avStyle(t, av) + '">' + (av ? "" : esc(ini)) + chBadge(t) + "</div>" +
       '<div class="hmain"><b>' + esc(t.title || t.peer) + "</b><small>" + esc(t.peer) + "</small></div>" +
       (canLink() ? '<button class="chat-link" id="chatLinkChip" data-tid="' + esc(t.id) + '" title="Привязка к заказчику и задаче">🔗 <span>…</span></button>' : "") +
       '<button class="hbtn" id="chatRemind" title="Напомнить мне про этот диалог" style="width:auto;padding:0 10px;white-space:nowrap">⏰<span class="rmtxt"> Напомнить</span></button>' +
-      '<button class="hbtn" id="chatAv" title="Загрузить фото собеседника">📷</button>' +
-      (t.avatar_ts ? '<button class="hbtn" id="chatAvDel" title="Убрать фото">✕</button>' : "") +
+      '<button class="hbtn" id="chatMore" title="Ещё: фото собеседника, «непрочитанное»">⋯</button>' +
       '<button class="hbtn chat-infobtn" id="chatInfoBtn" title="Заказчик, создание заказчика и КП">Заказчик · КП</button>' +
-      '<span class="chat-pill" style="background:' + ci.color + '">' + esc(ci.label) + "</span>" +
       '<input type="file" id="chatAvFile" accept="image/*" hidden>';
     document.getElementById("chatBack").onclick = function () { st.sel = null; renderThreads(); renderThread(); };
     var lc = document.getElementById("chatLinkChip");
@@ -632,25 +673,61 @@
     renderAssign();
     renderInfo(t);
     document.getElementById("chatInfoBtn").onclick = function () { el.wrap.classList.add("show-info"); };
-    document.getElementById("chatAv").onclick = function () { document.getElementById("chatAvFile").click(); };
+    document.getElementById("chatMore").onclick = function (e) { e.stopPropagation(); moreMenu(this, t); };
     document.getElementById("chatAvFile").onchange = function () { if (this.files[0]) uploadAvatar(t.id, this.files[0]); this.value = ""; };
-    var del = document.getElementById("chatAvDel");
-    if (del) del.onclick = function () { if (confirm("Убрать фото у «" + (t.title || t.peer) + "»?")) removeAvatar(t.id); };
     var atBottom = el.msgs.scrollHeight - el.msgs.scrollTop - el.msgs.clientHeight < 60;
-    el.msgs.innerHTML = t.channel === "mail" ? mailHtml(t) : st.msgs.map(function (m) {
-      var subj = m.subject ? '<div class="sj' + "" + '">' + esc(m.subject) + "</div>" : "";
-      var copy = m.text ? '<button type="button" data-cmcopy="' + m.id + '" title="Скопировать текст сообщения">⧉ Копировать</button>' : "";
-      var acts = "", mail = t.channel === "mail";                // свои сообщения: исправить (Telegram, MAX) и удалить у заказчика; письмо — только скрыть в CRM
-      if (m.direction === "out") acts = '<span class="cm-acts">' + copy + (mail ? "" : '<button type="button" data-cmedit="' + m.id + '">✎ Изменить</button>')
-        + '<button type="button" class="cm-del" data-cmdel="' + m.id + '" data-ask="' + (mail ? "Скрыть в CRM? У заказчика письмо останется" : "Точно удалить у заказчика?") + '">' + (mail ? "Скрыть" : "🗑 Удалить") + "</button></span>";
-      else if (copy) acts = '<span class="cm-acts">' + copy + "</span>";
-      return '<div class="cm ' + (m.direction === "out" ? "out" : "in") + (st.edit && st.edit.id === m.id ? " cm-editing" : "") + '">' +
-        subj + esc(m.text) + filesHtml(m.files) +
-        '<div class="mt">' + acts + fmtFull(m.ts) + (m.edited ? " · изм." : "") + "</div></div>";
-    }).join("");
+    el.msgs.innerHTML = t.channel === "mail" ? mailHtml(t) : msgsHtml();
     mailHint(t);
     loadThumbs();
     if (!keepScroll || atBottom) el.msgs.scrollTop = el.msgs.scrollHeight;
+  }
+
+  /* ---------- мессенджеры: разделители дней, сообщения подряд — одной группой, время внутри пузыря,
+     «копировать / изменить / удалить» — панелькой при наведении (на телефоне — долгим нажатием) ---------- */
+  var MONTHS_G = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+  function hhmm(ts) { var d = new Date(ts * 1000); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  function dayLabel(ts) {
+    var d = new Date(ts * 1000), n = new Date(), y = new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1);
+    if (d.toDateString() === n.toDateString()) return "Сегодня";
+    if (d.toDateString() === y.toDateString()) return "Вчера";
+    return d.getDate() + " " + MONTHS_G[d.getMonth()] + (d.getFullYear() !== n.getFullYear() ? " " + d.getFullYear() : "");
+  }
+  function msgsHtml() {
+    var list = st.msgs, out = [], day = "";
+    var near = function (a, b) { return !!(a && b && a.direction === b.direction && Math.abs(b.ts - a.ts) < 300 && dayLabel(a.ts) === dayLabel(b.ts)); };
+    list.forEach(function (m, i) {
+      var dl = dayLabel(m.ts);
+      if (dl !== day) { day = dl; out.push('<div class="cday">' + dl + "</div>"); }
+      var prev = near(list[i - 1], m), next = near(m, list[i + 1]), mine = m.direction === "out";
+      var g = prev && next ? "g-mid" : prev ? "g-last" : next ? "g-first" : "g-one";
+      var tools = (m.text ? '<button type="button" data-cmcopy="' + m.id + '" title="Скопировать">⧉</button>' : "")
+        + (mine ? '<button type="button" data-cmedit="' + m.id + '" title="Изменить">✎</button><button type="button" class="cm-del" data-cmdel="' + m.id + '" data-ask="Удалить у заказчика?" title="Удалить у заказчика">🗑</button>' : "");
+      out.push('<div class="cm ' + (mine ? "out" : "in") + " " + g + (st.edit && st.edit.id === m.id ? " cm-editing" : "") + '">'
+        + (m.subject ? '<div class="sj">' + esc(m.subject) + "</div>" : "") + esc(m.text) + filesHtml(m.files)
+        + '<span class="mt" title="' + fmtFull(m.ts) + '">' + (m.edited ? "изм. " : "") + hhmm(m.ts) + (mine ? " ✓" : "") + "</span>"
+        + (tools ? '<span class="cm-tools">' + tools + "</span>" : "") + "</div>");
+    });
+    return out.join("");
+  }
+  function moreMenu(anchor, t) {                 // «⋯» в шапке диалога: фото собеседника, «непрочитанное»
+    var old = document.getElementById("chatMoreMenu"); if (old) { old.remove(); return; }
+    var m = document.createElement("div"); m.id = "chatMoreMenu"; m.className = "cmenu";
+    m.innerHTML = '<button type="button" data-a="ph">📷 Загрузить фото собеседника</button>'
+      + (t.avatar_ts ? '<button type="button" data-a="phdel">✕ Убрать фото</button>' : "")
+      + '<button type="button" data-a="unread">● Пометить непрочитанным</button>';
+    var r = anchor.getBoundingClientRect();
+    m.style.top = (r.bottom + 6) + "px"; m.style.right = Math.max(8, window.innerWidth - r.right) + "px";
+    document.body.appendChild(m);
+    var close = function () { m.remove(); document.removeEventListener("click", close); };
+    setTimeout(function () { document.addEventListener("click", close); }, 0);
+    m.onclick = function (e) {
+      var a = e.target.closest ? e.target.closest("[data-a]") : null; if (!a) return;
+      var k = a.getAttribute("data-a");
+      if (k === "ph") document.getElementById("chatAvFile").click();
+      else if (k === "phdel") { if (confirm("Убрать фото у «" + (t.title || t.peer) + "»?")) removeAvatar(t.id); }
+      else if (k === "unread") { t.unread = t.unread || 1; renderThreads(); applyBadge(); api("/api/threads/" + encodeURIComponent(t.id) + "/unread", { method: "POST" }).then(null, function () {}); }
+      close();
+    };
   }
 
   /* ---------- почта: цепочка писем — старые свёрнуты в строку, у ответа «↩ Ответ на письмо», цитата и подпись спрятаны ---------- */
@@ -727,7 +804,7 @@
     var ae = document.activeElement;
     if (el.info.getAttribute("data-tid") === t.id && ae && ae !== document.body && el.info.contains(ae)) { if (MPBD.chip) MPBD.chip(t); return; }      // идёт ввод в панели (поиск, форма) — не сбрасываем
     el.info.setAttribute("data-tid", t.id);
-    el.info.innerHTML ='<button class="cp-close" id="cpClose">← К диалогу</button><div class="who"><div class="hava big" style="' + avStyle(ci, av) + '">' + (av ? "" : esc(ini)) + "</div></div>" +
+    el.info.innerHTML ='<button class="cp-close" id="cpClose">← К диалогу</button><div class="who"><div class="hava big" style="' + avStyle(t, av) + '">' + (av ? "" : esc(ini)) + chBadge(t) + "</div></div>" +
       '<div id="chatPanel"></div>';
     document.getElementById("cpClose").onclick = function () { el.wrap.classList.remove("show-info"); };
     var h2 = document.getElementById("chatHand2"); if (h2) h2.onclick = function () { handoffDialog(t); };
@@ -741,8 +818,18 @@
     var u = t.avatar_ts ? avCache[avKey(t)] : null;
     return u && u !== "pending" ? u : "";
   }
-  function avStyle(ci, url) {
-    return "background-color:" + ci.color + (url ? ";background-image:url(" + url + ")" : "");
+  /* аватар — цвет по человеку (а не по каналу), канал — значок в углу аватара */
+  var AV_COLORS = ["#E07A5F", "#3D9970", "#C0507A", "#D4A017", "#5B8C5A", "#B5653A", "#4F7CAC", "#8A6A4F"];
+  function avStyle(t, url) {
+    var name = String((t && (t.title || t.peer)) || "?"), h = 0;
+    for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+    return "background-color:" + AV_COLORS[h % AV_COLORS.length] + (url ? ";background-image:url(" + url + ")" : "");
+  }
+  function chBadge(t) {
+    if (!t || t.channel === "mail") return "";                // в «Почте» все письма — значок не нужен
+    var ci = chInfo(t.channel);
+    if (t.channel === "tg") return '<span class="chb tg" title="' + esc(ci.label) + '"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4 3 11l6 2.3L11 20l3-4 4.5 3z"/></svg></span>';
+    return '<span class="chb max" title="' + esc(ci.label) + '"><img src="max-logo.svg" alt="MAX"></span>';
   }
   function loadAvatars() {
     var c = cfg(), any = false;
