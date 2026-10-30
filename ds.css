@@ -1044,6 +1044,8 @@
 .sp-t{font-variant-numeric:tabular-nums;font-size:1.25rem}
 .sp-link{font-size:.86rem;color:var(--blue);text-decoration:none}
 .sp-btns{display:flex;gap:8px}
+.sp-btns.sp-xfer{flex-direction:column}
+.sp-xcap{margin:0 0 6px}
 .sp-b{flex:1;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px 8px;font-weight:600;cursor:pointer}
 .sp-b.ok{background:var(--ok);border-color:var(--ok);color:#fff}
 .sp-b.no{background:var(--bad);border-color:var(--bad);color:#fff}

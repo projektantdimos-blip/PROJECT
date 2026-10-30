@@ -55,7 +55,7 @@
   function ic(n) { return '<svg class="i" viewBox="0 0 24 24">' + (ICON[n] || "") + "</svg>"; }
 
   /* ---------- загрузка ---------- */
-  var CUST_POS = ["owner", "sales", "ops", "design", "acc"], PEOPLE_POS = ["owner", "design", "ops"], KP_POS = ["owner", "sales", "ops"];
+  var CUST_POS = ["owner", "sales", "ops", "design", "acc"], PEOPLE_POS = ["owner", "design", "ops"], KP_POS = ["owner", "sales", "ops"], ONEC_POS = ["owner", "acc"];      // ONEC_POS — как onec.ROLES в мосте
   function lastPos() { try { return localStorage.getItem("ds_pos") || ""; } catch (e) { return ""; } }
   /* Задачи, настройки роли, заказчики и сотрудники — одним залпом (раньше заказчики и сотрудники ждали настроек роли).
      Роль берётся из входа или запомненная с прошлого раза; если она неизвестна или сменилась — догружаем после настроек. */
@@ -139,7 +139,7 @@
     return m;
   }
 
-  var TITLES = { risk: "Просрочено и зависло", tasks: "Задачи", scripts: "Скрипты", onec: "Оплаты из 1С", load: "Занятость", cust: "База заказчиков", week: "План на неделю", kp: "Реестр КП", kpc: "Конструктор КП", contract: "Конструктор договора", report: "Недельный отчёт", stats: "Статистика", price: "Прайс", stages: "Этапы и сроки", auto: "Автоматизация", flow: "Конвейер заказа", tz: "Технические задания" };
+  var TITLES = { risk: "Просрочено и зависло", tasks: "Задачи", scripts: "Скрипты", onec: "Оплаты из 1С", load: "Занятость", cust: "База заказчиков", week: "План на неделю", kp: "Реестр КП", kpc: "Конструктор КП", contract: "Конструктор договора", report: "Пятничный созвон", stats: "Статистика", price: "Прайс", stages: "Этапы и сроки", auto: "Автоматизация", flow: "Конвейер заказа", tz: "Технические задания" };
   function mount(kind, el) {
     if (!el) return;
     S.mount = { kind: kind, el: el };
@@ -173,7 +173,7 @@
     if (kind === "flow") add(loadFlow);
     if (kind === "tz") add(loadTz);
     if (kind === "auto") add(loadAuto);
-    if (kind === "onec") add(loadOnec);
+    if (kind === "onec" || (kind === "kp" && ONEC_POS.indexOf(pos()) >= 0)) add(loadOnec);      // в реестре КП — вкладка «Оплаты 1С»
     if (kind === "report") add(loadReport);
     if (kind === "stats") add(loadStats);
     var need = Promise.all(jobs);
@@ -243,8 +243,9 @@
   }
   /* ---------- «Задачи»: проектные и организационные, канбан или список ---------- */
   var ORG_COLS = [["a1", "Обращение", "#378ADD"], ["a2", "Сбор вводных", "#534AB7"], ["a3", "КП и договор", "#BA7517"], ["p0", "Старт проекта", "#0F6E56"],
-    ["p1", "Сдача проекта", "#993C1D"], ["c1", "Акт и оплата", "#1D9E75"], ["s1", "Постпродажа", "#5F5E5A"], ["x", "Прочее", "#888780"]];
+    ["p1", "Сдача проекта", "#993C1D"], ["c1", "Акт и оплата", "#1D9E75"], ["s1", "Постпродажа", "#5F5E5A"], ["np", "Не проектные работы", "#7A4FB5"], ["x", "Прочее", "#888780"]];
   function orgCol(it) {
+    if (it.o) return "np";
     if (it.kp) return it.kp.status === "Счёт отправлен" ? "p0" : "a3";
     var s = it.t.step, ti = it.t.title || "";
     if (s === "a1" || s === "a2" || s === "a3") return s;
@@ -258,6 +259,9 @@
   function orgItems() {
     var items = (S.tasks || []).filter(function (t) { return !(t.kind === "design" && /^(Проверить проект|Корректировка|Доработка)/.test(t.title || "")); })
       .map(function (t) { return { t: t, left: t.left_days, wait: t.state === "wait", text: (t.title || "") + " " + (t.assignee || "") + " " + (t.object || "") + " " + (t.note || "") }; });
+    (S.orders || []).filter(function (o) { return o.nonproj && DONE_ST.indexOf(o.stage) < 0; }).forEach(function (o) {      // риски, планы эвакуации … ведёт операционный отдел
+      items.push({ o: o, left: o.left_days, wait: o.stage === "На согласовании", text: o.number + " " + (o.customer || "") + " " + (o.object || "") + " " + (o.system || "") + " " + (o.executor || "") });
+    });
     (S.kp || []).filter(function (k) { return !kpDone(k) && !k.order_id; }).forEach(function (k) {
       items.push({ kp: k, left: k.last_days != null && k.last_days > 5 ? -1 : (k.last_days != null && k.last_days >= 3 ? 1 : 9), wait: k.status === "КП отправлено", text: k.number + " " + k.customer + " " + (k.object || "") });
     });
@@ -265,6 +269,12 @@
   }
   function orgRow(it) {
     var u = it.t, tn;
+    if (it.o) {
+      var o = it.o;
+      tn = o.left_days != null && o.left_days < 0 ? "bad" : o.left_days != null && o.left_days <= 2 ? "warn" : "ok";
+      return '<div class="ovr"><div class="ovl"><span class="num">№' + E(o.number) + '</span><span class="cu" title="' + E(o.system || o.object) + '">' + E(o.system || "Не проектная работа") + '</span><span class="ob">' + E((o.customer ? o.customer + " · " : "") + (o.object || "")) + "</span>"
+        + '<span class="pill info">' + E(o.stage) + '</span><span class="ex">' + E(o.executor || "не назначен") + '</span><span class="pill ' + tn + '">' + (o.due_date ? "до " + dmy(o.due_date).slice(0, 5) + " · " : "") + E(leftText(o.left_days)) + '</span><span class="lc"></span><button class="cmb" data-open="' + o.id + '">Открыть</button></div></div>';
+    }
     if (it.kp) {
       var k = it.kp;
       tn = kpTone(k);
@@ -296,7 +306,23 @@
     function tiles(arr) { return '<div class="tiles">' + arr.map(function (x) { return '<button class="tile ' + (f.tile === x[0] ? "on" : "") + '" data-tile="' + x[0] + '" style="--c:' + x[2] + '"><div class="n">' + x[3] + '</div><div class="l">' + x[1] + "</div></button>"; }).join("") + "</div>"; }
     var body;
     if (type === "o") {
-      var rows = orgItems();
+      // «Чьи задачи»: при входе — только свои (руководителю — все), можно выбрать «Все» или сотрудника
+      var me = C && C.me, meName = me ? me.name : "";
+      if (f.who == null) f.who = p === "owner" ? "" : "me";
+      var whoOf = function (x) { return x.kp ? (x.kp.manager || "") : x.o ? (x.o.executor || "") : (x.t.assignee || ""); };
+      var mineIt = function (x) {
+        if (x.kp) return !!meName && x.kp.manager === meName;
+        if (x.o) return !!me && x.o.executor_id === me.id;
+        return x.t.assignee_id ? !!me && x.t.assignee_id === me.id : !!x.t.assignee_pos && x.t.assignee_pos === p;
+      };
+      var allRows = orgItems(), nMine = allRows.filter(mineIt).length;
+      var names = {}; allRows.forEach(function (x) { var w = whoOf(x); if (w && w !== meName) names[w] = (names[w] || 0) + 1; });
+      var rows = allRows.filter(function (x) { return !f.who ? true : f.who === "me" ? mineIt(x) : whoOf(x) === f.who; });
+      search = search.replace('</label></div>', '</label><select id="dsWho" title="Чьи задачи показывать" style="flex:none;min-width:190px">'
+        + '<option value="me"' + (f.who === "me" ? " selected" : "") + ">Мои задачи · " + nMine + "</option>"
+        + '<option value=""' + (!f.who ? " selected" : "") + ">Все сотрудники · " + allRows.length + "</option>"
+        + Object.keys(names).sort().map(function (n) { return '<option value="' + E(n) + '"' + (f.who === n ? " selected" : "") + ">" + E(n) + " · " + names[n] + "</option>"; }).join("")
+        + "</select></div>");
       var cnt = { all: rows.length, over: rows.filter(function (x) { return x.left != null && x.left < 0; }).length, hot: rows.filter(function (x) { return x.left != null && x.left >= 0 && x.left <= 2; }).length, wait: rows.filter(function (x) { return x.wait; }).length };
       var tl = [["all", "В работе", "var(--org)", cnt.all], ["over", "Просрочено", "var(--bad)", cnt.over], ["hot", "Горят (≤ 2 дн.)", "var(--accent)", cnt.hot], ["wait", "Ждут ответа", "var(--warn)", cnt.wait]];
       var shown = rows.filter(function (x) {
@@ -310,12 +336,12 @@
         var used = ORG_COLS.filter(function (c) { return shown.some(function (x) { return orgCol(x) === c[0]; }); });
         body = used.length ? '<div class="board">' + used.map(function (c) {
           var arr = shown.filter(function (x) { return orgCol(x) === c[0]; });
-          return '<div class="col"><div class="col-h cl" style="--c:' + c[2] + '"><b>' + c[1] + '</b><span class="n">' + arr.length + "</span></div>" + arr.map(function (x) { return x.kp ? kpCard(x.kp) : taskCard(x.t); }).join("") + "</div>";
+          return '<div class="col"><div class="col-h cl" style="--c:' + c[2] + '"><b>' + c[1] + '</b><span class="n">' + arr.length + "</span></div>" + arr.map(function (x) { return x.kp ? kpCard(x.kp) : x.o ? card(x.o, true) : taskCard(x.t); }).join("") + "</div>";
         }).join("") + "</div>" : '<div class="note">Ничего не найдено</div>';
       }
       return '<div class="ds dspage">' + head + tiles(tl) + search + body + "</div>";
     }
-    var all = S.orders || [], act_ = all.filter(function (o) { return DONE_ST.indexOf(o.stage) < 0; });
+    var all = (S.orders || []).filter(function (o) { return !o.nonproj; }), act_ = all.filter(function (o) { return DONE_ST.indexOf(o.stage) < 0; });
     var hasMoney = can("money");
     var cn = {
       active: act_.length,
@@ -415,8 +441,14 @@
       + '<div class="g2f">' + inp("Дата выставления КП", "issued_date", "date") + '<div class="fld"><label>Менеджер</label><select data-ke="manager_id"><option value="0">—</option>' + mg.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +e.manager_id ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div></div>"
       + '<div class="fld"><label>Статус</label><select data-ke="status"' + (locked ? " disabled" : "") + ">" + KP_MANUAL.map(function (s) { return '<option value="' + E(s) + '"' + (s === e.status ? " selected" : "") + ">" + E(s) + "</option>"; }).join("") + "</select>"
       + (locked ? "" : '<div class="note" style="margin-top:4px">«Оплачено» создаст проектную задачу и чат (нужен заказчик)</div>') + "</div>"
+      + (e.status === "Отказ" ? '<div class="g2f">' + keSel("Причина отказа", "refuse_reason", KP_REFUSE) + keSel("Есть ли смысл вернуться", "refuse_back", KP_BACK) + "</div>" + inp("Что можно было сделать иначе", "refuse_note")
+        : '<div class="g2f">' + keSel("Вероятность оплаты", "pay_prob", KP_PROB) + inp("Ожидаемая дата оплаты", "pay_expect", "date") + "</div>" + inp("Следующий контакт", "next_contact", "date"))
       + (e.err ? '<div class="err">' + E(e.err) + "</div>" : "")
       + '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" data-kesave="1">Сохранить</button><button class="btn ghost" data-kectr="1" title="Изменить состав услуг и цены">Состав услуг…</button><button class="btn ghost" data-close="1">Отмена</button></div></div></div></div>';
+  }
+  var KP_REFUSE = ["Цена", "Сроки", "Ушли к другому", "Пропал", "Не наш профиль", "Другое"], KP_BACK = ["Да, через месяц", "Да, позже", "Нет"], KP_PROB = [["high", "высокая"], ["mid", "средняя"], ["low", "низкая"]];
+  function keSel(label, k, opts) {
+    return '<div class="fld"><label>' + label + '</label><select data-ke="' + k + '"><option value="">—</option>' + opts.map(function (o) { var v = Array.isArray(o) ? o[0] : o, l = Array.isArray(o) ? o[1] : o; return '<option value="' + E(v) + '"' + (v === S.ke[k] ? " selected" : "") + ">" + E(l) + "</option>"; }).join("") + "</select></div>";
   }
   /* привязка КП к уже существующей задаче: оплаты и стадия дальше идут из задачи и 1С */
   function keOrderSel(e) {
@@ -436,6 +468,7 @@
     var e = S.ke;
     var body = { customer_id: +e.customer_id || 0, customer_text: +e.customer_id ? "" : (e.customer_text || ""), object: e.object || "", amount: +e.amount || 0, adv_sum: +e.adv_sum || 0, pay_text: e.pay_text || "", issued_date: e.issued_date || "", manager_id: +e.manager_id || 0 };
     if (+e.order_id !== +e.order0) body.order_id = +e.order_id || 0;
+    ["pay_prob", "pay_expect", "next_contact", "refuse_reason", "refuse_back", "refuse_note"].forEach(function (k) { body[k] = e[k] || ""; });
     if (+e.adv_sum > 0 ? (e.adv_date || "") !== e.adv_date0 : e.adv_date0) body.adv_date = +e.adv_sum > 0 ? e.adv_date || "" : "";
     api("/kp/" + e.id + "/edit", body).then(function () { return e.status !== e.status0 && !e.order_id && body.order_id == null ? api("/kp/" + e.id + "/status", { status: e.status }) : null; })
       .then(function () { S.ke = null; S.orders = null; S.tasks = null; return Promise.all([loadKp(), load()]); })
@@ -447,7 +480,8 @@
     if (d.kpedit) {
       var k = (S.kp || []).filter(function (x) { return x.id === +d.kpedit; })[0]; if (!k) return;
       S.kpHot = k.id;
-      S.ke = { id: k.id, number: k.number, customer_id: k.customer_id || 0, customer_text: k.customer_text || "", object: k.object || "", amount: k.amount, adv_sum: k.adv_sum, pay_text: k.pay_text || "", issued_date: k.issued_date || "", manager_id: k.manager_id || 0, status: k.status, status0: k.status, order_id: k.order_id, order0: k.order_id, adv_date: k.adv_paid ? k.adv_date : "", adv_date0: k.adv_paid ? k.adv_date : "", err: "" };
+      S.ke = { id: k.id, number: k.number, customer_id: k.customer_id || 0, customer_text: k.customer_text || "", object: k.object || "", amount: k.amount, adv_sum: k.adv_sum, pay_text: k.pay_text || "", issued_date: k.issued_date || "", manager_id: k.manager_id || 0, status: k.status, status0: k.status,
+        pay_prob: k.pay_prob || "", pay_expect: k.pay_expect || "", next_contact: k.next_contact || "", refuse_reason: k.refuse_reason || "", refuse_back: k.refuse_back || "", refuse_note: k.refuse_note || "", order_id: k.order_id, order0: k.order_id, adv_date: k.adv_paid ? k.adv_date : "", adv_date0: k.adv_paid ? k.adv_date : "", err: "" };
       modalRoot().innerHTML = keHtml();
       if (!S.orders) load().then(function () { if (S.ke) modalRoot().innerHTML = keHtml(); });
       if (S.assignable == null) api("/users/assignable").then(function (u) { S.assignable = u; if (S.ke) modalRoot().innerHTML = keHtml(); }, function () { S.assignable = []; });
@@ -470,7 +504,7 @@
     var t = e.target; if (t.dataset && t.dataset.ke && S.ke) {
       S.ke[t.dataset.ke] = t.value;
       if (t.dataset.ke === "order_id") { var o = (S.orders || []).filter(function (x) { return x.id === +t.value; })[0]; if (o) { S.ke.amount = o.amount || 0; S.ke.adv_sum = o.adv_mode === "advance" ? o.adv_sum || 0 : 0; S.ke.object = o.object || S.ke.object; if (o.customer_id) S.ke.customer_id = o.customer_id; S.ke.adv_date = o.adv_paid ? o.adv_date : ""; S.ke.adv_date0 = S.ke.adv_date; } }
-      if (t.dataset.ke === "customer_id" || t.dataset.ke === "order_id" || t.dataset.ke === "adv_sum") modalRoot().innerHTML = keHtml();
+      if (t.dataset.ke === "customer_id" || t.dataset.ke === "order_id" || t.dataset.ke === "adv_sum" || t.dataset.ke === "status") modalRoot().innerHTML = keHtml();
     }
   });
   /* контакт заказчика и новый заказчик прямо в конструкторе КП */
@@ -506,15 +540,19 @@
       var facts = '<div class="rdfacts"><span>Начали: <b>' + (r.started ? dmy(r.started) : "—") + "</b></span><span>Сдали: <b>" + (r.delivered ? dmy(r.delivered) : "—") + "</b></span>" + (r.days_fact != null ? "<span>Факт: <b>" + r.days_fact + " раб. дн.</b></span>" : "") + "</div>";
       var plan = '<div class="rdplan">План: <b>' + (r.plan_start ? dmy(r.plan_start) : "—") + " — " + (r.plan_end ? dmy(r.plan_end) : "—") + "</b>" + (r.days_plan != null ? " (" + r.days_plan + " раб. дн.)" : "") + (rdLeft(r) ? " · " + rdLeft(r) : "") + "</div>";
       var who = '<div class="rdplan">Исполнитель: <b>' + E(r.executor || "не назначен") + "</b>" + (r.created_by ? ' <small style="color:var(--muted)">· открыл(а) ' + E(r.created_by) + "</small>" : "") + "</div>";
-      var rem = r.kind === "fix" ? '<div class="rdrem">' + (r.remarks ? E(r.remarks) : '<i style="color:var(--muted)">Замечания не записаны</i>') + "</div>" : "";
+      var rem = r.kind === "fix" ? '<div class="rdrem">' + (r.remarks ? E(r.remarks) : '<i style="color:var(--muted)">Замечания не записаны</i>') + "</div>"
+        + '<div class="rdplan">' + (r.category ? '<span class="pill info">' + E(r.category) + "</span> " : '<span class="pill warn">категория не указана</span> ') + (r.cause ? E(r.cause) : "") + (r.paid ? ' · <b>платная</b>' : "") + "</div>" : "";
       var ed = "";
       if (r.kind === "fix" && d.can_edit) {
         ed = rd.edit === r.id ? '<div class="rdform"><div class="fld"><label>Замечания заказчика</label><textarea rows="3" data-rdf="remarks">' + E(r.remarks || "") + "</textarea></div>"
+          + '<div class="g2f"><div class="fld"><label>Категория</label><select data-rdf="category"><option value="">—</option>' + FIX_CAT.map(function (x) { return '<option' + (x === r.category ? " selected" : "") + ">" + E(x) + "</option>"; }).join("") + "</select></div>"
+          + '<div class="fld"><label>Причина</label><select data-rdf="cause"><option value="">—</option>' + FIX_CAUSE.map(function (x) { return '<option' + (x === r.cause ? " selected" : "") + ">" + E(x) + "</option>"; }).join("") + "</select></div></div>"
+          + '<div class="fld"><label>Платная корректировка</label><select data-rdf="paid"><option value="0">Нет</option><option value="1"' + (r.paid ? " selected" : "") + ">Да</option></select></div>"
           + '<div class="g2f"><div class="fld"><label>Начало</label><input type="date" data-rdf="plan_start" value="' + E(r.plan_start || "") + '"></div><div class="fld"><label>Срок, рабочих дней</label><input type="number" min="1" max="120" data-rdf="workdays" placeholder="напр. 3"></div></div>'
           + '<div class="fld"><label>или срок датой</label><input type="date" data-rdf="plan_end" value="' + E(r.plan_end || "") + '"></div>'
           + '<div class="fld"><label>Исполнитель (кому поставить работу)</label><select data-rdf="executor_id"><option value="0">— не менять —</option>' + people.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +r.executor_id ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div>"
           + '<div style="display:flex;gap:8px"><button class="btn primary sm" data-rdsave="' + r.id + '">Сохранить</button><button class="btn ghost sm" data-rdedit="0">Отмена</button></div></div>'
-          : '<button class="btn ghost sm" data-rdedit="' + r.id + '">✎ Сроки корректировки</button>';
+          : '<button class="btn ghost sm" data-rdedit="' + r.id + '">✎ Сроки и категория</button>';
       }
       return '<div class="rdcard ' + r.kind + (r.open ? " open" : "") + '"><div class="rdh"><b>' + E(r.title) + "</b>" + rdPill(r) + "</div>" + facts + plan + who + rem + ed + "</div>";
     }).join("");
@@ -527,9 +565,11 @@
       var box = t.closest(".rdform"), body = {};
       box.querySelectorAll("[data-rdf]").forEach(function (el) { var k = el.dataset.rdf; if (k === "workdays") { if (el.value) body.workdays = +el.value; } else if (k === "executor_id") { if (+el.value) body.executor_id = +el.value; } else body[k] = el.value; });
       if (body.workdays) delete body.plan_end;
-      api("/orders/" + S.rd.id + "/rounds/" + t.dataset.rdsave + "/edit", body).then(function (r) { S.rd.data = r; S.rd.edit = 0; S.rd.msg = ""; toast("Сроки корректировки сохранены"); S.orders = null; return load(); }).then(paint, function (er) { S.rd.msg = String(er); paint(); });
+      api("/orders/" + S.rd.id + "/rounds/" + t.dataset.rdsave + "/edit", body).then(function (r) { S.rd.data = r; S.rd.edit = 0; S.rd.msg = ""; toast("Корректировка сохранена"); S.orders = null; return load(); }).then(paint, function (er) { S.rd.msg = String(er); paint(); });
     }
   });
+  var FIX_CAT = ["Ошибка отдела", "Просьба заказчика", "Недостаток вводных", "Экспертиза", "Спорно"];
+  var FIX_CAUSE = ["Ошибки в документах", "Нарушение норм", "Размещение оборудования", "Ошибка в ТЗ", "Нет оборудования у поставщика", "Другое"];
   /* ---------- «Просрочено и зависло» ---------- */
   function loadRisk() { return api("/attention?days=" + (S.rkDays || 3)).then(function (r) { S.rk = r; S.rkErr = ""; }, function (e) { S.rk = { items: [], tasks: [], outbox: [] }; S.rkErr = String(e); }); }
   var RK_KIND = { overdue: ["Просрочен срок по договору", "bad"], unassigned: ["Нет исполнителя", "warn"], stale: ["Без движения", "muted"] };
@@ -917,6 +957,7 @@
         .map(function (x) { return '<option value="' + E(x) + '">'; }).join("") + "</datalist>"
       + '<div class="g2f"><div class="fld"><label>Срок по договору</label><input id="nfDue" type="date" value="' + E(f.due) + '"></div><div class="fld"><label>Сумма, ₽</label><input id="nfSum" type="number" min="0" value="' + E(f.amount) + '"></div></div>'
       + '<div class="fld"><label><input type="checkbox" id="nfAdv" ' + (f.adv ? "checked" : "") + '> Предусмотрен аванс</label></div>'
+      + '<div class="fld"><label title="Без галочки — определится по названию работы (риск, категории, план эвакуации, спецификация)"><input type="checkbox" id="nfNp" ' + (f.np ? "checked" : "") + '> Не проектная работа — в операционный отдел, не в проектный</label></div>'
       + '<div class="fld" ' + (f.adv ? "" : 'style="display:none"') + ' id="nfAdvBox"><label>Сумма аванса, ₽</label><input id="nfAdvSum" type="number" min="0" value="' + E(f.advSum) + '"></div>'
       + '<div class="dbox"><small>Что произойдёт</small>' + (f.adv ? "Задача встанет на паузу «Ожидает аванс», бухгалтеру уйдёт «Выставить счёт на аванс»." : "Задача сразу попадёт на «Сбор данных» к операционному менеджеру.") + "</div>"
       + '<div class="err" id="nfErr">' + E(f.err || "") + '</div><button class="btn primary block" data-create="1">Создать задачу</button></div></div></div>';
@@ -1003,7 +1044,7 @@
     if (S.assignable == null) need.push(api("/users/assignable").then(function (u) { S.assignable = u; }, function () { S.assignable = []; }));
     if (S.orders == null) need.push(load().then(null, function () {}));
     return Promise.all(need).then(function () {
-      S.nt = { step: opts.step || "", assignee: 0, title: opts.title || "", due: "", order: opts.order || 0, thread: opts.thread_id || "", thread_title: opts.thread_title || "", note: "", err: "" };
+      S.nt = { step: opts.step || "", assignee: 0, title: opts.title || "", due: "", order: opts.order || 0, thread: opts.thread_id || "", thread_title: opts.thread_title || "", note: opts.note || "", err: "" };
       modalRoot().innerHTML = ntHtml();
     });
   }
@@ -1039,14 +1080,18 @@
   }
   function tmHtml() {
     var o = S.oe; if (!o) return "";
-    var p = pos(), full = fullCtl(), stages = (S.meta && S.meta.stages) || [], people = S.people || [], money_ = can("money") && o.amount != null && full;
+    var p = pos(), full = fullCtl(), stages = (S.meta && S.meta.stages) || [], people = (o.nonproj && S.staff) || S.people || [], money_ = can("money") && o.amount != null && full;
+    if (o.nonproj && S.staff == null && full && !S.staffReq) { S.staffReq = 1; api("/people?any=1").then(function (x) { S.staff = x; if (S.oe) tmRepaint(); }, function () { S.staffReq = 0; }); }      // не проектная работа: исполнитель — любой сотрудник
+    if (+o.executor_id && !people.some(function (u) { return u.id === +o.executor_id; })) people = people.concat([{ id: +o.executor_id, name: o.executor || "…" }]);
     var banner = o.left_days == null ? "" : (o.left_days < 0 ? '<div class="tm-ban bad">Просрочено ' + plural(o.left_days, ["день", "дня", "дней"]) + "</div>" : '<div class="tm-ban">Осталось ' + plural(o.left_days, ["день", "дня", "дней"]) + "</div>");
     return '<div class="tm-inner">' + (S.tm ? "" : '<div class="tm-links" style="margin-bottom:10px"><a href="#/team?room=t' + o.id + '">обсудить в чате</a></div>') + banner
       + '<div class="tm-btns"><a class="btn primary" href="' + E(folderUrl(o, false)) + '">Перейти в папку на сервере</a><button class="btn ghost" data-tmcopy="1">Копировать имя</button></div>'
       + '<div class="tm-urg"><span class="ico">⚡</span><div><b>Срочная работа</b><small>Поднимается наверх списка и подсвечивается красным</small></div><button type="button" class="tm-sw ' + (o.urgent ? "on" : "") + '" data-tmurg="1" aria-label="Срочная работа"><i></i></button></div>'
       + '<label class="tm-l">Стадия</label><div class="tm-chips">' + stages.map(function (s) { return '<button type="button" class="tmchip ' + (s === o.stage ? "on" : "") + '" data-tmstage="' + E(s) + '"><i style="background:' + (STAGE_COLOR[s] || "#999") + '"></i>' + E(s) + "</button>"; }).join("") + "</div>"
-      + (o.stage === "Корректировка" && (find(o.id) || {}).stage !== "Корректировка" ? '<div class="g2f">' + tmInp("Срок корректировки, рабочих дней", "fix_days", "number") + '<div class="fld"><label>Замечания заказчика</label><input data-oe="fix_remarks" value="' + E(o.fix_remarks || "") + '" ' + OE_FIELD + "></div></div>" : "")
+      + (o.stage === "Корректировка" && (find(o.id) || {}).stage !== "Корректировка" ? '<div class="g2f">' + tmInp("Срок корректировки, рабочих дней", "fix_days", "number") + '<div class="fld"><label>Замечания заказчика</label><input data-oe="fix_remarks" value="' + E(o.fix_remarks || "") + '" ' + OE_FIELD + "></div></div>"
+        + '<div class="fld"><label>Категория корректировки</label><select data-oe="fix_cat" ' + OE_FIELD + '><option value="">—</option>' + FIX_CAT.map(function (x) { return "<option" + (x === o.fix_cat ? " selected" : "") + ">" + E(x) + "</option>"; }).join("") + "</select></div>" : "")
       + '<div class="g2f">' + tmInp("№ задачи", "number", "", !full) + '<div class="fld"><label>Ответственный</label><select data-oe="executor_id" ' + OE_FIELD + '><option value="0">— не назначен —</option>' + people.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +o.executor_id ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div></div>"
+      + (full ? oeChk("<span><b>Не проектная работа</b> — расчёт риска, категорий, план эвакуации, спецификация: ведёт операционный отдел, исполнитель — любой сотрудник</span>", "nonproj") : "")
       + '<div class="fld"><label>Заказчик</label><input data-oe="customer" list="dsCust" value="' + E(o.customer || "") + '" ' + OE_FIELD + (full ? "" : " disabled") + "></div>"
       + '<datalist id="dsCust">' + (S.customers || []).map(function (c) { return '<option value="' + E(c.name) + '">'; }).join("") + "</datalist>"
       + '<div class="fld"><label>Объект (адрес)</label><textarea rows="3" data-oe="object" ' + OE_FIELD + ">" + E(o.object || "") + "</textarea></div>"
@@ -1076,7 +1121,8 @@
     S.oeErr = "";
     var pl = { number: o.number, customer: o.customer, object: o.object, system: o.system, stage: o.stage, executor_id: +o.executor_id || 0, start_date: o.start_date || "", due_date: o.due_date || "",
       plan_start: o.plan_start || "", plan_end: o.plan_end || "", priority: o.priority, edits: +o.edits || 0, urgent: o.urgent ? 1 : 0 };
-    if (o.stage === "Корректировка") { pl.fix_days = +o.fix_days || 0; pl.fix_remarks = o.fix_remarks || ""; }
+    if (fullCtl()) pl.nonproj = o.nonproj ? 1 : 0;
+    if (o.stage === "Корректировка") { pl.fix_days = +o.fix_days || 0; pl.fix_remarks = o.fix_remarks || ""; pl.fix_cat = o.fix_cat || ""; }
     if (can("money") && o.amount != null) Object.assign(pl, { amount: +o.amount || 0, adv_sum: +o.adv_sum || 0, adv_date: o.adv_date || "", post_date: o.post_date || "", adv_paid: o.adv_paid ? 1 : 0, post_paid: o.post_paid ? 1 : 0, act_sent: o.act_sent ? 1 : 0, act_signed: o.act_signed ? 1 : 0 });
     if (pos() === "design") { ["number", "customer", "amount", "adv_sum"].forEach(function (k) { delete pl[k]; }); }
     api("/orders/" + o.id + "/edit", pl).then(function () { S.oe = null; S.tm = false; toast("Правки сохранены"); S.orders = null; S.tasks = null; return load().then(function () { return api("/orders/" + o.id + "/history").then(function (h) { S.history = h; }, function () {}); }).then(paint); },
@@ -1483,15 +1529,16 @@
   }
   addEventListener("resize", fitKpWrap);
   function kpIsLate(k) { return k.last_days != null && k.last_days > 5 && !kpDone(k); }
+  function kpArchived(k) { return k.status === "Закрыто" || k.status === "Отказ"; }      // закрытые и отказы — в архиве
   function kpScreen() {
     var p = pos(), canEdit = p === "owner" || p === "sales" || p === "ops", all = S.kp || [];
-    var nClosed = all.filter(function (k) { return k.status === "Закрыто"; }).length;
-    var list = all.filter(function (k) { return S.kpArch ? k.status === "Закрыто" : k.status !== "Закрыто"; });      // закрытые — в архиве
+    var nClosed = all.filter(kpArchived).length;
+    var list = all.filter(function (k) { return S.kpArch ? kpArchived(k) : !kpArchived(k); });
     var kpz = kpFont();
     var head = '<div class="head"><div><h1>Реестр КП</h1><p>Выставленные стоимости: аванс и постоплата отдельно. Красным выделены КП, по которым нет общения более 5 дней</p></div>'
       + '<div style="display:flex;gap:10px;align-items:center"><div class="seg" title="Размер шрифта таблицы"><button data-kpz="-1">A−</button><button data-kpz="0">' + kpz + ' px</button><button data-kpz="1">A+</button></div>'
       + (canEdit ? '<a class="btn accent" href="#/kpc" style="text-decoration:none">' + ic("plus") + "Составить КП</a>" : "") + "</div></div>";
-    var funnel = '<div class="panel pad" style="margin-bottom:16px"><h3>Воронка</h3><p class="sub">«Оплачено» создаёт проектную задачу и чат по заказу (аванс получен). Дальше этапы идут сами: проект «Сдано» → «В постоплате», оплата по акту из 1С → «Закрыто» (КП уходит в архив)</p><div class="kpfun">'
+    var funnel = '<div class="panel pad" style="margin-bottom:16px"><h3>Воронка</h3><p class="sub">«Оплачено» создаёт проектную задачу и чат по заказу (аванс получен). Дальше этапы идут сами: проект «Сдано» → «В постоплате», оплата по акту из 1С → «Закрыто» (КП уходит в архив). «Отказ» тоже сразу уходит в архив</p><div class="kpfun">'
       + KP_FUNNEL.map(function (s, i) {
         var ks = all.filter(function (k) { return k.status === s; }), wait = ks.reduce(function (a, k) { return a + kpWait(k); }, 0);
         return '<span class="pill ' + KP_TONE[s] + '">' + E(s) + " · " + ks.length + (wait ? "<small>ждём " + money(wait) + "</small>" : "") + "</span>" + (i < KP_FUNNEL.length - 1 ? '<span style="color:var(--muted)">→</span>' : "");
@@ -1523,9 +1570,14 @@
       if (canEdit && k.contract_number) b += ' <button class="btn ghost sm" title="Договор в PDF" data-doc="' + k.id + ':contract:pdf">Дог. PDF</button> <button class="btn ghost sm" title="Договор в Word" data-doc="' + k.id + ':contract:docx">Дог. Word</button>';
       return b;
     }
-    var arch = '<div class="kparch"><button class="btn ghost sm" data-kparch="1">' + (S.kpArch ? "← Вернуться к работе" : "Архив: закрытые КП · " + nClosed) + "</button>" + (S.kpArch ? "<span>Закрытые КП: оплачено полностью, проект сдан</span>" : "") + "</div>";
-    return head + funnel + arch + '<div class="panel kpwrap" data-arch="' + !!S.kpArch + '"><table class="tbl grid-c kpt" style="font-size:' + kpz + 'px"><thead><tr><th>№ КП</th><th>Заказчик</th><th>Объект / услуги</th><th>Дата выставления КП</th><th>Сумма</th><th>Статус</th><th>Аванс</th><th>Постоплата</th><th>Последнее общение</th><th>Менеджер</th><th>Действия и документы</th><th></th></tr></thead><tbody>'
-      + (rows || '<tr><td colspan="12">' + (S.kpArch ? "Закрытых КП пока нет" : "КП пока нет") + "</td></tr>") + "</tbody></table></div>";
+    var arch = '<div class="kparch"><button class="btn ghost sm" data-kparch="1">' + (S.kpArch ? "← Вернуться к работе" : "Архив: закрытые КП и отказы · " + nClosed) + "</button>" + (S.kpArch ? "<span>Закрытые КП (оплачено полностью, проект сдан) и отказы</span>" : "") + "</div>";
+    var payTab = ONEC_POS.indexOf(p) >= 0, tab = payTab && S.kpTab === "pay" ? "pay" : "kp", nAtt = S.on && S.on.attention || 0;
+    var tabs = payTab ? '<div class="seg" style="margin-bottom:14px">' + [["kp", "КП"], ["pay", "Оплаты 1С" + (nAtt ? " · " + nAtt + " не разобрано" : "")]].map(function (x) {
+      return '<button data-kptab="' + x[0] + '" class="' + (tab === x[0] ? "on" : "") + '">' + x[1] + "</button>";
+    }).join("") + "</div>" : "";
+    if (tab === "pay") return head + tabs + '<div class="kparch" style="margin:0 0 12px;justify-content:space-between;flex-wrap:wrap"><span>' + onecSub(S.on) + "</span>" + onecRunBtn(S.on) + "</div>" + onecBody();
+    return head + tabs + funnel + arch + '<div class="panel kpwrap" data-arch="' + !!S.kpArch + '"><table class="tbl grid-c kpt" style="font-size:' + kpz + 'px"><thead><tr><th>№ КП</th><th>Заказчик</th><th>Объект / услуги</th><th>Дата выставления КП</th><th>Сумма</th><th>Статус</th><th>Аванс</th><th>Постоплата</th><th>Последнее общение</th><th>Менеджер</th><th>Действия и документы</th><th></th></tr></thead><tbody>'
+      + (rows || '<tr><td colspan="12">' + (S.kpArch ? "В архиве пока пусто" : "КП пока нет") + "</td></tr>") + "</tbody></table></div>";
   }
   function kpTotal() { return (S.kpf ? S.kpf.items : []).reduce(function (a, i) { return a + (i.on ? (+i.price || 0) : 0); }, 0); }
   function kpcInit() {
@@ -1914,8 +1966,25 @@
           + (r.can_edit && i.custom ? ' <button class="btn ghost sm" data-tzdel="' + i.idx + '">✕</button>' : "") + "</div>";
       }).join("")
       + ""
-      + (r.stage === "Сбор данных" && r.can_edit ? '<div class="note">Когда закрыты все пункты, задача сама перейдёт в «Готов к проектированию».</div>' : "") + "</div>";
+      + (r.stage === "Сбор данных" && r.can_edit ? '<div class="note">Когда закрыты все пункты, задача сама перейдёт в «Готов к проектированию».</div>' : "") + "</div>" + tzReturnBox(r);
   }
+  var TZ_RET = ["Скан вместо файла", "Нет планов", "Нет ТУ", "Противоречия", "Неполные данные", "Другое"];
+  function tzReturnBox(r) {
+    var p = pos(), toCust = (p === "owner" || p === "ops" || p === "sales") && r.stage === "Сбор данных", toOps = (p === "owner" || p === "design") && (r.stage === "Готов к проектированию" || r.stage === "В проектировании");
+    if (!toCust && !toOps) return "";
+    var target = toOps ? "ops" : "customer";
+    return '<div class="panel pad" style="margin-top:12px"><h3>' + (toOps ? "Вернуть ТЗ менеджеру проектов" : "Вернуть ТЗ заказчику на доработку") + '</h3><p class="sub">' + (toOps ? "Задача вернётся на «Сбор данных», менеджеру проектов придёт задача." : "Стадия не меняется — возврат и причина попадут в пятничный созвон.") + "</p>"
+      + '<div class="g2f"><div class="fld"><label>Причина</label><select id="tzRetWhy">' + TZ_RET.map(function (x) { return "<option>" + E(x) + "</option>"; }).join("") + '</select></div><div class="fld"><label>Комментарий</label><input id="tzRetNote" placeholder="что именно не так"></div></div>'
+      + '<button class="btn ghost" data-tzret="' + target + '">↩ Вернуть ТЗ</button></div>';
+  }
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest ? e.target.closest("[data-tzret]") : null; if (!t || !S.open) return;
+    var why = document.getElementById("tzRetWhy"), note = document.getElementById("tzRetNote"), oid = S.open;
+    api("/orders/" + oid + "/tz-return", { target: t.dataset.tzret, reason: why ? why.value : "", comment: note ? note.value : "" }).then(function () {
+      toast(t.dataset.tzret === "ops" ? "ТЗ возвращено менеджеру проектов" : "Возврат ТЗ заказчику записан");
+      S.orders = null; S.tasks = null; return load().then(function () { return loadTzItem(oid); });
+    }).then(paint, function (er) { toast(String(er)); });
+  });
 
   /* ---------- этапы и сроки ---------- */
   var LANE_BG = { sales: "linear-gradient(135deg,#9a76c8,#7a55a8)", design: "linear-gradient(135deg,#3a86d6,#1f5c99)", close: "linear-gradient(135deg,#46c28a,#238a58)", after: "linear-gradient(135deg,#f2a65a,#d9782f)" };
@@ -1987,13 +2056,19 @@
   function loadOnec() {
     return api("/1c/onec").then(function (r) { S.on = r; }, function (e) { S.on = null; S.onErr = String(e); });
   }
+  function onecSub(r) {
+    return "Поступления на расчётный счёт из 1С отмечаются в задачах сами, когда плательщик — заказчик из CRM (по ИНН или названию), а номер договора или сумма совпадают с задачей"
+      + (r && r.configured ? " (проверка раз в " + r.minutes + " мин)" : "");
+  }
+  function onecRunBtn(r) { return r && r.configured ? '<button class="btn ghost" data-onrun="1">Проверить сейчас</button>' : ""; }
   function onecScreen() {
+    return '<div class="head"><div><h1>Оплаты из 1С</h1><p>' + onecSub(S.on) + "</p></div>" + onecRunBtn(S.on) + "</div>" + onecBody();
+  }
+  /* то же содержимое — на вкладке «Оплаты 1С» реестра КП */
+  function onecBody() {
     var r = S.on;
-    var head = '<div class="head"><div><h1>Оплаты из 1С</h1><p>Поступления на расчётный счёт из 1С отмечаются в задачах сами, когда плательщик — заказчик из CRM (по ИНН или названию), а номер договора или сумма совпадают с задачей'
-      + (r && r.configured ? " (проверка раз в " + r.minutes + " мин)" : "") + "</p></div>"
-      + (r && r.configured ? '<button class="btn ghost" data-onrun="1">Проверить сейчас</button>' : "") + "</div>";
-    if (!r) return head + '<div class="note">' + E(S.onErr || "Нет данных") + "</div>";
-    if (!r.configured) return head + '<div class="note">Связь с 1С ещё не настроена. Бухгалтер создаёт в 1С пользователя для OData, затем адрес базы, имя и пароль этого пользователя вписываются в настройки сервера (см. 1c/ИНСТРУКЦИЯ.md).</div>';
+    if (!r) return '<div class="note">' + E(S.onErr || "Нет данных") + "</div>";
+    if (!r.configured) return '<div class="note">Связь с 1С ещё не настроена. Бухгалтер создаёт в 1С пользователя для OData, затем адрес базы, имя и пароль этого пользователя вписываются в настройки сервера (см. 1c/ИНСТРУКЦИЯ.md).</div>';
     var when = function (ts) { if (!ts) return "ещё не было"; var d = new Date(ts * 1000); return d.toLocaleDateString("ru-RU") + " " + d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }); };
     var stat = '<div class="panel pad" style="margin-bottom:16px">Последняя проверка: <b>' + when(r.last_run) + "</b>"
       + (r.error ? '<div class="err" style="margin-top:8px">Ошибка связи с 1С: ' + E(r.error) + "</div>" : "") + "</div>";
@@ -2019,9 +2094,13 @@
     var done = r.items.filter(function (x) { return ST[x.status]; });
     var list = '<div class="panel"><table class="tbl"><tr><th style="width:100px">Дата</th><th>Плательщик</th><th style="width:130px">Сумма</th><th style="width:90px">Задача</th><th style="width:160px">Итог</th></tr>'
       + (done.map(function (x) {
-        return "<tr><td>" + dmy(x.date) + "</td><td>" + who(x) + '<br><small class="sub">' + E(x.purpose) + "</small></td><td>" + money(x.amount) + "</td><td>" + (x.num ? "№" + E(x.num) : "—") + "</td><td>" + ST[x.status] + (x.status === "manual" || x.status === "ignored" ? '<br><small class="sub">' + E(x.note) + "</small>" : "") + "</td></tr>";
+        return "<tr><td>" + dmy(x.date) + "</td><td>" + who(x) + '<br><small class="sub">' + E(x.purpose) + "</small></td><td>" + money(x.amount) + "</td><td>" + (x.num ? "№" + E(x.num) + kpOfOrder(x.num) : "—") + "</td><td>" + ST[x.status] + (x.status === "manual" || x.status === "ignored" ? '<br><small class="sub">' + E(x.note) + "</small>" : "") + "</td></tr>";
       }).join("") || '<tr><td colspan="5" class="note">Пока ничего не учтено</td></tr>') + "</table></div>";
-    return head + stat + todo + other + list;
+    return stat + todo + other + list;
+  }
+  function kpOfOrder(num) {      // КП, из которого выросла задача (если реестр КП загружен)
+    var k = (S.kp || []).filter(function (x) { return x.order_number && String(x.order_number) === String(num); })[0];
+    return k ? '<br><small class="sub">КП ' + E(kpNo(k.number)) + "</small>" : "";
   }
 
   /* ---------- прайс-лист ---------- */
@@ -2231,43 +2310,79 @@
     a.href = URL.createObjectURL(new Blob(["\ufeff" + text], { type: (mime || "text/plain") + ";charset=utf-8" }));
     a.download = name; document.body.appendChild(a); a.click(); a.remove();
   }
-  function reportKind() { var p = pos(); return p === "ops" ? "ops" : p === "sales" ? "sales" : (p === "owner" ? (S.rp && S.rp.kind) || "design" : "design"); }
   function loadReport() {
     if (!S.rp) S.rp = { kind: reportKind(), start: isoDay(monday()), data: null };
     if (pos() !== "owner") S.rp.kind = reportKind();
     return api("/reports/" + S.rp.kind + "?start=" + S.rp.start).then(function (d) { S.rp.data = d; S.err = ""; }, function (e) { S.rp.data = null; S.err = String(e); });
   }
-  function fmtVal(v) { return typeof v === "number" && v > 9999 ? money(v) : String(v); }
-  function reportText(r) {
-    var l = ["Недельный отчёт: " + r.title + " · " + dmy(r.week_start) + " — " + dmy(r.week_end)];
-    r.tiles.forEach(function (x) { l.push("• " + x[2] + ": " + x[1]); });
-    r.rows.forEach(function (x) { l.push("• " + x[0] + ": " + fmtVal(x[1])); });
-    r.people.forEach(function (x) { l.push("• " + x.name + ": отработано " + x.worked + " из " + x.workdays + ", в работе " + x.in_work + ", просрочено " + x.overdue); });
-    r.notes.forEach(function (n) { l.push("• " + n); });
-    r.questions.forEach(function (q) { if (q.a) l.push("— " + q.q + " " + q.a); });
-    return l.join("\n");
+  /* ---------- пятничный созвон: отчёты отделов по вопросам таблицы «Созвоны» ---------- */
+  var RP_KINDS = [["sales", "Продажи"], ["ops", "Проекты"], ["design", "Проектирование"]];
+  var RP_MODE = { auto: ["a", "● Авто"], semi: ["s", "◐ Авто + комментарий"], manual: ["m", "✎ Вручную"] };
+  var RP_TAG = { a: "background:var(--ok-soft);color:var(--ok)", s: "background:var(--warn-soft);color:var(--warn)", m: "background:#f0e9fa;color:#7A4FB5" };
+  function rpTag(mode) { var m = RP_MODE[mode] || RP_MODE.manual; return '<span class="pill" style="' + RP_TAG[m[0]] + ';white-space:nowrap;flex:none">' + m[1] + "</span>"; }
+  function rpCell(v) { return v && typeof v === "object" ? '<span class="pill ' + E(v.tone || "info") + '">' + E(v.t) + "</span>" : E(v == null ? "" : v); }
+  function rpInput(i, ro) {
+    var dis = ro ? " disabled" : "", st = 'style="width:100%;min-width:120px;border:1px solid var(--line);border-radius:9px;padding:6px 9px;background:var(--surface);color:var(--ink);font:inherit"';
+    if (i.kind === "area") return '<textarea rows="2" data-rpk="' + E(i.key) + '" ' + st + ' placeholder="' + E(i.ph || "Ответ") + '"' + dis + ">" + E(i.v || "") + "</textarea>";
+    if (i.kind === "select") return '<select data-rpk="' + E(i.key) + '" ' + st + dis + ">" + i.options.map(function (o) { return '<option value="' + E(o) + '"' + (o === i.v ? " selected" : "") + ">" + E(o || "— причина —") + "</option>"; }).join("") + "</select>";
+    if (i.kind === "chips") return '<div style="display:flex;gap:4px;flex-wrap:wrap">' + i.options.map(function (o) { return '<button type="button" class="btn sm ' + (o === i.v ? "primary" : "ghost") + '" data-rpchip="' + E(i.key) + "|" + E(o) + '"' + dis + ">" + E(o) + "</button>"; }).join("") + "</div>";
+    if (i.kind === "kp") return '<select data-rpkp="' + i.kp + "|" + i.field + '" ' + st + dis + ">" + i.options.map(function (o) { return '<option value="' + E(o[0]) + '"' + (o[0] === (i.v || "") ? " selected" : "") + ">" + E(o[1]) + "</option>"; }).join("") + "</select>";
+    if (i.kind === "kpdate") return '<input type="date" data-rpkp="' + i.kp + "|" + i.field + '" value="' + E(i.v || "") + '" ' + st + dis + ">";
+    return '<input data-rpk="' + E(i.key) + '" value="' + E(i.v || "") + '" ' + st + ' placeholder="' + E(i.ph || "") + '"' + (i.kind === "num" ? ' inputmode="numeric"' : "") + dis + ">";
+  }
+  function rpDone(it) {
+    if (it.mode === "auto") return true;
+    var rowsOk = it.rows.every(function (r) { return !(r.inputs || []).length || r.inputs.some(function (i) { return i.v; }); });
+    var qOk = !it.inputs.length || it.inputs.some(function (i) { return i.v; });
+    return it.mode === "manual" ? qOk : rowsOk && qOk;
+  }
+  function rpItem(it, ro) {
+    var body = "";
+    if (it.hint) body += '<div style="color:var(--muted);font-size:.8rem;margin:-2px 0 8px">' + E(it.hint) + "</div>";
+    if (it.kv.length) body += '<div style="display:flex;gap:22px;flex-wrap:wrap;margin-bottom:10px">' + it.kv.map(function (x) { return '<div style="font-size:.82rem;color:var(--muted)">' + E(x[0]) + '<b style="display:block;font-size:1.12rem;color:var(--ink)">' + E(x[1]) + "</b></div>"; }).join("") + "</div>";
+    if (it.cols.length) {
+      body += it.rows.length ? '<div style="overflow:auto"><table class="tbl"><thead><tr>' + it.cols.map(function (c) { return "<th>" + E(c) + "</th>"; }).join("") + "</tr></thead><tbody>"
+        + it.rows.map(function (r) { return "<tr>" + r.cells.map(function (c) { return "<td>" + rpCell(c) + "</td>"; }).join("") + (r.inputs || []).map(function (i) { return "<td>" + rpInput(i, ro) + "</td>"; }).join("") + "</tr>"; }).join("")
+        + "</tbody></table></div>" : '<div class="note">' + E(it.empty || "Нет данных") + "</div>";
+    }
+    if (it.total) body += '<div style="display:flex;justify-content:space-between;font-weight:700;padding-top:8px"><span>Итого</span><span>' + E(it.total) + "</span></div>";
+    if (it.note) body += '<div class="note" style="margin-top:8px">' + E(it.note) + "</div>";
+    body += it.inputs.map(function (i) { return '<div class="fld" style="margin-top:8px">' + (i.label ? "<label>" + E(i.label) + "</label>" : "") + rpInput(i, ro) + "</div>"; }).join("");
+    if (it.src) body += '<div style="font-size:.74rem;color:var(--muted);margin-top:8px">⛁ ' + E(it.src) + "</div>";
+    return '<div class="panel pad" style="margin-bottom:12px"><div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px"><span style="flex:none;width:26px;height:26px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-weight:700;font-size:.8rem;color:var(--muted)">' + it.n + '</span><b style="flex:1;line-height:1.35">' + E(it.q) + "</b>" + rpTag(it.mode) + "</div>"
+      + '<div style="padding-left:36px">' + body + "</div></div>";
+  }
+  function reportKind() { var p = pos(); return p === "ops" ? "ops" : p === "sales" ? "sales" : (p === "owner" ? (S.rp && S.rp.kind) || "sales" : "design"); }
+  function rpFind(key) { var f = null; ((S.rp && S.rp.data && S.rp.data.items) || []).forEach(function (it) { it.inputs.concat.apply(it.inputs, it.rows.map(function (r) { return r.inputs || []; })).forEach(function (i) { if (i.key === key) f = i; }); }); return f; }
+  function rpSave(key, text) {
+    var i = rpFind(key); if (i) i.v = text;
+    return api("/reports/" + S.rp.kind + "/answer", { start: S.rp.start, key: key, text: text }).catch(function (er) { toast(String(er)); });
+  }
+  function rpCsv(r) {
+    var q = function (v) { v = String(v == null ? "" : v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    return "﻿" + [["Пятничный созвон: " + r.title + (r.person ? " (" + r.person + ")" : ""), dmy(r.week_start) + " — " + dmy(r.week_end), ""], ["№", "Вопрос", "Ответ"]].concat(r.excel).map(function (row) { return row.map(q).join(";"); }).join("\r\n");
   }
   function reportScreen() {
     var p = pos(), r = S.rp && S.rp.data;
-    if (!r) return '<div class="head"><div><h1>Недельный отчёт</h1></div></div><div class="note">' + (S.err ? E(S.err) : "Нет данных") + "</div>";
-    var tabs = p === "owner" ? '<div class="tabs">' + [["design", "Проектный отдел"], ["ops", "Операционный менеджер"], ["sales", "Отдел продаж"]].map(function (x) { return '<button data-rpkind="' + x[0] + '" class="' + (S.rp.kind === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>" : "";
-    var tone = { ok: "var(--ok)", bad: "var(--bad)", brand: "var(--brand)", warn: "var(--warn)" };
-    var head = '<div class="head"><div><h1>Недельный отчёт · ' + E(r.title) + "</h1><p>Формируется каждую пятницу в 17:00 и уходит в закрытый канал «Руководители». Неделя " + dmy(r.week_start).slice(0, 5) + " — " + dmy(r.week_end).slice(0, 5) + "</p></div>"
+    var tabs = p === "owner" ? '<div class="seg">' + RP_KINDS.map(function (x) { return '<button data-rpkind="' + x[0] + '" class="' + (S.rp && S.rp.kind === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>" : "";
+    if (!r) return '<div class="head"><div><h1>Пятничный созвон</h1></div></div>' + tabs + '<div class="note">' + (S.err ? E(S.err) : "Нет данных") + "</div>";
+    var ro = !r.can_edit, tone = { ok: "var(--ok)", bad: "var(--bad)", brand: "var(--brand)", warn: "var(--warn)" };
+    var done = r.items.filter(rpDone).length, auto = r.items.filter(function (it) { return it.mode !== "manual"; }).length;
+    var head = '<div class="head"><div><h1>Пятничный созвон · ' + E(r.title) + "</h1><p>Неделя " + dmy(r.week_start).slice(0, 5) + " — " + dmy(r.week_end).slice(0, 5) + ". Цифры и списки CRM считает сама; допишите комментарии и ответы на ручные вопросы — в пятницу в 17:00 отчёт уйдёт руководителю.</p></div>"
       + '<div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg"><button data-rpnav="-1">← Пред.</button><button data-rpnav="0" class="on">Эта</button><button data-rpnav="1">След. →</button></div>'
-      + '<button class="btn ghost" data-rpdl="1">Скачать</button><button class="btn primary" data-rppub="1">Отправить в канал руководителей</button></div></div>'
-      + "" + tabs;
+      + '<button class="btn ghost" data-rpdl="1" title="Таблица в прежнем виде: вопрос — ответ">Как в Excel</button>' + (p !== "owner" ? '<button class="btn primary" data-rppub="1">Отправить руководителю</button>' : "") + "</div></div>"
+      + (tabs ? '<div style="margin-bottom:14px">' + tabs + "</div>" : "");
+    var who = '<div class="panel pad" style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">' + (r.person ? ava(r.person, "lg") : "") + "<div><b>" + E(r.person || r.title) + '</b><br><small style="color:var(--muted)">' + E(r.title) + " · " + r.items.length + " вопросов · CRM отвечает на " + auto + "</small></div>"
+      + '<div style="margin-left:auto;min-width:200px;font-size:.82rem;color:var(--muted)">Заполнено ' + done + " из " + r.items.length + '<div style="height:7px;background:var(--line);border-radius:9px;margin-top:5px;overflow:hidden"><i style="display:block;height:100%;width:' + Math.round(done / r.items.length * 100) + '%;background:var(--ok)"></i></div></div></div>';
+    var legend = '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.8rem;color:var(--muted);margin-bottom:12px"><span>' + rpTag("auto") + " считает CRM</span><span>" + rpTag("semi") + " список из CRM, вы дописываете «что сделал · следующий шаг»</span><span>" + rpTag("manual") + " отвечаете вы</span></div>";
     var tiles = '<div class="tiles" style="margin-bottom:16px">' + r.tiles.map(function (x) { return '<div class="tile" style="--c:' + (tone[x[0]] || "var(--brand)") + '"><div class="n">' + E(x[1]) + '</div><div class="l">' + E(x[2]) + "</div></div>"; }).join("") + "</div>";
-    var rows = r.rows.length ? '<div class="panel pad"><h3>Статистика недели</h3><div class="kv" style="margin-top:10px">' + r.rows.map(function (x) { return "<span>" + E(x[0]) + "</span><span><b>" + E(fmtVal(x[1])) + "</b></span>"; }).join("") + "</div>"
-      + r.notes.map(function (n) { return '<div class="note">' + E(n) + "</div>"; }).join("") + "</div>" : "";
-    var people = r.people.length ? '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:16px">' + r.people.map(function (x) {
-      return '<div class="panel pad"><div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">' + ava(x.name, "lg") + "<div><b>" + E(x.name) + '</b><br><small style="color:var(--muted)">в работе ' + x.in_work + " · просрочено " + x.overdue + "</small></div></div>"
-        + '<div class="kv"><span>Отработано</span><span><b>' + x.worked + " из " + x.workdays + "</b> дней</span><span>Отдыхал</span><span>" + x.off + " дн.</span></div>"
-        + '<div class="note" style="margin-top:12px">Комментарии по дням:</div>'
-        + (x.comments.map(function (c) { return '<div class="ctt"><small>' + dmy(c.day).slice(0, 5) + "</small><div>" + E(c.text) + "</div></div>"; }).join("") || '<div class="note">Комментариев нет</div>') + "</div>";
-    }).join("") + "</div>" : "";
-    var qs = '<div class="panel pad rq"><h3>Вопросы недели</h3><p class="sub">Ответы попадают в отчёт и в канал «Руководители»</p>' + r.questions.map(function (q) { return '<div class="fld"><label>' + E(q.q) + '</label><textarea data-rq="' + q.id + '" placeholder="Ваш ответ…">' + E(q.a) + "</textarea></div>"; }).join("") + "</div>";
-    return head + tiles + people + (rows ? '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">' + rows + qs + "</div>" : qs);
+    return head + who + tiles + legend + r.items.map(function (it) { return rpItem(it, ro); }).join("");
   }
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest ? e.target.closest("[data-rpchip]") : null; if (!t || !S.rp || !S.rp.data) return;
+    var kv = t.dataset.rpchip.split("|"), cur = rpFind(kv[0]), val = cur && cur.v === kv[1] ? "" : kv[1];
+    rpSave(kv[0], val); paint();
+  });
 
   /* ---------- статистика руководителя ---------- */
   var MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
@@ -2351,7 +2466,7 @@
     if (!inModal && !(S.mount && S.mount.el && S.mount.el.contains(e.target))) return;
     var bg = e.target.getAttribute && e.target.getAttribute("data-bg");
     if (bg) { closeAll(); return; }
-    var t = e.target.closest("[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch]");
+    var t = e.target.closest("[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
     if (!t) return;
     var d = t.dataset;
     if (d.close) return closeAll();
@@ -2415,6 +2530,7 @@
     if (d.kpstatus != null && t.hasAttribute("data-kpstatus")) return;
     if (d.kptouch) { S.kpHot = +d.kptouch; return act2(api("/kp/" + d.kptouch + "/touch", {}).then(loadKp).then(function () { toast("Отмечено: сегодня был контакт"); }), false); }
     if (d.kparch != null && t.hasAttribute("data-kparch")) { S.kpArch = !S.kpArch; return paint(); }
+    if (d.kptab) { S.kpTab = d.kptab; return paint(); }
     if (d.ksv != null && t.hasAttribute("data-ksv")) { var it = S.kpf.items[+d.ksv]; it.on = !it.on; return paint(); }
     if (d.kadd != null && t.hasAttribute("data-kadd")) { S.kpf.items.push({ name: "", price: 0, on: true, custom: true }); return paint(); }
     if (d.kdel != null && t.hasAttribute("data-kdel")) { S.kpf.items.splice(+d.kdel, 1); return paint(); }
@@ -2462,8 +2578,8 @@
     if (d.prsave != null && t.hasAttribute("data-prsave")) return savePrice();
     if (d.rpkind) { S.rp.kind = d.rpkind; return loadReport().then(paint); }
     if (d.rpnav != null && t.hasAttribute("data-rpnav")) { S.rp.start = isoDay(addDays(new Date(S.rp.start + "T00:00:00"), d.rpnav === "0" ? 0 : (+d.rpnav) * 7)); if (d.rpnav === "0") S.rp.start = isoDay(monday()); return loadReport().then(paint); }
-    if (d.rppub != null && t.hasAttribute("data-rppub")) return act2(api("/reports/" + S.rp.kind + "/publish?start=" + S.rp.start, {}).then(function () { toast("Отчёт отправлен в канал «Руководители»"); }), false);
-    if (d.rpdl != null && t.hasAttribute("data-rpdl")) return downloadText("otchet-" + S.rp.kind + "-" + S.rp.start + ".txt", reportText(S.rp.data));
+    if (d.rppub != null && t.hasAttribute("data-rppub")) return act2(api("/reports/" + S.rp.kind + "/publish?start=" + S.rp.start, {}).then(function () { toast("Отчёт отправлен руководителю"); }), false);
+    if (d.rpdl != null && t.hasAttribute("data-rpdl")) return downloadText("sozvon-" + S.rp.kind + "-" + S.rp.start + ".csv", rpCsv(S.rp.data), "text/csv;charset=utf-8");
     if (d.stnav != null && t.hasAttribute("data-stnav")) { S.st.month = shiftMonth(S.st.month, +d.stnav); return loadStats().then(paint); }
     if (d.stcsv != null && t.hasAttribute("data-stcsv")) return downloadText("statistika-" + S.st.month + ".csv", statsCsv(S.st.data), "text/csv");
     if (d.otype) { S.ov.otype = d.otype; S.ov.type = d.otype; S.ov.tile = ""; return paint(); }
@@ -2549,7 +2665,6 @@
     var prf = e.target.dataset && e.target.dataset.prf;
     if (prf && S.pd) { var pp = prf.split("."); var row = S.pd[+pp[0]]; row[pp[1]] = pp[1] === "price" ? (+e.target.value || 0) : e.target.value; return; }
     var kf = e.target.dataset && e.target.dataset.kf;
-    if (e.target.dataset && e.target.dataset.rq != null && S.rp) { S.rp.data.questions[+e.target.dataset.rq].a = e.target.value; return; }
     if (kf && S.kpf) {
       var kp_ = kf.split(".");
       if (kp_[0] === "i") S.kpf.items[+kp_[1]][kp_[2]] = kp_[2] === "price" ? (+e.target.value || 0) : e.target.value; else S.kpf[kp_[0]] = e.target.value;
@@ -2581,7 +2696,9 @@
     if (map[e.target.id]) f[map[e.target.id]] = e.target.value;
   });
   document.addEventListener("change", function (e) {
+    if (e.target.id === "dsWho") { S.ov.who = e.target.value; S.ov.tile = ""; return paint(); }      // «Чьи задачи» в «Организационных»
     if (e.target.id === "nfAdv" && S.form) { S.form.adv = e.target.checked; paint(); }
+    if (e.target.id === "nfNp" && S.form) S.form.np = e.target.checked;
     if (e.target.dataset && e.target.dataset.scfile) { scUpload(e.target.files); e.target.value = ""; return; }
     var cdt = e.target.dataset || {};
     if (cdt.cc && S.calc && cdt.cc !== "area") { var cs_ = calcState(); cs_[cdt.cc] = cdt.cc === "stairs" ? +e.target.value : e.target.value; if (cdt.cc === "sys") cs_.pump = false; paint(); }
@@ -2592,7 +2709,11 @@
       paint();
     }
     if (cdt.oe && S.oe) { S.oe[cdt.oe] = e.target.value; return; }
-    if (cdt.oech && S.oe) { S.oe[cdt.oech] = e.target.checked ? 1 : 0; return; }
+    if (cdt.oech && S.oe) {
+      S.oe[cdt.oech] = e.target.checked ? 1 : 0;
+      if (cdt.oech === "nonproj") tmRepaint();            // меняется список исполнителей
+      return;
+    }
     if (cdt.te && S.te) { S.te[cdt.te] = e.target.value; return; }
     if (cdt.nt && S.nt) { ntField(e.target); if (cdt.nt === "step") { var rr = document.getElementById("ds-modal"); if (rr) rr.innerHTML = ntHtml(); } }
     if (cdt.cmd != null && S.cmDraft) S.cmDraft[cdt.cmd] = e.target.value;
@@ -2613,7 +2734,7 @@
       if (ctq === "customer.type") { if (cu2.type === "ip") { cu2.basis = cu2.basis === "Устава" ? "листа записи из ЕГРИП" : cu2.basis; cu2.position_sign = "Индивидуальный предприниматель"; } else if (cu2.type === "org") { cu2.basis = cu2.basis === "листа записи из ЕГРИП" ? "Устава" : cu2.basis; cu2.position_sign = "Генеральный директор"; } if (!cu2.party_custom) cu2.party_text = ctParty(cu2); }
       paint();
     }
-    if (e.target.dataset && e.target.dataset.kpstatus && S.kp) { var kid_ = +e.target.dataset.kpstatus; S.kpHot = kid_; var stv_ = e.target.value; act2(api("/kp/" + kid_ + "/status", { status: stv_ }).then(loadKp).then(function () { if (stv_ === "Оплачено") { S.orders = null; S.tasks = null; return load(); } }), false); }
+    if (e.target.dataset && e.target.dataset.kpstatus && S.kp) { var kid_ = +e.target.dataset.kpstatus; S.kpHot = kid_; var stv_ = e.target.value; act2(api("/kp/" + kid_ + "/status", { status: stv_ }).then(loadKp).then(function () { if (stv_ === "Отказ") { toast("Укажите причину отказа — она попадёт в пятничный созвон"); var kpb_ = document.querySelector('[data-kpedit="' + kid_ + '"]'); if (kpb_) kpb_.click(); } else if (!S.kpArch && stv_ === "Закрыто") toast("КП ушло в архив"); if (stv_ === "Оплачено") { S.orders = null; S.tasks = null; return load(); } }), false); }
     if (e.target.dataset && e.target.dataset.cfchk != null && S.cu.draft) { S.cu.draft.regular = e.target.checked ? 1 : 0; }
     if (e.target.dataset && e.target.dataset.cftz != null && S.cu.draft) { S.cu.draft.tz = e.target.value; paint(); }
     if (e.target.id === "flOrder") { S.flOrder = +e.target.value; loadPath().then(paint); }
@@ -2622,8 +2743,11 @@
       api("/auto", { rule: rid, enabled: en.checked, value: +box.value || 0 }).then(function (r) { S.au.rules = r.rules.map(function (x) { var o = S.au.rules.filter(function (y) { return y.id === x.id; })[0]; return Object.assign({}, x, { fired: o ? o.fired : 0 }); }); toast("Правило сохранено"); paint(); }, function (er) { toast(String(er)); });
     }
     if (e.target.dataset && e.target.dataset.prfa != null && S.pd) { S.pd[+e.target.dataset.prfa].active = e.target.checked; }
-    if (e.target.dataset && e.target.dataset.rq != null && S.rp) {
-      api("/reports/" + S.rp.kind + "/answer", { start: S.rp.start, qid: +e.target.dataset.rq, text: e.target.value }).catch(function (er) { toast(String(er)); });
+    if (e.target.dataset && e.target.dataset.rpk && S.rp) { rpSave(e.target.dataset.rpk, e.target.value); if (e.target.tagName === "SELECT") paint(); }
+    if (e.target.dataset && e.target.dataset.rpkp && S.rp) {                 // вероятность, ожидаемая оплата и следующий контакт пишутся прямо в КП
+      var kpf = e.target.dataset.rpkp.split("|"), kpb = {}; kpb[kpf[1]] = e.target.value;
+      var kpi = rpFind("kp" + kpf[0] + ":" + kpf[1]); if (kpi) kpi.v = e.target.value;
+      api("/kp/" + kpf[0] + "/edit", kpb).then(function () { toast("Сохранено в КП"); S.kp = null; }, function (er) { toast(String(er)); });
     }
     if (e.target.dataset && e.target.dataset.wc && S.wk) {
       var dr = dayRec(e.target.dataset.wc); dr.comment = e.target.value;
@@ -2640,7 +2764,7 @@
     }
     api("/customers", { name: f.customer.trim() }).then(function (c) {
       return api("/orders", { number: f.number.trim(), customer_id: c.id, object: f.object.trim(), system: (f.system || "").trim(), due_date: f.due || "", amount: +f.amount || 0,
-        adv_mode: f.adv ? "advance" : "none", adv_sum: f.adv ? (+f.advSum || 0) : 0, contract_date: new Date().toISOString().slice(0, 10) });
+        adv_mode: f.adv ? "advance" : "none", adv_sum: f.adv ? (+f.advSum || 0) : 0, contract_date: new Date().toISOString().slice(0, 10), nonproj: f.np ? 1 : -1 });
     }).then(function () { S.form = null; S.customers = null; S.orders = null; DS.route(); }, function (er) { f.err = String(er); paint(); });
   }
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && (S.open || S.form) && document.getElementById("ds-modal")) closeAll(); });

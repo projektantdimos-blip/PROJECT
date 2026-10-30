@@ -233,7 +233,7 @@
     var me = C.me && m.user === C.me.name, mine = m.acks && C.me && m.acks.indexOf(C.me.name) >= 0;
     var quote = m.reply ? '<div class="x-quote" data-goto="' + m.reply.id + '"><b>' + E(m.reply.user) + "</b><span>" + E(m.reply.text) + "</span></div>" : "";
     var rdinfo = S.selMsg === m.id && me ? '<div class="x-readinfo"><b>Прочитали:</b> ' + ((m.read_by || []).length ? E(m.read_by.join(", ")) : "пока никто") + ((m.unread_by || []).length ? "<br><b>Не прочитали:</b> " + E(m.unread_by.join(", ")) : "") + "</div>" : "";
-    var acts = rdinfo + (S.selMsg === m.id ? '<div class="x-macts"><button type="button" data-reply="' + m.id + '">↩ Ответить</button><button type="button" data-copymsg="' + m.id + '" title="Скопировать текст сообщения">⧉ Копировать</button><button type="button" data-remindmsg="' + m.id + '" title="Напомнить мне про это сообщение">⏰</button>'
+    var acts = rdinfo + (S.selMsg === m.id ? '<div class="x-macts"><button type="button" data-reply="' + m.id + '">↩ Ответить</button><button type="button" data-copymsg="' + m.id + '" title="Скопировать текст сообщения">⧉ Копировать</button><button type="button" data-taskmsg="' + m.id + '" title="Поставить задачу сотруднику по этому сообщению">📌 Задача</button><button type="button" data-remindmsg="' + m.id + '" title="Напомнить мне про это сообщение">⏰</button>'
       + (me ? '<button type="button" data-editmsg="' + m.id + '">✎ Изменить</button>' : "")
       + (me ? '<button type="button" class="x-del" data-delmsg="' + m.id + '">' + (S.delAsk === m.id ? "Точно удалить?" : "🗑 Удалить") + "</button>" : "") + '<span class="x-rxpick">' + RX.map(function (e) { return '<button type="button" data-rx="' + m.id + '" data-e="' + e + '">' + e + "</button>"; }).join("") + "</span></div>" : "");
     return '<div class="x-msg ' + (m.urgent ? "urg " : "") + (me ? "me" : "") + (S.selMsg === m.id ? " sel" : "") + (acOn() ? " ac" : "") + '" data-m="' + m.id + '" id="m' + m.id + '" style="--ac:' + color(m.user) + '">' + ava(m.user, "sm") + '<div class="bd"><div class="nm">' + E(m.user) + "<small>" + when(m.ts) + '</small></div><div class="tx">' + quote
@@ -283,12 +283,21 @@
     if (e.target.closest("[data-noreply]")) { S.reply = null; paintThread(true); return; }
     var gq = e.target.closest("[data-goto]");
     if (gq) { var tgt = $("m" + gq.dataset.goto); if (tgt) { tgt.scrollIntoView({ block: "center" }); tgt.classList.add("flash"); setTimeout(function () { tgt.classList.remove("flash"); }, 1400); } return; }
+    var tkm = e.target.closest("[data-taskmsg]");
+    if (tkm) { var m4 = msgById(tkm.dataset.taskmsg); S.selMsg = 0; paintThread(true); if (m4) taskFromText(m4.text); return; }
     var cpm = e.target.closest("[data-copymsg]");
     if (cpm) { var m3 = msgById(cpm.dataset.copymsg); S.selMsg = 0; paintThread(true); if (m3) copyText(m3.text).then(function () { toast("Скопировано"); }); return; }
     if (e.target.closest("a,button,input,textarea,.x-file,.x-ack")) return;
     var mm = e.target.closest(".x-msg");
     if (mm) { if (COARSE || selIn(mm)) return; var id = +mm.dataset.m; S.selMsg = S.selMsg === id ? 0 : id; paintThread(true); }      // выделили текст мышью — это не нажатие на сообщение
   });
+  /* «Поставить задачу сотруднику» из сообщения: подсказка при наборе поручения и пункт в меню сообщения */
+  var TODO_RE = /(^|[^а-яё])(нужно|надо|необходимо|прошу|просьба|сделай|сделайте|подготовь|подготовьте|отправь|отправьте|позвони|позвоните|проверь|проверьте|напиши|напишите|выстави|выставите|согласуй|согласуйте|не забудь|не забудьте|срочно)(?![а-яё])/i;
+  function taskFromText(text) {
+    if (!window.DS || !DS.newTask) { toast("Раздел задач ещё не загрузился — обновите страницу"); return; }
+    var rm = roomNow(), t = String(text || "").trim();
+    DS.newTask({ title: t.replace(/\s+/g, " ").slice(0, 120), note: "Из «Команды» · " + (rm ? rm.name : "чат") + ": " + t.slice(0, 900) });
+  }
   /* пока в ленте выделен текст, фоновое обновление чат не перерисовывает (иначе выделение сбрасывается) — дорисуем, когда выделение снимут */
   function selIn(node) { var s = window.getSelection && window.getSelection(); return !!(s && !s.isCollapsed && node && s.anchorNode && node.contains(s.anchorNode)); }
   function paintPoll() { if (selIn(document.querySelector("#tThread .x-msgs"))) { S.paintLater = true; return; } paintThread(true); }
@@ -313,7 +322,7 @@
     var el = $("m" + mid); if (el) el.classList.add("ctx");
     var bg = document.createElement("div"); bg.id = "xCtx"; bg.className = "x-ctx";
     bg.innerHTML = '<div class="x-ctxbox" id="xCtxBox"><div class="x-ctxrx" id="xCtxRx">' + rxRow(false) + "</div>"
-      + '<div class="x-ctxmenu"><button type="button" data-a="reply">↩ <span>Ответить</span></button><button type="button" data-a="remind">⏰ <span>Напомнить мне</span></button><button type="button" data-a="copy">⧉ <span>Копировать</span></button>'
+      + '<div class="x-ctxmenu"><button type="button" data-a="reply">↩ <span>Ответить</span></button><button type="button" data-a="remind">⏰ <span>Напомнить мне</span></button><button type="button" data-a="copy">⧉ <span>Копировать</span></button><button type="button" data-a="task">📌 <span>Поставить задачу</span></button>'
       + (me ? '<button type="button" data-a="edit">✎ <span>Изменить</span></button>' : "")
       + (me ? '<button type="button" data-a="delete" class="x-del">🗑 <span>Удалить</span></button>' : "")
       + (me ? '<button type="button" data-a="read" class="rd">✓✓ <span>Прочитали: ' + nr + " из " + (nr + nu) + '</span></button><div class="x-ctxread" id="xCtxRead" hidden>' + (nr ? "<b>Прочитали:</b> " + E(m.read_by.join(", ")) : "<b>Пока никто не прочитал</b>") + (nu ? "<br><b>Не прочитали:</b> " + E(m.unread_by.join(", ")) : "") + "</div>" : "") + "</div></div>";
@@ -338,6 +347,7 @@
       if (a === "reply") { S.reply = { id: m.id, user: m.user, text: m.text.slice(0, 120) }; paintThread(true); var ti = $("tIn"); if (ti) ti.focus(); }
       else if (a === "remind") { var rm = roomNow(), nm = rm ? rm.name : "чат"; if (window.DSRemind) DSRemind.open({ text: "Вернуться к сообщению (" + nm + "): " + m.user + ": " + m.text.slice(0, 80), link: "#/team?room=" + encodeURIComponent(S.cur), label: "Команда · " + nm }); }
       else if (a === "copy") copyText(m.text).then(function () { toast("Скопировано"); });
+      else if (a === "task") taskFromText(m.text);
     };
   }
   var lp = null;
@@ -394,6 +404,8 @@
       + (S.editMsg ? '<div class="x-replybar x-editbar"><span>✎ <b>Изменение сообщения</b> — исправьте текст и нажмите «Отправить»</span><button type="button" data-noedit="1" aria-label="Отменить правку">✕</button></div>' : "")
       + (S.reply && !S.editMsg ? '<div class="x-replybar"><span>↩ <b>' + E(S.reply.user) + "</b>: " + E(S.reply.text) + '</span><button type="button" data-noreply="1" aria-label="Отменить ответ">✕</button></div>' : "")
       + pendHtml()
+      + '<div id="tTaskHint" style="display:none;align-items:center;gap:10px;padding:6px 12px;border-top:1px solid var(--line);font-size:.84rem;color:var(--muted)">Похоже на поручение —'
+      + '<button type="button" id="tTaskBtn" style="border:0;background:var(--brand,#1f5c99);color:#fff;border-radius:9px;padding:4px 12px;font:inherit;font-weight:600;cursor:pointer">📌 Поставить задачу сотруднику</button></div>'
       + '<div class="x-comp"><button class="x-btn ghost" id="tAtt" title="Прикрепить файлы (каждый до 50 МБ, можно несколько сразу). Файлы можно перетащить прямо в окно чата" style="padding:12px 13px">📎</button><input type="file" id="tFile" multiple hidden><textarea id="tIn" rows="1" placeholder="' + (window.innerWidth <= 760 ? "Сообщение" : "Написать в «" + E(room.name) + "»… (@Имя — упомянуть)") + '" autocomplete="off"></textarea><button class="x-urgbtn ' + (S.urg ? "on" : "") + '" id="tUrg" title="Срочное: придёт всем участникам, даже в тихие часы">' + ic("flame") + 'Срочное</button><button class="x-btn primary" id="tSend" style="padding:12px 14px">' + ic("send") + "</button></div>";
     var m = el.querySelector(".x-msgs"); if (!keep || wasBottom) m.scrollTop = 1e6;
     var bk = el.querySelector("[data-back]"); if (bk) bk.onclick = function () { var ch = document.querySelector(".x-chat"); if (ch) ch.classList.remove("open"); };
@@ -401,7 +413,11 @@
     function grow() { ti.style.height = "auto"; ti.style.height = Math.min(ti.scrollHeight, 140) + "px"; }
     grow();
     if (hadFocus) { ti.focus(); try { ti.setSelectionRange(ss, se); } catch (e) {} }
-    ti.oninput = function () { S.drafts[S.cur] = ti.value; grow(); };
+    var hint = $("tTaskHint");
+    var showHint = function () { if (hint) hint.style.display = TODO_RE.test(ti.value) ? "flex" : "none"; };
+    ti.oninput = function () { S.drafts[S.cur] = ti.value; grow(); showHint(); };
+    showHint();
+    var tb = $("tTaskBtn"); if (tb) tb.onclick = function () { taskFromText(ti.value); };
     ti.onfocus = function () { setTimeout(function () { var mm = document.querySelector(".x-msgs"); if (mm) mm.scrollTop = 1e6; }, 350); };
     $("tSend").onclick = send;
     $("tAtt").onclick = function () { $("tFile").click(); };

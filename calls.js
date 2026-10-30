@@ -179,7 +179,13 @@
   function callInfo(info) {
     SP.call_info = info; SP.ctx = null; SP.note = ""; SP.noteSaved = false; SP.noteOid = info.oid || 0; SP.min = false;
     var q = "?phone=" + encodeURIComponent(info.phone || "") + "&customer_id=" + (info.cid || 0);
-    api("/context" + q).then(function (ctx) { if (SP.call_info === info) { SP.ctx = ctx; if (!SP.noteOid && ctx.orders && ctx.orders[0]) SP.noteOid = ctx.orders[0].id; paintPhone(); } }).catch(function () {});
+    api("/context" + q).then(function (ctx) {
+      if (SP.call_info !== info) return;
+      SP.ctx = ctx;
+      if (ctx.transfer) { info.xfrom = ctx.transfer.from; if (ctx.phone) info.phone = ctx.phone; if (ctx.transfer.order_id) SP.noteOid = ctx.transfer.order_id; }   // звонок перевёл коллега
+      if (!SP.noteOid && ctx.orders && ctx.orders[0]) SP.noteOid = ctx.orders[0].id;
+      paintPhone();
+    }).catch(function () {});
   }
   function ended(why) {
     ring(false);
@@ -239,12 +245,12 @@
     }
   }
   function track(s, info) {
-    SP.cur = s; callInfo(info); SP.t0 = 0; SP.state_call = info.dir === "in" ? "ringing-in" : "dialing"; SP.end = ""; SP.muted = false;
+    SP.cur = s; callInfo(info); SP.t0 = 0; SP.state_call = info.dir === "in" ? "ringing-in" : "dialing"; SP.end = ""; SP.muted = false; SP.xfer = ""; SP.xferPick = false;
     s.on("progress", function () { if (info.dir === "out") { SP.state_call = "ringing"; paintPhone(); } });
     s.on("accepted", function () { SP.state_call = "talk"; SP.t0 = Date.now(); ring(false); paintPhone(); });
     s.on("confirmed", function () { if (!SP.t0) SP.t0 = Date.now(); SP.state_call = "talk"; paintPhone(); });
     function done(why) { ended(why); }
-    s.on("ended", function () { done("ok"); });
+    s.on("ended", function () { done(SP.xfer ? "Передан: " + SP.xfer : "ok"); });
     s.on("failed", function (e) {
       var c = e.cause, J = JsSIP.C.causes;
       done(c === J.BUSY ? "Занято" : c === J.NO_ANSWER || c === J.REQUEST_TIMEOUT ? "Не ответили" : c === J.REJECTED ? "Звонок отклонён" : c === J.CANCELED ? "Звонок отменён"
@@ -264,13 +270,16 @@
     document.body.classList.add("sp-call");
     var focus = document.activeElement && document.activeElement.id === "spNote";
     var talk = st === "talk" || st === "cb-talk" || st === "hk-talk", hk = st.indexOf("hk") === 0;
+    var team = (SP.info && SP.info.team) || [];
+    if (st !== "talk") SP.xferPick = false;
     var label = st === "dialing" ? "Соединяем…" : st === "ringing" ? "Идут гудки…" : st === "ringing-in" || st === "hk-ring-in" ? "Звонит" : talk ? "Разговор"
       : st === "hk-ring" ? "Звоним…" : st === "cb-wait" ? "Ответьте на мобильном" + (i.mobile ? " " + i.mobile : "") : st === "cb-ring" ? "Вызываем заказчика…" : (SP.end === "ok" ? "Завершён" : SP.end);
     var timer = talk ? '<b class="sp-t" id="spT">' + mmss(Math.round((Date.now() - SP.t0) / 1000)) + "</b>" : st === "ended" && SP.dur ? '<b class="sp-t">' + mmss(SP.dur) + "</b>" : "";
     var name = x.customer || String(i.who || "").split(" · ")[0] || i.phone || "Неизвестный номер";
     var contact = x.contact || (String(i.who || "").split(" · ")[1] || "");
     var sub = [contact + (x.pos ? ", " + x.pos.toLowerCase() : ""), i.phone].filter(Boolean).join(" · ");
-    var head = (i.dir === "in" ? "↙ Входящий" : "↗ Исходящий") + (i.mode === "mobile" ? " · через ваш мобильный" : hk ? " · на вашем телефоне" : "");
+    var head = (i.dir === "in" ? "↙ Входящий" : "↗ Исходящий") + (i.mode === "mobile" ? " · через ваш мобильный" : hk ? " · на вашем телефоне" : "") + (i.xfrom ? " · перевёл(а) " + i.xfrom : "");
+    if (SP.xfer && st === "talk") label = "Переводим: " + SP.xfer + "…";
     var h = '<div class="sp-win ' + (talk ? "talk " : "") + st + (SP.min ? " min" : "") + '"><div class="sp-h"><span>' + E(head) + '</span><button type="button" data-sp="min" title="' + (SP.min ? "Развернуть" : "Свернуть") + '">' + (SP.min ? "▢" : "—") + "</button></div>"
       + '<div class="sp-top"><span class="sp-av">' + E(initials(name)) + '</span><div class="sp-who"><b>' + E(name) + "</b><small>" + E(sub) + '</small></div><div class="sp-st"><span>' + E(label) + "</span>" + timer + "</div></div>";
     if (!SP.min) {
@@ -292,8 +301,12 @@
       : st === "ended" ? '<button type="button" class="sp-b" data-sp="close">Закрыть</button>'
       : hk ? (talk ? '<button type="button" class="sp-b no" data-sp="hkhang">Завершить</button>' : '<button type="button" class="sp-b" data-sp="hide">Скрыть</button>')
       : st.indexOf("cb") === 0 ? (SP.cb_id ? '<button type="button" class="sp-b no" data-sp="cbhang">Завершить</button>' : '<button type="button" class="sp-b" data-sp="close">Скрыть</button>')
-      : '<button type="button" class="sp-b" data-sp="mute">' + (SP.muted ? "🔇 Микрофон выкл." : "🎙 Микрофон") + '</button><button type="button" class="sp-b no" data-sp="hang">Завершить</button>';
-    b.innerHTML = h + '<div class="sp-btns">' + btns + "</div></div>";
+      : SP.xferPick ? team.map(function (t) { return '<button type="button" class="sp-b" data-sp="xferto" data-ext="' + E(t.ext) + '" data-name="' + E(t.name) + '">' + E(t.name) + " · " + E(t.ext) + "</button>"; }).join("")
+        + '<button type="button" class="sp-b" data-sp="xfer">Отмена</button>'
+      : '<button type="button" class="sp-b" data-sp="mute">' + (SP.muted ? "🔇 Микрофон выкл." : "🎙 Микрофон") + "</button>"
+        + (st === "talk" && team.length && !SP.xfer ? '<button type="button" class="sp-b" data-sp="xfer" title="Передать разговор коллеге">↪ Передать</button>' : "")
+        + '<button type="button" class="sp-b no" data-sp="hang">Завершить</button>';
+    b.innerHTML = h + (SP.xferPick ? '<p class="sp-cap sp-xcap">Кому передать звонок?</p>' : "") + '<div class="sp-btns' + (SP.xferPick ? " sp-xfer" : "") + '">' + btns + "</div></div>";
     var ta = $("spNote");
     if (ta) {
       ta.oninput = function () { SP.note = ta.value; if (SP.noteSaved) { SP.noteSaved = false; var nb = b.querySelector('[data-sp="note"]'); if (nb) { nb.disabled = false; nb.textContent = "Сохранить итог"; } } };
@@ -309,6 +322,19 @@
     if (a === "answer" && s) { ring(false); s.answer(opts()); }
     else if (a === "hang" && s) { try { s.terminate(); } catch (err) {} }
     else if (a === "mute" && s) { SP.muted = !SP.muted; if (SP.muted) s.mute({ audio: true }); else s.unmute({ audio: true }); paintPhone(); }
+    else if (a === "xfer") { SP.xferPick = !SP.xferPick; paintPhone(); }
+    else if (a === "xferto" && s) {
+      var to = b.getAttribute("data-ext"), nm = b.getAttribute("data-name"), ci3 = SP.call_info || {}, cx = SP.ctx || {};
+      SP.xferPick = false; SP.xfer = nm; paintPhone();
+      var go = function () {               // перевод делает шлюз: REFER на внутренний номер коллеги
+        try {
+          s.refer("sip:" + to + "@" + SP.host, { eventHandlers: {
+            requestFailed: function () { SP.xfer = ""; paintPhone(); toast("Не удалось передать звонок"); },
+            failed: function () { if (SP.cur === s) { SP.xfer = ""; paintPhone(); toast(nm + " не ответил(а) — разговор остаётся у вас"); } } } });
+        } catch (err) { SP.xfer = ""; paintPhone(); toast("Перевод: " + err.message); }
+      };
+      api("/transfer", { ext: to, phone: ci3.phone || "", order_id: SP.noteOid || ci3.oid || 0, customer_id: cx.customer_id || ci3.cid || 0 }).then(go, go);
+    }
     else if (a === "min") { SP.min = !SP.min; paintPhone(); }
     else if (a === "close") { SP.state_call = ""; paintPhone(); }
     else if (a === "hide") { var ci = SP.call_info || {}; if (ci.hk) hidden[ci.hk] = 1; SP.state_call = ""; paintPhone(); }
