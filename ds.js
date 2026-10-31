@@ -212,8 +212,9 @@
       btns.push('<button class="btn ghost sm" data-lead="' + t.id + ':skip" title="Закрыть: по этому обращению задача не нужна">Задача не требуется</button>');
       btns.push('<button class="btn primary sm" data-lead="' + t.id + ':next">Передать дальше → ' + (t.step === "a1" ? "Сбор вводных" : "КП") + "</button>");
     }
+    if (t.visit_id) btns.push('<a class="btn primary sm" style="text-decoration:none" href="#/visits?v=' + t.visit_id + '">📍 Открыть выезд</a>');
     if (t.thread_id) btns.push('<button class="btn primary sm" data-chatopen="' + E(t.thread_id) + '">Открыть диалог</button>');
-    if (t.order_id && t.kind === "design") btns.push('<button class="btn primary sm" data-open="' + t.order_id + '">Открыть задачу</button>');
+    if (t.order_id && t.kind === "design" && !t.visit_id) btns.push('<button class="btn primary sm" data-open="' + t.order_id + '">Открыть задачу</button>');
     if (t.state !== "work") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':work">В работу</button>');
     if (t.state !== "wait") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':wait">Ждём ответа</button>');
     btns.push('<button class="btn ok sm" data-tstate="' + t.id + ':done">Выполнено</button>');
@@ -374,6 +375,7 @@
     var x = { t: t, left: t.left_days }, col = olColOf(x), du = olDue(x), tn = taskTone(t);
     var proj = t.order_id && (pos() !== "norm" || !!find(t.order_id));
     var acts = "";
+    if (t.visit_id) acts += '<div class="olacts"><a class="btn primary sm grow1" style="text-decoration:none;justify-content:center" href="#/visits?v=' + t.visit_id + '">📍 Открыть выезд: адрес, материалы, расходы</a></div>';
     if (t.step === "a1" || t.step === "a2") acts += '<div class="olacts"><button class="btn ghost sm" data-lead="' + t.id + ':skip">Задача не требуется</button><button class="btn primary sm grow1" data-lead="' + t.id + ':next">Передать дальше → ' + (t.step === "a1" ? "Сбор вводных" : "КП") + "</button></div>";
     acts += '<div class="olacts"><button class="btn ok sm grow1" data-tstate="' + t.id + ':done">✓ Выполнено</button>'
       + '<button class="btn ' + (t.state === "work" ? "primary" : "ghost") + ' sm" data-tstate="' + t.id + ':work">В работу</button>'
@@ -850,7 +852,7 @@
       + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px"><a class="btn ghost sm" style="text-decoration:none" href="' + folderUrl(o, false) + '">Перейти в папку на сервере</a>'
       + (canCreate ? '<a class="btn ghost sm" style="text-decoration:none" href="' + folderUrl(o, true) + '">Создать папку</a>' : "") + "</div>"
       + '<div class="doc"><span>💬</span><div style="flex:1"><b>Чат проекта</b><small>Обсуждение задачи №' + E(o.number) + '</small></div><a class="btn ghost sm" style="text-decoration:none" href="#/team?room=t' + o.id + '">Открыть</a></div></div>';
-    return '<div class="grid g2">' + work + cust + mon + fol + (designerView ? "" : callsPanel("order", o.id)) + "</div>";
+    return '<div class="grid g2">' + work + cust + mon + fol + (designerView ? "" : callsPanel("order", o.id)) + (designerView || !window.DSV ? "" : DSV.panel(o)) + "</div>";
   }
   /* папку открывает server-link/open-folder.ps1 на компьютере сотрудника (свой протокол dsfolder://, не путается с кнопкой МПБ) */
   var FOLDER_ROOT = "\\\\176.197.21.187\\ServAmani\\Проектная компания\\Задачи";

@@ -300,6 +300,7 @@ textarea{resize:vertical;min-height:64px}
 <div id="stages-app" style="display:none"></div>
 <div id="clients-app" style="display:none"></div>
 <div id="report-app" style="display:none"></div>
+<div id="visits-app" style="display:none"></div>
 <div id="onec-app" style="display:none"></div>
 <script>(function(){var v=window.visualViewport;function f(){document.documentElement.style.setProperty("--vvh",(v?v.height:innerHeight)+"px");document.documentElement.style.setProperty("--vvt",(v?v.offsetTop:0)+"px");}f();if(v){v.addEventListener("resize",f);v.addEventListener("scroll",f);}window.addEventListener("orientationchange",f);})();</script>
 <div id="flow-app" style="display:none"></div>
@@ -348,7 +349,8 @@ var ICONS={
   history:'<path d="M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8M3 3v5h5M12 7v5l3 2"/>',
   team:'<path d="M17 20v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M10 10a4 4 0 100-8 4 4 0 000 8zM21 20v-2a4 4 0 00-3-3.9M15 2.1a4 4 0 010 7.8"/>',
   lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
-  users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.6a3.5 3.5 0 010 6.8M18 14.2a6.5 6.5 0 013.5 5.8"/>'
+  users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.6a3.5 3.5 0 010 6.8M18 14.2a6.5 6.5 0 013.5 5.8"/>',
+  pin:'<path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>'
 };
 function icon(n){ return '<svg class="i" viewBox="0 0 24 24">'+(ICONS[n]||"")+'</svg>'; }
 function esc(s){
@@ -368,6 +370,7 @@ function sectionForHash(h){
   if (h.indexOf("#/mail") === 0) return "mail";
   if (h.indexOf("#/risk") === 0) return "risk";
   if (h.indexOf("#/cal") === 0) return "cal";
+  if (h.indexOf("#/visits") === 0) return "visits";
   if (h.indexOf("#/my") === 0) return "my";
   if (h.indexOf("#/team") === 0) return "team";
   if (h.indexOf("#/log") === 0) return "log";
@@ -380,12 +383,12 @@ function sectionForHash(h){
 }
 /* Какие разделы видит каждая роль (позиция сотрудника в CRM). Это интерфейс; данные ограничиваются на сервере (этап 2). */
 var DS_ALLOWED = {
-  owner:    ["flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","stats","log","auto","stages","onec","me"],
-  design:   ["tasks","cal","risk","my","clients","chat","mail","team","report","me"],
-  sales:    ["flow","tasks","cal","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","me"],
-  ops:      ["flow","tasks","tz","cal","risk","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","me"],
+  owner:    ["flow","tasks","tz","cal","visits","risk","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","stats","log","auto","stages","onec","me"],
+  design:   ["tasks","cal","visits","risk","my","clients","chat","mail","team","report","me"],
+  sales:    ["flow","tasks","cal","visits","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","me"],
+  ops:      ["flow","tasks","tz","cal","visits","risk","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","me"],
   acc:      ["tasks","kpreg","team","onec","me"],
-  designer: ["tasks","cal","my","team","me"],
+  designer: ["tasks","cal","visits","my","team","me"],
   norm:     ["my","chat","mail","team","me"]          /* нормативный специалист: свои задачи и диалоги своих заказчиков */
 };
 var DS_HOME = { owner: "#/", design: "#/", sales: "#/", ops: "#/", acc: "#/", designer: "#/", norm: "#/my" };
@@ -401,7 +404,7 @@ function dsAllowed(sec){
 }
 function renderTopNav(){
   var cur = sectionForHash(location.hash);
-  var own = { risk:1, scripts:1, tasks:1, cal:1, my:1, chat:1, mail:1, team:1, log:1, me:1, auto:1, stages:1, onec:1, clients:1, report:1, stats:1, flow:1, tz:1 };
+  var own = { risk:1, scripts:1, tasks:1, cal:1, my:1, chat:1, mail:1, team:1, log:1, me:1, auto:1, stages:1, onec:1, clients:1, report:1, stats:1, flow:1, tz:1, visits:1 };
   var pa = own[cur] ? cur : "commerce";
   var ok = dsAllowed;
   var b = function(go, ic, t, on, sec){ return ok(sec) ? '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+'<span>'+t+'</span></button>' : ""; };
@@ -410,7 +413,7 @@ function renderTopNav(){
   var comm = (ok("kpreg") || ok("kpc") || ok("contracts")) ? '<button data-goto="#/kpreg/" class="'+(pa==="commerce"?"active":"")+'">'+icon("briefcase")+'<span>Коммерция</span></button>' + (pa==="commerce" ? sub : "") : "";
   var lab = function(t, secs){ return secs.some(ok) ? '<div class="nav-label">'+t+'</div>' : ""; };
   document.getElementById("topnav").innerHTML =
-    lab("Работа", ["flow","tasks","tz","cal","risk","my"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
+    lab("Работа", ["flow","tasks","tz","cal","visits","risk","my"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/visits","pin","Выезды",pa==="visits","visits") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
     + lab("Заказчики и продажи", ["clients","kpreg","kpc","contracts"]) + b("#/clients","users",pos==="design"?"Кому звонить":"База заказчиков",pa==="clients","clients") + comm
     + lab("Общение", ["team","chat","mail","scripts","report"]) + b("#/team","team","Внутренние",pa==="team","team") + b("#/chat","chat","Мессенджеры",pa==="chat","chat") + b("#/mail","mail","Почта",pa==="mail","mail") + b("#/scripts","list","Скрипты",pa==="scripts","scripts") + b("#/report","list","Пятничный созвон",pa==="report","report")
     + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","onec","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/onec","wallet","Оплаты из 1С",pa==="onec","onec") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
@@ -463,6 +466,8 @@ function renderTopNav(){
   if (sec === "onec" && window.DS) DS.mount("onec", document.getElementById("onec-app"));
   document.getElementById("clients-app").style.display = (sec === "clients") ? "block" : "none";
   document.getElementById("report-app").style.display = (sec === "report") ? "block" : "none";
+  document.getElementById("visits-app").style.display = (sec === "visits") ? "block" : "none";
+  if (sec === "visits" && window.DSV) DSV.mount();
   document.getElementById("flow-app").style.display = (sec === "flow") ? "block" : "none";
   document.getElementById("risk-app").style.display = (sec === "risk") ? "block" : "none";
   if (sec === "risk" && window.DS) DS.mount("risk", document.getElementById("risk-app"));
@@ -535,12 +540,13 @@ globalRouter();
 </script>
 <script src="config.js?v=20261031a"></script>
 <script src="crm.js?v=20261031a"></script>
-<script src="extras.js?v=20261031a"></script>
+<script src="extras.js?v=20261031b"></script>
 <script src="team.js?v=20261031c"></script>
 <script src="teamsearch.js?v=20261031a"></script>
-<script src="ai.js?v=20261031c"></script>
+<script src="ai.js?v=20261031d"></script>
 <script src="chatpanel.js?v=20261031c"></script>
-<script src="ds.js?v=20261031c"></script>
+<script src="ds.js?v=20261031d"></script>
+<script src="visits.js?v=20261031a"></script>
 <script src="calls.js?v=20261031a"></script>
 <script src="remind.js?v=20261031a"></script>
 <script>

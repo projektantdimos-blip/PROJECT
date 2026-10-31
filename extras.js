@@ -302,7 +302,7 @@
   X.more = function () {
     var ps = (window.MPBC && MPBC.me && (MPBC.me.position || (MPBC.me.role === "admin" ? "owner" : ""))) || "";
     var ALL = [["flow", "flow", "Конвейер", "#/flow"], ["tasks", "tasks", ps === "designer" ? "Мои проекты" : ps === "acc" ? "Закрытие" : "Задачи", "#/"], ["tz", "list", "Технические задания", "#/tz"],
-      ["cal", "cal", "Занятость", "#/cal"], ["my", "bell", ps === "designer" ? "План на неделю" : "Мои задачи", "#/my"], ["clients", "users", ps === "design" ? "Кому звонить" : "База заказчиков", "#/clients"],
+      ["cal", "cal", "Занятость", "#/cal"], ["visits", "pin", "Выезды", "#/visits"], ["my", "bell", ps === "designer" ? "План на неделю" : "Мои задачи", "#/my"], ["clients", "users", ps === "design" ? "Кому звонить" : "База заказчиков", "#/clients"],
       ["kpreg", "list", "Реестр КП", "#/kpreg/"], ["kpc", "calc", "Конструктор КП", "#/kpc"], ["price", "list", "Прайс", "#/price"], ["contracts", "file", "Договоры", "#/contracts"],
       ["team", "team", "Внутренние", "#/team"], ["chat", "chat", "Мессенджеры", "#/chat"], ["mail", "mail", "Почта", "#/mail"], ["report", "list", "Пятничный созвон", "#/report"], ["stats", "lock", "Статистика", "#/stats"],
       ["stages", "layers", "Этапы и сроки", "#/stages"], ["onec", "wallet", "Оплаты из 1С", "#/onec"], ["auto", "zap", "Автоматизация", "#/auto"], ["log", "history", "Журнал", "#/log"], ["me", "user", "Кабинет", "#/me"]];

@@ -1,6 +1,7 @@
 """Локальный стенд моста: настоящие CRM-маршруты (bridge/app) на временной базе, без Telegram и почты.
 Запуск:  python web/dev/crm_dev_app.py 8795   (нужны пакеты: fastapi, uvicorn, pywebpush)
 Демо-вход: «Руководитель» — PIN 1234, остальные сотрудники — PIN 1111.
+Второй аргумент — своя база стенда: python web/dev/crm_dev_app.py 8799 ai → web/dev/.data-ai (иначе общая web/dev/.data).
 Только для разработки — в продакшен не загружать."""
 import asyncio
 import os
@@ -11,7 +12,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-DATA = HERE / ".data"
+DATA = HERE / (".data-" + sys.argv[2] if len(sys.argv) > 2 else ".data")
 DATA.mkdir(exist_ok=True)
 os.environ["DATA_DIR"] = str(DATA)
 os.environ["BRIDGE_KEY"] = "demo-key-demo-key-demo-key"
@@ -26,7 +27,7 @@ from fastapi.middleware.cors import CORSMiddleware      # noqa: E402
 
 from datetime import date, timedelta                                   # noqa: E402
 
-from app import config, crm_auth, crm_db, crm_routes, crm_sched, db, max_bot, onec, sipuni, sipuni_routes, tg_bot, uploads, ds_orders, ds_reports, ds_routes, ds_auto   # noqa: E402
+from app import config, crm_auth, crm_db, crm_routes, crm_sched, db, max_bot, onec, sipuni, sipuni_routes, tg_bot, uploads, ds_orders, ds_reports, ds_routes, ds_auto, ds_ai, ds_ai_ops, ds_visits, ai_yandex   # noqa: E402
 
 
 # --- поддельный Telegram-бот: сообщения складываются в TG_LOG (смотреть на /dev/tg) ---
@@ -85,6 +86,60 @@ def fake_maxbot(method, path, query, payload):
     return {"success": True}
 
 
+# --- поддельный YandexGPT: разбор по ключевым словам и шаблонный черновик (смотреть запросы на /dev/ai) ---
+AI_LOG = []
+
+
+def fake_ai(body):
+    import json as _json
+    import re as _re
+    system, text = body["messages"][0]["text"], body["messages"][1]["text"]
+    AI_LOG.append({"model": body["modelUri"], "system": system[:400], "user": text[-400:]})
+    usage = {"inputTextTokens": str(len(system + text) // 3), "completionTokens": "120"}
+    if "jsonSchema" not in body and "JSON" not in system:
+        out = ("Здравствуйте! Спасибо за обращение. Чтобы подготовить предложение, пришлите, пожалуйста, поэтажные планы и "
+               "площадь объекта. Срок и стоимость сообщим после изучения — [уточнить].")
+        return {"result": {"alternatives": [{"message": {"text": out}, "status": "ALTERNATIVE_STATUS_FINAL"}], "usage": usage}}
+    ok = lambda d: {"result": {"alternatives": [{"message": {"text": _json.dumps(d, ensure_ascii=False)}, "status": "ALTERNATIVE_STATUS_FINAL"}], "usage": usage}}   # noqa: E731
+    if "рабочем чате" in system:                                # поручение из «Команды»: первый сотрудник из списка, чьё имя есть в тексте
+        names = [x[2:].strip() for x in system.split("Сотрудники:", 1)[1].splitlines() if x.startswith("- ")]
+        msg = text.rsplit("Сообщение:", 1)[-1].strip()
+        who = next((n for n in names if n.split()[0][:-1].lower() in msg.lower()), names[0] if "личный чат" in system and names else "")
+        what = _re.sub(r"^[А-ЯЁ][а-яё]+,\s*", "", msg).rstrip(".!")
+        return ok({"is_task": bool(who), "assignee": who, "what": what[:1].upper() + what[1:], "due_date": ""})
+    if "сводку по заказчику" in system:
+        return ok({"summary": "Демо-сводка: заказчик в работе, по задачам есть сроки.", "status": "active", "in_work": [l[2:80] for l in text.splitlines() if l.startswith("- №")][:3],
+                   "money": "См. задачи", "last_contact": "", "next_steps": ["Позвонить и уточнить статус исходных данных"], "risks": ["Срок по договору просрочен"] if "просрочено" in text else []})
+    last = text.rsplit("---", 1)[-1].lower()
+    has = lambda *w: any(x in last for x in w)                  # noqa: E731
+    kind = ("spam" if has("реклам", "рассылк") else "docs_payment" if has("оплат", "акт ", "договор") or _re.search(r"(?<![а-я])сч[её]т", last) else "remarks" if has("замечан")
+            else "source_data" if has("исходн", "поэтаж", "тз ") else "question" if _re.search(r"№\s?\d{3}", last) else "new_request")
+    svc = [n for k, n in (("сигнал", "Проект СПС"), ("спс", "Проект СПС"), ("соуэ", "Проект СОУЭ"), ("оповещ", "Проект СОУЭ"), ("пожаротуш", "Проект АУП"),
+                          ("риск", "Расчёт пожарного риска"), ("категор", "Категорирование"), ("надзор", "Авторский надзор"), ("эвакуац", "План эвакуации")) if k in last]
+    route = {"new_request": "Мария", "docs_payment": "Пётр", "source_data": "Пётр", "remarks": "Иван"}.get(kind, "")
+    inn = _re.search(r"инн\D{0,3}(\d{10}|\d{12})", last)
+    org = _re.search(r"((?:ооо|ао|ип)\s+[«\"]?[\w\- ]+[»\"]?)", text, _re.I)
+    num = _re.search(r"№\s?(\d{3})", last)
+    d = {"kind": kind, "summary": {"new_request": "Запрос на новую работу", "docs_payment": "Вопрос по документам или оплате", "remarks": "Прислал замечания к проекту",
+                                   "source_data": "Прислал исходные данные", "question": "Вопрос по текущей задаче", "spam": "Рекламная рассылка"}.get(kind, "Прочее")
+         + (": " + ", ".join(dict.fromkeys(svc)) if svc else ""), "urgency": "high" if has("срочн") else "normal",
+         "org": org.group(1).strip() if org else "", "inn": inn.group(1) if inn else "", "contact": "", "phone": "", "email": "", "object": "", "city": "",
+         "services": list(dict.fromkeys(svc)), "need": "", "deadline": "", "order_number": num.group(1) if num else "",
+         "route_to": route, "route_reason": "по правилу для типа «" + kind + "»" if route else "", "route_confident": kind == "new_request",
+         "reply_needed": kind != "spam"}
+    area = _re.search(r"(\d[\d\s]*)\s?(?:м2|м²|кв)", last)
+    floors = _re.search(r"(\d+)\s?этаж", last)
+    tone = "claim" if has("претенз", "суд", "расторг") else "unhappy" if has("сколько можно", "до сих пор", "недовол") else "normal"
+    d.update(tone=tone, urgency="high" if tone == "claim" else d["urgency"], area=area.group(0) if area else "", floors=floors.group(0) if floors else "",
+             fclass="", building="склад" if has("склад") else "", stage="", inputs="поэтажные планы" if has("план") else "",
+             questions=[_re.split(r"[.!\n:]", q)[-1].strip() + "?" for q in text.rsplit("---", 1)[-1].split("?")[:-1] if q.strip(" .:;,!")][:5],
+             missing=([x for x, k in (("Адрес объекта", "адрес"), ("Площадь", "м2"), ("Этажность", "этаж"), ("Поэтажные планы", "план")) if k not in last]
+                      if kind == "new_request" else []),
+             next_step={"new_request": "Запросить недостающее и посчитать КП", "docs_payment": "Передать в бухгалтерию", "remarks": "Передать проектировщику",
+                        "source_data": "Проверить комплектность исходных", "question": "Ответить по статусу задачи"}.get(kind, ""))
+    return {"result": {"alternatives": [{"message": {"text": _json.dumps(d, ensure_ascii=False)}, "status": "ALTERNATIVE_STATUS_FINAL"}], "usage": usage}}
+
+
 def seed():
     db.init()
     crm_db.init()
@@ -92,7 +147,13 @@ def seed():
     ds_reports.init()
     ds_auto.init()
     sipuni.init()
+    ds_ai.init()
+    ds_ai_ops.init()
+    ds_visits.init()
     crm_auth.bootstrap_admin()
+    ai_yandex._post, ds_ai.PAUSE = fake_ai, 3                    # ИИ: поддельный YandexGPT, разбор через 3 с после сообщения
+    if not crm_db.kv_get(ds_ai.SETTINGS_KEY):
+        ds_ai.save_settings({"enabled": True, "routing": "Новые заявки — Марии. Счета, оплаты, исходные данные — Петру. Замечания к проекту — Ивану."})
     tg_bot._http = fake_tg
     max_bot._http, max_bot.username = fake_maxbot, "proekty_ds_bot"
     config.TG_BOT_ENABLED = True
@@ -136,7 +197,7 @@ def seed():
                 if s == "Готов к проектированию" and urgent:
                     ds_orders.set_urgent(own, oid, True)
             if upto in ("В проектировании", "На согласовании"):
-                ds_orders.plan(own, oid, 0, (date.today() - timedelta(days=2)).isoformat(), due)
+                ds_orders.plan(own, oid, 0, (date.today() - timedelta(days=2)).isoformat(), max(due, date.today().isoformat()))     # свежая база после срока демо-задач
         mk("407", "ИП Ядыкин", "Склады, АБК, СПС.СОУЭ", "2026-10-30", 310000, True, "Готов к проектированию", None, True)
         mk("402", "ООО «Спектр»", "Производственное здание, СПС.СОУЭ", "2026-10-22", 420000, False, "В проектировании", "Ольга")
         mk("380", "ООО «Спектр»", "ЛесныеДали, РазныеСистемы", "2026-10-21", 260000, True, "В проектировании", "Кристина")
@@ -183,6 +244,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "P
 app.include_router(crm_routes.router)
 app.include_router(ds_routes.router)
 app.include_router(sipuni_routes.router)
+app.include_router(ds_ai.router)
+app.include_router(ds_ai_ops.router)
+app.include_router(ds_visits.router)
 
 
 from fastapi import Request                                # noqa: E402
@@ -219,6 +283,21 @@ async def dev_maxbot_start(request: Request):
     first, _, last = str(b.get("name") or "Пётр Сидоров").partition(" ")
     upd = {"update_type": "bot_started", "user": {"user_id": uid, "first_name": first, "last_name": last}, "payload": b.get("payload")}
     return {"result": max_bot.handle_update(upd)}
+
+
+@app.get("/dev/ai")
+def dev_ai():
+    return AI_LOG
+
+
+@app.post("/dev/in")
+async def dev_in(request: Request):
+    """Входящее от заказчика в любой канал: {"channel": "mail", "peer": "x@y.ru", "name": "…", "subject": "…", "text": "…"} — как настоящий приём."""
+    b = await request.json()
+    ch = b.get("channel") or "mail"
+    db.add_message(ch, str(b.get("peer") or "client@demo.ru"), b.get("name") or "Заказчик", f"dev-in-{time.time()}", "in", b.get("name") or "Заказчик",
+                   b.get("subject", ""), b.get("text", ""), time.time())
+    return {"thread_id": f"{ch}:{b.get('peer') or 'client@demo.ru'}"}
 
 
 @app.get("/dev/sipuni")

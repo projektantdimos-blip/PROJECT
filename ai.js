@@ -18,6 +18,8 @@
   css.textContent = ".dsp .ai-head{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.dsp .ai-pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:.76rem;font-weight:700;background:var(--brand-soft);color:var(--brand)}"
     + ".dsp .ai-pill.bad{background:var(--bad-l,#fde8e8);color:var(--bad)}.dsp .ai-pill.mute{background:var(--surface-2,var(--surface));color:var(--muted)}"
     + ".dsp .ai-sum{margin:0 0 10px;font-size:.92rem;line-height:1.45}"
+    + ".dsp .ai-next{margin:0 0 10px;padding:9px 12px;border-radius:12px;background:var(--brand-soft);font-size:.9rem;font-weight:600}.dsp .ai-next small,.dsp .ai-list small{display:block;color:var(--muted);font-size:.7rem;text-transform:uppercase;font-weight:700;margin-bottom:2px}"
+    + ".dsp .ai-list{margin:0 0 10px}.dsp .ai-list ul{margin:2px 0 0;padding-left:18px;font-size:.88rem;line-height:1.45}.dsp .ai-list.miss{padding:9px 12px;border-radius:12px;background:var(--warn-soft);}.dsp .ai-list.miss small{color:var(--warn)}"
     + ".dsp .ai-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin-bottom:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2,var(--surface))}"
     + ".dsp .ai-facts div{min-width:0}.dsp .ai-facts .w{grid-column:1/-1}.dsp .ai-facts small{display:block;color:var(--muted);font-size:.7rem;text-transform:uppercase;font-weight:700}.dsp .ai-facts b{display:block;font-size:.86rem;font-weight:600;overflow-wrap:anywhere}"
     + ".dsp .ai-route{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,#378ADD 12%,transparent);margin-bottom:8px;font-size:.88rem}.dsp .ai-route small{display:block;color:var(--muted);font-size:.76rem;margin-top:2px}"
@@ -54,6 +56,7 @@
 
   /* ---------- вкладка «ИИ» панели диалога ---------- */
   var URG = { high: ["срочно", "bad"], low: ["не срочно", "mute"] };
+  var TONE = { unhappy: "недоволен", claim: "⚠ претензия" };
   var drafts = {};                       // черновик ответа по диалогу не теряется при перерисовке панели
   A.tab = function (body, t, name, s, hooks) {
     var path = "/thread/" + encodeURIComponent(t.id);
@@ -74,13 +77,20 @@
       }
       var d = tr.data || {}, u = URG[d.urgency], l = s.link || {}, m = me();
       var f = [["Организация", d.org], ["ИНН", d.inn], ["Контакт", d.contact], ["Телефон", d.phone], ["Почта", d.email], ["Город", d.city],
-        ["Объект", d.object, 1], ["Работы", (d.services || []).join(", "), 1], ["Что нужно", d.need, 1], ["Срок", d.deadline]].filter(function (x) { return x[1]; });
+        ["Объект", d.object, 1], ["Назначение", d.building], ["Класс Ф", d.fclass], ["Площадь", d.area], ["Этажность", d.floors], ["Стадия", d.stage],
+        ["Работы", (d.services || []).join(", "), 1], ["Что нужно", d.need, 1], ["ТЗ и исходные", d.inputs, 1], ["Срок", d.deadline]].filter(function (x) { return x[1]; });
+      var tn = TONE[d.tone];
+      function list(title, a, cls) { return a && a.length ? '<div class="ai-list' + (cls ? " " + cls : "") + '"><small>' + title + "</small><ul>" + a.map(function (x) { return "<li>" + E(x) + "</li>"; }).join("") + "</ul></div>" : ""; }
       var canHand = ["design", "acc", "norm"].indexOf(pos()) < 0 && d.route_user_id && !(m && m.id === d.route_user_id);
       var h = '<div class="ai-head"><span class="ai-pill' + (d.kind === "spam" ? " mute" : "") + '">' + E(d.kind_label || d.kind) + "</span>"
+        + (tn ? ' <span class="ai-pill bad">' + tn + "</span>" : "")
         + (u ? ' <span class="ai-pill ' + u[1] + '">' + u[0] + "</span>" : "") + (d.reply_needed ? ' <span class="ai-pill mute">нужен ответ</span>' : "") + "</div>"
         + (tr.stale ? '<p class="note">Пришли новые сообщения — <a href="#" id="aiRe">разобрать заново</a></p>' : "")
         + '<p class="ai-sum">' + E(d.summary) + "</p>"
+        + (d.next_step ? '<div class="ai-next"><small>Следующий шаг</small>' + E(d.next_step) + "</div>" : "")
+        + list("Вопросы и просьбы заказчика", d.questions)
         + (f.length ? '<div class="ai-facts">' + f.map(function (x) { return '<div' + (x[2] ? ' class="w"' : "") + "><small>" + x[0] + "</small><b>" + E(x[1]) + "</b></div>"; }).join("") + "</div>" : "")
+        + list(d.kind === "new_request" || d.kind === "kp_reply" ? "Не хватает для КП — спросить" : "Что уточнить", d.missing, "miss")
         + (d.order_id ? '<a class="card" href="#/task/' + d.order_id + '"><span><b>Задача №' + E(d.order_number) + "</b><small>упомянута в переписке — открыть</small></span></a>" : "")
         + (d.auto_assigned ? '<div class="ai-route"><span>Передано автоматически: <b>' + E(d.auto_assigned) + "</b>" + (d.route_reason ? "<small>" + E(d.route_reason) + "</small>" : "") + "</span><span>✓</span></div>"
           : d.route_user_id ? '<div class="ai-route"><span>Кому передать: <b>' + E(d.route_to) + "</b>" + (d.route_reason ? "<small>" + E(d.route_reason) + "</small>" : "") + "</span>"
