@@ -102,7 +102,10 @@
   D.render = function (box, t, name) {
     var s = st(t);
     if (!C() || !MPBC.loggedIn()) { box.innerHTML = '<div class="dsp"><p class="note">Войдите, чтобы работать с заказчиком.</p></div>'; return; }
-    box.innerHTML = '<div class="dsp"><div class="tabs">' + (norm() ? [["c", "Заказчик"]] : [["c", "Заказчик"], ["k", "КП из диалога"]]).map(function (x) { return '<button data-t="' + x[0] + '" class="' + (s.tab === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + '</div><div id="dspBody"></div></div>';
+    var ai = !!(window.DSAI && DSAI.on());                 // вкладка «ИИ» — когда помощник подключён и включён руководителем (ai.js)
+    if (window.DSAI && !DSAI.st && !s.aiWait) { s.aiWait = true; DSAI.whenLoaded(function () { if (DSAI.on() && document.body.contains(box)) D.render(box, t, name); }); }
+    if (s.tab === "a" && !ai) s.tab = "c";
+    box.innerHTML = '<div class="dsp"><div class="tabs">' + (ai ? [["a", "ИИ"]] : []).concat(norm() ? [["c", "Заказчик"]] : [["c", "Заказчик"], ["k", "КП из диалога"]]).map(function (x) { return '<button data-t="' + x[0] + '" class="' + (s.tab === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + '</div><div id="dspBody"></div></div>';
     box.querySelectorAll(".tabs button").forEach(function (b) { b.onclick = function () { s.tab = b.dataset.t; s.err = ""; D.render(box, t, name); }; });
     var body = $("dspBody");
     body.innerHTML = '<p class="note">Загрузка…</p>';
@@ -111,7 +114,8 @@
       s.link = l;
       setChip(t, l);
       if (!document.body.contains(body)) return;           // пока ждали ответ, открыли другой диалог — панель уже другая
-      if (s.tab === "k" && !norm()) tabKp(body, t, name, s, box); else tabCustomer(body, t, name, s, box);
+      if (s.tab === "a" && ai) DSAI.tab(body, t, name, s, { customer: function (p) { s.prefill = p; s.create = true; s.tab = "c"; s.err = ""; D.render(box, t, name); } });
+      else if (s.tab === "k" && !norm()) tabKp(body, t, name, s, box); else tabCustomer(body, t, name, s, box);
       if (s.focusUntil > Date.now() && $("dspQ")) $("dspQ").focus();
     }, function (e) { body.innerHTML = '<p class="err">' + E(e) + "</p>"; });
   };
@@ -201,6 +205,7 @@
       h += line("Контактное лицо", ct.fio + (ct.pos ? " · " + ct.pos : "")) + line("Телефон", ph) + line("Почта", ml);
       if (window.DSCalls && DSCalls.bar) { var cb = DSCalls.bar(ph ? [{ fio: ct.fio, phone: ph }] : [], 0, c.id); if (cb) h += '<div class="callrow">' + cb + "</div>"; }     // звонок через Sipuni (calls.js)
       if (l.auto) h += '<p class="note">Диалог привязан автоматически: ' + E(l.auto) + ".</p>";
+      if (!l.service && window.DSAI && DSAI.on()) h += '<div id="dspAiCust"></div>';          // «Что с заказчиком?» (ai.js)
       var tasks = l.tasks || [], NEXTT = { a1: "Сбор вводных", a2: "КП" };
       if (tasks.length) {
         h += '<div class="pb pb-orange"><h5>Задачи по диалогу · ' + tasks.length + "</h5>" + tasks.map(function (k) {
@@ -213,7 +218,7 @@
         }).join("") + "</div>";
       }
       if (!l.service) h += '<div id="dspNotes"></div>';            // «Комментарии» о заказчике (у общей карточки amoCRM — нет)
-      function notes() { if ($("dspNotes")) D.notes($("dspNotes"), c.id, t.id); }
+      function notes() { if ($("dspNotes")) D.notes($("dspNotes"), c.id, t.id); if ($("dspAiCust")) DSAI.customer($("dspAiCust"), c.id); }
       if (norm()) { body.innerHTML = h; bindTasks(); notes(); return; }          /* нормативному специалисту — без проектов, КП и передачи по конвейеру */
       h += '<div class="pb pb-blue"><h5>В работе</h5>' + (l.orders.map(function (o) {
         return '<a class="pi" href="#/task/' + o.id + '"><b>№' + E(o.number) + " · " + E(o.object) + "</b><small>" + E(o.stage) + (o.system ? " · " + E(o.system) : "") + (o.executor ? " · " + E(o.executor) : "")
@@ -290,11 +295,12 @@
         b.onclick = function (e) { e.stopPropagation(); linkTo(box, t, name, s, { order_id: +b.dataset.oid, label: b.dataset.lbl }); };
       });
     }
-    h += '<div class="note" style="margin-top:12px">Нет в базе — создать заказчика:</div>'
-      + '<div class="f"><label>Наименование компании</label><input id="dspName" value="' + E(name || "") + '"></div>'
-      + '<div class="f"><label>Контактное лицо (ФИО)</label><input id="dspFio" value="' + E(name || "") + '"></div>'
-      + '<div class="f"><label>Телефон</label><input id="dspPhone" value="' + E(/^[+\d\s()-]{6,}$/.test(t.peer || "") ? t.peer : "") + '"></div>'
-      + '<div class="f"><label>E-mail</label><input id="dspMail" value="' + E(/@/.test(t.peer || "") ? t.peer : "") + '"></div>'
+    var pf = s.prefill || {};                    // из подсказки ИИ («Заполнить заказчика»)
+    h += '<div class="note" style="margin-top:12px">Нет в базе — создать заказчика' + (s.prefill ? " (заполнено по подсказке ИИ — проверьте)" : "") + ":</div>"
+      + '<div class="f"><label>Наименование компании</label><input id="dspName" value="' + E(pf.name || name || "") + '"></div>'
+      + '<div class="f"><label>Контактное лицо (ФИО)</label><input id="dspFio" value="' + E(pf.fio || name || "") + '"></div>'
+      + '<div class="f"><label>Телефон</label><input id="dspPhone" value="' + E(pf.phone || (/^[+\d\s()-]{6,}$/.test(t.peer || "") ? t.peer : "")) + '"></div>'
+      + '<div class="f"><label>E-mail</label><input id="dspMail" value="' + E(pf.email || (/@/.test(t.peer || "") ? t.peer : "")) + '"></div>'
       + (s.err ? '<div class="err">' + E(s.err) + "</div>" : "")
       + '<button class="x-btn primary" id="dspCreate" style="width:100%;justify-content:center">Создать заказчика и привязать</button>';
     body.innerHTML = h;
@@ -303,7 +309,7 @@
       var nm = $("dspName").value.trim();
       if (!nm) { s.err = "Укажите наименование компании"; return again(box, t, name); }
       api("/threads/" + encodeURIComponent(t.id) + "/customer", { name: nm, fio: $("dspFio").value.trim(), phone: $("dspPhone").value.trim(), email: $("dspMail").value.trim() })
-        .then(function () { s.err = ""; s.create = false; s.q = ""; toast("Заказчик «" + nm + "» создан, диалог привязан к нему"); again(box, t, name); }, function (e) { s.err = String(e); again(box, t, name); });
+        .then(function () { s.err = ""; s.create = false; s.q = ""; s.prefill = null; toast("Заказчик «" + nm + "» создан, диалог привязан к нему"); again(box, t, name); }, function (e) { s.err = String(e); again(box, t, name); });
     };
   }
 

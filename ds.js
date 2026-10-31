@@ -1108,8 +1108,11 @@
     fitKpWrap();
     if (kpPos) { var nw = el.querySelector(".kpwrap"); if (nw) { nw.scrollTop = kpPos[0]; nw.scrollLeft = kpPos[1]; } if (scrollY !== kpPos[2]) scrollTo(scrollX, kpPos[2]); }
     if (k === "load") fitLoadScroll();
+    if (k === "auto" && window.DSAI) DSAI.settings(document.getElementById("dsAiSettings"));
     var cn = k === "cust" && document.getElementById("cuNotes");
     if (cn && window.MPBD && MPBD.notes) MPBD.notes(cn, +cn.getAttribute("data-cid"));
+    var ca = k === "cust" && document.getElementById("cuAi");
+    if (ca && window.DSAI) DSAI.customer(ca, +ca.getAttribute("data-cid"));
     var m = modalRoot();
     if (S.ke) { m.innerHTML = keHtml(); return; }
     if (S.tm) { m.innerHTML = tmWrap(); return; }
@@ -1512,7 +1515,7 @@
         + '<div class="fld"><label>Город <small style="color:var(--muted)">(введите любой — часовой пояс подставится сам)</small></label><input data-cfcity="1" list="cityDl" value="' + E(d.city || "") + '" placeholder="Например: Красноярск"' + ro + '><datalist id="cityDl">' + cityNames().map(function (n) { return '<option value="' + E(n) + '">'; }).join("") + '</datalist><div class="note" id="cuCityNote" style="margin-top:4px"></div></div>'
         + '<div class="tzres" id="cuTzRes">🕒 ' + E(tzLabel(d.tz)) + ' · сейчас у заказчика <b id="cuNow">' + nowIn(d.tz) + "</b></div>"
         + '<details class="tzman"' + (d.city && !cityZone(d.city) ? " open" : "") + "><summary>Выбрать часовой пояс вручную</summary><select data-cftz=\"1\" id=\"cuTz\"" + ro + ">" + tzOpts + "</select></details>"
-        + (d.id ? '<div id="cuNotes" data-cid="' + d.id + '"></div>'          // «Комментарии»: лента с автором и временем (chatpanel.js → MPBD.notes)
+        + (d.id ? '<div id="cuAi" data-cid="' + d.id + '"></div><div id="cuNotes" data-cid="' + d.id + '"></div>'          // «Что с заказчиком?» (ai.js) и «Комментарии»: лента с автором и временем (chatpanel.js → MPBD.notes)
           : '<div class="fld"><label>Комментарий</label><textarea data-cf="comment" placeholder="Появится в «Комментариях» с вашим именем"' + ro + ">" + E(d.comment || "") + "</textarea></div>")
         + (S.cu.err ? '<div class="err">' + E(S.cu.err) + "</div>" : "")
         + (canEdit ? '<button class="btn primary block" data-csave="1">Сохранить</button>' : "")
@@ -2157,7 +2160,7 @@
       var d = new Date(e.ts * 1000);
       return '<div class="ev" style="--c:var(--accent)"><time>' + d.toLocaleDateString("ru-RU") + " " + d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) + "</time><b>" + E(e.title) + '</b><span class="note" style="margin:0">' + E(e.rule_title) + "</span></div>";
     }).join("") + "</div>" : '<p class="note">Пока ничего не срабатывало</p>') + "</div>";
-    return head + rules + log;
+    return head + rules + log + '<div id="dsAiSettings"></div>';          // «ИИ-помощник» рисует ai.js
   }
 
   /* ---------- оплаты из 1С (OData 1С:Fresh): что отмечено само и что разобрать вручную ---------- */

@@ -114,11 +114,30 @@
       if (document.hidden || !C.loggedIn()) return;
       S.tick++;
       C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages?after=" + S.lastId).then(function (ms) {
-        if (addMsgs(ms)) { paintPoll(); C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/read", { body: {} }).then(function () { return loadRooms(); }); }
+        if (addMsgs(ms)) { paintPoll(); loadAiTasks(); C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/read", { body: {} }).then(function () { return loadRooms(); }); }
         else if (S.tick % 4 === 0) loadRooms();
+        if (S.tick % 3 === 0) loadAiTasks();
         if (S.tick % 2 === 0) C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages").then(function (all) { var a = JSON.stringify(all.map(function (m) { return [m.id, m.reactions, m.read_by, m.text, m.edited]; })), b = JSON.stringify(S.msgs.map(function (m) { return [m.id, m.reactions, m.read_by, m.text, m.edited]; })); if (a !== b && (!all.length || all[all.length - 1].id <= S.lastId)) { S.msgs = all; S.lastId = all.length ? all[all.length - 1].id : S.lastId; paintPoll(); } }).catch(function () {});      // реакции, «прочитали» и удалённые сообщения
       }).catch(function () {});
     }, 4000);
+  }
+  /* ИИ: подсказки «Поручение» под сообщениями — мост ищет их в фоне после отправки (ds_ai_ops); задача ставится только по кнопке */
+  S.aiTasks = {};
+  function loadAiTasks() {
+    var rid = S.cur;
+    if (S.aiOff || !(window.DSAI && DSAI.st && DSAI.st.enabled)) return;
+    C.call("/../ds/ai/team/" + encodeURIComponent(rid) + "/tasks").then(function (t) {
+      if (S.cur !== rid) return;
+      if (JSON.stringify(t || {}) !== JSON.stringify(S.aiTasks)) { S.aiTasks = t || {}; paintPoll(); }
+    }, function (e) { if (/404|Not Found/.test(String(e))) S.aiOff = true; });
+  }
+  function aiTaskHtml(m) {
+    var t = S.aiTasks[String(m.id)]; if (!t) return "";
+    var due = t.due ? " · до " + t.due.slice(8, 10) + "." + t.due.slice(5, 7) : "";
+    if (t.status === "done") return '<div class="x-aitask done">✓<span>Задача поставлена: <b>' + E(t.assignee) + "</b> — " + E(t.title) + due + "</span></div>";
+    var can = C.me && (C.me.position === "owner" || C.me.role === "admin" || C.me.id === t.author_id || C.me.id === t.assignee_id);
+    return '<div class="x-aitask">🤖<span>Поручение: <b>' + E(t.assignee) + "</b> — " + E(t.title) + due + "</span>"
+      + (can ? '<button type="button" data-aiok="' + m.id + '">Поставить задачу</button><button type="button" class="x" data-aino="' + m.id + '" title="Это не поручение" aria-label="Скрыть">×</button>' : "") + "</div>";
   }
   /* новые сообщения приходят двумя путями (после «Отправить» и автообновлением раз в 4 с): одно и то же не добавляется дважды */
   function addMsgs(ms) {
@@ -214,7 +233,7 @@
     paintRooms();
     $("tThread").innerHTML = '<div class="x-empty" style="padding:40px">Загрузка…</div>';
     return C.call("/team/rooms/" + encodeURIComponent(id) + "/messages").then(function (ms) {
-      S.msgs = ms; S.lastId = ms.length ? ms[ms.length - 1].id : 0; paintThread(); paintInfo();
+      S.msgs = ms; S.lastId = ms.length ? ms[ms.length - 1].id : 0; S.aiTasks = {}; paintThread(); paintInfo(); loadAiTasks();
       return C.call("/team/rooms/" + encodeURIComponent(id) + "/read", { body: {} }).then(loadRooms).then(function () { C.refresh(); });
     }).catch(function (e) { $("tThread").innerHTML = '<div class="x-empty" style="padding:40px">' + E(e) + "</div>"; });
   }
@@ -243,7 +262,7 @@
         if (/^image\//.test(f.mime || "")) return '<div class="x-imgbox"><div class="x-imgname" title="' + E(f.name) + '">📎 ' + E(f.name) + '</div><img class="x-img" data-timg="' + f.id + '" data-mime="' + E(f.mime) + '" data-name="' + E(f.name) + '" alt="' + E(f.name) + '"' + (S.imgs[f.id] ? ' src="' + S.imgs[f.id] + '"' : "") + "></div>";
         return '<button class="x-file" data-tfile="' + f.id + '" title="Скачать"><span class="fi">' + fileIcon(f.name) + "</span><span><b>" + E(f.name) + "</b><small>" + sizeTxt(f.size) + "</small></span></button>";
       }).join("") + "</div>" : "") + "</div>"
-      + reactionsHtml(m) + acts
+      + reactionsHtml(m) + aiTaskHtml(m) + acts
       + (m.urgent ? '<div class="x-ack">' + ic("check") + (m.acks.length ? "Прочитали: " + E(m.acks.join(", ")) : "Пока никто не подтвердил") + (!me && !mine ? '<button data-ack="' + m.id + '">Прочитал(а)</button>' : "") + "</div>" : "") + "</div></div>";
   }
   /* ответы и реакции: нажатие на сообщение показывает панель «Ответить» и реакции */
@@ -283,6 +302,15 @@
     if (e.target.closest("[data-noreply]")) { S.reply = null; paintThread(true); return; }
     var gq = e.target.closest("[data-goto]");
     if (gq) { var tgt = $("m" + gq.dataset.goto); if (tgt) { tgt.scrollIntoView({ block: "center" }); tgt.classList.add("flash"); setTimeout(function () { tgt.classList.remove("flash"); }, 1400); } return; }
+    var aok = e.target.closest("[data-aiok]");
+    if (aok) {
+      aok.disabled = true;
+      C.call("/../ds/ai/team/task/" + aok.dataset.aiok + "/accept", { body: {} }).then(function (t) { S.aiTasks[String(t.msg_id)] = t; paintThread(true); toast("Задача поставлена: " + t.assignee + " увидит её в «Мои задачи»"); })
+        .catch(function (er) { aok.disabled = false; toast(E(er)); });
+      return;
+    }
+    var ano = e.target.closest("[data-aino]");
+    if (ano) { C.call("/../ds/ai/team/task/" + ano.dataset.aino + "/dismiss", { body: {} }).then(function () { delete S.aiTasks[ano.dataset.aino]; paintThread(true); }).catch(function (er) { toast(E(er)); }); return; }
     var tkm = e.target.closest("[data-taskmsg]");
     if (tkm) { var m4 = msgById(tkm.dataset.taskmsg); S.selMsg = 0; paintThread(true); if (m4) taskFromText(m4.text); return; }
     var cpm = e.target.closest("[data-copymsg]");
@@ -597,7 +625,7 @@
     var ub = $("tUrg"); if (ub) ub.classList.remove("on");
     C.call("/team/rooms/" + encodeURIComponent(room) + "/send", { body: { text: text, urgent: urgent, reply_to: reply ? reply.id : 0 } }).then(function () {
       return C.call("/team/rooms/" + encodeURIComponent(room) + "/messages?after=" + last);
-    }).then(function (ms) { if (S.cur === room) { addMsgs(ms); paintThread(); } loadRooms(); if (urgent) toast("Срочное отправлено — сотрудники получат оповещение, даже в тихие часы"); })
+    }).then(function (ms) { if (S.cur === room) { addMsgs(ms); paintThread(); setTimeout(loadAiTasks, 3500); } loadRooms(); if (urgent) toast("Срочное отправлено — сотрудники получат оповещение, даже в тихие часы"); })
       .catch(function (e) {
         var j = $("tIn"); if (S.cur === room && j && !j.value) { j.value = text; S.drafts[room] = text; S.reply = reply; }      /* не отправилось — текст возвращается в поле */
         toast(E(e));
