@@ -880,7 +880,7 @@
     }).join("") + "</div>";
   }
   /* «Чат с заказчиком»: диалоги «Переписки», привязанные к заказчику задачи (подгружаются при открытии окна) */
-  var CH_NAME = { tg: "Telegram", max: "MAX", maxbot: "MAX", mail: "почта" };
+  var CH_NAME = { tg: "Telegram", max: "MAX", maxbot: "MAX", mail: "почта", site: "сайт" };
   function custChatHtml(o) {
     var p = pos();
     if (["owner", "sales", "ops"].indexOf(p) < 0 || !o.customer_id) return "";       // проектному отделу кнопка не нужна

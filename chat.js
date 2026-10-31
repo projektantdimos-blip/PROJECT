@@ -9,7 +9,8 @@
     tg:   { label: "Telegram", color: "#2b8ac6" },
     mail: { label: "Почта",    color: "#ee9264" },
     max:  { label: "MAX (личный)", color: "#7a55a8" },
-    maxbot: { label: "MAX",    color: "#7a55a8" }
+    maxbot: { label: "MAX",    color: "#7a55a8" },
+    site: { label: "Сайт",     color: "#2e9e6a" }           // заявки с сайта (Tilda): ответить можно только звонком или в мессенджер
   };
   function botLink() { return (window.MPBC && MPBC.maxBot) || ""; }      // ссылка на MAX-бота компании (из /api/crm/me)
   function copyLink(btn) {
@@ -646,7 +647,7 @@
     if (keepScroll && selInMsgs()) { st.renderLater = true; return; }
     var t = curThread();
     el.wrap.classList.toggle("has-sel", !!t);
-    el.text.disabled = el.send.disabled = !t || st.sending;
+    el.text.disabled = el.send.disabled = !t || st.sending || t.channel === "site";
     if (!t) {
       if (el.assign) el.assign.innerHTML = "";
       renderInfo(null);
@@ -840,6 +841,7 @@
     if (!t || t.channel === "mail") return "";                // в «Почте» все письма — значок не нужен
     var ci = chInfo(t.channel);
     if (t.channel === "tg") return '<span class="chb tg" title="' + esc(ci.label) + '"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4 3 11l6 2.3L11 20l3-4 4.5 3z"/></svg></span>';
+    if (t.channel === "site") return '<span class="chb" style="background:' + ci.color + '" title="' + esc(ci.label) + '"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18"/></svg></span>';
     return '<span class="chb max" title="' + esc(ci.label) + '"><img src="max-logo.svg" alt="MAX"></span>';
   }
   function loadAvatars() {

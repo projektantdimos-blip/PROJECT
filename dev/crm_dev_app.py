@@ -100,6 +100,8 @@ def seed():
     onec._http_get = fake_1c
     config.SIPUNI_USER, config.SIPUNI_SECRET = "000000", "dev-secret"
     sipuni._post = fake_sipuni
+    from app import mail_channel
+    config.MAIL_ENABLED, mail_channel.send = True, fake_mail_send      # письма — в MAIL_LOG (/dev/mail), никуда не уходят
     for n in ("Алексей", "Дмитрий", "Максим", "Игорь"):
         if not crm_db.user_by_name(n):
             crm_auth.create_user(n, "1111")
@@ -267,13 +269,39 @@ def send_demo(tid: str, body: dict):
     db.add_message(th["channel"], th["peer"], "", f"out-{time.time()}", "out", "Вы", "", str(body.get("text", "")), time.time(), False)
     return {"ok": True}
 
+# --- поддельная почта: письма не уходят, а складываются в MAIL_LOG (смотреть на /dev/mail); почта и MAX-бот идут через настоящий код моста ---
+MAIL_LOG = []
+
+
+def fake_mail_send(to, text, subject="", in_reply_to="", attachments=None):
+    MAIL_LOG.append({"to": to, "subject": subject, "text": text, "in_reply_to": in_reply_to,
+                     "attachments": [{"name": n, "mime": m, "size": len(d)} for n, m, d in attachments or []]})
+    return f"<dev{len(MAIL_LOG)}.{int(time.time())}@dev>"
+
+
+@app.get("/dev/mail")
+def dev_mail():
+    return MAIL_LOG
+
+
+@app.post("/api/threads/new")
+async def new_message_demo(body: dict, user=Depends(crm_auth.ext_user)):
+    from app import main
+    if body.get("channel") != "mail":
+        raise HTTPException(400, "На стенде — только почта (Telegram не подключён)")
+    return await main.new_message(main.NewMsgBody(**body), user)
+
+
 @app.post("/api/threads/{tid}/send-file")
-def send_file_demo(tid: str, body: dict, user=Depends(crm_auth.ext_thread)):
-    """Как в мосту, но без Telegram/MAX/почты: файл (base64 или номер загрузки) отмечается текстом в переписке."""
+async def send_file_demo(tid: str, body: dict, user=Depends(crm_auth.ext_thread)):
+    """Почта и MAX-бот — настоящий код моста (письма и Bot API подменены); остальное — файл отмечается текстом в переписке."""
     import base64
     th = db.get_thread(tid)
     if not th:
         raise HTTPException(404, "Переписка не найдена")
+    if th["channel"] in ("mail", "maxbot"):
+        from app import main
+        return await main.send_file(tid, main.SendFileBody(**body), user)
     if body.get("upload"):
         src, name, _, size = uploads.take(body["upload"], user)
         src.unlink(missing_ok=True)
