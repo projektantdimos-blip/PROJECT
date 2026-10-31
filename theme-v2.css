@@ -673,3 +673,5 @@ input:focus,select:focus,textarea:focus,#kpreg-app input:focus,#kpreg-app select
 #chat-app .chat-filebar{flex:1 1 100%;display:flex;gap:8px;align-items:center;font-size:.85rem;color:var(--muted);background:var(--surface-2);border:1px dashed var(--line);border-radius:10px;padding:6px 10px}
 #chat-app .chat-filebar[hidden]{display:none}
 #chat-app .chat-filebar button{background:none;border:0;box-shadow:none;color:var(--muted);cursor:pointer;padding:0 4px;margin-left:auto}
+/* iPhone увеличивает страницу при вводе в поле со шрифтом меньше 16px — на сенсорных экранах поля не мельче */
+@media (pointer:coarse){input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),textarea,select{font-size:16px!important}}
