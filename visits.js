@@ -1,9 +1,10 @@
 /* Проекты DS — «Выезды» (мост: /api/ds/visits). Список по дате, сверху выезды без материалов; карточка выезда справа.
+   Выезд всегда привязан к задаче: в карточке — её папка на сервере и система для проектирования.
    Кто едет — по городу (Кемерово — Иван, Санкт-Петербург — руководитель), иначе выбирают вручную.
    «Выполнен» — только с материалами (фото, ТЗ обследования). В карточке заказа — блок «Выезды» (DSV.panel). */
 (function () {
   "use strict";
-  var V = window.DSV = { meta: null, data: null, month: "", who: "", tab: "all", sel: 0, form: null, err: "", busy: false, extra: null, up: "", kp: null };
+  var V = window.DSV = { meta: null, data: null, month: "", who: "", tab: "all", sel: 0, form: null, err: "", busy: false, extra: null, up: "" };
   var VIEW = ["owner", "ops", "sales", "design"];
   var KIND_COL = { survey: "#0F6E56", supervision: "#BA7517", handover: "#2f6fbd", other: "#888780" };
   var MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
@@ -65,6 +66,8 @@
     + ".vz-note{background:var(--surface-2);border-radius:10px;padding:10px 12px;font-size:.8rem;color:var(--muted);line-height:1.45;margin-top:14px}.vz-note.bad{background:color-mix(in srgb,var(--bad) 10%,transparent);color:var(--bad)}"
     + ".vz-acts{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}.vz-acts .grow{flex:1;justify-content:center}.vz-hint{font-size:.76rem;color:var(--muted);margin-top:6px}"
     + ".vz-wrap.dr .vz-row{grid-template-columns:54px minmax(0,1fr) 110px 120px}.vz-wrap.dr .vz-row .vz-tag{display:none}"
+    + ".vz-folder{display:flex;gap:10px;margin-top:14px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}.vz-folder b{display:block;font-size:.8rem;overflow-wrap:anywhere}"
+    + ".vz-folder small{display:block;color:var(--muted);font-size:.74rem;margin:3px 0 8px}.vz-folder>span{font-size:1.2rem}"
     + ".vz-f2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}.vz-empty{padding:28px;text-align:center;color:var(--muted)}"
     + ".vz-op .vz-orow{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:.86rem;cursor:pointer}.vz-op .vz-orow:first-of-type{border-top:0}.vz-op .vz-orow b{width:54px;color:var(--muted);flex:none}.vz-op .vz-orow span{flex:1;min-width:0}"
     + "@media (max-width:1150px){.vz-row{grid-template-columns:54px minmax(0,1fr) 120px}.vz-row .vz-tag,.vz-row .vz-who{display:none}.vz-sum{grid-template-columns:repeat(2,minmax(0,1fr))}"
@@ -118,7 +121,7 @@
   }
   function row(v) {
     var t = today(), d = pd(v.day), isT = v.day === t;
-    var sub = [v.order_number ? "№" + v.order_number : v.kp_number ? "КП №" + v.kp_number : "", v.customer, [v.city, v.address].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
+    var sub = [v.order_number ? "№" + v.order_number : v.kp_number ? "КП №" + v.kp_number : "", v.system, v.customer, [v.city, v.address].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
     var pill = v.state === "need" ? '<span class="vz-pill need">нет материалов · ' + diff(v.day, t) + " дн.</span>"
       : v.state === "done" ? '<span class="vz-pill done">материалы ✓</span>'
       : v.state === "cancel" ? '<span class="vz-pill cancel">отменён</span>'
@@ -167,6 +170,12 @@
   }
 
   /* ---------- карточка ---------- */
+  function folder(v) {
+    if (!v.order_number || !window.DS || !DS.folderUrl) return "";
+    var o = { number: v.order_number, object: v.order_object };
+    return '<div class="vz-folder"><span>📂</span><div><b>' + E(DS.FOLDER_ROOT + "\\" + v.order_number + ". " + v.order_object) + "</b><small>Фото и ТЗ обследования — и сюда. Откроется в проводнике (нужен VPN и установленная кнопка)</small>"
+      + '<a class="btn ghost sm" style="text-decoration:none" href="' + DS.folderUrl(o, false) + '">Перейти в папку на сервере</a></div></div>';
+  }
   function mapUrl(v) { return "https://yandex.ru/maps/?text=" + encodeURIComponent([v.city, v.address].filter(Boolean).join(", ")); }
   function drawer(v) {
     if (!v) return "";
@@ -200,7 +209,8 @@
       + '<div class="vz-db"><dl class="vz-kv"><dt>Кто едет</dt><dd>' + who + "</dd>"
       + "<dt>Адрес</dt><dd>" + E([v.city, v.address].filter(Boolean).join(", ") || "—") + (v.city || v.address ? ' · <a href="' + mapUrl(v) + '" target="_blank" rel="noopener">Карта</a>' : "") + "</dd>"
       + "<dt>На объекте</dt><dd>" + E(v.contact || "—") + (v.phone ? '<br><a href="tel:' + E(v.phone.replace(/[^\d+]/g, "")) + '">' + E(v.phone) + "</a>" : "") + "</dd>"
-      + "<dt>Заказ</dt><dd>" + ord + "</dd>" + (v.goal ? "<dt>Цель</dt><dd>" + E(v.goal) + "</dd>" : "") + "</dl>"
+      + "<dt>Задача</dt><dd>" + ord + "</dd>" + "<dt>Система</dt><dd>" + (v.system ? "<b>" + E(v.system) + "</b>" : '<span style="color:var(--muted)">не указана</span>') + "</dd>"
+      + (v.goal ? "<dt>Цель</dt><dd>" + E(v.goal) + "</dd>" : "") + "</dl>" + folder(v)
       + '<div class="vz-sec"><div class="h">Взять с собой</div>' + (take || '<div class="vz-hint">—</div>') + "</div>"
       + '<div class="vz-sec"><div class="h">Материалы <span>' + (v.state === "done" ? "выезд закрыт" : "обязательно для закрытия") + "</span></div>" + files + drop + "</div>"
       + '<div class="vz-sec"><div class="h">Расходы</div>' + money2 + "</div>"
@@ -220,32 +230,35 @@
     return c ? c.executor_id : 0;
   }
   function openForm(init) {
-    var f = { id: 0, kind: "survey", order_id: 0, kp_id: 0, object: "", city: "", address: "", day: "", tm: "", executor_id: 0, auto: true, contact: "", phone: "", goal: "", sup_total: 0, plan_cost: "", take: null };
+    var f = { id: 0, kind: "survey", order_id: 0, object: "", system: null, city: "", address: "", day: "", tm: "", executor_id: 0, auto: true, contact: "", phone: "", goal: "", sup_total: 0, plan_cost: "", take: null };
     Object.keys(init || {}).forEach(function (k) { f[k] = init[k]; });
-    if (f.order_id && !f.object && window.DS && DS.orders) {
-      var o = DS.orders().filter(function (x) { return x.id === f.order_id; })[0];
-      if (o) f.object = o.label.split(" · ").slice(2).join(" · ");
-    }
     V.form = f; V.sel = 0;
-    if (window.DS && DS.ensureOrders) DS.ensureOrders().then(function () { if (V.form === f) paint(); });
-    if (V.kp == null && ["owner", "sales", "ops"].indexOf(pos()) >= 0) { V.kp = []; C().call("/../ds/kp").then(function (r) { V.kp = r || []; if (V.form === f) paint(); }, function () {}); }
+    fromOrder(f, 0);
+    if (window.DS && DS.ensureOrders) DS.ensureOrders().then(function () { if (V.form === f) { fromOrder(f, 0); paint(); } });
+  }
+  function orderOf(id) { return id && window.DS && DS.orders ? DS.orders().filter(function (x) { return x.id === id; })[0] : null; }
+  /* задача выбрана — объект и система подставляются из неё (если их не вписали руками) */
+  function fromOrder(f, prev) {
+    var o = orderOf(f.order_id), p = orderOf(prev);
+    if (!o) return;
+    if (!f.object || (p && f.object === p.object)) f.object = o.object;
+    if (f.system == null || (p && f.system === p.system)) f.system = o.system;
   }
   function formHtml() {
     var f = V.form, ppl = (V.meta && V.meta.people) || [];
     var orders = window.DS && DS.orders ? DS.orders() : [];
     var opt = function (v, t, on) { return '<option value="' + E(v) + '"' + (on ? " selected" : "") + ">" + E(t) + "</option>"; };
     var kinds = Object.keys((V.meta && V.meta.kinds) || {}).map(function (k) { return opt(k, V.meta.kinds[k], f.kind === k); }).join("");
-    var link = '<select id="vfLink"><option value="">— без привязки —</option>'
-      + (orders.length ? '<optgroup label="Заказы">' + orders.map(function (o) { return opt("o" + o.id, o.label, f.order_id === o.id); }).join("") + "</optgroup>" : "")
-      + ((V.kp || []).filter(function (k) { return !k.order_id; }).length ? '<optgroup label="КП (договора ещё нет)">' + V.kp.filter(function (k) { return !k.order_id; }).map(function (k) { return opt("k" + k.id, "КП №" + k.number + " · " + (k.customer || k.customer_text || "") + " · " + (k.object || ""), f.kp_id === k.id); }).join("") + "</optgroup>" : "")
-      + "</select>";
+    if (f.order_id && !orderOf(f.order_id) && f.order_label) orders = orders.concat([{ id: f.order_id, label: f.order_label }]);      // задача скрыта от роли — оставляем как есть
+    var link = '<select id="vfLink"><option value="">— выберите задачу —</option>' + orders.map(function (o) { return opt(o.id, o.label, f.order_id === o.id); }).join("") + "</select>";
     var ex = f.auto && !f.id ? cityExec(f.city) : f.executor_id;
     var who = '<select id="vfExec"><option value="0">' + (f.id ? "—" : "по городу" + (cityExec(f.city) ? "" : " (выберите)")) + "</option>" + ppl.map(function (p) { return opt(p.id, p.name, ex === p.id); }).join("") + "</select>";
     var cities = ((V.meta && V.meta.cities) || []).map(function (c) { var p = ppl.filter(function (x) { return x.id === c.executor_id; })[0]; return E(c.city) + " — " + E(p ? p.name : "не задан"); }).join(", ");
     return '<aside class="vz-dr"><div class="vz-dh"><button class="x" data-vclose="1" title="Закрыть">✕</button><div class="k">' + (f.id ? "Изменить выезд" : "Новый выезд") + "</div><h2>" + (f.id ? "Перенести или изменить" : "Назначить выезд") + "</h2></div>"
       + '<div class="vz-db ds"><div class="fld"><label>Тип</label><select id="vfKind">' + kinds + "</select></div>"
-      + (f.id ? "" : '<div class="fld"><label>Заказ или КП</label>' + link + "</div>")
+      + '<div class="fld"><label>Задача (папка на сервере) *</label>' + link + "</div>"
       + '<div class="fld"><label>Объект</label><input id="vfObj" value="' + E(f.object) + '" placeholder="ТЦ «Радуга», 2 этаж"></div>'
+      + '<div class="fld"><label>Система для проектирования</label><input id="vfSys" value="' + E(f.system || "") + '" placeholder="СПС, СОУЭ, АУП…"></div>'
       + '<div class="vz-f2"><div class="fld"><label>Город</label><input id="vfCity" value="' + E(f.city) + '" placeholder="Кемерово" list="vfCities"><datalist id="vfCities">' + ((V.meta && V.meta.cities) || []).map(function (c) { return '<option value="' + E(c.city) + '">'; }).join("") + "</datalist></div>"
       + '<div class="fld"><label>Кто едет</label>' + who + "</div></div>"
       + '<div class="vz-hint" style="margin:-6px 0 10px">По умолчанию: ' + cities + ". Другие города — выберите вручную.</div>"
@@ -263,18 +276,20 @@
     f.kind = g("vfKind") || f.kind; f.object = g("vfObj"); f.city = g("vfCity"); f.address = g("vfAddr"); f.day = g("vfDay"); f.tm = g("vfTm");
     f.contact = g("vfCont"); f.phone = g("vfPhone"); f.goal = g("vfGoal"); f.sup_total = +g("vfSup") || 0; f.plan_cost = g("vfPlan");
     var ex = +g("vfExec") || 0; if (ex && (!f.auto || ex !== cityExec(f.city))) { f.executor_id = ex; f.auto = false; } else if (!ex) { f.auto = true; f.executor_id = 0; }
-    var l = g("vfLink"); if (document.getElementById("vfLink")) { f.order_id = l[0] === "o" ? +l.slice(1) : 0; f.kp_id = l[0] === "k" ? +l.slice(1) : 0; }
+    if (document.getElementById("vfSys")) f.system = g("vfSys");
+    if (document.getElementById("vfLink")) { var prev = f.order_id; f.order_id = +g("vfLink") || 0; if (prev !== f.order_id) fromOrder(f, prev); }
   }
   function saveForm() {
     readForm();
     var f = V.form;
+    if (!f.order_id) { V.err = "Выберите задачу, к которой относится выезд"; paint(); return; }
     if (!f.day) { V.err = "Укажите дату выезда"; paint(); return; }
-    var body = { kind: f.kind, object: f.object, city: f.city, address: f.address, day: f.day, tm: f.tm, contact: f.contact, phone: f.phone, goal: f.goal };
+    var body = { order_id: f.order_id, kind: f.kind, object: f.object, system: f.system || "", city: f.city, address: f.address, day: f.day, tm: f.tm, contact: f.contact, phone: f.phone, goal: f.goal };
     if (f.kind === "supervision") body.sup_total = f.sup_total;
     if (f.plan_cost !== "") body.plan_cost = +f.plan_cost || 0;
     var ex = f.auto && !f.id ? 0 : f.executor_id;
     if (ex) body.executor_id = ex;
-    if (!f.id) { body.order_id = f.order_id; body.kp_id = f.kp_id; body.take = (TAKE[f.kind] || []).map(function (t) { return { t: t }; }); }
+    if (!f.id) body.take = (TAKE[f.kind] || []).map(function (t) { return { t: t }; });
     V.busy = true; V.err = ""; paint();
     (f.id ? api("/" + f.id + "/edit", body) : api("", body)).then(function (v) {
       V.busy = false; V.form = null; V.sel = v.id;
@@ -356,7 +371,7 @@
     if (d.vnew != null) { V.err = ""; openForm({}); paint(); return; }
     if (d.vclose != null) { V.sel = V.form && V.form.back || 0; V.form = null; V.err = ""; paint(); return; }
     if (d.vsave != null) { saveForm(); return; }
-    if (d.vedit != null && v) { V.err = ""; openForm({ id: v.id, kind: v.kind, object: v.object, city: v.city, address: v.address, day: v.day, tm: v.tm, executor_id: v.executor_id, auto: false, contact: v.contact, phone: v.phone, goal: v.goal, sup_total: v.sup_total, plan_cost: v.plan_cost }); V.sel = 0; V.form.back = v.id; paint(); return; }
+    if (d.vedit != null && v) { V.err = ""; openForm({ id: v.id, order_id: v.order_id, order_label: "№" + v.order_number + " · " + (v.customer || "") + " · " + (v.order_object || ""), kind: v.kind, object: v.object, system: v.system || "", city: v.city, address: v.address, day: v.day, tm: v.tm, executor_id: v.executor_id, auto: false, contact: v.contact, phone: v.phone, goal: v.goal, sup_total: v.sup_total, plan_cost: v.plan_cost }); V.sel = 0; V.form.back = v.id; paint(); return; }
     if (d.vstatus != null && v) {
       if (d.vstatus === "cancel" && !confirm("Отменить выезд? Задача исполнителю закроется.")) return;
       api("/" + v.id + "/status", { status: d.vstatus }).then(function (nv) { put(nv); toast(d.vstatus === "done" ? "Выезд выполнен" : d.vstatus === "cancel" ? "Выезд отменён" : "Выезд снова в плане"); paint(); }, function (er) { toast(String(er)); });
@@ -389,9 +404,6 @@
     if (t.hasAttribute("data-vexec") && v) { edit({ executor_id: +t.value }); return; }
     if (V.form && (t.id === "vfKind" || t.id === "vfCity" || t.id === "vfLink" || t.id === "vfExec")) {
       readForm();
-      if (t.id === "vfLink" && !V.form.object) {
-        var o = t.options[t.selectedIndex]; V.form.object = o && o.value ? o.text.split(" · ").slice(2).join(" · ") : "";
-      }
       paint();
     }
   });
@@ -424,8 +436,8 @@
   new MutationObserver(function () { document.querySelectorAll("[data-vzorder]:not([data-filled])").forEach(fill); }).observe(document.body, { childList: true, subtree: true });
 
   if (C()) {
-    C().on && C().on("logout", function () { V.meta = V.data = V.extra = V.kp = null; V.sel = 0; V.form = null; cache = {}; });
-    C().on && C().on("login", function () { V.meta = V.data = V.kp = null; });       // раздел перерисует globalRouter (ds.js слушает вход)
+    C().on && C().on("logout", function () { V.meta = V.data = V.extra = null; V.sel = 0; V.form = null; cache = {}; });
+    C().on && C().on("login", function () { V.meta = V.data = null; });       // раздел перерисует globalRouter (ds.js слушает вход)
     if (C().loggedIn && C().loggedIn() && /^#\/visits/.test(location.hash)) { if (typeof window.globalRouter === "function") window.globalRouter(); else V.mount(); }      // вход случился раньше, чем загрузился этот файл: меню и раздел — заново
   }
 })();
