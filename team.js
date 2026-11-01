@@ -80,13 +80,14 @@
     var isOwner = C.me && (C.me.position === "owner" || C.me.role === "admin");
     el.innerHTML = head("Команда", sub, '<div class="x-chips"><span class="x-chip on" id="tUrgChip">' + ic("flame") + 'Срочное <b id="tUrgN">0</b></span>'
       + (isOwner ? '<label class="x-chip" style="cursor:pointer" title="Новые сообщения заказчиков из Telegram, MAX и почты копируются в закрытый канал «Отдел продаж»"><input type="checkbox" id="tMirror" style="margin-right:6px">Диалоги заказчиков в канал продаж</label>' : "") + "</div>")
-      + '<div class="wrap"><div class="x-chat"><div class="x-dlgs"><div class="x-mbar"><b>Команда</b><span class="x-mur" id="tMurg" hidden>0</span><button type="button" id="tMs" aria-label="Поиск">⌕</button></div><div class="x-mtabs" id="tTabs">' + [["all", "Все"], ["dm", "Личные"], ["task", "Задачи"], ["chan", "Каналы"]].map(function (x) { return '<button type="button" data-ft="' + x[0] + '" class="' + (S.ft === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + '</div><button type="button" class="x-fab" id="tFab" aria-label="Создать">✎</button><div class="hd"><button class="x-btn primary" id="tDm" style="justify-content:center;width:100%">' + ic("plus") + 'Личное сообщение</button><button class="x-btn ghost" id="tGrp" style="justify-content:center;width:100%;margin-top:8px">' + ic("plus") + 'Новый чат</button>' + (noTask() ? "" : '<button class="x-btn ghost" id="tNew" style="justify-content:center;width:100%;margin-top:8px">' + ic("tasks") + 'Диалог по задаче</button>') + '<input type="text" id="tSearch" placeholder="Поиск по чатам…" autocomplete="off" style="width:100%;margin-top:8px;border:1px solid var(--line);border-radius:12px;padding:9px 12px;background:var(--surface);color:var(--ink)"></div><div class="sc" id="tRooms"></div></div><div class="x-thread" id="tThread"></div><div class="x-info" id="tInfo"></div></div></div>';
+      + '<div class="wrap"><div class="x-chat"><div class="x-dlgs"><div class="x-mbar"><b>Команда</b><span class="x-mur" id="tMurg" hidden>0</span><button type="button" id="tMs" aria-label="Поиск">⌕</button></div><div class="x-mtabs" id="tTabs">' + FT.map(function (x) { return '<button type="button" data-ft="' + x[0] + '" class="' + ((S.ft || "all") === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + '</div><button type="button" class="x-fab" id="tFab" aria-label="Создать">✎</button><div class="hd"><button class="x-btn primary" id="tDm" style="justify-content:center;width:100%">' + ic("plus") + 'Личное сообщение</button><button class="x-btn ghost" id="tGrp" style="justify-content:center;width:100%;margin-top:8px">' + ic("plus") + 'Новый чат</button>' + (noTask() ? "" : '<button class="x-btn ghost" id="tNew" style="justify-content:center;width:100%;margin-top:8px">' + ic("tasks") + 'Диалог по задаче</button>') + '<input type="text" id="tSearch" placeholder="Поиск по чатам…" autocomplete="off" style="width:100%;margin-top:8px;border:1px solid var(--line);border-radius:12px;padding:9px 12px;background:var(--surface);color:var(--ink)"><div class="x-chips" id="tChips"></div></div><div class="sc" id="tRooms"></div></div><div class="x-thread" id="tThread"></div><div class="x-info" id="tInfo"></div></div></div>';
     if (q) { var ch1 = document.querySelector(".x-chat"); if (ch1) ch1.classList.add("open"); }                   /* ссылка на чат открывает его сразу */
     if ($("tNew")) $("tNew").onclick = newTaskRoom;
     syncFs();
     $("tFab").onclick = function () { document.querySelector(".x-dlgs").classList.toggle("fab"); };
     $("tMs").onclick = function () { var d = document.querySelector(".x-dlgs"); d.classList.toggle("srch"); if (d.classList.contains("srch")) $("tSearch").focus(); };
-    $("tTabs").onclick = function (e) { var b = e.target.closest("[data-ft]"); if (!b) return; S.ft = b.dataset.ft; [].forEach.call($("tTabs").children, function (x) { x.classList.toggle("on", x === b); }); paintRooms(); };
+    var setFt = function (e) { var b = e.target.closest("[data-ft]"); if (!b) return; S.ft = b.dataset.ft; [].forEach.call($("tTabs").children, function (x) { x.classList.toggle("on", x.dataset.ft === S.ft); }); paintRooms(); };
+    $("tTabs").onclick = setFt; $("tChips").onclick = setFt;
     [$("tDm"), $("tGrp"), $("tNew")].filter(Boolean).forEach(function (b) { b.addEventListener("click", function () { document.querySelector(".x-dlgs").classList.remove("fab"); }); });
     if ($("tMirror")) {
       C.call("/../ds/settings/mirror").then(function (r) { $("tMirror").checked = !!r.on; }).catch(function () {});
@@ -202,10 +203,37 @@
       if (onChange) onChange();
     };
   }
-  function roomItem(r) {
-    var hasU = r.urgent_open > 0, last = r.last;
-    return '<div class="x-dlg rc ' + (r.id === S.cur ? "on" : "") + '" data-r="' + E(r.id) + '" style="--rc:' + roomColor(r) + '">' + roomIcon(r) + '<div class="m"><b>' + E(r.name) + (hasU ? '<span class="x-flame">' + ic("flame") + "</span>" : "") + "</b><span>" + (last ? E(last.user) + ": " + E(last.text) : "") + '</span></div><div class="tm">' + (last ? when(last.ts) : "") + "<br>" + (r.unread ? '<span class="x-un ' + (hasU ? "red" : "") + '">' + r.unread + "</span>" : "") + "</div></div>";
+  /* список чатов: сверху «Новое» (непрочитанные, свежие первыми), ниже — разделы по времени последнего сообщения;
+     разделы сворачиваются, чат можно закрепить 📌 (первым в своём разделе). Свёрнутое и закреплённое — на этом устройстве */
+  var FT = [["all", "Все"], ["new", "Новое"], ["dm", "Личные"], ["group", "Чаты"], ["task", "Задачи"], ["chan", "Каналы"]];
+  var KIND_TAG = { dm: "Личное", chan: "Канал", group: "Чат", task: "Задача" }, TASK_LIMIT = 5;
+  function lsKey(k) { return "ds_team_" + k + "_" + ((C.me && C.me.id) || 0); }
+  function lsGet(k) { try { return JSON.parse(localStorage.getItem(lsKey(k)) || "{}") || {}; } catch (e) { return {}; } }
+  function lsSet(k, v) { try { localStorage.setItem(lsKey(k), JSON.stringify(v)); } catch (e) {} }
+  function cached(k) { if (!S.ls || S.ls.key !== C.me.id) S.ls = { key: C.me && C.me.id }; if (!S.ls[k]) S.ls[k] = lsGet(k); return S.ls[k]; }      // свой набор у каждого сотрудника
+  function pins() { return cached("pins"); }
+  function folded() { return cached("folded"); }
+  function roomItem(r, tag) {
+    var hasU = r.urgent_open > 0, last = r.last, pin = !!pins()[r.id];
+    return '<div class="x-dlg rc ' + (r.id === S.cur ? "on" : "") + (r.unread ? " x-new" : "") + '" data-r="' + E(r.id) + '" style="--rc:' + roomColor(r) + '">' + roomIcon(r) + '<div class="m"><b>' + (pin && !tag ? '<i class="x-pinmark" data-pin="' + E(r.id) + '" title="Открепить">📌</i>' : "") + '<em class="x-nm">' + E(r.name) + "</em>" + (hasU ? '<span class="x-flame">' + ic("flame") + "</span>" : "") + "</b><span>" + (tag ? '<small class="x-tag">' + tag + "</small>" : "") + (last ? E(last.user) + ": " + E(last.text) : "") + '</span></div><div class="tm">' + (last ? when(last.ts) : "") + "<br>" + (r.unread ? '<span class="x-un ' + (hasU ? "red" : "") + '">' + r.unread + "</span>" : "") + "</div>"
+      + (tag || pin ? "" : '<button type="button" class="x-pin" data-pin="' + E(r.id) + '" title="Закрепить первым в разделе">📌</button>') + "</div>";
   }
+  (function () {
+    var st = document.createElement("style");
+    st.textContent = ".x-chips{display:flex;gap:6px;flex-wrap:wrap}.x-chips button{padding:4px 10px;border-radius:99px;border:1px solid var(--line);background:var(--surface);font:inherit;font-size:.78rem;font-weight:600;color:var(--muted);cursor:pointer}"
+      + ".x-chips button.on{background:var(--blue,#1f5c99);border-color:var(--blue,#1f5c99);color:#fff}.x-chips i,.x-mtabs i{font-style:normal;font-size:.72rem;font-weight:800;margin-left:3px;opacity:.85}"
+      + ".x-fold{cursor:pointer;user-select:none}.x-fold .x-car{display:inline-block;width:12px;transition:transform .15s;opacity:.7}.x-fold.shut .x-car{transform:rotate(-90deg)}"
+      + ".x-fold .x-cnt{margin-left:auto;font-size:.68rem;letter-spacing:0;font-weight:700;opacity:.65}.x-fold .x-cnt.on{opacity:1;background:var(--blue,#1f5c99);color:#fff;border-radius:99px;padding:1px 7px}"
+      + ".x-dlg .m b{display:flex;align-items:center;gap:6px;min-width:0}.x-dlg .x-nm{font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}"
+      + ".x-dlg .x-tag{font-size:.66rem;font-weight:700;color:var(--muted);background:color-mix(in srgb,var(--muted) 14%,transparent);border-radius:6px;padding:0 5px;margin-right:5px}"
+      + ".x-dlg.x-new .m b{font-weight:800}.x-pinmark{font-style:normal;font-size:.72rem;flex:none;cursor:pointer}"
+      + ".x-dlg{position:relative}.x-pin{position:absolute;right:6px;top:3px;border:0;background:none;font-size:.72rem;line-height:1;min-height:0;cursor:pointer;opacity:0;filter:grayscale(1);padding:2px}"
+      + ".x-dlg:hover .x-pin{opacity:.55}.x-pin:hover{opacity:1!important;filter:none}"
+      + ".x-more{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 16px 12px 72px;color:var(--blue,#1f5c99);font:inherit;font-weight:600;font-size:.82rem;cursor:pointer}"
+      + "@media (hover:none){.x-pin{display:none}}";
+    document.head.appendChild(st);
+  })();
+  function byTime(a, b) { return ((b.last && b.last.ts) || 0) - ((a.last && a.last.ts) || 0); }
   function paintRooms() {
     var el = $("tRooms"); if (!el) return;
     var urg = S.rooms.filter(function (r) { return r.urgent_open > 0; }), n = urg.reduce(function (a, r) { return a + r.urgent_open; }, 0);
@@ -213,16 +241,31 @@
     if ($("tMurg")) { $("tMurg").textContent = n; $("tMurg").hidden = !n; }
     var q = ($("tSearch") && $("tSearch").value || "").trim().toLowerCase();
     var ok = function (r) { return !q || (r.name + " " + (r.descr || "") + " " + (r.last ? r.last.text : "")).toLowerCase().indexOf(q) >= 0; };
-    var dms = S.rooms.filter(function (r) { return r.kind === "dm" && ok(r); });
-    var chans = S.rooms.filter(function (r) { return r.kind === "chan" && ok(r); });
-    var tasks = S.rooms.filter(function (r) { return r.kind === "task" && ok(r); });
-    var groups = S.rooms.filter(function (r) { return r.kind === "group" && ok(r); });
-    var ft = S.ft || "all", show = function (k) { return ft === "all" || ft === k; };
-    el.innerHTML = (urg.length && ft === "all" ? '<div class="x-grp red">' + ic("flame") + "Срочное</div>" + urg.map(function (r) { return '<div class="x-dlg" data-r="' + E(r.id) + '"><span class="x-rm red">' + ic("flame") + '</span><div class="m"><b>' + E(r.name) + "</b><span>" + E(r.last ? r.last.user + ": " + r.last.text : "") + "</span></div></div>"; }).join("") : "")
-      + (!show("dm") ? "" : '<div class="x-grp">Личные сообщения</div>' + (dms.map(roomItem).join("") || '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : "Пока нет. Нажмите «Личное сообщение»") + "</p>"))
-      + (!show("chan") ? "" : '<div class="x-grp">Каналы</div>' + chans.map(roomItem).join("")
-        + '<div class="x-grp">Чаты</div>' + (groups.map(roomItem).join("") || '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : "Свои чаты: нажмите «Новый чат»") + "</p>"))
-      + (!show("task") ? "" : '<div class="x-grp">Диалоги по задачам</div>' + (tasks.map(roomItem).join("") || '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : "Чат создаётся сам при подписании договора. Свою задачу можно найти кнопкой «Диалог по задаче»") + "</p>"));
+    var ft = S.ft || "all", show = function (k) { return ft === "all" || ft === k; }, pn = pins(), fd = folded();
+    var mine = S.rooms.filter(ok), fresh = mine.filter(function (r) { return r.unread > 0; }).sort(byTime);
+    var nNew = fresh.reduce(function (a, r) { return a + r.unread; }, 0);
+    var empty = { dm: "Пока нет. Нажмите «Личное сообщение»", chan: "", group: "Свои чаты: нажмите «Новый чат»", task: "Чат создаётся сам при подписании договора. Свою задачу можно найти кнопкой «Диалог по задаче»" };
+    var sec = function (kind, title) {
+      if (!show(kind)) return "";
+      var list = mine.filter(function (r) { return r.kind === kind && !(r.unread > 0); }).sort(function (a, b) { return (pn[b.id] ? 1 : 0) - (pn[a.id] ? 1 : 0) || byTime(a, b); });
+      var all = mine.filter(function (r) { return r.kind === kind; }).length, shut = !q && ft === "all" && fd[kind];
+      var lim = kind === "task" && !q && !S.taskAll ? TASK_LIMIT : 1e9;
+      var h = '<div class="x-grp x-fold' + (shut ? " shut" : "") + '" data-fold="' + kind + '"><span class="x-car">▾</span>' + title + '<span class="x-cnt">' + all + "</span></div>";
+      if (shut) return h;
+      return h + (list.slice(0, lim).map(function (r) { return roomItem(r); }).join("") || (all ? "" : '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : empty[kind]) + "</p>"))
+        + (list.length > lim ? '<button type="button" class="x-more" data-more="task">Ещё ' + (list.length - lim) + " →</button>" : "");
+    };
+    if ($("tChips")) $("tChips").innerHTML = FT.map(function (x) { return '<button type="button" data-ft="' + x[0] + '" class="' + (ft === x[0] ? "on" : "") + '">' + x[1] + (x[0] === "new" && nNew ? "<i>" + nNew + "</i>" : "") + "</button>"; }).join("");
+    var tb = $("tTabs") && $("tTabs").querySelector('[data-ft="new"]'); if (tb) tb.innerHTML = "Новое" + (nNew ? " <i>" + nNew + "</i>" : "");
+    var newBlock = !fresh.length ? (ft === "new" ? '<p class="x-empty" style="padding:14px">Всё прочитано</p>' : "")
+      : (ft === "all" || ft === "new") ? '<div class="x-grp x-fold x-newh' + (fd["new"] && ft === "all" && !q ? " shut" : "") + '" data-fold="new"><span class="x-car">▾</span>Новое<span class="x-cnt on">' + nNew + "</span></div>"
+        + (fd["new"] && ft === "all" && !q ? "" : fresh.map(function (r) { return roomItem(r, KIND_TAG[r.kind] || ""); }).join(""))
+      : "";
+    el.innerHTML = (ft === "all" ? (urg.length && ft === "all" ? '<div class="x-grp red">' + ic("flame") + "Срочное</div>" + urg.map(function (r) { return '<div class="x-dlg" data-r="' + E(r.id) + '"><span class="x-rm red">' + ic("flame") + '</span><div class="m"><b>' + E(r.name) + "</b><span>" + E(r.last ? r.last.user + ": " + r.last.text : "") + "</span></div></div>"; }).join("") : "") : "") + newBlock
+      + (ft === "new" ? "" : sec("dm", "Личные сообщения") + sec("chan", "Каналы") + sec("group", "Чаты") + sec("task", "Диалоги по задачам"));
+    el.querySelectorAll("[data-fold]").forEach(function (h) { h.onclick = function () { var k = h.dataset.fold, f = folded(); if (f[k]) delete f[k]; else f[k] = 1; lsSet("folded", f); paintRooms(); }; });
+    el.querySelectorAll("[data-more]").forEach(function (b) { b.onclick = function () { S.taskAll = true; paintRooms(); }; });
+    el.querySelectorAll("[data-pin]").forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); var k = b.dataset.pin, p = pins(); if (p[k]) delete p[k]; else p[k] = 1; lsSet("pins", p); paintRooms(); }; });
     el.querySelectorAll(".x-dlg").forEach(function (d) { d.onclick = function () { openRoom(d.dataset.r); }; });
     if (C.sync) { /* бейдж меню обновится при следующем опросе */ }
   }
