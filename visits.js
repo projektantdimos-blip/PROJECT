@@ -230,7 +230,7 @@
     return c ? c.executor_id : 0;
   }
   function openForm(init) {
-    var f = { id: 0, kind: "survey", order_id: 0, object: "", system: null, city: "", address: "", day: "", tm: "", executor_id: 0, auto: true, contact: "", phone: "", goal: "", sup_total: 0, plan_cost: "", take: null };
+    var f = { id: 0, kind: "survey", order_id: 0, object: "", system: null, city: "", address: "", day: "", tm: "", executor_id: 0, auto: true, contact: "", phone: "", goal: "", sup_total: 0, plan_cost: "" };
     Object.keys(init || {}).forEach(function (k) { f[k] = init[k]; });
     V.form = f; V.sel = 0;
     fromOrder(f, 0);

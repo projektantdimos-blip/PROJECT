@@ -89,7 +89,7 @@
   }
   function bootStart() {
     var sess = ""; try { sess = localStorage.getItem("ds_session") || ""; } catch (e) {}
-    var p = lastPos(), home = !location.hash || /^#\/?($|task\/|dash)/.test(location.hash);
+    var p = lastPos(), home = !location.hash || /^#\/?($|task\/|t\/|dash)/.test(location.hash);
     if (!sess || !p || !C || !C.configured || !C.configured()) return;
     BOOT = {};
     bootShare("load", load());
@@ -145,6 +145,8 @@
     S.mount = { kind: kind, el: el };
     var m = /^#\/task\/(\d+)/.exec(location.hash);
     if (m) S.open = +m[1];
+    var mt = /^#\/t\/(\d+)/.exec(location.hash);           // оповещение о задаче: окно задачи (папка на сервере, потом задача в CRM)
+    if (mt) { S.topen = +mt[1]; S.open = null; }
     if (!C || !C.loggedIn()) {
       if (BOOT) { el.innerHTML = '<div class="ds dspage"><div class="loading">Загружаю…</div></div>'; return; }      // сессия есть, вход ещё проверяется — данные уже идут
       el.innerHTML ='<div class="ds dspage"><div class="head"><div><h1>' + TITLES[kind] + '</h1><p>Войдите, чтобы увидеть данные вашей роли</p></div><button class="btn primary" id="dsLogin">Войти по PIN</button></div></div>';
@@ -214,13 +216,14 @@
     }
     if (t.visit_id) btns.push('<a class="btn primary sm" style="text-decoration:none" href="#/visits?v=' + t.visit_id + '">📍 Открыть выезд</a>');
     if (t.thread_id) btns.push('<button class="btn primary sm" data-chatopen="' + E(t.thread_id) + '">Открыть диалог</button>');
-    if (t.order_id && t.kind === "design" && !t.visit_id) btns.push('<button class="btn primary sm" data-open="' + t.order_id + '">Открыть задачу</button>');
+    if (t.order_id && t.order_number && !t.visit_id) btns.push('<a class="btn ' + (find(t.order_id) ? "ghost" : "primary") + ' sm" style="text-decoration:none" href="' + folderUrl({ number: t.order_number, object: t.object }, false) + '" title="Папка задачи на сервере">📂 Папка на сервере</a>');
+    if (t.order_id && t.kind === "design" && !t.visit_id && find(t.order_id)) btns.push('<button class="btn primary sm" data-open="' + t.order_id + '">Открыть задачу</button>');
     if (t.state !== "work") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':work">В работу</button>');
     if (t.state !== "wait") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':wait">Ждём ответа</button>');
     btns.push('<button class="btn ok sm" data-tstate="' + t.id + ':done">Выполнено</button>');
     if (taskCtl() || taskMine(t)) btns.push('<button class="btn ghost sm" data-tedit="' + t.id + '" title="Править задачу: название, срок, комментарий">✎</button>');
     if (taskCtl() || taskAuthor(t)) btns.push('<button class="btn ghost sm" data-tdel="' + t.id + '" title="Удалить задачу" style="color:var(--bad)">🗑</button>');
-    var proj = t.order_id && (pos() !== "norm" || !!find(t.order_id));      /* нормативному специалисту карточка проекта открывается, только если он её исполнитель */
+    var proj = t.order_id && !!find(t.order_id);      /* карточка проекта открывается, только если она вам видна (иначе — папка на сервере) */
     var openAttr = proj ? ' data-open="' + t.order_id + '" title="Открыть карточку задачи"' : (t.thread_id ? ' data-chatopen="' + E(t.thread_id) + '" title="Открыть диалог"' : "");
     return '<div class="task"' + openAttr + '><span class="stripe" style="--c:' + (tn === "bad" ? "var(--bad)" : tn === "warn" ? "var(--accent)" : "var(--org)") + '"></span><span class="body">'
       + '<span class="r1">' + (proj ? '<button class="num" style="color:var(--org);font-size:1.1rem" data-open="' + t.order_id + '">№' + E(t.order_number) + "</button>" : t.order_id ? '<span class="num" style="color:var(--org);font-size:1.1rem">№' + E(t.order_number) + "</span>" : '<span class="num" style="color:var(--org);font-size:1.1rem">' + E(kindName) + "</span>")
@@ -315,7 +318,7 @@
     + ".ds .oldr{width:380px;flex:none;background:var(--surface);border:1px solid var(--line);border-radius:16px;position:sticky;top:16px;box-shadow:var(--shadow-m);max-height:calc(100vh - 32px);overflow:auto}"
     + ".ds .oldh{padding:16px 18px 12px;border-bottom:1px solid var(--line)}.ds .oldh .x{float:right;border:0;background:none;color:var(--muted);font-size:1.1rem;cursor:pointer}.ds .oldh .k{font-size:.78rem;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}"
     + ".ds .oldh h2{font-size:1.1rem;margin:6px 0 0;line-height:1.3}.ds .oldb{padding:14px 18px 18px}.ds .olkv{display:grid;grid-template-columns:104px minmax(0,1fr);gap:9px 10px;font-size:.88rem;margin:0}.ds .olkv dt{color:var(--muted)}.ds .olkv dd{margin:0;min-width:0;overflow-wrap:anywhere}"
-    + ".ds .olkv .lnk{border:0;background:none;padding:0;color:var(--brand);font:inherit;font-weight:600;cursor:pointer}.ds .olmemo{background:var(--surface-2);border-radius:10px;padding:10px 12px;font-size:.86rem;margin:14px 0 0;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}"
+    + ".ds .olkv .lnk{border:0;background:none;padding:0;color:var(--brand);font:inherit;font-weight:600;cursor:pointer}.ds .olmemo{background:var(--surface-2);border-radius:10px;padding:10px 12px;font-size:.86rem;margin:14px 0 0;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}.ds .olfold{display:flex;gap:10px;margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}.ds .olfold>span{font-size:1.2rem}.ds .olfold b{display:block;font-size:.8rem;overflow-wrap:anywhere}.ds .olfold small{display:block;color:var(--muted);font-size:.74rem;margin:3px 0 8px}.ds .oltm .oldr{width:100%;position:static;border:0;box-shadow:none;max-height:none}"
     + ".ds .olacts{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}.ds .olacts .btn{white-space:nowrap}.ds .olacts .grow1{flex:1}"
     + "@media (max-width:1100px){.ds .oldr{position:fixed;right:0;top:0;bottom:0;width:min(420px,100%);max-height:none;border-radius:0;z-index:60}.ds .olr{grid-template-columns:24px minmax(0,1fr) 92px}.ds .olr .oltag,.ds .olr .olwho{display:none}.ds .olq{min-width:0;flex:1 1 100%}}";
   function olCss() { if (!document.getElementById("ds-olist-css")) { var st = document.createElement("style"); st.id = "ds-olist-css"; st.textContent = OL_CSS; document.head.appendChild(st); } }
@@ -371,9 +374,14 @@
     });
     return out || '<div class="note">Ничего не найдено</div>';
   }
+  function taskFolder(t) {
+    if (!t.order_id || !t.order_number) return "";
+    return '<div class="olfold"><span>📂</span><div><b>' + E(FOLDER_ROOT + "\\" + t.order_number + ". " + (t.object || "")) + "</b><small>Папка задачи на сервере — материалы и то, что нужно сделать</small>"
+      + '<a class="btn primary sm" style="text-decoration:none" href="' + folderUrl({ number: t.order_number, object: t.object }, false) + '">Перейти в папку на сервере</a></div></div>';
+  }
   function olDrawer(t) {
     var x = { t: t, left: t.left_days }, col = olColOf(x), du = olDue(x), tn = taskTone(t);
-    var proj = t.order_id && (pos() !== "norm" || !!find(t.order_id));
+    var proj = t.order_id && !!find(t.order_id);
     var acts = "";
     if (t.visit_id) acts += '<div class="olacts"><a class="btn primary sm grow1" style="text-decoration:none;justify-content:center" href="#/visits?v=' + t.visit_id + '">📍 Открыть выезд: адрес, материалы, расходы</a></div>';
     if (t.step === "a1" || t.step === "a2") acts += '<div class="olacts"><button class="btn ghost sm" data-lead="' + t.id + ':skip">Задача не требуется</button><button class="btn primary sm grow1" data-lead="' + t.id + ':next">Передать дальше → ' + (t.step === "a1" ? "Сбор вводных" : "КП") + "</button></div>";
@@ -383,10 +391,10 @@
     var ed = taskCtl() || taskMine(t), dl = taskCtl() || taskAuthor(t);
     if (ed || dl) acts += '<div class="olacts">' + (ed ? '<button class="btn ghost sm grow1" data-tedit="' + t.id + '">✎ Изменить или перенести срок</button>' : "") + (dl ? '<button class="btn ghost sm" data-tdel="' + t.id + '" style="color:var(--bad)" title="Удалить задачу">🗑</button>' : "") + "</div>";
     return '<aside class="oldr"><div class="oldh"><button class="x" data-oselx="1" title="Закрыть">✕</button><div class="k"><span class="oltag"><b style="background:' + col[2] + '"></b>' + E(col[1]) + "</span>" + (t.author ? "<span>· от " + E(t.author) + "</span>" : "") + "</div>"
-      + "<h2>" + E((t.title || "").replace(/:\s*№.*$/, "")) + '</h2></div><div class="oldb"><dl class="olkv">'
+      + "<h2>" + E((t.title || "").replace(/:\s*№.*$/, "")) + '</h2></div><div class="oldb">' + taskFolder(t) + '<dl class="olkv">'
       + '<dt>Срок</dt><dd style="font-weight:600;color:' + (tn === "bad" ? "var(--bad)" : tn === "warn" ? "var(--warn)" : "inherit") + '">' + (t.due ? dmy(t.due) + " · " : "") + E(leftText(t.left_days)) + "</dd>"
       + "<dt>Исполнитель</dt><dd>" + (t.assignee ? '<span class="olwho">' + ava(t.assignee, "sm") + E(t.assignee) + "</span>" : "—") + "</dd>"
-      + (t.order_id ? "<dt>Проект</dt><dd>" + (proj ? '<button class="lnk" data-open="' + t.order_id + '">№' + E(t.order_number) + " →</button>" : "№" + E(t.order_number)) + "</dd>" : "")
+      + (t.order_id ? "<dt>Задача в CRM</dt><dd>" + (proj ? '<button class="lnk" data-open="' + t.order_id + '">№' + E(t.order_number) + " →</button>" : "№" + E(t.order_number) + ' <span style="color:var(--muted)">· карточка вам не видна, всё нужное — в папке</span>') + "</dd>" : "")
       + (t.object ? "<dt>Объект</dt><dd>" + E(t.object) + "</dd>" : "")
       + (t.thread_id ? '<dt>Переписка</dt><dd><button class="lnk" data-chatopen="' + E(t.thread_id) + '">Открыть диалог →</button></dd>' : "")
       + "</dl>" + (t.note ? '<div class="olmemo">' + E(t.note) + "</div>" : "") + acts + "</div></aside>";
@@ -1126,6 +1134,13 @@
     if (S.te) { m.innerHTML = teHtml(); return; }
     if (S.form) { m.innerHTML = formHtml(); return; }
     if (S.edit) { m.innerHTML = planHtml(); return; }
+    if (S.topen) {
+      var tk = (S.tasks || []).filter(function (x) { return x.id === S.topen; })[0];
+      olCss();
+      m.innerHTML = '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center"><div class="modal oltm" style="width:min(460px,100%);height:auto;max-height:92vh;overflow:auto;border-radius:20px;padding:0">'
+        + (tk ? olDrawer(tk) : '<div class="m-body"><h3>Задача не найдена</h3><p class="note">Её уже закрыли или она поставлена не вам.</p><button class="btn ghost" data-oselx="1">Закрыть</button></div>') + "</div></div>";
+      return;
+    }
     var o = S.open ? find(S.open) : null;
     if (S.open && !o) { m.innerHTML = '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center"><div class="modal" style="width:min(420px,100%);height:auto;border-radius:20px"><div class="m-body"><h3>Задача не найдена</h3><p class="note">Её нет или она вам недоступна.</p><button class="btn ghost" data-close="1">Закрыть</button></div></div></div>'; return; }
     m.innerHTML = o ? windowHtml(o) : "";
@@ -2565,7 +2580,7 @@
   function busyNow() { return S.busy && Date.now() - S.busy < 30000; }       // зависший запрос (телефон уснул) не блокирует кнопки навсегда
   function act(p) {
     if (busyNow()) return; S.busy = Date.now(); S.actErr = "";
-    return p.then(function () { S.busy = false; S.orders = null; S.tasks = null; return load().then(function () { return S.open ? api("/orders/" + S.open + "/history").then(function (h) { S.history = h; }, function () { S.history = []; }) : null; }); })
+    return p.then(function () { S.busy = false; S.orders = null; S.tasks = null; BOOT = null; return load().then(function () { return S.open ? api("/orders/" + S.open + "/history").then(function (h) { S.history = h; }, function () { S.history = []; }) : null; }); })
       .then(function () {
         if (S.open && !find(S.open)) {              // задача ушла на стадию, которую роль не видит — это нормальная передача дальше
           S.open = null; S.tab = "info"; if (/^#\/task\//.test(location.hash)) history.replaceState(null, "", "#/");
@@ -2629,7 +2644,7 @@
     if (d.oview) { S.oview = d.oview; try { localStorage.setItem("ds_oview", d.oview); } catch (e) {} return paint(); }
     if (t.hasAttribute("data-who")) { S.ov.who = d.who; S.ov.sel = ""; return paint(); }                 // «Чьи задачи» в «Организационных»
     if (d.osel) { S.ov.sel = S.ov.sel === d.osel ? "" : d.osel; return paint(); }
-    if (d.oselx) { S.ov.sel = ""; return paint(); }
+    if (d.oselx) { S.ov.sel = ""; if (S.topen) { S.topen = 0; if (/^#\/t\//.test(location.hash)) history.replaceState(null, "", "#/"); } return paint(); }
     if (d.kpgo) { location.hash = "#/kpreg/"; return; }
     if (d.gmore) { S.ov.more = S.ov.more || {}; S.ov.more[d.gmore] = 1; return paint(); }
     if (d.scnew != null && t.hasAttribute("data-scnew")) { var nid = "s" + Date.now(); S.sc = (S.sc || []).concat([{ id: nid, title: "Новый скрипт", group: "", text: "" }]); S.scSel = nid; return paint(); }
@@ -2770,7 +2785,7 @@
     if (d.create) return createOrder();
     var o = find(S.open); if (!o) return;
     if (d.go) {
-      if (busyNow()) return;
+      if (busyNow()) return toast("Подождите: предыдущее действие ещё выполняется");
       var ex = document.getElementById("dsExec"), id = ex ? +ex.value : 0;
       if (d.needexec && !id && !o.executor_id) return toast("Сначала выберите исполнителя");
       t.disabled = true; t.textContent = "Передаю…";                          // сразу видно, что нажатие принято
@@ -2921,7 +2936,7 @@
   if (C) { C.on("logout", function () { BOOT = null; S.orders = S.meta = S.customers = S.people = S.tasks = null; S.cu.q = ""; S.kp = S.cm = null; S.open = null; var m = document.getElementById("ds-modal"); if (m) m.innerHTML = ""; }); }
   bootStart();
 })();
-if (location.hash === '' || location.hash === '#/' || /^#\/task\//.test(location.hash)) { setTimeout(function () { if (document.getElementById('tasks-app') && document.getElementById('tasks-app').style.display !== 'none') DS.route(); }, 0); }
+if (location.hash === '' || location.hash === '#/' || /^#\/t(ask)?\//.test(location.hash)) { setTimeout(function () { if (document.getElementById('tasks-app') && document.getElementById('tasks-app').style.display !== 'none') DS.route(); }, 0); }
 (function () { var h = location.hash; var map = { '#/cal': ['load', 'cal-app'] }; if (map[h]) setTimeout(function () { DS.mount(map[h][0], document.getElementById(map[h][1])); }, 0); })();
 if (window.MPBC && typeof window.globalRouter === "function") {
   ["login", "logout", "ready"].forEach(function (ev) {
