@@ -396,6 +396,7 @@
       + "<dt>Исполнитель</dt><dd>" + (t.assignee ? '<span class="olwho">' + ava(t.assignee, "sm") + E(t.assignee) + "</span>" : "—") + "</dd>"
       + (t.order_id ? "<dt>Задача в CRM</dt><dd>" + (proj ? '<button class="lnk" data-open="' + t.order_id + '">№' + E(t.order_number) + " →</button>" : "№" + E(t.order_number) + ' <span style="color:var(--muted)">· карточка вам не видна, всё нужное — в папке</span>') + "</dd>" : "")
       + (t.object ? "<dt>Объект</dt><dd>" + E(t.object) + "</dd>" : "")
+      + (proj ? '<dt>Чат задачи</dt><dd><button class="lnk" data-taskchat="' + t.order_id + '">Перейти в чат →</button></dd>' : "")
       + (t.thread_id ? '<dt>Переписка</dt><dd><button class="lnk" data-chatopen="' + E(t.thread_id) + '">Открыть диалог →</button></dd>' : "")
       + "</dl>" + (t.note ? '<div class="olmemo">' + E(t.note) + "</div>" : "") + acts + "</div></aside>";
   }
@@ -862,7 +863,7 @@
     var fol = '<div class="panel pad"><h3>Папка и чат</h3><div class="doc" style="margin-top:10px"><span>📂</span><div style="flex:1"><b>' + E(FOLDER_ROOT) + "\\" + E(o.number) + ". " + E(o.object) + "</b><small>Откроется в проводнике (нужен VPN и установленная кнопка)</small></div></div>"
       + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px"><a class="btn ghost sm" style="text-decoration:none" href="' + folderUrl(o, false) + '">Перейти в папку на сервере</a>'
       + (canCreate ? '<a class="btn ghost sm" style="text-decoration:none" href="' + folderUrl(o, true) + '">Создать папку</a>' : "") + "</div>"
-      + '<div class="doc"><span>💬</span><div style="flex:1"><b>Чат проекта</b><small>Обсуждение задачи №' + E(o.number) + '</small></div><a class="btn ghost sm" style="text-decoration:none" href="#/team?room=t' + o.id + '">Открыть</a></div></div>';
+      + '<div class="doc"><span>💬</span><div style="flex:1"><b>Чат проекта</b><small>Обсуждение задачи №' + E(o.number) + '</small></div><button class="btn ghost sm" data-taskchat="' + o.id + '">Перейти в чат</button></div></div>';
     return '<div class="grid g2">' + work + cust + mon + fol + (designerView ? "" : callsPanel("order", o.id)) + (designerView || !window.DSV ? "" : DSV.panel(o)) + "</div>";
   }
   /* папку открывает server-link/open-folder.ps1 на компьютере сотрудника (свой протокол dsfolder://, не путается с кнопкой МПБ) */
@@ -1018,6 +1019,15 @@
       }
     }, function (e) { el.innerHTML = '<div class="ds"><div class="panel pad"><div class="err">' + E(e) + "</div></div></div>"; });
   };
+  /* «Перейти в чат» из задачи: чат задачи открывается, а если его ещё нет — создаётся (team.js) */
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-taskchat]");
+    if (!b || !window.MPBT || !MPBT.openTaskRoom) return;
+    e.preventDefault(); e.stopPropagation();
+    var id = +b.getAttribute("data-taskchat"), o = find(id);
+    closeAll();
+    MPBT.openTaskRoom(id, o ? "№" + o.number + " · " + String(o.object || "").slice(0, 60) : "Задача №" + id);
+  }, true);
   document.addEventListener("click", function (e) {
     var b = e.target.closest && e.target.closest("[data-botc],[data-boto]");
     if (!b) return;
@@ -1216,8 +1226,9 @@
     if (o.nonproj && S.staff == null && full && !S.staffReq) { S.staffReq = 1; api("/people?any=1").then(function (x) { S.staff = x; if (S.oe) tmRepaint(); }, function () { S.staffReq = 0; }); }      // не проектная работа: исполнитель — любой сотрудник
     if (+o.executor_id && !people.some(function (u) { return u.id === +o.executor_id; })) people = people.concat([{ id: +o.executor_id, name: o.executor || "…" }]);
     var banner = o.left_days == null ? "" : (o.left_days < 0 ? '<div class="tm-ban bad">Просрочено ' + plural(o.left_days, ["день", "дня", "дней"]) + "</div>" : '<div class="tm-ban">Осталось ' + plural(o.left_days, ["день", "дня", "дней"]) + "</div>");
-    return '<div class="tm-inner">' + (S.tm ? "" : '<div class="tm-links" style="margin-bottom:10px"><a href="#/team?room=t' + o.id + '">обсудить в чате</a></div>') + banner
-      + '<div class="tm-btns"><a class="btn primary" href="' + E(folderUrl(o, false)) + '">Перейти в папку на сервере</a><button class="btn ghost" data-tmcopy="1">Копировать имя</button></div>'
+    return '<div class="tm-inner">' + banner
+      + '<div class="tm-btns" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"><a class="btn primary" href="' + E(folderUrl(o, false)) + '">Перейти в папку на сервере</a>'
+      + (S.tm ? "" : '<button class="btn ghost" data-taskchat="' + o.id + '">💬 Чат задачи</button>') + '<button class="btn ghost" data-tmcopy="1">Копировать имя</button></div>'
       + '<div class="tm-urg"><span class="ico">⚡</span><div><b>Срочная работа</b><small>Поднимается наверх списка и подсвечивается красным</small></div><button type="button" class="tm-sw ' + (o.urgent ? "on" : "") + '" data-tmurg="1" aria-label="Срочная работа"><i></i></button></div>'
       + '<label class="tm-l">Стадия</label><div class="tm-chips">' + stages.map(function (s) { return '<button type="button" class="tmchip ' + (s === o.stage ? "on" : "") + '" data-tmstage="' + E(s) + '"><i style="background:' + (STAGE_COLOR[s] || "#999") + '"></i>' + E(s) + "</button>"; }).join("") + "</div>"
       + (o.stage === "Корректировка" && (find(o.id) || {}).stage !== "Корректировка" ? '<div class="g2f">' + tmInp("Срок корректировки, рабочих дней", "fix_days", "number") + '<div class="fld"><label>Замечания заказчика</label><input data-oe="fix_remarks" value="' + E(o.fix_remarks || "") + '" ' + OE_FIELD + "></div></div>"

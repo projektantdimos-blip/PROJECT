@@ -8,11 +8,19 @@
   function ic(n) { return window.icon ? window.icon(n) : ""; }
   function cur() { return window.sectionForHash ? sectionForHash(location.hash) : ""; }
   function p2(n) { return n < 10 ? "0" + n : "" + n; }
-  var PALETTE = ["#3a86d6", "#2fa66a", "#ee9264", "#8b6fe0", "#1fb3b3", "#e0a21c", "#d8453a", "#6f6fe0"];
-  function color(name) {
-    if (window.PERSON_COLOR && PERSON_COLOR[name] && PERSON_COLOR[name].charAt(0) === "#") return PERSON_COLOR[name];
-    var h = 0; String(name).split("").forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return PALETTE[h % PALETTE.length];
-  }
+  /* общая палитра «Команды» (цвет чата и цвет автора): средняя яркость — белый текст на плитке и пастельные облачка читаются в обеих темах */
+  var COLORS = [["#3a86d6", "Синий"], ["#6f7de0", "Индиго"], ["#8b6fe0", "Фиолетовый"], ["#d9568a", "Розовый"], ["#d8453a", "Красный"], ["#d85a30", "Оранжевый"],
+    ["#d4a017", "Жёлтый"], ["#7f9e2c", "Оливковый"], ["#2fa66a", "Зелёный"], ["#1fb3b3", "Бирюзовый"], ["#a0662e", "Коричневый"], ["#64748b", "Серый"]];
+  var PALETTE = COLORS.map(function (c) { return c[0]; });
+  function hashOf(s) { var h = 0; String(s).split("").forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return h; }
+  /* цвет автора: у каждого сотрудника свой по номеру в базе (первые 12 не повторяются); свои цвета каждый задаёт в Личном кабинете — хранятся в этом браузере */
+  var AC_KEY = "ds_author_colors", AC = null;
+  function acAll() { if (!AC) { try { AC = JSON.parse(localStorage.getItem(AC_KEY) || "{}") || {}; } catch (e) { AC = {}; } } return AC; }
+  function acSave() { try { localStorage.setItem(AC_KEY, JSON.stringify(AC)); } catch (e) {} }
+  var AC_ORDER = ["#3a86d6", "#d85a30", "#2fa66a", "#d9568a", "#1fb3b3", "#d4a017", "#8b6fe0", "#d8453a", "#7f9e2c", "#6f7de0", "#a0662e", "#64748b"];      // соседние номера — несхожие цвета
+  function acDefault(name) { var p = PPL[String(name).toLowerCase()]; return AC_ORDER[(p && p.id ? p.id - 1 : hashOf(name)) % AC_ORDER.length]; }
+  function color(name) { return acAll()[String(name).toLowerCase()] || acDefault(name); }
+  function acOn() { return !acAll()._off; }
   var PPL = {};                                                  // имя -> {title, photo}: загружается после входа
   function ava(name, cls) {
     var p = PPL[String(name).toLowerCase()];
@@ -25,7 +33,7 @@
   function head(title, sub, extra) { return '<header class="top"><div class="brand"><div><h1>' + title + "</h1><p>" + sub + "</p></div></div>" + (extra || "") + "</header>"; }
   function toast(msg, undo) {
     var t = $("xToast"); if (!t) { t = document.createElement("div"); t.id = "xToast"; t.className = "x-toast"; document.body.appendChild(t); }
-    t.innerHTML = "<span></span>"; t.firstChild.textContent = String(msg == null ? "" : msg); t.className = "x-toast on"; clearTimeout(toast.h); toast.h = setTimeout(function () { t.className = "x-toast"; }, 3200);
+    t.innerHTML = "<span>" + msg + "</span>"; t.className = "x-toast on"; clearTimeout(toast.h); toast.h = setTimeout(function () { t.className = "x-toast"; }, 3200);
   }
   function when(ts) {
     var d = new Date(ts * 1000), n = new Date();
@@ -62,23 +70,43 @@
   /* ================================================================
      КОМАНДА
      ================================================================ */
-  var S = { rooms: [], cur: "general", msgs: [], lastId: 0, urg: false, tick: 0, timer: null, users: [] };
-  var ROOM_IC = { general: "hash", buy: "wallet", calc: "calc", kp: "file", accounting: "briefcase" };
+  var S = { imgs: {}, pend: null, drafts: {}, reply: null, selMsg: 0, ft: "all", rooms: [], cur: "general", msgs: [], lastId: 0, urg: false, tick: 0, timer: null, users: [] };
+  var ROOM_IC = { general: "hash", buy: "wallet", calc: "calc", kp: "file" };
 
   function renderTeam() {
-    var el = $("team-app"), sub = "Внутренние чаты МПБ: общие вопросы, закупки, расчёты, КП, бухгалтерия и отдельный диалог по каждой задаче";
+    var el = $("team-app"), sub = "";
     if (!gate(el, "Команда", sub, renderTeam)) { stopTimer(); return; }
-    var q = /[?&]room=([^&]+)/.exec(location.hash); S.deep = !!q; if (q) S.cur = decodeURIComponent(q[1]);
-    el.innerHTML = head("Команда", sub, '<div class="x-chips"><span class="x-chip on" id="tUrgChip">' + ic("flame") + 'Срочное <b id="tUrgN">0</b></span></div>')
-      + '<div class="wrap"><div class="x-chat"><div class="x-dlgs"><div class="x-tabs" id="tTabs"></div><div class="hd"><button class="x-btn primary" id="tTopic" style="justify-content:center">' + ic("plus") + 'Новый чат</button><button class="x-btn ghost" id="tNew" style="justify-content:center">' + ic("tasks") + 'Диалог по задаче</button></div><div class="sc" id="tRooms"></div></div><div class="x-thread" id="tThread"></div><div class="x-info" id="tInfo"></div></div></div>';
-    $("tNew").onclick = newTaskRoom;
-    $("tTopic").onclick = topicDialog;
-    if (C.me && C.me.role === "engineer") el.querySelector(".x-dlgs .hd").style.display = "none";   // инженер ТО — только свой чат
+    var q = /[?&]room=([^&]+)/.exec(location.hash); if (q) S.cur = decodeURIComponent(q[1]);
+    var isOwner = C.me && (C.me.position === "owner" || C.me.role === "admin");
+    el.innerHTML = head("Команда", sub, '<div class="x-chips"><span class="x-chip on" id="tUrgChip">' + ic("flame") + 'Срочное <b id="tUrgN">0</b></span>'
+      + (isOwner ? '<label class="x-chip" style="cursor:pointer" title="Новые сообщения заказчиков из Telegram, MAX и почты копируются в закрытый канал «Отдел продаж»"><input type="checkbox" id="tMirror" style="margin-right:6px">Диалоги заказчиков в канал продаж</label>' : "") + "</div>")
+      + '<div class="wrap"><div class="x-chat"><div class="x-dlgs"><div class="x-mbar"><b>Команда</b><span class="x-mur" id="tMurg" hidden>0</span><button type="button" id="tMs" aria-label="Поиск">⌕</button></div><div class="x-mtabs" id="tTabs">' + FT.map(function (x) { return '<button type="button" data-ft="' + x[0] + '" class="' + ((S.ft || "all") === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + '</div><button type="button" class="x-fab" id="tFab" aria-label="Создать">✎</button><div class="hd"><button class="x-btn primary" id="tDm" style="justify-content:center;width:100%">' + ic("plus") + 'Личное сообщение</button><button class="x-btn ghost" id="tGrp" style="justify-content:center;width:100%;margin-top:8px">' + ic("plus") + 'Новый чат</button>' + (noTask() ? "" : '<button class="x-btn ghost" id="tNew" style="justify-content:center;width:100%;margin-top:8px">' + ic("tasks") + 'Диалог по задаче</button>') + '<input type="text" id="tSearch" placeholder="Поиск по чатам…" autocomplete="off" style="width:100%;margin-top:8px;border:1px solid var(--line);border-radius:12px;padding:9px 12px;background:var(--surface);color:var(--ink)"><div class="x-chips" id="tChips"></div></div><div class="sc" id="tRooms"></div></div><div class="x-thread" id="tThread"></div><div class="x-info" id="tInfo"></div></div></div>';
+    if (q) { var ch1 = document.querySelector(".x-chat"); if (ch1) ch1.classList.add("open"); }                   /* ссылка на чат открывает его сразу */
+    if ($("tNew")) $("tNew").onclick = newTaskRoom;
+    syncFs();
+    $("tFab").onclick = function () { document.querySelector(".x-dlgs").classList.toggle("fab"); };
+    $("tMs").onclick = function () { var d = document.querySelector(".x-dlgs"); d.classList.toggle("srch"); if (d.classList.contains("srch")) $("tSearch").focus(); };
+    var setFt = function (e) { var b = e.target.closest("[data-ft]"); if (!b) return; S.ft = b.dataset.ft; [].forEach.call($("tTabs").children, function (x) { x.classList.toggle("on", x.dataset.ft === S.ft); }); paintRooms(); };
+    $("tTabs").onclick = setFt; $("tChips").onclick = setFt;
+    [$("tDm"), $("tGrp"), $("tNew")].filter(Boolean).forEach(function (b) { b.addEventListener("click", function () { document.querySelector(".x-dlgs").classList.remove("fab"); }); });
+    if ($("tMirror")) {
+      C.call("/../ds/settings/mirror").then(function (r) { $("tMirror").checked = !!r.on; }).catch(function () {});
+      $("tMirror").onchange = function () {
+        var on = this.checked, box = this;
+        C.call("/../ds/settings/mirror", { body: { on: on } }).then(function () { toast(on ? "Диалоги заказчиков будут копироваться в канал «Отдел продаж»" : "Копирование в общий чат выключено"); }).catch(function (e) { box.checked = !on; toast(E(e)); });
+      };
+    }
+    $("tDm").onclick = newDm;
+    $("tGrp").onclick = newGroup;
+    $("tSearch").oninput = paintRooms;
     $("tUrgChip").onclick = function () { var r = S.rooms.filter(function (x) { return x.urgent_open > 0; })[0]; if (r) openRoom(r.id); };
-    loadRooms().then(function () { if (!S.rooms.some(function (r) { return r.id === S.cur; })) S.cur = S.rooms.some(function (r) { return r.id === "general"; }) ? "general" : ((S.rooms[0] || {}).id || "general"); openRoom(S.cur, true); }).catch(function (e) { $("tThread").innerHTML = '<div class="x-empty" style="padding:40px">' + E(e) + "</div>"; });
+    loadRooms().then(function () { if (!S.rooms.some(function (r) { return r.id === S.cur; })) S.cur = "general"; openRoom(S.cur, true); }).catch(function (e) { $("tThread").innerHTML = '<div class="x-empty" style="padding:40px">' + E(e) + "</div>"; });
     C.call("/auth/users", { auth: false }).then(function (n) { S.users = n; paintInfo(); }).catch(function () {});
     startTimer();
   }
+  /* на телефоне «Команда» — закреплённый тёмный экран: страница не прокручивается */
+  function syncFs() { document.body.classList.toggle("team-fs", cur() === "team"); }
+  window.addEventListener("hashchange", syncFs);
   function stopTimer() { if (S.timer) { clearInterval(S.timer); S.timer = null; } }
   function startTimer() {
     stopTimer();
@@ -87,148 +115,163 @@
       if (document.hidden || !C.loggedIn()) return;
       S.tick++;
       C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages?after=" + S.lastId).then(function (ms) {
-        if (ms.length) { mergeMsgs(ms); paintThread(true); C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/read", { body: {} }).then(function () { return loadRooms(); }); }
+        if (addMsgs(ms)) { paintPoll(); loadAiTasks(); C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/read", { body: {} }).then(function () { return loadRooms(); }); }
         else if (S.tick % 4 === 0) loadRooms();
-        return C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/reactions");
-      }).then(function (rx) {
-        if (!rx) return;
-        var changed = false;
-        S.msgs.forEach(function (m) { var n = rx[String(m.id)] || [], a = JSON.stringify(m.reactions || []), b = JSON.stringify(n); if (a !== b) { m.reactions = n; changed = true; } });
-        if (changed) paintThread(true);
-        return loadAiTasks();
+        if (S.tick % 3 === 0) loadAiTasks();
+        if (S.tick % 2 === 0) C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages").then(function (all) { var a = JSON.stringify(all.map(function (m) { return [m.id, m.reactions, m.read_by, m.text, m.edited]; })), b = JSON.stringify(S.msgs.map(function (m) { return [m.id, m.reactions, m.read_by, m.text, m.edited]; })); if (a !== b && (!all.length || all[all.length - 1].id <= S.lastId)) { S.msgs = all; S.lastId = all.length ? all[all.length - 1].id : S.lastId; paintPoll(); } }).catch(function () {});      // реакции, «прочитали» и удалённые сообщения
       }).catch(function () {});
     }, 4000);
   }
-  /* ИИ: подсказки «Поручение» под сообщениями (мост ищет их в фоне после отправки) */
+  /* ИИ: подсказки «Поручение» под сообщениями — мост ищет их в фоне после отправки (ds_ai_ops); задача ставится только по кнопке */
   S.aiTasks = {};
   function loadAiTasks() {
-    var rid = S.cur, room = S.rooms.filter(function (r) { return r.id === rid; })[0];
-    if (S.aiOff || (room && room.kind === "ai")) return Promise.resolve();
-    return C.call("/ai/team/" + encodeURIComponent(rid) + "/tasks").then(function (t) {
+    var rid = S.cur;
+    if (S.aiOff || !(window.DSAI && DSAI.st && DSAI.st.enabled)) return;
+    C.call("/../ds/ai/team/" + encodeURIComponent(rid) + "/tasks").then(function (t) {
       if (S.cur !== rid) return;
-      if (JSON.stringify(t || {}) !== JSON.stringify(S.aiTasks)) { S.aiTasks = t || {}; paintThread(true); }
-    }, function (e) { if (String(e).indexOf("обновления сервера") >= 0 || /404|Not Found/.test(String(e))) S.aiOff = true; });
+      if (JSON.stringify(t || {}) !== JSON.stringify(S.aiTasks)) { S.aiTasks = t || {}; paintPoll(); }
+    }, function (e) { if (/404|Not Found/.test(String(e))) S.aiOff = true; });
   }
   function aiTaskHtml(m) {
     var t = S.aiTasks[String(m.id)]; if (!t) return "";
-    var due = t.due ? " · до " + t.due.slice(8, 10) + "." + t.due.slice(5, 7) + (t.tm ? " " + t.tm : "") : "";
-    if (t.status === "done") return '<div class="x-aitask done">' + ic("check") + "<span>Напоминание создано: <b>" + E(t.assignee) + "</b> — " + E(t.title) + due + "</span></div>";
-    var can = C.me && (C.me.role === "admin" || C.me.id === t.author_id || C.me.id === t.assignee_id);
-    return '<div class="x-aitask">' + ic("zap") + "<span>Поручение: <b>" + E(t.assignee) + "</b> — " + E(t.title) + due + "</span>"
-      + (can ? '<button type="button" data-aiok="' + m.id + '">Напомнить</button><button type="button" class="x" data-aino="' + m.id + '" title="Это не поручение" aria-label="Скрыть">×</button>' : "") + "</div>";
+    var due = t.due ? " · до " + t.due.slice(8, 10) + "." + t.due.slice(5, 7) : "";
+    if (t.status === "done") return '<div class="x-aitask done">✓<span>Задача поставлена: <b>' + E(t.assignee) + "</b> — " + E(t.title) + due + "</span></div>";
+    var can = C.me && (C.me.position === "owner" || C.me.role === "admin" || C.me.id === t.author_id || C.me.id === t.assignee_id);
+    return '<div class="x-aitask">🤖<span>Поручение: <b>' + E(t.assignee) + "</b> — " + E(t.title) + due + "</span>"
+      + (can ? '<button type="button" data-aiok="' + m.id + '">Поставить задачу</button><button type="button" class="x" data-aino="' + m.id + '" title="Это не поручение" aria-label="Скрыть">×</button>' : "") + "</div>";
   }
-  function wireAiTasks(el) {
-    el.querySelectorAll("[data-aiok]").forEach(function (b) {
-      b.onclick = function (e) {
-        e.stopPropagation(); b.disabled = true;
-        C.call("/ai/team/task/" + b.dataset.aiok + "/accept", { body: {} }).then(function (t) { S.aiTasks[String(t.msg_id)] = t; paintThread(true); toast("Напоминание создано: " + t.assignee + " увидит его в «Мои задачи»"); })
-          .catch(function (er) { b.disabled = false; toast(String(er)); });
-      };
-    });
-    el.querySelectorAll("[data-aino]").forEach(function (b) {
-      b.onclick = function (e) {
-        e.stopPropagation();
-        C.call("/ai/team/task/" + b.dataset.aino + "/dismiss", { body: {} }).then(function () { delete S.aiTasks[b.dataset.aino]; paintThread(true); }).catch(function (er) { toast(String(er)); });
-      };
-    });
-  }
-  /* ИИ: «Кратко: что решили» по чату */
-  function summaryDialog(room) {
-    var days = 7;
-    xmodal('<h3>' + ic("zap") + ' Кратко: что решили</h3><p class="x-sub">«' + E(room.name) + '» — ИИ читает переписку и выделяет решения, поручения и повисшие вопросы</p>'
-      + '<div class="x-seg" id="smDays">' + [[1, "Сутки"], [3, "3 дня"], [7, "Неделя"], [30, "Месяц"]].map(function (d) { return '<button type="button" data-d="' + d[0] + '" class="' + (d[0] === days ? "on" : "") + '">' + d[1] + "</button>"; }).join("") + "</div>"
-      + '<div id="smBody" class="x-aisum"><div class="x-empty">Загрузка…</div></div><div class="x-err" id="smErr"></div>'
-      + '<div class="x-row"><button class="x-btn ghost" onclick="MPBT.closeModal()">Закрыть</button><button class="x-btn primary" id="smGo">' + ic("zap") + "Составить</button></div>", true);
-    function paint(n) {
-      var b = $("smBody"); if (!b) return;
-      if (!n) { b.innerHTML = '<p class="x-sub">Сводки пока не было. Выберите период и нажмите «Составить».</p>'; return; }
-      var d = n.data, at = new Date(n.ts * 1000);
-      var li = function (a) { return a.length ? "<ul>" + a.map(function (x) { return "<li>" + E(x) + "</li>"; }).join("") + "</ul>" : '<p class="x-sub">—</p>'; };
-      b.innerHTML = '<p class="meta">' + E(n.by) + " · " + p2(at.getDate()) + "." + p2(at.getMonth() + 1) + " " + p2(at.getHours()) + ":" + p2(at.getMinutes()) + " · за " + d.days + " дн., сообщений: " + d.count
-        + (n.new_since ? ' · <b>после сводки ещё ' + n.new_since + "</b>" : "") + "</p>"
-        + "<p>" + E(d.summary) + "</p><h6>Решили</h6>" + li(d.decisions)
-        + "<h6>Поручения</h6>" + (d.tasks.length ? d.tasks.map(function (t, i) { return '<div class="x-aitrow"><span><b>' + E(t.who || "—") + "</b> — " + E(t.what) + (t.due ? " · " + E(t.due) : "") + "</span>" + (t.user_id ? '<button type="button" class="x-btn ghost" data-rm="' + i + '">Напомнить</button>' : "") + "</div>"; }).join("") : '<p class="x-sub">—</p>')
-        + "<h6>Без ответа</h6>" + li(d.open);
-      b.querySelectorAll("[data-rm]").forEach(function (x) {
-        x.onclick = function () {
-          var t = d.tasks[+x.dataset.rm]; x.disabled = true;
-          C.call("/ai/team/" + encodeURIComponent(room.id) + "/remind", { body: { user_id: t.user_id, what: t.what, due: "" } }).then(function () { x.textContent = "✓ Создано"; toast("Напоминание создано: " + t.who); })
-            .catch(function (e) { x.disabled = false; toast(String(e)); });
-        };
-      });
-    }
-    C.call("/ai/team/" + encodeURIComponent(room.id) + "/summary").then(function (r) {
-      if (!r.configured) { $("smBody").innerHTML = '<p class="x-sub">ИИ не подключён на мосте (YANDEX_API_KEY).</p>'; $("smGo").disabled = true; return; }
-      if (r.note) { days = r.note.data.days || 7; $("smDays").querySelectorAll("button").forEach(function (x) { x.classList.toggle("on", +x.dataset.d === days); }); }
-      paint(r.note);
-    }).catch(function (e) { $("smBody").innerHTML = '<p class="x-sub">' + E(e) + "</p>"; });
-    $("smDays").querySelectorAll("button").forEach(function (x) { x.onclick = function () { days = +x.dataset.d; $("smDays").querySelectorAll("button").forEach(function (y) { y.classList.toggle("on", y === x); }); }; });
-    $("smGo").onclick = function () {
-      var go = this; go.disabled = true; go.textContent = "ИИ читает чат…"; $("smErr").textContent = "";
-      C.call("/ai/team/" + encodeURIComponent(room.id) + "/summary", { body: { days: days } }).then(function (r) { paint(r.note); })
-        .catch(function (e) { $("smErr").textContent = String(e); })
-        .then(function () { go.disabled = false; go.innerHTML = ic("zap") + "Обновить"; });
-    };
+  /* новые сообщения приходят двумя путями (после «Отправить» и автообновлением раз в 4 с): одно и то же не добавляется дважды */
+  function addMsgs(ms) {
+    var have = {}, n = 0;
+    S.msgs.forEach(function (m) { have[m.id] = 1; });
+    (ms || []).forEach(function (m) { if (!have[m.id]) { have[m.id] = 1; S.msgs.push(m); n++; } });
+    if (n) { S.msgs.sort(function (a, b) { return a.id - b.id; }); S.lastId = Math.max(S.lastId, S.msgs[S.msgs.length - 1].id); }
+    return n;
   }
   function loadRooms() {
-    return C.call("/team/rooms").then(function (rs) { S.rooms = rs; paintRooms(); });
+    return C.call("/team/rooms" + (S.cur ? "?open=" + encodeURIComponent(S.cur) : "")).then(function (rs) { S.rooms = rs; paintRooms(); });
   }
-  /* ---------- картинки чатов: значок + цвет или своё фото ---------- */
-  var ICON_SET = ["hash", "team", "wallet", "calc", "file", "briefcase", "tasks", "flame", "chat", "wrench", "zap", "layers"];
-  var COLORS = ["#378ADD", "#1D9E75", "#7F77DD", "#BA7517", "#D4537E", "#D85A30", "#0F6E56", "#5F5E5A"];
-  var DEF_COLOR = { general: "#378ADD", buy: "#BA7517", calc: "#D4537E", kp: "#7F77DD", accounting: "#1D9E75" };
-  S.photos = {};
-  function roomIcon(r) { return r.icon || (r.kind === "task" ? "tasks" : (ROOM_IC[r.id] || "hash")); }
-  function roomColor(r) { return r.color || (r.kind === "task" ? "#7F77DD" : (DEF_COLOR[r.id] || "#378ADD")); }
-  function photoUrl(r) {
-    if (!r.photo_ts) return "";
-    var k = r.id + "@" + r.photo_ts, u = S.photos[k];
-    if (u && u !== "pending") return u;
-    if (!u) {
-      S.photos[k] = "pending";
-      C.blob("/team/rooms/" + encodeURIComponent(r.id) + "/photo").then(function (b) { S.photos[k] = URL.createObjectURL(b); paintRooms(); if (S.cur === r.id) paintThread(true); }).catch(function () { delete S.photos[k]; });
+  /* картинка чата: цветная плитка с эмодзи (у каналов и своих чатов выбирается), у задачи — номер, у личного — аватар */
+  var ICONS = ["📢", "📐", "🏗️", "🚀", "🔥", "💼", "📞", "💬", "📋", "🧾", "🧮", "⚙️", "🔧", "🧯", "🏢", "🚚", "📅", "⭐", "🛒", "📄", "🎯", "💡", "🧰", "🛠️", "📦", "📊", "🗂️", "🔔", "✅", "🤝", "🌟", "🏠"];
+  var ICON_COLORS = PALETTE;
+  var ROOM_DEF = { general: ["📢", "#3a86d6"], design: ["📐", "#8b6fe0"], ops: ["⚙️", "#1fb3b3"], sales: ["💼", "#d85a30"], acc: ["🧮", "#2fa66a"], buy: ["🛒", "#d4a017"], calc: ["🧮", "#2fa66a"], kp: ["📄", "#6f7de0"] };
+  function taskNum(r) { var m = /№\s*(\d+[-\d]*)/.exec(r.name || ""); return m ? m[1] : ""; }
+  /* цвет чата общий для всех (хранится на мосте); пока не выбран — свой у каждого: у задачи по номеру, у личного — цвет собеседника */
+  function roomColor(r) {
+    if (r.color) return r.color;
+    if (ROOM_DEF[r.id]) return ROOM_DEF[r.id][1];
+    if (r.kind === "dm") return color(r.name);
+    return PALETTE[hashOf(r.kind === "task" ? taskNum(r) : r.id) % PALETTE.length];
+  }
+  function roomStyle(r) { var d = ROOM_DEF[r.id] || ["💬"]; return { icon: r.icon || d[0], color: roomColor(r) }; }
+  function canStyle(r) {
+    if (!C.me || !r) return false;
+    var pos = C.me.position, owner = pos === "owner" || C.me.role === "admin";
+    if (r.kind === "group") return owner || r.descr === "by:" + C.me.id;
+    if (r.kind === "chan") return owner;
+    if (r.kind === "task") return owner || ["design", "ops", "sales"].indexOf(pos) >= 0;
+    return r.kind === "dm";
+  }
+  function canPeople(r) {         /* добавить сотрудника в чат: канал (кроме «Общего») и чат задачи — руководитель, операционный менеджер, руководитель продаж; свой чат — ещё и создатель */
+    if (!C.me || !r) return false;
+    var lead = C.me.position === "owner" || C.me.role === "admin" || C.me.position === "ops" || C.me.position === "sales";
+    if (r.kind === "group") return lead || r.descr === "by:" + C.me.id;
+    return lead && (r.kind === "task" || (r.kind === "chan" && r.id !== "general"));
+  }
+  function noTask() { return !!(C.me && C.me.position === "norm" && !C.me.executor); }      /* нормативному специалисту карточка проекта открывается, только если он исполнитель проектов */
+  function roomIcon(r) {
+    if (r.kind === "dm" && /^d\d+_\d+$/.test(r.id)) return ava(r.name, "sm");
+    if (r.kind === "task") {
+      var n = taskNum(r);
+      return '<span class="x-tile num" style="background:' + roomColor(r) + '">' + (n ? "№<br>" + E(n.length > 5 ? n.slice(0, 5) : n) : "✔") + "</span>";
     }
-    return "";
+    var s = roomStyle(r);
+    return '<span class="x-tile" style="background:' + s.color + '">' + E(s.icon) + "</span>";
   }
-  function roomAv(r, cls) {
-    var url = photoUrl(r);
-    return '<span class="x-rm ' + (cls || "") + (url ? " ph" : "") + '" style="background-color:' + roomColor(r) + (url ? ";background-image:url(" + url + ")" : "") + '">' + (url ? "" : ic(roomIcon(r))) + "</span>";
+  function swatches(id, cur, attr) { return '<div class="x-pickc" id="' + id + '">' + COLORS.map(function (c) { return '<button type="button" ' + attr + '="' + c[0] + '" class="' + (c[0] === cur ? "on" : "") + '" style="background:' + c[0] + '" title="' + c[1] + '" aria-label="' + c[1] + '"></button>'; }).join("") + "</div>"; }
+  /* выбор картинки и цвета: единый блок для нового чата и для смены у существующего (у задачи и личного — только цвет) */
+  function pickerHtml(sel, colorOnly) {
+    return (colorOnly ? "" : '<div class="x-pickh">Картинка</div><div class="x-pick" id="gIcons">' + ICONS.map(function (i) { return '<button type="button" data-gi="' + i + '" class="' + (i === sel.icon ? "on" : "") + '">' + i + "</button>"; }).join("") + "</div>")
+      + '<div class="x-pickh">Цвет — им окрашены строка в списке и окно чата, у всех сотрудников одинаково</div>' + swatches("gColors", sel.color, "data-gc");
   }
-  function roomItem(r) {
-    var hasU = r.urgent_open > 0, last = r.last, ai = r.kind === "ai";
-    return '<div class="x-dlg ' + (r.id === S.cur ? "on " : "") + (ai ? "ai" : "") + '" data-r="' + E(r.id) + '">' + roomAv(r, r.kind === "task" ? "task" : ai ? "ai" : "") + '<div class="m"><b>' + E(r.name) + (ai ? '<span class="x-aitag">ИИ</span>' : "") + (hasU ? '<span class="x-flame">' + ic("flame") + "</span>" : "") + "</b><span>" + (last ? E(last.user) + ": " + E(last.text) : E(r.descr)) + '</span></div><div class="tm">' + (last ? when(last.ts) : "") + "<br>" + (r.unread ? '<span class="x-un ' + (hasU ? "red" : "") + '">' + r.unread + "</span>" : "") + "</div></div>";
+  function pickerBind(sel, onChange) {
+    var root = $("gColors").parentNode;
+    root.onclick = function (e) {
+      var i = e.target.closest("[data-gi]"), c = e.target.closest("[data-gc]");
+      if (i) { sel.icon = i.dataset.gi; [].forEach.call($("gIcons").children, function (b) { b.classList.toggle("on", b === i); }); }
+      if (c) { sel.color = c.dataset.gc; [].forEach.call($("gColors").children, function (b) { b.classList.toggle("on", b === c); }); }
+      if (onChange) onChange();
+    };
   }
+  /* список чатов: сверху «Новое» (непрочитанные, свежие первыми), ниже — разделы по времени последнего сообщения;
+     разделы сворачиваются, чат можно закрепить 📌 (первым в своём разделе). Свёрнутое и закреплённое — на этом устройстве */
+  var FT = [["all", "Все"], ["new", "Новое"], ["dm", "Личные"], ["group", "Чаты"], ["task", "Задачи"], ["chan", "Каналы"]];
+  var KIND_TAG = { dm: "Личное", chan: "Канал", group: "Чат", task: "Задача" }, TASK_LIMIT = 5;
+  function lsKey(k) { return "ds_team_" + k + "_" + ((C.me && C.me.id) || 0); }
+  function lsGet(k) { try { return JSON.parse(localStorage.getItem(lsKey(k)) || "{}") || {}; } catch (e) { return {}; } }
+  function lsSet(k, v) { try { localStorage.setItem(lsKey(k), JSON.stringify(v)); } catch (e) {} }
+  function cached(k) { if (!S.ls || S.ls.key !== C.me.id) S.ls = { key: C.me && C.me.id }; if (!S.ls[k]) S.ls[k] = lsGet(k); return S.ls[k]; }      // свой набор у каждого сотрудника
+  function pins() { return cached("pins"); }
+  function folded() { return cached("folded"); }
+  function roomItem(r, tag) {
+    var hasU = r.urgent_open > 0, last = r.last, pin = !!pins()[r.id];
+    return '<div class="x-dlg rc ' + (r.id === S.cur ? "on" : "") + (r.unread ? " x-new" : "") + '" data-r="' + E(r.id) + '" style="--rc:' + roomColor(r) + '">' + roomIcon(r) + '<div class="m"><b>' + (pin && !tag ? '<i class="x-pinmark" data-pin="' + E(r.id) + '" title="Открепить">📌</i>' : "") + '<em class="x-nm">' + E(r.name) + "</em>" + (hasU ? '<span class="x-flame">' + ic("flame") + "</span>" : "") + "</b><span>" + (tag ? '<small class="x-tag">' + tag + "</small>" : "") + (last ? E(last.user) + ": " + E(last.text) : "") + '</span></div><div class="tm">' + (last ? when(last.ts) : "") + "<br>" + (r.unread ? '<span class="x-un ' + (hasU ? "red" : "") + '">' + r.unread + "</span>" : "") + "</div>"
+      + (tag || pin ? "" : '<button type="button" class="x-pin" data-pin="' + E(r.id) + '" title="Закрепить первым в разделе">📌</button>') + "</div>";
+  }
+  (function () {
+    var st = document.createElement("style");
+    st.textContent = ".x-chips{display:flex;gap:6px;flex-wrap:wrap}.x-chips button{padding:4px 10px;border-radius:99px;border:1px solid var(--line);background:var(--surface);font:inherit;font-size:.78rem;font-weight:600;color:var(--muted);cursor:pointer}"
+      + ".x-chips button.on{background:var(--blue,#1f5c99);border-color:var(--blue,#1f5c99);color:#fff}.x-chips i,.x-mtabs i{font-style:normal;font-size:.72rem;font-weight:800;margin-left:3px;opacity:.85}"
+      + ".x-fold{cursor:pointer;user-select:none}.x-fold .x-car{display:inline-block;width:12px;transition:transform .15s;opacity:.7}.x-fold.shut .x-car{transform:rotate(-90deg)}"
+      + ".x-fold .x-cnt{margin-left:auto;font-size:.68rem;letter-spacing:0;font-weight:700;opacity:.65}.x-fold .x-cnt.on{opacity:1;background:var(--blue,#1f5c99);color:#fff;border-radius:99px;padding:1px 7px}"
+      + ".x-dlg .m b{display:flex;align-items:center;gap:6px;min-width:0}.x-dlg .x-nm{font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}"
+      + ".x-dlg .x-tag{font-size:.66rem;font-weight:700;color:var(--muted);background:color-mix(in srgb,var(--muted) 14%,transparent);border-radius:6px;padding:0 5px;margin-right:5px}"
+      + ".x-dlg.x-new .m b{font-weight:800}.x-pinmark{font-style:normal;font-size:.72rem;flex:none;cursor:pointer}"
+      + ".x-dlg{position:relative}.x-pin{position:absolute;right:6px;top:3px;border:0;background:none;font-size:.72rem;line-height:1;min-height:0;cursor:pointer;opacity:0;filter:grayscale(1);padding:2px}"
+      + ".x-dlg:hover .x-pin{opacity:.55}.x-pin:hover{opacity:1!important;filter:none}"
+      + ".x-more{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 16px 12px 72px;color:var(--blue,#1f5c99);font:inherit;font-weight:600;font-size:.82rem;cursor:pointer}"
+      + "@media (hover:none){.x-pin{display:none}}";
+    document.head.appendChild(st);
+  })();
+  function byTime(a, b) { return ((b.last && b.last.ts) || 0) - ((a.last && a.last.ts) || 0); }
   function paintRooms() {
     var el = $("tRooms"); if (!el) return;
-    el.setAttribute("data-ptr", "team"); window.__ptr = window.__ptr || {}; window.__ptr.team = function () { return loadRooms(); };
     var urg = S.rooms.filter(function (r) { return r.urgent_open > 0; }), n = urg.reduce(function (a, r) { return a + r.urgent_open; }, 0);
     if ($("tUrgN")) $("tUrgN").textContent = n;
-    var aiRooms = S.rooms.filter(function (r) { return r.kind === "ai"; });
-    function isNew(r) { return r.unread > 0 && r.kind !== "ai" && (!S.tab || S.tab === "all" || S.tab === r.kind); }
-    var fresh = S.rooms.filter(isNew).sort(function (a, b) { return (b.last ? b.last.ts : 0) - (a.last ? a.last.ts : 0); });
-    el.innerHTML = (fresh.length ? '<div class="x-grp new">' + ic("chat") + "Новые сообщения</div>" + fresh.map(roomItem).join("") : "") + (aiRooms.length ? '<div class="x-grp ai">' + ic("zap") + "ИИ-помощник</div>" + aiRooms.map(roomItem).join("") : "") + (urg.length ? '<div class="x-grp red">' + ic("flame") + 'Срочное<button type="button" class="x-urgclr" data-uc="" title="Отметить все срочные прочитанными — уйдут из списка">Убрать все</button></div>' + urg.map(function (r) { return '<div class="x-dlg" data-r="' + E(r.id) + '"><span data-i="!" class="x-rm red">' + ic("flame") + '</span><div class="m"><b>' + E(r.name) + "</b><span>" + E(r.last ? r.last.user + ": " + r.last.text : "") + '</span></div><button type="button" class="x-urgx" data-uc="' + E(r.id) + '" title="Убрать срочное в этом чате" aria-label="Убрать срочное">×</button></div>'; }).join("") : "")
-      + (S.tab === "task" ? "" : '<div class="x-grp">Каналы</div>' + S.rooms.filter(function (r) { return r.kind === "chan" && !isNew(r); }).map(roomItem).join(""))
-      + (S.tab === "chan" ? "" : '<div class="x-grp">Диалоги по задачам</div>' + (S.rooms.filter(function (r) { return r.kind === "task" && !isNew(r); }).map(roomItem).join("") || '<p class="x-empty" style="padding:14px">Пока нет. Нажмите «Диалог по задаче» или «Обсуждение» в карточке задачи</p>'));
-    var tb = $("tTabs");
-    if (tb) {
-      tb.innerHTML = [["all", "Все"], ["chan", "Каналы"], ["task", "Задачи"]].map(function (t) { return '<button type="button" data-t="' + t[0] + '" class="' + ((S.tab || "all") === t[0] ? "on" : "") + '">' + t[1] + "</button>"; }).join("");
-      tb.querySelectorAll("button").forEach(function (b) { b.onclick = function () { S.tab = b.dataset.t; paintRooms(); }; });
-    }
+    if ($("tMurg")) { $("tMurg").textContent = n; $("tMurg").hidden = !n; }
+    var q = ($("tSearch") && $("tSearch").value || "").trim().toLowerCase();
+    var ok = function (r) { return !q || (r.name + " " + (r.descr || "") + " " + (r.last ? r.last.text : "")).toLowerCase().indexOf(q) >= 0; };
+    var ft = S.ft || "all", show = function (k) { return ft === "all" || ft === k; }, pn = pins(), fd = folded();
+    var mine = S.rooms.filter(ok), fresh = mine.filter(function (r) { return r.unread > 0; }).sort(byTime);
+    var nNew = fresh.reduce(function (a, r) { return a + r.unread; }, 0);
+    var empty = { dm: "Пока нет. Нажмите «Личное сообщение»", chan: "", group: "Свои чаты: нажмите «Новый чат»", task: "Чат создаётся сам при подписании договора. Свою задачу можно найти кнопкой «Диалог по задаче»" };
+    var sec = function (kind, title) {
+      if (!show(kind)) return "";
+      var list = mine.filter(function (r) { return r.kind === kind && !(r.unread > 0); }).sort(function (a, b) { return (pn[b.id] ? 1 : 0) - (pn[a.id] ? 1 : 0) || byTime(a, b); });
+      var all = mine.filter(function (r) { return r.kind === kind; }).length, shut = !q && ft === "all" && fd[kind];
+      var lim = kind === "task" && !q && !S.taskAll ? TASK_LIMIT : 1e9;
+      var h = '<div class="x-grp x-fold' + (shut ? " shut" : "") + '" data-fold="' + kind + '"><span class="x-car">▾</span>' + title + '<span class="x-cnt">' + all + "</span></div>";
+      if (shut) return h;
+      return h + (list.slice(0, lim).map(function (r) { return roomItem(r); }).join("") || (all ? "" : '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : empty[kind]) + "</p>"))
+        + (list.length > lim ? '<button type="button" class="x-more" data-more="task">Ещё ' + (list.length - lim) + " →</button>" : "");
+    };
+    if ($("tChips")) $("tChips").innerHTML = FT.map(function (x) { return '<button type="button" data-ft="' + x[0] + '" class="' + (ft === x[0] ? "on" : "") + '">' + x[1] + (x[0] === "new" && nNew ? "<i>" + nNew + "</i>" : "") + "</button>"; }).join("");
+    var tb = $("tTabs") && $("tTabs").querySelector('[data-ft="new"]'); if (tb) tb.innerHTML = "Новое" + (nNew ? " <i>" + nNew + "</i>" : "");
+    var newBlock = !fresh.length ? (ft === "new" ? '<p class="x-empty" style="padding:14px">Всё прочитано</p>' : "")
+      : (ft === "all" || ft === "new") ? '<div class="x-grp x-fold x-newh' + (fd["new"] && ft === "all" && !q ? " shut" : "") + '" data-fold="new"><span class="x-car">▾</span>Новое<span class="x-cnt on">' + nNew + "</span></div>"
+        + (fd["new"] && ft === "all" && !q ? "" : fresh.map(function (r) { return roomItem(r, KIND_TAG[r.kind] || ""); }).join(""))
+      : "";
+    el.innerHTML = (ft === "all" ? (urg.length && ft === "all" ? '<div class="x-grp red">' + ic("flame") + "Срочное</div>" + urg.map(function (r) { return '<div class="x-dlg" data-r="' + E(r.id) + '"><span class="x-rm red">' + ic("flame") + '</span><div class="m"><b>' + E(r.name) + "</b><span>" + E(r.last ? r.last.user + ": " + r.last.text : "") + "</span></div></div>"; }).join("") : "") : "") + newBlock
+      + (ft === "new" ? "" : sec("dm", "Личные сообщения") + sec("chan", "Каналы") + sec("group", "Чаты") + sec("task", "Диалоги по задачам"));
+    el.querySelectorAll("[data-fold]").forEach(function (h) { h.onclick = function () { var k = h.dataset.fold, f = folded(); if (f[k]) delete f[k]; else f[k] = 1; lsSet("folded", f); paintRooms(); }; });
+    el.querySelectorAll("[data-more]").forEach(function (b) { b.onclick = function () { S.taskAll = true; paintRooms(); }; });
+    el.querySelectorAll("[data-pin]").forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); var k = b.dataset.pin, p = pins(); if (p[k]) delete p[k]; else p[k] = 1; lsSet("pins", p); paintRooms(); }; });
     el.querySelectorAll(".x-dlg").forEach(function (d) { d.onclick = function () { openRoom(d.dataset.r); }; });
-    el.querySelectorAll("[data-uc]").forEach(function (b) {
-      b.onclick = function (e) {
-        e.stopPropagation();
-        var rid = b.dataset.uc, room = S.rooms.filter(function (r) { return r.id === rid; })[0];
-        if (!confirm(rid ? "Убрать срочное в чате «" + (room ? room.name : "") + "»? Сообщения останутся в чате, у вас они перестанут висеть как срочные." : "Убрать все срочные? Сообщения останутся в чатах, у вас они перестанут висеть как срочные.")) return;
-        C.call("/team/urgent/clear", { body: { room_id: rid } }).then(function (r) { toast("Убрано срочных: " + r.n); return loadRooms(); }).then(function () { C.refresh(); }).catch(function (er) { toast(String(er)); });
-      };
-    });
     if (C.sync) { /* бейдж меню обновится при следующем опросе */ }
   }
   function openRoom(id, first) {
-    S.cur = id; S.msgs = []; S.lastId = 0; S.urg = false; S.reply = null; closePop();
-    var chatBox = document.querySelector(".x-chat");
-    if (chatBox) { if (first && !S.deep) chatBox.classList.remove("room-open"); else chatBox.classList.add("room-open"); }
+    S.cur = id; S.msgs = []; S.lastId = 0; S.urg = false; S.editMsg = null;
+    if (!first) { var ch0 = document.querySelector(".x-chat"); if (ch0) ch0.classList.add("open"); }      /* на телефоне: список → чат */
     if (!first) { try { history.replaceState(null, "", "#/team?room=" + encodeURIComponent(id)); } catch (e) {} }
     paintRooms();
     $("tThread").innerHTML = '<div class="x-empty" style="padding:40px">Загрузка…</div>';
@@ -237,288 +280,247 @@
       return C.call("/team/rooms/" + encodeURIComponent(id) + "/read", { body: {} }).then(loadRooms).then(function () { C.refresh(); });
     }).catch(function (e) { $("tThread").innerHTML = '<div class="x-empty" style="padding:40px">' + E(e) + "</div>"; });
   }
-  function fsize(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + " МБ" : Math.max(1, Math.round(n / 1024)) + " КБ"; }
-  S.files = [];
-  function addFiles(list) {
-    var msg = "";
-    Array.prototype.forEach.call(list || [], function (f) {
-      var sum = S.files.reduce(function (a, x) { return a + x.size; }, 0);
-      if (!f.size) msg = "Файл «" + f.name + "» пустой";
-      else if (f.size > 10485760) msg = "Файл «" + f.name + "» больше 10 МБ";
-      else if (S.files.length >= 10) msg = "Не больше 10 файлов за раз";
-      else if (sum + f.size > 26214400) msg = "Файлы вместе больше 25 МБ";
-      else S.files.push(f);
-    });
-    if (msg) toast(msg);
-    paintFiles();
+  var RX = ["👍", "❤️", "😂", "🔥", "🤝", "👀", "🗿", "🤡", "💀", "🫡", "🥲", "😎", "🤯", "🙏"];
+  function fileIcon(n) { var x = (String(n).split(".").pop() || "").toLowerCase(); return /^(pdf)$/.test(x) ? "📕" : /^(doc|docx|rtf|odt)$/.test(x) ? "📘" : /^(xls|xlsx|csv|ods)$/.test(x) ? "📗" : /^(zip|rar|7z)$/.test(x) ? "🗜️" : /^(dwg|dxf)$/.test(x) ? "📐" : /^(mp4|mov|avi)$/.test(x) ? "🎞️" : /^(mp3|ogg|wav|m4a)$/.test(x) ? "🎵" : "📄"; }
+  /* файл без подписи: сервер кладёт в текст «📎 имя файла» (для списка чатов и уведомлений); в самом чате это повтор карточки файла */
+  function normName(s) { s = String(s || ""); try { s = s.normalize("NFC"); } catch (e) {} return s.replace(/^📎\s*/, "").replace(/\s+/g, " ").trim().toLowerCase(); }
+  function autoCaption(m) { var t = normName(m.text); return !!(m.files && m.files.length) && m.files.some(function (f) { return normName(f.name) === t; }); }
+  function sizeTxt(n) { n = +n || 0; return n >= 1048576 ? (n / 1048576).toFixed(1).replace(".", ",") + " МБ" : Math.max(1, Math.round(n / 1024)) + " КБ"; }
+  function reactionsHtml(m) {
+    var ks = Object.keys(m.reactions || {}); if (!ks.length) return "";
+    var mine = C.me ? C.me.name : "";
+    return '<div class="x-rx">' + ks.map(function (k) { var names = m.reactions[k]; return '<button type="button" data-rx="' + m.id + '" data-e="' + k + '" class="' + (names.indexOf(mine) >= 0 ? "on" : "") + '" title="' + E(names.join(", ")) + '">' + k + " <b>" + names.length + "</b></button>"; }).join("") + "</div>";
   }
-  function paintFiles() {
-    var b = $("tFiles"); if (!b) return;
-    b.hidden = !S.files.length;
-    b.innerHTML = S.files.map(function (f, i) { return '<span class="x-fchip">' + ic("file") + '<span class="fn">' + E(f.name) + "</span><small>" + fsize(f.size) + '</small><button type="button" data-x="' + i + '" title="Убрать">×</button></span>'; }).join("");
-    Array.prototype.forEach.call(b.querySelectorAll("[data-x]"), function (x) { x.onclick = function () { S.files.splice(+x.dataset.x, 1); paintFiles(); }; });
-  }
-  function readB64(f) {
-    return new Promise(function (ok, bad) {
-      var r = new FileReader();
-      r.onload = function () { var s = String(r.result || ""); ok(s.slice(s.indexOf(",") + 1)); };
-      r.onerror = function () { bad("Не удалось прочитать файл"); };
-      r.readAsDataURL(f);
-    });
-  }
-  /* ---------- новый чат на свободную тему ---------- */
-  function topicDialog() {
-    var sel = { icon: "chat", color: COLORS[0] };
-    xmodal('<h3>Новый чат</h3><p class="x-sub">Чат на любую тему: его увидят все сотрудники</p>'
-      + '<div class="x-stprev" id="tpPrev"></div>'
-      + '<div class="x-field"><label>Название</label><input type="text" id="tpName" maxlength="80" placeholder="Например: Охрана труда"></div>'
-      + '<div class="x-field"><label>Описание <small>(необязательно)</small></label><input type="text" id="tpDescr" maxlength="200" placeholder="О чём этот чат"></div>'
-      + '<div class="x-field"><label>Значок</label><div class="x-stgrid" id="stIcons"></div></div>'
-      + '<div class="x-field"><label>Цвет</label><div class="x-stcols" id="stCols"></div></div>'
-      + '<div class="x-err" id="tpErr"></div><div class="x-row"><button class="x-btn ghost" onclick="MPBT.closeModal()">Отмена</button><button class="x-btn primary" id="tpGo">Создать</button></div>');
-    function paint() {
-      $("tpPrev").innerHTML = '<span class="x-rm big" style="background-color:' + sel.color + '">' + ic(sel.icon) + "</span>";
-      $("stIcons").innerHTML = ICON_SET.map(function (n) { return '<button type="button" class="' + (n === sel.icon ? "on" : "") + '" data-i="' + n + '">' + ic(n) + "</button>"; }).join("");
-      $("stCols").innerHTML = COLORS.map(function (c) { return '<button type="button" class="' + (c === sel.color ? "on" : "") + '" data-c="' + c + '" style="background:' + c + '"></button>'; }).join("");
-      $("stIcons").querySelectorAll("button").forEach(function (b) { b.onclick = function () { sel.icon = b.dataset.i; paint(); }; });
-      $("stCols").querySelectorAll("button").forEach(function (b) { b.onclick = function () { sel.color = b.dataset.c; paint(); }; });
-    }
-    paint();
-    $("tpName").focus();
-    $("tpGo").onclick = function () {
-      var name = $("tpName").value.trim(); if (!name) { $("tpErr").textContent = "Введите название чата"; return; }
-      $("tpGo").disabled = true;
-      C.call("/team/rooms/topic", { body: { name: name, descr: $("tpDescr").value.trim(), icon: sel.icon, color: sel.color } }).then(function (r) {
-        T.closeModal(); S.tab = "all"; return loadRooms().then(function () { openRoom(r.id); });
-      }).catch(function (e) { $("tpErr").textContent = E(e); $("tpGo").disabled = false; });
-    };
-  }
-
-  /* ---------- окно «Картинка чата» (руководитель) ---------- */
-  function styleDialog(room) {
-    var sel = { icon: roomIcon(room), color: roomColor(room), photo: null, drop: false };
-    var v = xmodal('<h3>Картинка чата</h3><p class="x-sub">' + E(room.name) + '</p><div class="x-stprev" id="stPrev"></div>'
-      + '<div class="x-field"><label>Значок</label><div class="x-stgrid" id="stIcons"></div></div>'
-      + '<div class="x-field"><label>Цвет</label><div class="x-stcols" id="stCols"></div></div>'
-      + '<div class="x-field"><label>Или своё фото</label><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="x-btn ghost" id="stPick">Загрузить фото</button><button type="button" class="x-btn ghost" id="stDrop">Убрать фото</button><input type="file" id="stFile" accept="image/*" hidden></div></div>'
-      + '<div class="x-err" id="stErr"></div><div class="x-row">' + (room.id.indexOf("c_") === 0 ? '<button class="x-btn ghost" id="stDel" style="margin-right:auto;color:var(--bad)">Удалить чат</button>' : "") + '<button class="x-btn ghost" onclick="MPBT.closeModal()">Отмена</button><button class="x-btn primary" id="stSave">Сохранить</button></div>');
-    if ($("stDel")) $("stDel").onclick = function () {
-      if (!confirm("Удалить чат «" + room.name + "» вместе со всей перепиской и файлами? Это нельзя отменить.")) return;
-      C.call("/team/rooms/" + encodeURIComponent(room.id) + "/delete", { body: {} }).then(function () { T.closeModal(); S.cur = "general"; return loadRooms(); }).then(function () { openRoom("general"); }).catch(function (e) { $("stErr").textContent = E(e); });
-    };
-    function paint() {
-      var photo = sel.photo ? 'background-image:url(' + sel.photo.url + ')' : (!sel.drop && room.photo_ts && photoUrl(room) ? 'background-image:url(' + photoUrl(room) + ')' : "");
-      $("stPrev").innerHTML = '<span class="x-rm big' + (photo ? " ph" : "") + '" style="background-color:' + sel.color + ';' + photo + '">' + (photo ? "" : ic(sel.icon)) + "</span>";
-      $("stIcons").innerHTML = ICON_SET.map(function (n) { return '<button type="button" class="' + (n === sel.icon && !photo ? "on" : "") + '" data-i="' + n + '">' + ic(n) + "</button>"; }).join("");
-      $("stCols").innerHTML = COLORS.map(function (c) { return '<button type="button" class="' + (c === sel.color ? "on" : "") + '" data-c="' + c + '" style="background:' + c + '"></button>'; }).join("");
-      $("stIcons").querySelectorAll("button").forEach(function (b) { b.onclick = function () { sel.icon = b.dataset.i; sel.photo = null; sel.drop = true; paint(); }; });
-      $("stCols").querySelectorAll("button").forEach(function (b) { b.onclick = function () { sel.color = b.dataset.c; paint(); }; });
-    }
-    paint();
-    $("stPick").onclick = function () { $("stFile").click(); };
-    $("stDrop").onclick = function () { sel.photo = null; sel.drop = true; paint(); };
-    $("stFile").onchange = function () {
-      var f = this.files[0]; if (!f) return;
-      var url = URL.createObjectURL(f), img = new Image();
-      img.onload = function () {
-        var s = Math.min(img.width, img.height), cv = document.createElement("canvas"); cv.width = cv.height = 192;
-        cv.getContext("2d").drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 192, 192);
-        URL.revokeObjectURL(url);
-        cv.toBlob(function (blob) { sel.photo = { blob: blob, url: URL.createObjectURL(blob) }; sel.drop = false; paint(); }, "image/jpeg", 0.85);
-      };
-      img.onerror = function () { $("stErr").textContent = "Не удалось прочитать картинку"; };
-      img.src = url;
-    };
-    $("stSave").onclick = function () {
-      $("stSave").disabled = true;
-      var steps = C.call("/team/rooms/" + encodeURIComponent(room.id) + "/style", { body: { icon: sel.icon, color: sel.color } });
-      steps = steps.then(function () {
-        if (sel.photo) return b64Blob(sel.photo.blob).then(function (d) { return C.call("/team/rooms/" + encodeURIComponent(room.id) + "/photo", { body: { data: d } }); });
-        if (sel.drop && room.photo_ts) return C.call("/team/rooms/" + encodeURIComponent(room.id) + "/photo/delete", { body: {} });
-      });
-      steps.then(function () { T.closeModal(); return loadRooms(); }).then(function () { paintThread(true); }).catch(function (e) { $("stErr").textContent = E(e); $("stSave").disabled = false; });
-    };
-  }
-  function b64Blob(blob) {
-    return new Promise(function (ok, bad) { var r = new FileReader(); r.onload = function () { ok(String(r.result).split(",")[1]); }; r.onerror = bad; r.readAsDataURL(blob); });
-  }
-
-  /* ---------- вложения: фото показываем целиком, документы — с типом, именем и размером ---------- */
-  var DOC_KIND = { pdf: ["PDF", "#d64545"], doc: ["DOC", "#2b6cb0"], docx: ["DOC", "#2b6cb0"], xls: ["XLS", "#1d8a4e"], xlsx: ["XLS", "#1d8a4e"], csv: ["CSV", "#1d8a4e"], ppt: ["PPT", "#d9822b"], pptx: ["PPT", "#d9822b"], zip: ["ZIP", "#7f77dd"], rar: ["RAR", "#7f77dd"], "7z": ["7Z", "#7f77dd"], txt: ["TXT", "#5f5e5a"], dwg: ["DWG", "#0f6e56"], dxf: ["DXF", "#0f6e56"] };
-  function fileExt(n) { var m = /\.([A-Za-z0-9]{1,5})$/.exec(n || ""); return m ? m[1].toLowerCase() : ""; }
-  function fileHtml(f) {
-    if (/^image\/(png|jpe?g|gif|webp)$/i.test(f.mime || "")) {
-      return '<button type="button" class="x-img" data-timg="' + f.id + '" data-name="' + E(f.name) + '" title="' + E(f.name) + '"><img alt="' + E(f.name) + '"><span class="ld">Загрузка фото…</span></button>';
-    }
-    var k = DOC_KIND[fileExt(f.name)] || [(fileExt(f.name) || "ФАЙЛ").toUpperCase().slice(0, 4), "#5f5e5a"];
-    return '<button type="button" class="x-file doc" data-tf="' + f.id + '" data-name="' + E(f.name) + '"><span class="dk" style="background:' + k[1] + '">' + E(k[0]) + '</span><span class="dn"><b>' + E(f.name) + "</b><small>" + k[0] + " · " + fsize(f.size) + "</small></span></button>";
-  }
-  S.imgc = {};
-  function loadImages(el) {
-    el.querySelectorAll("[data-timg]").forEach(function (b) {
-      var id = b.dataset.timg, img = b.querySelector("img");
-      function put(url) { img.src = url; b.classList.add("ok"); }
-      if (S.imgc[id] && S.imgc[id] !== "pending") { put(S.imgc[id]); return; }
-      if (S.imgc[id] === "pending") return;
-      S.imgc[id] = "pending";
-      C.blob("/team/files/" + id).then(function (bl) { S.imgc[id] = URL.createObjectURL(bl); var cur = document.querySelector('[data-timg="' + id + '"]'); if (cur) { var im = cur.querySelector("img"); im.src = S.imgc[id]; cur.classList.add("ok"); } })
-        .catch(function () { delete S.imgc[id]; b.querySelector(".ld").textContent = "Фото не загрузилось"; });
-      b.onclick = function () { };
-    });
-    el.querySelectorAll("[data-timg]").forEach(function (b) { b.onclick = function () { var u = S.imgc[b.dataset.timg]; if (u && u !== "pending") lightbox(u, b.dataset.name); }; });
-  }
-  function lightbox(url, name) {
-    var v = document.createElement("div"); v.className = "x-lbox";
-    v.innerHTML = '<div class="bar"><span>' + E(name || "") + '</span><a href="' + url + '" download="' + E(name || "photo") + '">Скачать</a><button type="button" aria-label="Закрыть">×</button></div><img src="' + url + '" alt="">';
-    v.onclick = function (e) { if (e.target === v || e.target.tagName === "BUTTON") v.remove(); };
-    document.body.appendChild(v);
-  }
-
-  function botAva() { return '<span class="x-ava sm bot">' + ic("zap") + "</span>"; }
   function msgHtml(m) {
-    var bot = m.user_id === -1, aiRoom = /^kpai_/.test(S.cur);
-    var me = !bot && C.me && m.user === C.me.name, mine = m.acks && C.me && m.acks.indexOf(C.me.name) >= 0, files = m.files || [];
-    var rx = (m.reactions || []).map(function (x) {
-      var on = C.me && x.users.indexOf(C.me.name) >= 0;
-      return '<button type="button" class="x-rxc' + (on ? " on" : "") + '" data-rx="' + E(x.e) + '" data-m="' + m.id + '" title="' + E(x.users.join(", ")) + '">' + x.e + " <b>" + x.n + "</b></button>";
-    }).join("");
-    return '<div class="x-msg ' + (m.urgent ? "urg " : "") + (me ? "me" : "") + (bot ? "bot" : "") + '" data-mid="' + m.id + '">' + (bot ? botAva() : ava(m.user, "sm")) + '<div class="bd"><div class="nm">' + E(m.user) + "<small>" + when(m.ts) + '</small>'
-      + '<button type="button" class="x-act" data-pop="' + m.id + '" title="Реакция или ответ" aria-label="Реакция или ответ">' + ic("smile") + "</button>"
-      + ((me || aiRoom || (C.me && C.me.role === "admin")) && m.user_id ? '<button type="button" class="x-del" data-del="' + m.id + '" title="Удалить сообщение" aria-label="Удалить">' + ic("trash") + "</button>" : "") + '</div>'
-      + (m.reply ? '<div class="x-quote" data-go="' + m.reply.id + '"><b>' + E(m.reply.user) + "</b><span>" + E(m.reply.text) + "</span></div>" : "")
-      + '<div class="tx" data-pop="' + m.id + '">'
-      + (m.urgent ? '<div class="x-urgtag">' + ic("flame") + "Срочное" + ((me || (C.me && C.me.role === "admin")) && m.user_id ? '<button type="button" class="x-unurg" data-unurg="' + m.id + '" title="Снять срочность для всех">снять</button>' : "") + "</div>" : "") + ((files.length && m.text.indexOf("Файлы: ") === 0) ? "" : E(m.text))
-      + (files.length ? '<div class="x-files">' + files.map(fileHtml).join("") + "</div>" : "") + "</div>"
-      + aiTaskHtml(m)
-      + (rx ?'<div class="x-rx">' + rx + "</div>" : "")
+    var me = C.me && m.user === C.me.name, mine = m.acks && C.me && m.acks.indexOf(C.me.name) >= 0;
+    var quote = m.reply ? '<div class="x-quote" data-goto="' + m.reply.id + '"><b>' + E(m.reply.user) + "</b><span>" + E(m.reply.text) + "</span></div>" : "";
+    var rdinfo = S.selMsg === m.id && me ? '<div class="x-readinfo"><b>Прочитали:</b> ' + ((m.read_by || []).length ? E(m.read_by.join(", ")) : "пока никто") + ((m.unread_by || []).length ? "<br><b>Не прочитали:</b> " + E(m.unread_by.join(", ")) : "") + "</div>" : "";
+    var acts = rdinfo + (S.selMsg === m.id ? '<div class="x-macts"><button type="button" data-reply="' + m.id + '">↩ Ответить</button><button type="button" data-copymsg="' + m.id + '" title="Скопировать текст сообщения">⧉ Копировать</button><button type="button" data-taskmsg="' + m.id + '" title="Поставить задачу сотруднику по этому сообщению">📌 Задача</button><button type="button" data-remindmsg="' + m.id + '" title="Напомнить мне про это сообщение">⏰</button>'
+      + (me ? '<button type="button" data-editmsg="' + m.id + '">✎ Изменить</button>' : "")
+      + (me ? '<button type="button" class="x-del" data-delmsg="' + m.id + '">' + (S.delAsk === m.id ? "Точно удалить?" : "🗑 Удалить") + "</button>" : "") + '<span class="x-rxpick">' + RX.map(function (e) { return '<button type="button" data-rx="' + m.id + '" data-e="' + e + '">' + e + "</button>"; }).join("") + "</span></div>" : "");
+    return '<div class="x-msg ' + (m.urgent ? "urg " : "") + (me ? "me" : "") + (S.selMsg === m.id ? " sel" : "") + (acOn() ? " ac" : "") + '" data-m="' + m.id + '" id="m' + m.id + '" style="--ac:' + color(m.user) + '">' + ava(m.user, "sm") + '<div class="bd"><div class="nm">' + E(m.user) + "<small>" + when(m.ts) + '</small></div><div class="tx">' + quote
+      + (m.urgent ? '<div class="x-urgtag">' + ic("flame") + "Срочное</div>" : "") + E(autoCaption(m) ? "" : m.text)
+      + '<span class="x-tm">' + when(m.ts) + (m.edited ? ' <span class="x-ed" title="Сообщение исправлено">изм.</span>' : "") + (me ? ' <span class="x-rd ' + ((m.read_by || []).length ? "on" : "") + '">' + ((m.read_by || []).length ? "✓✓" : "✓") + "</span>" : "") + "</span>"
+      + (m.files && m.files.length ? '<div class="x-files">' + m.files.map(function (f) {
+        if (/^image\//.test(f.mime || "")) return '<div class="x-imgbox"><div class="x-imgname" title="' + E(f.name) + '">📎 ' + E(f.name) + '</div><img class="x-img" data-timg="' + f.id + '" data-mime="' + E(f.mime) + '" data-name="' + E(f.name) + '" alt="' + E(f.name) + '"' + (S.imgs[f.id] ? ' src="' + S.imgs[f.id] + '"' : "") + "></div>";
+        return '<button class="x-file" data-tfile="' + f.id + '" title="Скачать"><span class="fi">' + fileIcon(f.name) + "</span><span><b>" + E(f.name) + "</b><small>" + sizeTxt(f.size) + "</small></span></button>";
+      }).join("") + "</div>" : "") + "</div>"
+      + reactionsHtml(m) + aiTaskHtml(m) + acts
       + (m.urgent ? '<div class="x-ack">' + ic("check") + (m.acks.length ? "Прочитали: " + E(m.acks.join(", ")) : "Пока никто не подтвердил") + (!me && !mine ? '<button data-ack="' + m.id + '">Прочитал(а)</button>' : "") + "</div>" : "") + "</div></div>";
   }
-
-  /* ---------- ответ на сообщение, реакции, меню сообщения ---------- */
-  S.pool = ["👍", "❤️", "🔥", "😂", "👀", "✅", "🙏"];
-  S.reply = null;
-  function findMsg(id) { for (var i = 0; i < S.msgs.length; i++) if (S.msgs[i].id === id) return S.msgs[i]; return null; }
-  function paintReply() {
-    var b = $("tReply"); if (!b) return;
-    b.hidden = !S.reply;
-    b.innerHTML = S.reply ? '<div class="x-quote"><b>Ответ: ' + E(S.reply.user) + "</b><span>" + E(S.reply.text) + '</span></div><button type="button" class="x-rpx" id="tReplyX" aria-label="Отменить ответ">×</button>' : "";
-    if ($("tReplyX")) $("tReplyX").onclick = function () { S.reply = null; paintReply(); };
+  /* ответы и реакции: нажатие на сообщение показывает панель «Ответить» и реакции */
+  document.addEventListener("click", function (e) {
+    var th = e.target.closest ? e.target.closest("#tThread") : null; if (!th) return;
+    var np = e.target.closest("[data-nopend]");
+    if (np) {                                                  /* ✕ у файла: убрать его из отправки */
+      if (S.pend && !S.pend.busy) {
+        var it = S.pend.items.splice(+np.dataset.nopend, 1)[0];
+        if (it && it.url) URL.revokeObjectURL(it.url);
+        if (!S.pend.items.length) S.pend = null;
+        paintThread(true);
+      }
+      return;
+    }
+    var im = e.target.closest(".x-img"); if (im) { if (im.src) openLb(im.src, im.dataset.name || "фото"); return; }
+    var em = e.target.closest("[data-editmsg]"); if (em) { S.selMsg = 0; startEdit(msgById(em.dataset.editmsg)); return; }
+    if (e.target.closest("[data-noedit]")) { stopEdit(); return; }
+    var dl = e.target.closest("[data-delmsg]");
+    if (dl) { var did = +dl.dataset.delmsg; if (S.delAsk !== did) { S.delAsk = did; paintThread(true); return; } S.delAsk = 0; S.selMsg = 0; delMsg(did); return; }      // второе нажатие подтверждает
+    var rb = e.target.closest("[data-rx]");
+    if (rb) {
+      C.call("/team/messages/" + rb.dataset.rx + "/react", { body: { emoji: rb.dataset.e } }).then(function (r) {
+        var m = S.msgs.filter(function (x) { return x.id === +rb.dataset.rx; })[0]; if (m) m.reactions = r.reactions; S.selMsg = 0; paintThread(true);
+      }).catch(function (er) { toast(E(er)); });
+      return;
+    }
+    var rmb = e.target.closest("[data-remind],[data-remindmsg]");
+    if (rmb) {
+      var rr = S.rooms.filter(function (r) { return r.id === S.cur; })[0], nm = rr ? rr.name : "чат";
+      if (rmb.dataset.remindmsg) { var mm0 = S.msgs.filter(function (x) { return x.id === +rmb.dataset.remindmsg; })[0]; S.selMsg = 0; if (window.DSRemind) DSRemind.open({ text: "Вернуться к сообщению (" + nm + "): " + (mm0 ? mm0.user + ": " + mm0.text.slice(0, 80) : ""), link: "#/team?room=" + encodeURIComponent(S.cur), label: "Команда · " + nm }); }
+      else if (window.DSRemind) DSRemind.open({ text: "Вернуться в чат «" + nm + "»", link: "#/team?room=" + encodeURIComponent(S.cur), label: "Команда · " + nm });
+      return;
+    }
+    var rp = e.target.closest("[data-reply]");
+    if (rp) { var m2 = S.msgs.filter(function (x) { return x.id === +rp.dataset.reply; })[0]; if (m2) { S.reply = { id: m2.id, user: m2.user, text: m2.text.slice(0, 120) }; S.selMsg = 0; paintThread(true); var ti = $("tIn"); if (ti) ti.focus(); } return; }
+    if (e.target.closest("[data-noreply]")) { S.reply = null; paintThread(true); return; }
+    var gq = e.target.closest("[data-goto]");
+    if (gq) { var tgt = $("m" + gq.dataset.goto); if (tgt) { tgt.scrollIntoView({ block: "center" }); tgt.classList.add("flash"); setTimeout(function () { tgt.classList.remove("flash"); }, 1400); } return; }
+    var aok = e.target.closest("[data-aiok]");
+    if (aok) {
+      aok.disabled = true;
+      C.call("/../ds/ai/team/task/" + aok.dataset.aiok + "/accept", { body: {} }).then(function (t) { S.aiTasks[String(t.msg_id)] = t; paintThread(true); toast("Задача поставлена: " + t.assignee + " увидит её в «Мои задачи»"); })
+        .catch(function (er) { aok.disabled = false; toast(E(er)); });
+      return;
+    }
+    var ano = e.target.closest("[data-aino]");
+    if (ano) { C.call("/../ds/ai/team/task/" + ano.dataset.aino + "/dismiss", { body: {} }).then(function () { delete S.aiTasks[ano.dataset.aino]; paintThread(true); }).catch(function (er) { toast(E(er)); }); return; }
+    var tkm = e.target.closest("[data-taskmsg]");
+    if (tkm) { var m4 = msgById(tkm.dataset.taskmsg); S.selMsg = 0; paintThread(true); if (m4) taskFromText(m4.text); return; }
+    var cpm = e.target.closest("[data-copymsg]");
+    if (cpm) { var m3 = msgById(cpm.dataset.copymsg); S.selMsg = 0; paintThread(true); if (m3) copyText(m3.text).then(function () { toast("Скопировано"); }); return; }
+    if (e.target.closest("a,button,input,textarea,.x-file,.x-ack")) return;
+    var mm = e.target.closest(".x-msg");
+    if (mm) { if (COARSE || selIn(mm)) return; var id = +mm.dataset.m; S.selMsg = S.selMsg === id ? 0 : id; paintThread(true); }      // выделили текст мышью — это не нажатие на сообщение
+  });
+  /* «Поставить задачу сотруднику» из сообщения: подсказка при наборе поручения и пункт в меню сообщения */
+  var TODO_RE = /(^|[^а-яё])(нужно|надо|необходимо|прошу|просьба|сделай|сделайте|подготовь|подготовьте|отправь|отправьте|позвони|позвоните|проверь|проверьте|напиши|напишите|выстави|выставите|согласуй|согласуйте|не забудь|не забудьте|срочно)(?![а-яё])/i;
+  function taskFromText(text) {
+    if (!window.DS || !DS.newTask) { toast("Раздел задач ещё не загрузился — обновите страницу"); return; }
+    var rm = roomNow(), t = String(text || "").trim();
+    DS.newTask({ title: t.replace(/\s+/g, " ").slice(0, 120), note: "Из «Команды» · " + (rm ? rm.name : "чат") + ": " + t.slice(0, 900) });
   }
-  function react(mid, emoji) {
-    C.call("/team/messages/" + mid + "/react", { body: { emoji: emoji } }).then(function (r) {
-      var m = findMsg(mid); if (m) { m.reactions = r.reactions; paintThread(true); }
-    }).catch(function (e) { toast(String(e)); });
+  /* пока в ленте выделен текст, фоновое обновление чат не перерисовывает (иначе выделение сбрасывается) — дорисуем, когда выделение снимут */
+  function selIn(node) { var s = window.getSelection && window.getSelection(); return !!(s && !s.isCollapsed && node && s.anchorNode && node.contains(s.anchorNode)); }
+  function paintPoll() { if (selIn(document.querySelector("#tThread .x-msgs"))) { S.paintLater = true; return; } paintThread(true); }
+  document.addEventListener("selectionchange", function () { if (S.paintLater && !selIn(document.querySelector("#tThread .x-msgs"))) { S.paintLater = false; paintThread(true); } });
+  /* ---------- телефон: меню сообщения по долгому нажатию и меню «⋮» в шапке чата ---------- */
+  var COARSE = !!(window.matchMedia && matchMedia("(pointer:coarse)").matches);
+  function msgById(id) { return S.msgs.filter(function (x) { return x.id === +id; })[0]; }
+  function roomNow() { return S.rooms.filter(function (r) { return r.id === S.cur; })[0]; }
+  function closeCtx() { var c = $("xCtx"); if (c) c.remove(); var s = document.querySelector(".x-msg.ctx"); if (s) s.classList.remove("ctx"); }
+  function copyText(txt) {                      // буфер обмена; если браузер не дал доступ — старым способом через скрытое поле
+    var old = function () { var a = document.createElement("textarea"); a.value = txt; document.body.appendChild(a); a.select(); try { document.execCommand("copy"); } catch (e) {} a.remove(); };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText)    // браузер может долго спрашивать разрешение — не ждём больше 0,8 с
+        return Promise.race([navigator.clipboard.writeText(txt), new Promise(function (ok, no) { setTimeout(no, 800); })]).then(null, old);
+    } catch (e) {}
+    old(); return Promise.resolve();
   }
-  function closePop() { var p = $("tPop"); if (p) p.remove(); document.removeEventListener("keydown", popKey); }
-  function popKey(e) { if (e.key === "Escape") closePop(); }
-  function openPop(mid, anchor) {
-    closePop();
-    var m = findMsg(mid); if (!m) return;
-    var canDel = C.me && (m.user === C.me.name || C.me.role === "admin") && m.user_id;
-    var p = document.createElement("div"); p.id = "tPop"; p.className = "x-pop2";
-    p.innerHTML = '<div class="bar">' + S.pool.map(function (e) { return '<button type="button" data-e="' + e + '">' + e + "</button>"; }).join("") + '</div>'
-      + '<div class="menu"><button type="button" data-a="reply">' + ic("reply") + 'Ответить</button><button type="button" data-a="copy">' + ic("file") + 'Копировать текст</button>' + (canDel ? '<button type="button" class="red" data-a="del">' + ic("trash") + "Удалить</button>" : "") + "</div>";
-    document.body.appendChild(p);
-    var r = anchor.getBoundingClientRect(), pw = p.offsetWidth, ph = p.offsetHeight;
-    var left = Math.max(8, Math.min(window.innerWidth - pw - 8, r.left)), top = r.bottom + 6;
-    if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 6);
-    p.style.left = left + "px"; p.style.top = top + "px";
-    p.querySelectorAll("[data-e]").forEach(function (b) { b.onclick = function () { closePop(); react(mid, b.dataset.e); }; });
-    p.querySelectorAll("[data-a]").forEach(function (b) {
-      b.onclick = function () {
-        closePop();
-        if (b.dataset.a === "reply") { S.reply = { id: m.id, user: m.user, text: m.text.slice(0, 160) }; paintReply(); if ($("tIn")) $("tIn").focus(); }
-        else if (b.dataset.a === "copy") { try { navigator.clipboard.writeText(m.text); toast("Текст скопирован"); } catch (e) {} }
-        else if (b.dataset.a === "del") { var d = document.querySelector('[data-del="' + m.id + '"]'); if (d) d.click(); }
-      };
-    });
-    setTimeout(function () {
-      document.addEventListener("click", function off(ev) { if (!p.contains(ev.target)) { closePop(); document.removeEventListener("click", off, true); } }, true);
-      document.addEventListener("keydown", popKey);
-    }, 0);
+  function rxRow(all) { return (all ? RX : RX.slice(0, 5)).map(function (e) { return '<button type="button" data-rx="' + e + '">' + e + "</button>"; }).join("") + (all ? "" : '<button type="button" class="more" data-more="1" aria-label="Все реакции">⌄</button>'); }
+  function openCtx(mid, rect) {
+    var m = msgById(mid); if (!m) return; closeCtx();
+    var me = C.me && m.user === C.me.name, nr = (m.read_by || []).length, nu = (m.unread_by || []).length;
+    var el = $("m" + mid); if (el) el.classList.add("ctx");
+    var bg = document.createElement("div"); bg.id = "xCtx"; bg.className = "x-ctx";
+    bg.innerHTML = '<div class="x-ctxbox" id="xCtxBox"><div class="x-ctxrx" id="xCtxRx">' + rxRow(false) + "</div>"
+      + '<div class="x-ctxmenu"><button type="button" data-a="reply">↩ <span>Ответить</span></button><button type="button" data-a="remind">⏰ <span>Напомнить мне</span></button><button type="button" data-a="copy">⧉ <span>Копировать</span></button><button type="button" data-a="task">📌 <span>Поставить задачу</span></button>'
+      + (me ? '<button type="button" data-a="edit">✎ <span>Изменить</span></button>' : "")
+      + (me ? '<button type="button" data-a="delete" class="x-del">🗑 <span>Удалить</span></button>' : "")
+      + (me ? '<button type="button" data-a="read" class="rd">✓✓ <span>Прочитали: ' + nr + " из " + (nr + nu) + '</span></button><div class="x-ctxread" id="xCtxRead" hidden>' + (nr ? "<b>Прочитали:</b> " + E(m.read_by.join(", ")) : "<b>Пока никто не прочитал</b>") + (nu ? "<br><b>Не прочитали:</b> " + E(m.unread_by.join(", ")) : "") + "</div>" : "") + "</div></div>";
+    document.body.appendChild(bg);
+    var box = $("xCtxBox"), bw = box.offsetWidth, bh = box.offsetHeight, r = rect || { left: 8, right: innerWidth - 8, bottom: innerHeight / 2 };
+    var top = Math.max(8, Math.min(r.bottom + 8, innerHeight - bh - 12)), left = me ? r.right - bw : r.left;
+    box.style.top = top + "px"; box.style.left = Math.max(8, Math.min(left, innerWidth - bw - 8)) + "px";
+    bg.onclick = function (e) {
+      if (e.target === bg) { closeCtx(); return; }
+      var b = e.target.closest("button"); if (!b) return;
+      if (b.dataset.more) { $("xCtxRx").innerHTML = rxRow(true); return; }
+      if (b.dataset.rx) {
+        C.call("/team/messages/" + mid + "/react", { body: { emoji: b.dataset.rx } }).then(function (res) { m.reactions = res.reactions; closeCtx(); paintThread(true); }).catch(function (er) { toast(E(er)); closeCtx(); });
+        return;
+      }
+      var a = b.dataset.a;
+      if (a === "read") { var rd = $("xCtxRead"); rd.hidden = !rd.hidden; return; }
+      if (a === "delete" && !b.dataset.sure) { b.dataset.sure = "1"; b.querySelector("span").textContent = "Точно удалить?"; return; }      // второе нажатие подтверждает
+      closeCtx();
+      if (a === "delete") { delMsg(m.id); return; }
+      if (a === "edit") { startEdit(m); return; }
+      if (a === "reply") { S.reply = { id: m.id, user: m.user, text: m.text.slice(0, 120) }; paintThread(true); var ti = $("tIn"); if (ti) ti.focus(); }
+      else if (a === "remind") { var rm = roomNow(), nm = rm ? rm.name : "чат"; if (window.DSRemind) DSRemind.open({ text: "Вернуться к сообщению (" + nm + "): " + m.user + ": " + m.text.slice(0, 80), link: "#/team?room=" + encodeURIComponent(S.cur), label: "Команда · " + nm }); }
+      else if (a === "copy") copyText(m.text).then(function () { toast("Скопировано"); });
+      else if (a === "task") taskFromText(m.text);
+    };
   }
-  function wireMessages(el) {
-    el.querySelectorAll("[data-pop]").forEach(function (b) {
-      b.onclick = function (e) {
-        if (e.target.closest("button.x-file, a, [data-ack], [data-tf], [data-timg], [data-unurg]")) return;
-        e.stopPropagation(); openPop(+b.dataset.pop, b);
-      };
-    });
-    el.querySelectorAll("[data-rx]").forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); react(+b.dataset.m, b.dataset.rx); }; });
-    el.querySelectorAll("[data-unurg]").forEach(function (b) {
-      b.onclick = function (e) {
-        e.stopPropagation();
-        if (!confirm("Снять срочность с этого сообщения для всех?")) return;
-        var id = +b.dataset.unurg;
-        C.call("/team/messages/" + id + "/unurgent", { body: {} }).then(function () {
-          S.msgs.forEach(function (m) { if (m.id === id) m.urgent = false; });
-          paintThread(true); loadRooms(); C.refresh(); toast("Срочность снята");
-        }).catch(function (er) { toast(String(er)); });
-      };
-    });
-    el.querySelectorAll(".x-quote[data-go]").forEach(function (q) {
-      q.onclick = function () {
-        var t = el.querySelector('.x-msg[data-mid="' + q.dataset.go + '"]');
-        if (t) { t.scrollIntoView({ behavior: "smooth", block: "center" }); t.classList.add("flash"); setTimeout(function () { t.classList.remove("flash"); }, 1600); }
-      };
-    });
-  }
+  var lp = null;
+  document.addEventListener("touchstart", function (e) {
+    var tx = e.target.closest ? e.target.closest("#tThread .x-msg .tx") : null; if (!tx || e.target.closest("a,button,.x-file")) return;
+    var tc = e.touches[0], msg = tx.closest(".x-msg");
+    lp = { x: tc.clientX, y: tc.clientY, tm: setTimeout(function () { lp = null; try { if (navigator.vibrate) navigator.vibrate(15); } catch (er) {} openCtx(msg.dataset.m, tx.getBoundingClientRect()); }, 450) };
+  }, { passive: true });
+  document.addEventListener("touchmove", function (e) { if (lp) { var tc = e.touches[0]; if (Math.abs(tc.clientX - lp.x) > 10 || Math.abs(tc.clientY - lp.y) > 10) { clearTimeout(lp.tm); lp = null; } } }, { passive: true });
+  ["touchend", "touchcancel"].forEach(function (ev) { document.addEventListener(ev, function () { if (lp) { clearTimeout(lp.tm); lp = null; } }, { passive: true }); });
+  document.addEventListener("contextmenu", function (e) {
+    var tx = e.target.closest ? e.target.closest("#tThread .x-msg .tx") : null;
+    if (tx && COARSE) { e.preventDefault(); openCtx(tx.closest(".x-msg").dataset.m, tx.getBoundingClientRect()); }
+  });
+  document.addEventListener("click", function (e) {
+    var hm = e.target.closest ? e.target.closest("[data-hmore]") : null, old = $("xHmenu");
+    if (old) { old.remove(); if (hm) return; }
+    if (!hm) return;
+    var th = $("tThread"), items = [];
+    if (th.querySelector("[data-style]")) items.push(["🎨 Цвет чата", "style"]);
+    if (th.querySelector("[data-rename]")) items.push(["✎ Название", "rename"]);
+    if (th.querySelector("[data-people]")) items.push(["👥 Участники", "people"]);
+    var ln = th.querySelector(".x-th-h a.x-btn"); if (ln) items.push(["↗ Открыть задачу", "task"]);
+    if (!items.length) { toast("Для этого чата других действий нет"); return; }
+    var menu = document.createElement("div"); menu.id = "xHmenu"; menu.className = "x-hmenu";
+    menu.innerHTML = items.map(function (x) { return '<button type="button" data-h="' + x[1] + '">' + x[0] + "</button>"; }).join("");
+    document.body.appendChild(menu);
+    var hr = hm.getBoundingClientRect(); menu.style.top = (hr.bottom + 6) + "px";
+    menu.onclick = function (ev) {
+      var b = ev.target.closest("button"); if (!b) return; menu.remove();
+      if (b.dataset.h === "style") th.querySelector("[data-style]").click();
+      else if (b.dataset.h === "rename") th.querySelector("[data-rename]").click();
+      else if (b.dataset.h === "people") th.querySelector("[data-people]").click();
+      else if (b.dataset.h === "task") location.hash = ln.getAttribute("href");
+    };
+  });
   function paintThread(keep) {
     var el = $("tThread"); if (!el) return;
     var room = S.rooms.filter(function (r) { return r.id === S.cur; })[0] || { name: "Чат", descr: "", kind: "chan", id: S.cur };
-    var ai = room.kind === "ai";
     var pin = S.msgs.filter(function (m) { return m.urgent; }).slice(-1)[0];
     var prevDay = "", body = S.msgs.map(function (m) { var d = dayLabel(m.ts), h = (d !== prevDay ? '<span class="x-day">' + d + "</span>" : "") + msgHtml(m); prevDay = d; return h; }).join("");
-    if (ai && S.aiBusy === room.id) body += '<div class="x-msg bot">' + botAva() + '<div class="bd"><div class="nm">ИИ-помощник КП</div><div class="tx x-aiwait">Собираю КП…</div></div></div>';
-    if (ai && !body) body = '<div class="x-aihello">' + botAva() + "<div><b>Здравствуйте! Я соберу КП по вашему описанию.</b><p>Напишите услуги, объект, адрес, цену и срок — заполню конструктор, внесу КП в реестр и пришлю сюда PDF (или Word — просто попросите).</p>"
-      + AI_EX.map(function (x) { return '<button type="button" class="x-aiex">' + E(x) + "</button>"; }).join("") + "<p>Потом можно уточнять: «цена 60 000», «добавь адрес …», «пришли в ворде».</p></div></div>";
-    var wasBottom = true, old = el.querySelector(".x-msgs"), val = $("tIn") ? $("tIn").value : "";
-    if (old && keep) wasBottom = old.clientHeight ? old.scrollHeight - old.scrollTop - old.clientHeight < 80 : old.__stick !== false;   // скрытый чат: как было
-    el.innerHTML = '<div class="x-th-h"><button type="button" class="x-back" id="tBack" aria-label="К списку чатов">←</button>' + roomAv(room, room.kind === "task" ? "task" : ai ? "ai" : "") + "<div><b>" + E(room.name) + "</b><small>" + E(room.descr) + "</small></div>" + (ai ? '<button type="button" class="x-btn ghost x-ainew" id="tAiNew" title="Следующее сообщение начнёт новое КП">Новое КП</button>' : "") + (!ai && !S.aiOff ? '<button type="button" class="x-hbtn x-sumbtn" id="tSum" title="ИИ: кратко — что решили, кому что поручили" aria-label="Кратко: что решили">' + ic("zap") + "<span>Кратко</span></button>" : "") + (C.me && C.me.role === "admin" && !ai ? '<button type="button" class="x-hbtn" id="tStyle" title="Картинка чата" aria-label="Картинка чата">' + ic("layers") + "</button>" : "") + "</div>"
+    var wasBottom = true, old = el.querySelector(".x-msgs"), val = $("tIn") ? $("tIn").value : (S.drafts[S.cur] || "");
+    var hadFocus = document.activeElement && document.activeElement.id === "tIn", ss = hadFocus ? document.activeElement.selectionStart : 0, se = hadFocus ? document.activeElement.selectionEnd : 0;
+    var oldTop = old ? old.scrollTop : 0;
+    if (old && keep) wasBottom = old.scrollHeight - old.scrollTop - old.clientHeight < 80;
+    el.classList.add("rc"); el.style.setProperty("--rc", roomColor(room));      /* окно чата в цвете чата: шапка, фон и полоса */
+    var hsub = room.kind === "group" ? (String(room.members || "").split(",").filter(Boolean).length + " участн.") : room.kind === "task" ? "Диалог по задаче" : room.kind === "dm" ? "Личный чат" : (room.descr || "Канал");
+    el.innerHTML = '<div class="x-th-h"><button class="x-btn ghost x-back" data-back="1" style="padding:6px 10px">←</button>' + roomIcon(room) + '<div><b>' + E(room.name) + '</b><small class="x-hsub">' + E(hsub) + "</small></div>"
+      + '<button class="x-btn ghost" data-remind="1" title="Напомнить мне про этот чат" style="padding:7px 12px">⏰ <span class="rmtxt">Напомнить</span></button>'
+      + (canStyle(room) ? '<span style="margin-left:auto;display:flex;gap:6px"><button class="x-btn ghost" data-style="1" style="padding:7px 12px" title="' + (room.kind === "group" || room.kind === "chan" ? "Картинка и цвет чата" : "Цвет чата") + '">🎨</button>' + (room.kind === "group" || room.kind === "chan" ? '<button class="x-btn ghost" data-rename="1" style="padding:7px 12px" title="Переименовать чат">✎ Название</button>' : "") + "</span>" : "")
+      + (room.kind === "task" && room.task_row && !noTask() ? '<a class="x-btn ghost" style="margin-left:auto;padding:7px 12px" href="#/task/' + room.task_row + '">Открыть задачу</a>' : "")
+      + (canPeople(room) ? '<button class="x-btn ghost" data-people="1" style="padding:7px 12px" title="Добавить сотрудников в этот чат">👥 <span class="rmtxt">Участники</span></button>' : "") + '<button class="x-btn ghost x-hmore" data-hmore="1" aria-label="Ещё">⋮</button></div>'
       + (pin ? '<div class="x-pinned">' + ic("flame") + "<span>Срочное: " + E(pin.text) + "</span></div>" : "")
       + '<div class="x-msgs">' + (body || '<span class="x-day">Здесь пока пусто — напишите первое сообщение</span>') + "</div>"
-      + '<div class="x-replybar" id="tReply" hidden></div><div class="x-filebar" id="tFiles" hidden></div><div class="x-comp"><input type="file" id="tFile" multiple hidden><button type="button" class="x-attach" id="tAttach" title="Прикрепить файлы (до 10 штук, 10 МБ каждый)" aria-label="Прикрепить файл">' + ic("clip") + '</button><textarea id="tIn" rows="1" placeholder="' + (ai ? "Какое КП сделать? Услуги, объект, адрес, цена, срок" : window.innerWidth <= 760 ? "Сообщение" : window.innerWidth <= 1180 ? "Сообщение… (@Имя — упомянуть)" : "Написать в «" + E(room.name) + "»… (Enter — отправить, Shift+Enter — новая строка, @Имя — упомянуть)") + '" autocomplete="off"></textarea>' + (ai ? "" : '<button class="x-urgbtn ' + (S.urg ? "on" : "") + '" id="tUrg" title="Срочное: придёт всем участникам, даже в тихие часы">' + ic("flame") + "Срочное</button>") + '<button class="x-btn primary" id="tSend" style="padding:12px 14px">' + ic("send") + "</button></div>";
-    var m = el.querySelector(".x-msgs"); if (!keep || wasBottom) { if (window.mpbStick) mpbStick(m); else m.scrollTop = 1e6; }
-    $("tIn").value = val;
+      + (S.editMsg ? '<div class="x-replybar x-editbar"><span>✎ <b>Изменение сообщения</b> — исправьте текст и нажмите «Отправить»</span><button type="button" data-noedit="1" aria-label="Отменить правку">✕</button></div>' : "")
+      + (S.reply && !S.editMsg ? '<div class="x-replybar"><span>↩ <b>' + E(S.reply.user) + "</b>: " + E(S.reply.text) + '</span><button type="button" data-noreply="1" aria-label="Отменить ответ">✕</button></div>' : "")
+      + pendHtml()
+      + '<div id="tTaskHint" style="display:none;align-items:center;gap:10px;padding:6px 12px;border-top:1px solid var(--line);font-size:.84rem;color:var(--muted)">Похоже на поручение —'
+      + '<button type="button" id="tTaskBtn" style="border:0;background:var(--brand,#1f5c99);color:#fff;border-radius:9px;padding:4px 12px;font:inherit;font-weight:600;cursor:pointer">📌 Поставить задачу сотруднику</button></div>'
+      + '<div class="x-comp"><button class="x-btn ghost" id="tAtt" title="Прикрепить файлы (каждый до 50 МБ, можно несколько сразу). Файлы можно перетащить прямо в окно чата" style="padding:12px 13px">📎</button><input type="file" id="tFile" multiple hidden><textarea id="tIn" rows="1" placeholder="' + (window.innerWidth <= 760 ? "Сообщение" : "Написать в «" + E(room.name) + "»… (@Имя — упомянуть)") + '" autocomplete="off"></textarea><button class="x-urgbtn ' + (S.urg ? "on" : "") + '" id="tUrg" title="Срочное: придёт всем участникам, даже в тихие часы">' + ic("flame") + 'Срочное</button><button class="x-btn primary" id="tSend" style="padding:12px 14px">' + ic("send") + "</button></div>";
+    var m = el.querySelector(".x-msgs");
+    if (!keep || wasBottom) m.scrollTop = 1e6;
+    else {
+      m.scrollTop = oldTop;
+      var sel = S.selMsg && m.querySelector("#m" + S.selMsg);
+      if (sel) {                                               // нажали на сообщение, видное не целиком: докручиваем ровно до него (с кнопками)
+        var r = sel.getBoundingClientRect(), box = m.getBoundingClientRect();
+        if (r.bottom > box.bottom) m.scrollTop += Math.min(r.bottom - box.bottom + 12, r.top - box.top - 8);
+        else if (r.top < box.top) m.scrollTop -= box.top - r.top + 8;
+      }
+    }
+    var bk = el.querySelector("[data-back]"); if (bk) bk.onclick = function () { var ch = document.querySelector(".x-chat"); if (ch) ch.classList.remove("open"); };
+    var ti = $("tIn"); ti.value = val;
+    function grow() { ti.style.height = "auto"; ti.style.height = Math.min(ti.scrollHeight, 140) + "px"; }
+    grow();
+    if (hadFocus) { ti.focus(); try { ti.setSelectionRange(ss, se); } catch (e) {} }
+    var hint = $("tTaskHint");
+    var showHint = function () { if (hint) hint.style.display = TODO_RE.test(ti.value) ? "flex" : "none"; };
+    ti.oninput = function () { S.drafts[S.cur] = ti.value; grow(); showHint(); };
+    showHint();
+    var tb = $("tTaskBtn"); if (tb) tb.onclick = function () { taskFromText(ti.value); };
+    ti.onfocus = function () { setTimeout(function () { var mm = document.querySelector(".x-msgs"); if (mm) mm.scrollTop = 1e6; }, 350); };
     $("tSend").onclick = send;
-    paintReply(); wireMessages(el); loadImages(el); wireAiTasks(el);
-    if ($("tStyle")) $("tStyle").onclick = function () { styleDialog(room); };
-    if ($("tSum")) $("tSum").onclick = function () { summaryDialog(room); };
-    $("tBack").onclick = function () { var c = document.querySelector(".x-chat"); if (c) c.classList.remove("room-open"); paintRooms(); };
-    $("tAttach").onclick = function () { $("tFile").click(); };
-    $("tFile").onchange = function () { addFiles(this.files); this.value = ""; };
-    paintFiles();
-    var th = el;
-    th.ondragover = function (e) { if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") >= 0) { e.preventDefault(); th.classList.add("drop"); } };
-    th.ondragleave = function (e) { if (!th.contains(e.relatedTarget)) th.classList.remove("drop"); };
-    th.ondrop = function (e) { th.classList.remove("drop"); if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); addFiles(e.dataTransfer.files); } };
-    $("tIn").onpaste = function (e) { var fl = e.clipboardData && e.clipboardData.files; if (fl && fl.length) { e.preventDefault(); addFiles(fl); } };
-    el.querySelectorAll("[data-tf]").forEach(function (b) {
+    $("tAtt").onclick = function () { $("tFile").click(); };
+    $("tFile").onchange = function () { var fs = [].slice.call(this.files || []); this.value = ""; if (fs.length) setPending(fs); };
+    ti.onpaste = function (e) { var fs = e.clipboardData && e.clipboardData.files; if (fs && fs[0]) { e.preventDefault(); setPending([].slice.call(fs)); } };
+    el.ondragover = function (e) { if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") >= 0) { e.preventDefault(); el.classList.add("x-drop"); } };
+    el.ondragleave = function (e) { if (!el.contains(e.relatedTarget)) el.classList.remove("x-drop"); };
+    el.ondrop = function (e) { el.classList.remove("x-drop"); var fs = e.dataTransfer && e.dataTransfer.files; if (fs && fs.length) { e.preventDefault(); setPending([].slice.call(fs)); } };
+    el.querySelectorAll("[data-tfile]").forEach(function (b) {
       b.onclick = function () {
-        C.blob("/team/files/" + b.dataset.tf).then(function (bl) {
-          var a = document.createElement("a"); a.href = URL.createObjectURL(bl); a.download = b.dataset.name || "file";
-          document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
-        }).catch(function (e) { toast(String(e)); });
+        C.blob("/crm/team/files/" + b.dataset.tfile).then(function (r) {
+          var a = document.createElement("a"); a.href = URL.createObjectURL(r.blob); a.download = r.name; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+        }).catch(function (e) { toast(E(e)); });
       };
     });
     mentionBox($("tIn"));
-    var tin = $("tIn");
-    function grow() { tin.style.height = "auto"; tin.style.height = Math.min(tin.scrollHeight, Math.round(window.innerHeight * 0.4)) + "px"; }
-    tin.addEventListener("input", grow); setTimeout(grow, 0);
-    tin.onkeydown = function (e) {
-      if (e.key === "Enter" && !e.shiftKey && !e.isComposing && !(document.getElementById("tMent") && document.getElementById("tMent").children.length)) { e.preventDefault(); send(); }
-    };
-    el.querySelectorAll("[data-del]").forEach(function (b) {
-      b.onclick = function () {
-        if (!confirm("Удалить это сообщение у всех?")) return;
-        C.call("/team/messages/" + b.dataset.del + "/delete", { body: {} }).then(function () {
-          S.msgs = S.msgs.filter(function (m) { return String(m.id) !== b.dataset.del; }); paintThread(true); loadRooms();
-        }).catch(function (e) { toast(String(e)); });
-      };
-    });
-    if ($("tUrg")) $("tUrg").onclick = function () { S.urg = !S.urg; this.classList.toggle("on", S.urg); };
-    if ($("tAiNew")) $("tAiNew").onclick = function () { if (window.MPBP && MPBP.kpReset) MPBP.kpReset(); toast("Следующее сообщение начнёт новое КП"); };
-    el.querySelectorAll(".x-aiex").forEach(function (b) { b.onclick = function () { var t = $("tIn"); t.value = b.textContent; t.focus(); t.dispatchEvent(new Event("input")); }; });
+    loadImgs(el, !keep || wasBottom);
+    var coarse = window.matchMedia && matchMedia("(pointer:coarse)").matches;      /* на телефоне Enter — новая строка, отправка кнопкой */
+    $("tIn").onkeydown = function (e) { if (e.key === "Enter" && !e.shiftKey && !coarse && !(document.getElementById("tMent") && document.getElementById("tMent").children.length)) { e.preventDefault(); send(); } };
+    $("tUrg").onclick = function () { S.urg = !S.urg; this.classList.toggle("on", S.urg); };
     el.querySelectorAll("[data-ack]").forEach(function (b) { b.onclick = function () { C.call("/team/messages/" + b.dataset.ack + "/ack", { body: {} }).then(function () { return C.call("/team/rooms/" + encodeURIComponent(S.cur) + "/messages"); }).then(function (ms) { S.msgs = ms; paintThread(true); loadRooms(); C.refresh(); }); }; });
   }
   /* подсказка имён по «@»: выбираете сотрудника — имя подставляется в сообщение */
@@ -539,11 +541,12 @@
       from = caret - m[2].length - 1;
       var q = m[2].toLowerCase(), me = C.me && C.me.name;
       var all = (S.users || []).filter(function (n) { return n !== me; });
-      list = all.filter(function (n) { return !q || n.toLowerCase().indexOf(q) === 0 || n.toLowerCase().indexOf(q) > 0; }).slice(0, 6);
+      list = all.filter(function (n) { return !q || n.toLowerCase().indexOf(q) === 0 || n.toLowerCase().indexOf(q) > 0; });      // все сотрудники (раньше только первые 6 — Оля и Дмитрий не попадали), список прокручивается
       if (!list.length) { close(); return; }
       sel = Math.min(sel, list.length - 1);
       box.innerHTML = list.map(function (n, i) { return '<div class="x-ment-i ' + (i === sel ? "on" : "") + '" data-i="' + i + '">' + ava(n, "sm") + "<span>" + E(n) + "</span></div>"; }).join("");
       Array.prototype.forEach.call(box.querySelectorAll(".x-ment-i"), function (d) { d.onmousedown = function (e) { e.preventDefault(); pick(+d.dataset.i); }; });
+      var cur = box.querySelector(".x-ment-i.on"); if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: "nearest" });      // стрелки листают длинный список
     }
     inp.addEventListener("input", function () { sel = 0; update(); });
     inp.addEventListener("click", update);
@@ -556,71 +559,254 @@
       else if (e.key === "Escape") close();
     }, true);
   }
-  var AI_EX = ["КП на разработку проекта СПС.СОУЭ для ООО «Ромашка», г. Санкт-Петербург, ул. Ленина, д. 5, цена 50 000 ₽, срок 30 р.д.",
-    "ТО огнетушителей ОП-4 — 10 шт. и ОУ-3 — 2 шт., 12 000 ₽, объект ТЦ «Невский», без адреса, пришли в ворде"];
-  function aiAsk(rid, text, mid) {                     // помощник КП (kpv.js) собирает КП в этом браузере и отвечает в чат
-    if (!window.MPBP || !MPBP.kpChat) { toast("Модуль КП не загружен — обновите страницу"); return; }
-    S.aiBusy = rid; if (S.cur === rid) paintThread(true);
-    MPBP.kpChat(rid, text, mid).catch(function (e) { toast("Помощник не ответил: " + e); }).then(function () {
-      S.aiBusy = null;
-      if (S.cur !== rid) { loadRooms(); return; }
-      return C.call("/team/rooms/" + encodeURIComponent(rid) + "/messages?after=" + S.lastId).then(function (ms) {
-        mergeMsgs(ms); paintThread();
-        return C.call("/team/rooms/" + encodeURIComponent(rid) + "/read", { body: {} });
-      }).then(loadRooms).catch(function () {});
+  /* вложения: файлы сначала показываются над полем ввода (фото — картинкой), уходят одним сообщением вместе с подписью по «Отправить».
+     Можно выбрать или перетащить несколько сразу; лишний убирается крестиком */
+  var MAX_FILES = 20;
+  function nFiles(n) { var d = n % 10, h = n % 100; return n + (d === 1 && h !== 11 ? " файл" : d >= 2 && d <= 4 && (h < 10 || h >= 20) ? " файла" : " файлов"); }
+  function setPending(list) {
+    var mb = C.MAX_FILE_MB || 50, big = [];
+    if (S.pend && S.pend.busy) return;
+    var p = S.pend || { items: [], busy: false };
+    (list || []).forEach(function (f) {
+      var isImg = /^image\//.test(f.type || "");
+      if ((!isImg && f.size > mb * 1024 * 1024) || f.size > 2 * mb * 1024 * 1024) { big.push(f.name || "файл"); return; }      // большие фото уменьшаются перед отправкой
+      if (p.items.length >= MAX_FILES) return;
+      p.items.push({ file: f, name: f.name || (isImg ? "фото.jpg" : "файл"), size: f.size, url: isImg ? URL.createObjectURL(f) : "" });
+    });
+    if (big.length) toast("Больше " + mb + " МБ, не добавлено: " + big.join(", "));
+    if (p.items.length >= MAX_FILES && list.length > p.items.length) toast("В одном сообщении — не больше " + MAX_FILES + " файлов");
+    S.pend = p.items.length ? p : null;
+    paintThread(true);
+    var ti = $("tIn"); if (ti) ti.focus();
+  }
+  function pendHtml() {
+    var p = S.pend; if (!p) return "";
+    var one = p.items.length === 1, tot = p.items.reduce(function (s, x) { return s + x.size; }, 0);
+    var st = p.busy ? (p.pct != null && p.pct < 100 ? "Загрузка " + p.pct + "%" : "Отправляю…") : "";
+    return p.items.map(function (it, i) {
+      var big = one && it.url;                                  /* одно фото: сверху имя файла, ниже картинка; несколько — миниатюры */
+      return '<div class="x-pend' + (p.busy ? " busy" : "") + (big ? " img" : "") + '">' + (it.url ? (big ? "" : '<img src="' + it.url + '" alt="">') : '<span class="pf">' + fileIcon(it.name) + "</span>")
+        + "<div><b>📎 " + E(it.name) + "</b><small>" + (one ? (st || sizeTxt(it.size) + " · можно добавить подпись и нажать «Отправить»") : sizeTxt(it.size)) + "</small></div>"
+        + (p.busy ? "" : '<button type="button" data-nopend="' + i + '" aria-label="Убрать файл">✕</button>') + (big ? '<img src="' + it.url + '" alt="">' : "") + "</div>";
+    }).join("") + (one ? "" : '<div class="x-pend x-pendsum"><div><small>' + (st || nFiles(p.items.length) + " · " + sizeTxt(tot) + " · уйдут одним сообщением, можно добавить подпись") + "</small></div></div>");
+  }
+  function prepFile(f) {            /* большие фото уменьшаются до 1600 px: быстрее уходят */
+    return new Promise(function (resolve) {
+      if (!/^image\/(jpeg|png|webp)$/.test(f.type || "") || f.size < 1024 * 1024) return resolve({ blob: f, name: f.name });
+      var img = new Image(), url = URL.createObjectURL(f);
+      img.onload = function () {
+        var k = Math.min(1, 1600 / Math.max(img.width, img.height)), cv = document.createElement("canvas");
+        cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url);
+        cv.toBlob(function (b) { resolve(b ? { blob: b, name: String(f.name || "фото").replace(/\.[^.]+$/, "") + ".jpg" } : { blob: f, name: f.name }); }, "image/jpeg", 0.85);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); resolve({ blob: f, name: f.name }); };
+      img.src = url;
     });
   }
-  function mergeMsgs(ms) {                           // не добавляем уже показанные сообщения (опрос и отправка могут принести одно и то же)
-    var have = {}; S.msgs.forEach(function (m) { have[m.id] = 1; });
-    ms.forEach(function (m) { if (!have[m.id]) { S.msgs.push(m); have[m.id] = 1; } });
-    if (S.msgs.length) S.lastId = Math.max(S.lastId, S.msgs[S.msgs.length - 1].id);
+  function sendPending() {
+    var p = S.pend; if (!p || p.busy) return;
+    var i = $("tIn"), text = i ? i.value.trim() : "", room = S.cur, urgent = S.urg, reply = S.reply, last = S.lastId;
+    p.busy = true; p.pct = 0; paintThread(true);
+    var total = p.items.reduce(function (s, x) { return s + x.size; }, 0) || 1, done = 0, toks = [], first = null;
+    p.items.reduce(function (chain, it) {                    /* по очереди; общий процент — по объёму всех файлов */
+      return chain.then(function () { return prepFile(it.file); }).then(function (r) {
+        if (!first) first = r;
+        var bar = function (pct) { p.pct = Math.min(99, Math.round((done + it.size * pct / 100) * 100 / total)); if (S.cur === room && S.pend === p) paintThread(true); };
+        return C.upload(r.blob, r.name, bar).then(function (up) { done += it.size; toks.push(up); });
+      });
+    }, Promise.resolve()).then(function () {
+      p.pct = 100; if (S.cur === room && S.pend === p) paintThread(true);
+      return C.call("/team/rooms/" + encodeURIComponent(room) + "/send-file", { body: { text: text, filename: first.name, mime: first.blob.type || "application/octet-stream", upload: toks[0], uploads: toks.slice(1), urgent: urgent, reply_to: reply ? reply.id : 0 } });
+    }).then(function () {
+      if (S.pend === p) { p.items.forEach(function (x) { if (x.url) URL.revokeObjectURL(x.url); }); S.pend = null; }
+      S.urg = false; S.reply = null; S.drafts[room] = ""; if ($("tIn")) $("tIn").value = "";
+      return C.call("/team/rooms/" + encodeURIComponent(room) + "/messages?after=" + last);
+    }).then(function (ms) { if (S.cur === room) { addMsgs(ms); paintThread(); } loadRooms(); })
+      .catch(function (e) { p.busy = false; p.pct = null; toast(E(e)); if (S.cur === room) paintThread(true); });
+  }
+  /* фото в сообщениях подгружаются с сервера с авторизацией и показываются картинкой; нажатие открывает крупно */
+  function loadImgs(el, stick) {
+    var m = el.querySelector(".x-msgs");
+    [].forEach.call(el.querySelectorAll("img[data-timg]"), function (img) {
+      var id = img.dataset.timg; if (img.getAttribute("src")) return;
+      C.blob("/crm/team/files/" + id).then(function (r) {
+        var url = URL.createObjectURL(new Blob([r.blob], { type: img.dataset.mime || "image/jpeg" })); S.imgs[id] = url;
+        img.onload = function () { if (stick && m) m.scrollTop = 1e6; }; img.src = url;
+      }).catch(function () { img.alt = "Не удалось загрузить фото"; img.classList.add("bad"); });
+    });
+  }
+  function openLb(src, name) {
+    var old = $("xLb"); if (old) old.remove();
+    var lb = document.createElement("div"); lb.id = "xLb"; lb.className = "x-lb";
+    lb.innerHTML = '<div class="x-lbbar"><span>' + E(name) + '</span><a download="' + E(name) + '" href="' + src + '">Скачать</a><button type="button" aria-label="Закрыть">✕</button></div><img src="' + src + '" alt="">';
+    lb.onclick = function (e) { if (e.target === lb || e.target.tagName === "BUTTON") lb.remove(); };
+    document.body.appendChild(lb);
+  }
+  function delMsg(id) {
+    C.call("/team/messages/" + id + "/delete", { body: {} }).then(function () {
+      S.msgs = S.msgs.filter(function (x) { return x.id !== id; }); paintThread(true); loadRooms(); toast("Сообщение удалено");
+    }).catch(function (e) { toast(E(e)); });
+  }
+  /* правка своего сообщения: текст в поле ввода, «Отправить» сохраняет, ✕ — отмена (набранное до правки возвращается) */
+  function startEdit(m) {
+    if (!m) return;
+    var i = $("tIn");
+    S.editMsg = { id: m.id, room: S.cur, draft: i ? i.value : "" }; S.reply = null;
+    paintThread(true);
+    i = $("tIn"); if (i) { i.value = autoCaption(m) ? "" : m.text; i.focus(); try { i.setSelectionRange(i.value.length, i.value.length); } catch (e) {} i.dispatchEvent(new Event("input")); }
+  }
+  function stopEdit() {
+    var ed = S.editMsg; S.editMsg = null; paintThread(true);
+    var i = $("tIn"); if (i && ed) { i.value = ed.draft || ""; S.drafts[S.cur] = i.value; i.dispatchEvent(new Event("input")); }
+  }
+  function saveEdit() {
+    var ed = S.editMsg, i = $("tIn"), text = i ? i.value.trim() : "";
+    if (!text) { toast("Текст пустой. Чтобы убрать сообщение, используйте «Удалить»"); return; }
+    C.call("/team/messages/" + ed.id + "/edit", { body: { text: text } }).then(function () {
+      var m = msgById(ed.id); if (m) { m.text = text; m.edited = Date.now() / 1000; }
+      S.editMsg = null; if (i) i.value = ed.draft || ""; S.drafts[ed.room] = ed.draft || "";
+      paintThread(true); loadRooms(); toast("Сообщение исправлено");
+    }).catch(function (e) { toast(E(e)); });
   }
   function send() {
-    var i = $("tIn"), text = i.value.trim(), fs = S.files.slice(), reply = S.reply; if (!text && !fs.length) return;
-    if (S.sending) return;
-    var urgent = S.urg, rid = S.cur;
-    S.sending = true;
-    i.value = ""; i.style.height = "auto"; S.files = []; S.reply = null; S.urg = false; paintFiles(); paintReply();   // сообщение сразу уходит из поля, как в мессенджере
-    var tu = $("tUrg"); if (tu) tu.classList.remove("on");
-    Promise.all(fs.map(readB64)).then(function (d) {
-      return C.call("/team/rooms/" + encodeURIComponent(rid) + "/send", { body: { text: text, urgent: urgent, reply_to: reply ? reply.id : 0, files: fs.map(function (f, k) { return { filename: f.name, mime: f.type || "application/octet-stream", data: d[k] }; }) } });
-    }).then(function (r) {
-      if (/^kpai_/.test(rid) && text) aiAsk(rid, text, r && r.id);
-      return C.call("/team/rooms/" + encodeURIComponent(rid) + "/messages?after=" + S.lastId);
-    }).then(function (ms) { if (S.cur === rid) { mergeMsgs(ms); paintThread(); } loadRooms(); if (urgent) toast("Срочное отправлено — сотрудники получат оповещение, даже в тихие часы"); })
-      .catch(function (e) {                                                         // не ушло — возвращаем текст в поле
-        var j = $("tIn"); if (j && !j.value) { j.value = text; j.dispatchEvent(new Event("input")); }
-        S.files = fs; S.reply = reply; S.urg = urgent; paintFiles(); paintReply(); toast("Не отправлено: " + e);
-      })
-      .then(function () { S.sending = false; });
-  }  function paintInfo() {
+    if (S.editMsg) { if (S.editMsg.room === S.cur) saveEdit(); else stopEdit(); return; }
+    if (S.pend) { sendPending(); return; }
+    var i = $("tIn"), text = i.value.trim(); if (!text) return;
+    var room = S.cur, urgent = S.urg, reply = S.reply, last = S.lastId;
+    i.value = ""; i.style.height = "auto"; S.drafts[room] = ""; S.urg = false; S.reply = null;           /* набранное стирается сразу после нажатия «Отправить» */
+    var rb = document.querySelector(".x-replybar"); if (rb) rb.remove();
+    var ub = $("tUrg"); if (ub) ub.classList.remove("on");
+    C.call("/team/rooms/" + encodeURIComponent(room) + "/send", { body: { text: text, urgent: urgent, reply_to: reply ? reply.id : 0 } }).then(function () {
+      return C.call("/team/rooms/" + encodeURIComponent(room) + "/messages?after=" + last);
+    }).then(function (ms) { if (S.cur === room) { addMsgs(ms); paintThread(); setTimeout(loadAiTasks, 3500); } loadRooms(); if (urgent) toast("Срочное отправлено — сотрудники получат оповещение, даже в тихие часы"); })
+      .catch(function (e) {
+        var j = $("tIn"); if (S.cur === room && j && !j.value) { j.value = text; S.drafts[room] = text; S.reply = reply; }      /* не отправилось — текст возвращается в поле */
+        toast(E(e));
+      });
+  }
+  function paintInfo() {
     var el = $("tInfo"); if (!el) return;
     var room = S.rooms.filter(function (r) { return r.id === S.cur; })[0], urgs = S.msgs.filter(function (m) { return m.urgent; });
-    if (room && room.kind === "ai") {
-      el.innerHTML = '<div><h6>О чате</h6><p style="font-size:.86rem;color:var(--muted);margin:0">Ваш личный чат с ИИ-помощником — его видите только вы. Готовое КП открывается в «Конструкторе КП», попадает в «Реестр КП» и в «Версии КП».</p></div>'
-        + '<div><h6>Можно писать</h6><p style="font-size:.86rem;color:var(--muted);margin:0">«КП на проект АПС для …, адрес …, 80 000, срок 20 р.д.»<br>«цена 60 000», «добавь ТО огнетушителей ОП-4 — 6 шт.»<br>«пришли в ворде», «пришли pdf и word»</p></div>'
-        + '<div><a class="x-linkcard" href="#/kpc"><span class="x-rm ai">' + ic("file") + "</span><span><b>Конструктор КП</b><small>Открыть текущее КП</small></span></a></div>";
-      return;
-    }
-    el.innerHTML = (room && room.kind === "task" ? '<div><h6>Задача</h6><a class="x-linkcard" href="#/task/' + room.task_row + '"><span class="x-rm task">' + ic("tasks") + "</span><span><b>" + E(room.name) + "</b><small>Открыть карточку задачи</small></span></a></div>" : '<div><h6>О канале</h6><p style="font-size:.86rem;color:var(--muted);margin:0">' + E(room ? room.descr : "") + "</p></div>")
-      + "<div><h6>Сотрудники</h6>" + (S.users.map(function (n) { return '<div class="x-member">' + ava(n, "sm") + E(n) + (C.me && n === C.me.name ? '<small style="margin-left:auto;color:var(--muted)">вы</small>' : "") + "</div>"; }).join("") || '<p class="x-empty" style="padding:6px">—</p>') + "</div>"
+    el.innerHTML = (room && room.kind === "task" && !noTask() ? '<div><h6>Задача</h6><a class="x-linkcard" href="#/task/' + room.task_row + '"><span class="x-rm task">' + ic("tasks") + "</span><span><b>" + E(room.name) + "</b><small>Открыть карточку задачи</small></span></a></div>" : '<div><h6>' + (room && room.kind === "dm" ? "Личная переписка" : "О канале") + '</h6></div>')
+      + "<div><h6>" + (room && room.kind === "dm" ? "Участники" : "Сотрудники") + '<button type="button" class="x-aclink" id="tAcLink" title="Цвет сообщений каждого сотрудника">🎨 цвета</button></h6>' + ((room && room.kind === "dm" ? [C.me && C.me.name, room.name].filter(Boolean) : S.users).map(function (n) { return '<div class="x-member">' + ava(n, "sm") + '<span style="color:color-mix(in srgb,' + color(n) + ' 70%,var(--ink));font-weight:600">' + E(n) + "</span>" + (C.me && n === C.me.name ? '<small style="margin-left:auto;color:var(--muted)">вы</small>' : "") + "</div>"; }).join("") || '<p class="x-empty" style="padding:6px">—</p>') + "</div>"
+      + (room && room.kind === "chan" && room.id !== "general" && C.me && (C.me.position === "owner" || C.me.role === "admin") ? '<div id="tAccess"><h6>Кто видит канал</h6><p style="font-size:.84rem;color:var(--muted);margin:0">Загрузка…</p></div>' : "")
       + "<div><h6>Срочные в этом чате</h6>" + (urgs.slice(-4).map(function (m) { return '<div class="x-linkcard" style="background:var(--bad-l);border-color:transparent;color:var(--bad)">' + ic("flame") + "<span><b>" + E(m.user) + '</b><small style="color:inherit;opacity:.8">' + E(m.text.slice(0, 80)) + "</small></span></div>"; }).join("") || '<p style="font-size:.84rem;color:var(--muted);margin:0">Пока нет</p>') + "</div>";
+    if (room && $("tAccess")) loadAccess(room.id);
+    $("tAcLink").onclick = function () { P.tab = "colors"; location.hash = "#/me"; };
+  }
+  function loadAccess(roomId) {
+    var box = $("tAccess"); if (!box) return;
+    C.call("/../ds/room-access").then(function (r) {
+      var cur = (r.rooms.filter(function (x) { return x.id === roomId; })[0] || {}).roles;
+      if (!cur) cur = r.positions.map(function (p) { return p.id; });
+      box.innerHTML = '<h6>Кто видит канал</h6><p style="font-size:.8rem;color:var(--muted);margin:0 0 8px">Руководитель видит всегда. Остальные получают и сообщения, и уведомления только если отмечены.</p>'
+        + r.positions.map(function (p) { return '<label class="x-member" style="cursor:pointer"><input type="checkbox" data-acc="' + p.id + '" ' + (cur.indexOf(p.id) >= 0 ? "checked" : "") + ' style="margin-right:8px">' + E(p.title) + "</label>"; }).join("");
+      box.querySelectorAll("[data-acc]").forEach(function (cb) {
+        cb.onchange = function () {
+          var roles = [].slice.call(box.querySelectorAll("[data-acc]:checked")).map(function (x) { return x.dataset.acc; });
+          C.call("/../ds/room-access", { body: { room_id: roomId, roles: roles } }).then(function () { toast("Права на канал сохранены"); }).catch(function (e) { cb.checked = !cb.checked; toast(E(e)); });
+        };
+      });
+    }).catch(function (e) { box.innerHTML = '<h6>Кто видит канал</h6><p style="font-size:.84rem;color:var(--bad)">' + E(e) + "</p>"; });
   }
   function newTaskRoom() {
-    xmodal('<h3>Диалог по задаче</h3><p class="x-sub">Выберите задачу — для неё создастся отдельный чат команды</p><div class="x-field"><input type="text" id="tFind" placeholder="Поиск по заказчику или адресу…"></div><div id="tList" style="max-height:50vh;overflow:auto"><div class="x-empty">Загрузка…</div></div><div class="x-row"><button class="x-btn ghost" onclick="MPBT.closeModal()">Закрыть</button></div>', true);
+    xmodal('<h3>Диалог по задаче</h3><p class="x-sub">Выберите задачу из доступных вам — откроется её чат</p><div class="x-field"><input type="text" id="tFind" placeholder="Номер, заказчик или объект…"></div><div id="tList" style="max-height:50vh;overflow:auto"><div class="x-empty">Загрузка…</div></div><div class="x-row"><button class="x-btn ghost" onclick="MPBT.closeModal()">Закрыть</button></div>', true);
     var all = [];
     function paint() {
       var q = ($("tFind").value || "").toLowerCase();
-      $("tList").innerHTML = all.filter(function (t) { return !q || (t.customer + " " + t.address).toLowerCase().indexOf(q) >= 0; }).slice(0, 60).map(function (t) { return '<div class="x-linkcard" data-t="' + t.row + '"><span class="x-rm task" style="--tc:' + (window.wtColor ? wtColor(t.workType) : "var(--blue)") + '">' + ic("tasks") + "</span><span><b>" + E(t.customer) + "</b><small>" + E(t.workType || "") + " · " + E(t.address || "") + "</small></span></div>"; }).join("") || '<div class="x-empty">Ничего не найдено</div>';
-      $("tList").querySelectorAll("[data-t]").forEach(function (n) { n.onclick = function () { var t = all.filter(function (x) { return x.row === +n.dataset.t; })[0]; T.closeModal(); T.openTaskRoom(t.row, t.customer); }; });
+      $("tList").innerHTML = all.filter(function (t) { return !q || (t.number + " " + (t.customer || "") + " " + t.object).toLowerCase().indexOf(q) >= 0; }).slice(0, 60).map(function (t) {
+        return '<div class="x-linkcard" data-t="' + t.id + '"><span class="x-rm task">' + ic("tasks") + "</span><span><b>№" + E(t.number) + " · " + E(t.customer || "") + "</b><small>" + E(t.object || "") + " · " + E(t.stage) + "</small></span></div>"; }).join("") || '<div class="x-empty">Ничего не найдено</div>';
+      $("tList").querySelectorAll("[data-t]").forEach(function (n) { n.onclick = function () { var t = all.filter(function (x) { return x.id === +n.dataset.t; })[0]; T.closeModal(); T.openTaskRoom(t.id, "№" + t.number + " · " + (t.object || "").slice(0, 60)); }; });
     }
-    callServer("api_listTasks").then(function (ts) { all = ts.filter(function (t) { return !t.closed; }); paint(); }).catch(function (e) { $("tList").innerHTML = '<div class="x-empty">' + E(e) + "</div>"; });
+    C.call("/../ds/orders").then(function (ts) { all = ts; paint(); }).catch(function (e) { $("tList").innerHTML = '<div class="x-empty">' + E(e) + "</div>"; });
     $("tFind").oninput = paint;
+  }
+  /* свой чат: любое название и выбранные участники */
+  function newGroup() {
+    xmodal('<h3>Новый чат</h3><div class="x-field"><input type="text" id="gName" placeholder="Название чата (любое)" maxlength="120" autocomplete="off"></div><div id="gPreview" style="display:flex;align-items:center;gap:12px;margin-bottom:8px"></div><div id="gPick"></div><p class="x-sub">Участники (вы добавлены сами)</p><div id="gList" style="max-height:40vh;overflow:auto"><div class="x-empty">Загрузка…</div></div><div class="x-hint" id="gErr" style="color:var(--bad)"></div><div class="x-row"><button class="x-btn ghost" onclick="MPBT.closeModal()">Отмена</button><button class="x-btn primary" id="gGo">Создать чат</button></div>', true);
+    var all = [], me = C.me ? C.me.id : 0, sel = { icon: ICONS[0], color: ICON_COLORS[0] };
+    function prev() { $("gPreview").innerHTML = '<span class="x-tile big" style="background:' + sel.color + '">' + E(sel.icon) + '</span><small class="x-sub" style="margin:0">Так чат выглядит в списке</small>'; }
+    $("gPick").innerHTML = pickerHtml(sel); pickerBind(sel, prev); prev();
+    function paintG() {
+      $("gList").innerHTML = all.filter(function (u) { return u.id !== me; }).map(function (u) {
+        return '<label class="x-linkcard" style="cursor:pointer">' + ava(u.name, "sm") + "<span><b>" + E(u.name) + "</b><small>" + E(u.title || "") + '</small></span><input type="checkbox" data-gu="' + u.id + '" style="margin-left:auto"></label>'; }).join("") || '<div class="x-empty">Никого не найдено</div>';
+    }
+    C.call("/people").then(function (l) { all = l; paintG(); }).catch(function (e) { $("gList").innerHTML = '<div class="x-empty">' + E(e) + "</div>"; });
+    $("gGo").onclick = function () {
+      var name = $("gName").value.trim();
+      if (!name) { $("gErr").textContent = "Введите название чата"; return; }
+      var ids = [].slice.call(document.querySelectorAll("[data-gu]:checked")).map(function (x) { return +x.dataset.gu; });
+      C.call("/../ds/rooms/group", { body: { name: name, members: ids, icon: sel.icon, color: sel.color } }).then(function (r) {
+        T.closeModal();
+        if (cur() === "team") { S.cur = r.id; loadRooms().then(function () { openRoom(r.id); }); } else location.hash = "#/team?room=" + r.id;
+      }).catch(function (e) { $("gErr").textContent = String(e); });
+    };
+  }
+  /* «Участники»: руководитель, операционный менеджер или руководитель продаж (в своём чате — и создатель) отмечает, кого добавить в чат — например, нормативного специалиста */
+  function peopleDialog(room) {
+    var grp = room.kind === "group";
+    xmodal('<h3>Участники · ' + E(room.name) + '</h3><p class="x-sub">' + (grp ? "Отметьте, кто состоит в чате." : "Отмеченные сотрудники видят этот чат и пишут в него независимо от должности. Руководитель видит все чаты.")
+      + '</p><div id="tPpl" style="max-height:55vh;overflow:auto"><div class="x-empty">Загрузка…</div></div><div class="x-row"><button class="x-btn primary" onclick="MPBT.closeModal()">Готово</button></div>', true);
+    C.call("/../ds/rooms/" + encodeURIComponent(room.id) + "/people").then(function (r) {
+      var box = $("tPpl"); if (!box) return;
+      box.innerHTML = r.people.map(function (p) {
+        return '<label class="x-member" style="cursor:pointer"><input type="checkbox" data-pp="' + p.id + '"' + (p.on ? " checked" : "") + ' style="margin-right:8px">' + ava(p.name, "sm")
+          + "<span><b>" + E(p.name) + '</b><small style="display:block;color:var(--muted)">' + E(POS_TITLE[p.position] || "роль не назначена") + (p.role ? " · видит по должности" : "") + "</small></span></label>";
+      }).join("") || '<div class="x-empty">Других сотрудников нет</div>';
+      box.querySelectorAll("[data-pp]").forEach(function (cb) {
+        cb.onchange = function () {
+          C.call("/../ds/rooms/" + encodeURIComponent(room.id) + "/people", { body: { user_id: +cb.dataset.pp, on: cb.checked } })
+            .then(function () { toast(cb.checked ? "Сотрудник добавлен в чат" : "Сотрудник убран из чата"); if (grp) loadRooms().then(function () { paintThread(true); }); })
+            .catch(function (er) { cb.checked = !cb.checked; toast(E(er)); });
+        };
+      });
+    }).catch(function (er) { var box = $("tPpl"); if (box) box.innerHTML = '<div class="x-empty">' + E(er) + "</div>"; });
+  }
+  document.addEventListener("click", function (e) {
+    var pb = e.target.closest && e.target.closest("[data-people]"); if (pb && S.cur) {
+      var pr = S.rooms.filter(function (r) { return r.id === S.cur; })[0]; if (pr) peopleDialog(pr);
+      return;
+    }
+    var sb = e.target.closest && e.target.closest("[data-style]"); if (sb && S.cur) {
+      var rm = S.rooms.filter(function (r) { return r.id === S.cur; })[0]; if (!rm) return;
+      var sel = roomStyle(rm), only = rm.kind !== "group" && rm.kind !== "chan";
+      xmodal('<h3>' + (only ? "Цвет чата" : "Картинка и цвет чата") + '</h3><div id="gPreview" style="display:flex;align-items:center;gap:12px;margin-bottom:8px"></div><div id="gPick"></div><div class="x-hint" id="gErr" style="color:var(--bad)"></div><div class="x-row"><button class="x-btn ghost" onclick="MPBT.closeModal()">Отмена</button><button class="x-btn primary" id="gGo">Сохранить</button></div>', true);
+      var prev = function () { $("gPreview").innerHTML = '<div class="x-dlg rc on x-prevrow" style="--rc:' + sel.color + '">' + roomIcon({ id: rm.id, kind: rm.kind, name: rm.name, icon: sel.icon, color: sel.color }) + '<div class="m"><b>' + E(rm.name) + "</b><span>Так чат выглядит в списке</span></div></div>"; };
+      $("gPick").innerHTML = pickerHtml(sel, only); pickerBind(sel, prev); prev();
+      $("gGo").onclick = function () { C.call("/../ds/rooms/" + encodeURIComponent(rm.id) + "/style", { body: { icon: sel.icon, color: sel.color } }).then(function () { T.closeModal(); return loadRooms(); }).then(function () { paintThread(true); toast(only ? "Цвет чата изменён" : "Картинка и цвет изменены"); }).catch(function (er) { $("gErr").textContent = String(er); }); };
+      return;
+    }
+    var b = e.target.closest && e.target.closest("[data-rename]"); if (!b || !S.cur) return;
+    var room = S.rooms.filter(function (r) { return r.id === S.cur; })[0]; if (!room) return;
+    var nm = prompt("Название чата", room.name); if (nm == null) return; nm = nm.trim(); if (!nm) return;
+    C.call("/../ds/rooms/" + encodeURIComponent(S.cur) + "/rename", { body: { name: nm } }).then(function () { return loadRooms(); }).then(function () { paintThread(true); toast("Название изменено"); }).catch(function (er) { toast(E(er)); });
+  });
+  /* личное сообщение: выбираем сотрудника, чат создаётся (или открывается уже существующий) */
+  function newDm() {
+    xmodal('<h3>Личное сообщение</h3><p class="x-sub">Переписку видите только вы и собеседник</p><div class="x-field"><input type="text" id="tFindU" placeholder="Поиск сотрудника…" autocomplete="off"></div><div id="tUList" style="max-height:50vh;overflow:auto"><div class="x-empty">Загрузка…</div></div><div class="x-row"><button class="x-btn ghost" onclick="MPBT.closeModal()">Закрыть</button></div>', true);
+    var all = [];
+    function paint() {
+      var q = ($("tFindU").value || "").toLowerCase(), me = C.me ? C.me.id : 0;
+      $("tUList").innerHTML = all.filter(function (u) { return u.id !== me && (!q || (u.name + " " + (u.title || "")).toLowerCase().indexOf(q) >= 0); }).map(function (u) {
+        return '<div class="x-linkcard" data-u="' + u.id + '">' + ava(u.name, "sm") + "<span><b>" + E(u.name) + "</b><small>" + E(u.title || "") + "</small></span></div>"; }).join("") || '<div class="x-empty">Никого не найдено</div>';
+      $("tUList").querySelectorAll("[data-u]").forEach(function (n) {
+        n.onclick = function () {
+          C.call("/../ds/dm", { body: { user_id: +n.dataset.u } }).then(function (r) {
+            T.closeModal();
+            if (cur() === "team") { S.cur = r.id; loadRooms().then(function () { openRoom(r.id); }); } else location.hash = "#/team?room=" + r.id;
+          }).catch(function (e) { toast(E(e)); });
+        };
+      });
+    }
+    C.call("/people").then(function (l) { all = l; paint(); }).catch(function (e) { $("tUList").innerHTML = '<div class="x-empty">' + E(e) + "</div>"; });
+    $("tFindU").oninput = paint;
   }
   T.openTaskRoom = function (row, customer) {
     C.requireLogin().then(function () { return C.call("/team/rooms", { body: { task_row: row, name: customer } }); }).then(function (r) {
-      if (cur() === "team") { S.cur = r.id; renderTeam(); try { history.replaceState(null, "", "#/team?room=" + r.id); } catch (e) {} } else location.hash = "#/team?room=" + r.id;
-    }).catch(function (e) { if (e !== "cancel") toast(String(e)); });
+      if (cur() === "team") { S.cur = r.id; return loadRooms().then(function () { renderTeam(); try { history.replaceState(null, "", "#/team?room=" + r.id); } catch (e) {} }); }
+      location.hash = "#/team?room=" + r.id;
+    }).catch(function (e) { if (e !== "cancel") toast(E(e)); });
   };
 
   /* ================================================================
@@ -635,70 +821,108 @@
     C.call("/journal?limit=200").then(function (items) { LG.items = items; paintLog(); }).catch(function (e) { $("lgOut").innerHTML = '<div class="x-empty">' + E(e) + "</div>"; });
   }
   function paintLog() {
-    var fs = ["Все", "Задача", "КП", "Чат", "Настройки"];
+    var fs = ["Все", "Задача", "КП", "Заказчик", "Чат", "Настройки"];
     $("lgChips").innerHTML = fs.map(function (f) { return '<span class="x-chip ' + (LG.f === f ? "on" : "") + '" data-f="' + f + '">' + f + "</span>"; }).join("");
     var rows = LG.items.filter(function (l) { return LG.f === "Все" || l.entity.indexOf(LG.f) === 0; }), day = "", h = "";
     rows.forEach(function (l) {
       var d = dayLabel(l.ts); if (d !== day) { day = d; h += '<div class="x-lgd">' + d + "</div>"; }
       h += '<div class="x-lg">' + ava(l.user_name || "?", "sm") + "<div><b>" + E(l.user_name) + "</b> · " + E(l.action) + ' <span class="x-pill">' + E(l.entity) + "</span>" + (l.before || l.after ? '<div class="x-diff"><s>' + E(l.before || "—") + "</s>" + ic("arrow") + "<u>" + E(l.after || "—") + "</u></div>" : "") + '</div><div class="rt"><span class="tt">' + when(l.ts) + "</span>"
-        + (l.undo && !l.undone ? '<button class="x-btn ghost" style="padding:7px 12px" data-u="' + l.id + '">' + ic("undo") + "Отменить</button>" : (l.undone ? '<span class="x-pill">отменено</span>' : "")) + "</div></div>";
+        + "</div></div>";
     });
     $("lgOut").innerHTML = h || '<div class="x-empty">Записей пока нет</div>';
     $("lgChips").querySelectorAll(".x-chip").forEach(function (c) { c.onclick = function () { LG.f = c.dataset.f; paintLog(); }; });
-    $("lgOut").querySelectorAll("[data-u]").forEach(function (b) {
-      b.onclick = function () {
-        var e = LG.items.filter(function (x) { return x.id === +b.dataset.u; })[0]; b.disabled = true;
-        C.undoEntry(e).then(function () { e.undone = 1; paintLog(); toast("Изменение отменено"); }).catch(function (er) { b.disabled = false; toast(String(er)); });
-      };
-    });
   }
 
   /* ================================================================
      ЛИЧНЫЙ КАБИНЕТ
      ================================================================ */
   var P = { tab: "notif" };
-  var EVENTS = [["reminder", "Моё напоминание", "Из раздела «Мои задачи»"], ["urgent", "Срочное в чатах", "Всегда пробивает тихие часы, если включено ниже"], ["mention", "Упоминание @Имя", "Когда вас позвали в чате"], ["team", "Сообщения в чатах команды", "Любое сообщение в «Команде» — по одному уведомлению на чат"], ["client", "Сообщения клиентов", "Новые письма, Max и Telegram в «Переписке»"],
-    ["task", "Этап перешёл ко мне", "Задача пришла на ваш этап"], ["deadline", "Скоро дедлайн этапа", "За сколько дней — настраивает руководитель в «Автоматизации»"],
-    ["overdue", "Дедлайн просрочен", "Задача на вашем этапе просрочена"], ["lead", "Клиенты и заявки", "Нет контакта, КП без ответа, КП выиграно"], ["mail", "Письма мне", "Письма и диалоги, переданные вам"], ["pay", "Оплаты из 1С", "Поступления на счёт МПБ (руководителю)"], ["toreq", "Заявки по ТО", "Новая заявка вам, ответ специалиста, смена статуса"]];
+  var EVENTS = [["reminder", "Моё напоминание", "Из раздела «Мои задачи»"], ["urgent", "Срочное", "Срочные работы и срочные сообщения в чатах; пробивает тихие часы, если включено ниже"],
+    ["mention", "Упоминание и личные сообщения", "Вас позвали через @Имя или написали лично"], ["chat", "Новое сообщение в чате", "Любое сообщение в каналах (может быть шумно)"],
+    ["task", "Мне поставлена задача", "Договор подписан, задача пришла на ваш этап, назначены исполнителем, затянулась стадия"], ["deadline", "Скоро срок по договору", "За сколько дней — настраивает руководитель в «Автоматизации»"],
+    ["overdue", "Срок по договору просрочен", "По вашей задаче срок по договору прошёл"], ["lead", "Оплата и КП", "Аванс и оплата получены, КП без ответа, аванс не пришёл"],
+    ["mail", "Заказчик написал", "Новые сообщения заказчиков в Telegram, MAX и почте"], ["digest", "Утренняя сводка", "Раз в день после 9:00: что просрочено, что на сегодня, кому не назначено (операционному менеджеру)"],
+    ["call", "Звонки", "Звонит заказчик на ваш внутренний номер (Sipuni), пропущенный звонок — задача «Перезвонить»"]];
+  var POS_TITLE = { owner: "Руководитель", design: "Руководитель проектного отдела", sales: "Руководитель отдела продаж", ops: "Операционный менеджер", acc: "Бухгалтер", designer: "Проектировщик", norm: "Нормативный специалист" };
 
   function renderMe() {
     var el = $("me-app"), sub = "Настройки уведомлений, профиль и доступ сотрудников";
     if (!gate(el, "Личный кабинет", sub, renderMe)) return;
-    var u = C.me, tabs = [["notif", "bell", "Уведомления"], ["info", "user", "Профиль"]].concat(u.role === "admin" ? [["staff", "users", "Сотрудники"], ["data", "list", "Данные"]] : []);
-    el.innerHTML = head("Личный кабинет", sub) + '<div class="wrap"><div class="prof2">' + ava(u.name, "xl") + "<div><h2>" + E(u.name) + "</h2><p>" + (u.title ? E(u.title) + " · " : "") + (ROLE_NAMES[u.role] || "Сотрудник") + '</p><div class="pf-pills"><span>' + (u.tg ? "Telegram подключён" : "Telegram не подключён") + '</span><span>' + (C.pushOn && C.pushOn() ? "Push включён" : "Push выключен") + '</span></div></div>' + '<div class="pf-stats"><div><b>' + ((C.sync || {}).notif_unread || 0) + '</b><small>новых уведомлений</small></div><div><b>' + ((C.sync || {}).team_unread || 0) + '</b><small>непрочитано в «Команде»</small></div><div><b>' + (((C.sync || {}).urgent || []).length) + '</b><small>срочных</small></div></div><button class="x-btn ghost" id="meOut">Выйти</button></div>'
+    var u = C.me, tabs = [["notif", "bell", "Уведомления"], ["colors", "chat", "Цвета в чатах"], ["info", "user", "Профиль"]].concat(window.DSCalls && (DSCalls.enabled || u.role === "admin") ? [["tel", "phone", "Телефония"]] : []).concat(u.role === "admin" ? [["staff", "users", "Сотрудники"]] : []).concat((u.role === "admin" || u.position === "owner") && window.DS && DS.botSettings ? [["maxbot", "chat", "MAX-бот"]] : []);
+    el.innerHTML = head("Личный кабинет", sub) + '<div class="wrap"><div class="prof2">' + ava(u.name, "xl") + "<div><h2>" + E(u.name) + "</h2><p>" + (u.title ? E(u.title) + " · " : "") + (POS_TITLE[u.position] || (u.role === "admin" ? "Руководитель" : "Сотрудник")) + '</p><div class="pf-pills"><span>' + (u.tg ? "Telegram подключён" : "Telegram не подключён") + '</span><span>' + (u.max ? "MAX подключён" : "MAX не подключён") + '</span><span>' + (C.pushOn && C.pushOn() ? "Push включён" : "Push выключен") + '</span></div></div>' + '<div class="pf-stats"><div><b>' + ((C.sync || {}).notif_unread || 0) + '</b><small>новых уведомлений</small></div><div><b>' + ((C.sync || {}).team_unread || 0) + '</b><small>непрочитано в «Команде»</small></div><div><b>' + (((C.sync || {}).urgent || []).length) + '</b><small>срочных</small></div></div><button class="x-btn ghost" id="meOut">Выйти</button></div>'
       + '<div class="x-bar"><div class="x-seg" id="meTabs">' + tabs.map(function (t) { return '<button data-t="' + t[0] + '" class="' + (P.tab === t[0] ? "on" : "") + '">' + ic(t[1]) + t[2] + "</button>"; }).join("") + '</div></div><div id="meBody"></div></div>';
     $("meOut").onclick = function () { C.logout().then(renderMe); };
     $("meTabs").querySelectorAll("button").forEach(function (b) { b.onclick = function () { P.tab = b.dataset.t; renderMe(); }; });
-    if (P.tab === "notif") paintNotif(); else if (P.tab === "info") paintInfo2(); else if (P.tab === "data") paintData(); else paintStaff();
+    if (P.tab === "notif") paintNotif(); else if (P.tab === "colors") paintColors(); else if (P.tab === "info") paintInfo2(); else if (P.tab === "tel" && window.DSCalls) DSCalls.paintMe($("meBody")); else if (P.tab === "maxbot" && window.DS && DS.botSettings) DS.botSettings($("meBody")); else paintStaff();
   }
   function savePrefs(patch) { return C.call("/me/prefs", { body: patch }).then(function (p) { C.prefs = p; return p; }); }
   function paintNotif() {
-    var body = $("meBody"), pr = C.prefs, pushOk = C.pushSupported(), pushOn = C.pushOn(), tg = C.me.tg;
+    var body = $("meBody"), pr = C.prefs, pushOk = C.pushSupported(), pushOn = C.pushOn(), tg = C.me.tg, mx = C.me.max;
     body.innerHTML = '<div class="x-two"><div>'
       + '<div class="x-chcards">'
       + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("bell") + "</span><div><b>В приложении</b><small>Колокольчик в меню</small></div></div><span class=\"x-pill ok\">Всегда включено</span></div>"
-      + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("phone") + "</span><div><b>Push на это устройство</b><small>" + (pushOk ? (pushOn ? "Подключено" : "Выключено") : "Не поддерживается браузером") + '</small></div></div><button class="x-btn ' + (pushOn ? "ghost" : "primary") + '" id="mePush" ' + (pushOk ? "" : "disabled") + ">" + (pushOn ? "Отключить" : "Включить") + "</button></div>"
-      + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("send") + "</span><div><b>Telegram</b><small>" + (!C.bot ? "Бот не подключён на сервере" : tg ? "Подключён" : "Не привязан") + '</small></div></div>' + (C.bot ? '<button class="x-btn ' + (tg ? "ghost" : "primary") + '" id="meTg">' + (tg ? "Отвязать" : "Получить код") + "</button>" : '<span class="x-pill">нужен TG_BOT_TOKEN</span>') + '<div id="meTgCode"></div></div></div>'
-      + '<div class="x-panel" style="margin-bottom:18px"><div style="padding:18px 20px 4px"><h3>Что и куда присылать</h3><p class="x-sub">Отметьте, какие события вам важны и в каком канале о них сообщать</p></div><div style="overflow-x:auto"><table class="x-mx"><thead><tr><th>Событие</th><th>В приложении</th><th>Push</th><th>Telegram</th></tr></thead><tbody>'
-      + EVENTS.map(function (e) { return "<tr><td>" + e[1] + "<small>" + e[2] + "</small></td>" + ["app", "push", "telegram"].map(function (ch) { return '<td><button class="x-cb ' + (pr.events[e[0]][ch] ? "on" : "") + '" data-e="' + e[0] + '" data-c="' + ch + '">' + ic("check") + "</button></td>"; }).join("") + "</tr>"; }).join("")
+      + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("phone") + "</span><div><b>Push на это устройство</b><small>" + (pushOk ? (pushOn ? "Подключено" : "Выключено") : (C.pushWhy ? C.pushWhy() : "") || "Недоступно на этом устройстве") + '</small></div></div><button class="x-btn ' + (pushOn ? "ghost" : "primary") + '" id="mePush" ' + "" + ">" + (pushOn ? "Отключить" : "Включить") + "</button></div>"
+      + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("send") + "</span><div><b>Telegram</b><small>" + (!C.bot ? "Бот не подключён на сервере" : tg ? "Подключён" : "Не привязан") + '</small></div></div>' + (C.bot ? '<button class="x-btn ' + (tg ? "ghost" : "primary") + '" id="meTg">' + (tg ? "Отвязать" : "Получить код") + "</button>" : '<span class="x-pill">нужен TG_BOT_TOKEN</span>') + '<div id="meTgCode"></div></div>'
+      + '<div class="x-chc"><div class="t"><span class="x-rm">' + ic("chat") + "</span><div><b>MAX</b><small>" + (mx ? "Подключён" : "Не привязан") + '</small></div></div><button class="x-btn ' + (mx ? "ghost" : "primary") + '" id="meMax">' + (mx ? "Отвязать" : "Получить код") + '</button><div id="meMaxCode"></div></div></div>'
+      + '<div class="x-panel" style="margin-bottom:18px"><div style="padding:18px 20px 4px"><h3>Что и куда присылать</h3><p class="x-sub">Отметьте, какие события вам важны и в каком канале о них сообщать</p></div><div style="overflow-x:auto"><table class="x-mx"><thead><tr><th>Событие</th><th>В приложении</th><th>Push</th><th>Telegram</th><th>MAX</th></tr></thead><tbody>'
+      + EVENTS.map(function (e) { return "<tr><td>" + e[1] + "<small>" + e[2] + "</small></td>" + ["app", "push", "telegram", "max"].map(function (ch) { return '<td><button class="x-cb ' + (pr.events[e[0]][ch] ? "on" : "") + '" data-e="' + e[0] + '" data-c="' + ch + '">' + ic("check") + "</button></td>"; }).join("") + "</tr>"; }).join("")
       + "</tbody></table></div></div>"
       + '<div class="x-panel pad"><h3>Тихие часы</h3><p class="x-sub">Чтобы работа не мешала отдыху. «Срочное» можно оставить сквозным</p>'
       + '<div class="x-qrow"><div><b>Не беспокоить</b><small>Push и Telegram молчат, внутри приложения всё сохраняется</small></div><button class="x-sw ' + (pr.quiet.on ? "on" : "") + '" id="qOn"></button></div>'
       + '<div class="x-qrow"><div><b>С</b></div><input type="time" id="qFrom" value="' + pr.quiet.from + '"><div style="margin-left:14px"><b>До</b></div><input type="time" id="qTo" value="' + pr.quiet.to + '"></div>'
       + '<div class="x-qrow"><div><b>«Срочное» пробивает тишину</b><small>Срочные сообщения придут всегда</small></div><button class="x-sw ' + (pr.quiet.urgent_through ? "on" : "") + '" id="qUrg"></button></div></div>'
-      + '</div><div class="x-sticky"><div class="x-panel pad"><h3>Проверка</h3><p class="x-sub">Отправим тестовое уведомление по вашим настройкам</p><button class="x-btn primary" id="meTest" style="width:100%;justify-content:center">' + ic("bell") + 'Отправить тест</button><div class="x-hint" id="meTestOut"></div></div></div></div>';
-    $("mePush").onclick = function () { var p = pushOn ? C.disablePush() : C.enablePush(); p.then(function () { toast(pushOn ? "Push отключён" : "Push включён на этом устройстве"); paintNotif(); }).catch(function (e) { toast(String(e)); }); };
+      + '</div><div class="x-sticky"><div class="x-panel pad"><h3>Проверка</h3><p class="x-sub">Отправим тестовое уведомление по вашим настройкам</p><button class="x-btn primary" id="meTest" style="width:100%;justify-content:center">' + ic("bell") + 'Отправить тест</button><div class="x-hint" id="meTestOut"></div>'
+      + '<h3 style="margin-top:16px">Звук в CRM</h3><p class="x-sub">Сигнал при новых сообщениях и уведомлениях, пока CRM открыта</p>'
+      + '<div class="x-qrow"><div><b>Звук включён</b></div><button class="x-sw ' + (window.DSSound && DSSound.get().on ? "on" : "") + '" id="sndOn"></button></div>'
+      + '<div class="x-qrow"><div><b>Громкость</b></div><input type="range" id="sndVol" min="0.1" max="1" step="0.1" value="' + (window.DSSound ? DSSound.get().vol : 0.9) + '" style="flex:1;margin-left:12px"></div>'
+      + (window.DSSound && DSSound.list ? '<div class="x-field" style="margin:6px 0 12px"><label>Мелодия <small style="color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400">— прозвучит сразу при выборе</small></label><select id="sndPick" style="width:100%">'
+        + DSSound.list().map(function (g) { return '<optgroup label="' + g[0] + '">' + g[1].map(function (x) { return '<option value="' + x[0] + '"' + (DSSound.get().snd === x[0] ? " selected" : "") + ">" + x[1] + "</option>"; }).join("") + "</optgroup>"; }).join("")
+        + "</select></div>" : "")
+      + '<button class="x-btn ghost" id="sndTest" style="width:100%;justify-content:center">Проверить звук</button></div></div></div>';
+    var sOn = $("sndOn"), sVol = $("sndVol"), sTest = $("sndTest"), sPick = $("sndPick");
+    if (sPick) sPick.onchange = function () { DSSound.set({ snd: sPick.value }); DSSound.test(); };
+    if (sOn) sOn.onclick = function () { var on = !DSSound.get().on; DSSound.set({ on: on }); sOn.classList.toggle("on", on); };
+    if (sVol) sVol.oninput = function () { DSSound.set({ vol: sVol.value }); };
+    if (sTest) sTest.onclick = function () { DSSound.test(); };
+    $("mePush").onclick = function () { var p = pushOn ? C.disablePush() : C.enablePush(); p.then(function () { toast(pushOn ? "Push отключён" : "Push включён на этом устройстве"); paintNotif(); }).catch(function (e) { toast(E(e)); }); };
+    var mxb = $("meMax"); if (mxb) mxb.onclick = function () {
+      if (mx) C.call("/me/max/unlink", { body: {} }).then(function () { C.me.max = false; renderMe(); });
+      else C.call("/me/max/code", { body: {} }).then(function (r) { $("meMaxCode").innerHTML = '<p class="x-sub" style="margin:8px 0 0">Откройте ' + (r.bot ? "бота «" + E(r.bot) + "» в MAX" : "MAX и отправьте аккаунту компании сообщение") + ' и отправьте: <b>' + r.code + "</b><br>Код действует " + r.minutes + " минут. После ответа «Готово» обновите страницу.</p>"; }).catch(function (e) { toast(E(e)); });
+    };
     var tgb = $("meTg"); if (tgb) tgb.onclick = function () {
       if (tg) C.call("/me/tg/unlink", { body: {} }).then(function () { C.me.tg = false; renderMe(); });
-      else C.call("/me/tg/code", { body: {} }).then(function (r) { $("meTgCode").innerHTML = '<p class="x-sub" style="margin:8px 0 0">Откройте вашего бота в Telegram и отправьте: <b>/start ' + r.code + "</b><br>Код действует " + r.minutes + " минут. После привязки обновите страницу.</p>"; }).catch(function (e) { toast(String(e)); });
+      else C.call("/me/tg/code", { body: {} }).then(function (r) { $("meTgCode").innerHTML = '<p class="x-sub" style="margin:8px 0 0">Откройте вашего бота в Telegram и отправьте: <b>/start ' + r.code + "</b><br>Код действует " + r.minutes + " минут. После привязки обновите страницу.</p>"; }).catch(function (e) { toast(E(e)); });
     };
-    body.querySelectorAll(".x-cb").forEach(function (b) { b.onclick = function () { var e = b.dataset.e, c = b.dataset.c, v = !pr.events[e][c], patch = { events: {} }; patch.events[e] = {}; patch.events[e][c] = v; savePrefs(patch).then(function () { b.classList.toggle("on", v); }).catch(function (er) { toast(String(er)); }); }; });
+    body.querySelectorAll(".x-cb").forEach(function (b) { b.onclick = function () { var e = b.dataset.e, c = b.dataset.c, v = !pr.events[e][c], patch = { events: {} }; patch.events[e] = {}; patch.events[e][c] = v; savePrefs(patch).then(function () { b.classList.toggle("on", v); }).catch(function (er) { toast(E(er)); }); }; });
     $("qOn").onclick = function () { var v = !pr.quiet.on; savePrefs({ quiet: { on: v } }).then(function () { $("qOn").classList.toggle("on", v); }); };
     $("qUrg").onclick = function () { var v = !pr.quiet.urgent_through; savePrefs({ quiet: { urgent_through: v } }).then(function () { $("qUrg").classList.toggle("on", v); }); };
     $("qFrom").onchange = function () { savePrefs({ quiet: { from: this.value } }); };
     $("qTo").onchange = function () { savePrefs({ quiet: { to: this.value } }); };
     $("meTest").onclick = function () {
-      C.call("/me/test", { body: {} }).then(function (r) { var names = { app: "в приложении", push: "push", telegram: "Telegram" }, parts = Object.keys(r).map(function (k) { return names[k] + (r[k] ? " ✓" : " ✗"); }); $("meTestOut").textContent = parts.length ? "Отправлено: " + parts.join(", ") : "По вашим настройкам сейчас ничего не отправляется (тихие часы?)"; C.refresh(); }).catch(function (e) { $("meTestOut").textContent = String(e); });
+      C.call("/me/test", { body: {} }).then(function (r) { var names = { app: "в приложении", push: "push", telegram: "Telegram", max: "MAX" }, parts = Object.keys(r).map(function (k) { return names[k] + (r[k] ? " ✓" : " ✗"); }); $("meTestOut").textContent = parts.length ? "Отправлено: " + parts.join(", ") : "По вашим настройкам сейчас ничего не отправляется (тихие часы?)"; C.refresh(); }).catch(function (e) { $("meTestOut").textContent = String(e); });
+    };
+  }
+  /* цвета авторов сообщений: личная настройка (этот браузер); без неё у каждого сотрудника свой цвет из общей палитры */
+  function paintColors() {
+    var body = $("meBody"), ppl = (T.people || []).slice().sort(function (a, b) { return a.id - b.id; }), ac = acAll();
+    function row(u) {
+      var c = color(u.name), own = !!ac[u.name.toLowerCase()];
+      return '<div class="x-acrow" data-acu="' + E(u.name) + '"><div class="x-msg ac" style="--ac:' + c + '">' + ava(u.name, "sm") + '<div class="bd"><div class="nm">' + E(u.name) + (C.me && u.name === C.me.name ? " <small>это вы</small>" : "") + '</div><div class="tx">' + E(u.title || "Сообщение в чате") + "</div></div></div>"
+        + '<div class="x-acpick">' + swatches("acp" + u.id, c, "data-ac") + (own ? '<button type="button" class="x-btn ghost" data-acreset="1" style="padding:5px 10px">По умолчанию</button>' : '<small class="x-sub" style="margin:0">по умолчанию</small>') + "</div></div>";
+    }
+    body.innerHTML = '<div class="x-panel pad" style="max-width:860px"><h3>Цвет сообщений сотрудников</h3><p class="x-sub">В общих чатах облачко каждого автора окрашено в его цвет — сразу видно, кто пишет. По умолчанию у каждого свой цвет; здесь его можно поменять. Настройка личная: действует только у вас и только в этом браузере.</p>'
+      + '<div class="x-qrow"><div><b>Раскрашивать сообщения по авторам</b><small>Если выключить, все облачка будут одного цвета</small></div><button class="x-sw ' + (acOn() ? "on" : "") + '" id="acOn"></button></div>'
+      + '<div id="acList">' + (ppl.map(row).join("") || '<div class="x-empty">Список сотрудников загружается…</div>') + "</div>"
+      + '<div class="x-row" style="justify-content:flex-start"><button class="x-btn ghost" id="acAll">Вернуть все цвета по умолчанию</button></div>'
+      + '<p class="x-sub" style="margin-top:14px">Цвет самого чата (строка в списке и окно чата) задаётся кнопкой 🎨 в шапке чата и одинаков у всех.</p></div>';
+    if (!ppl.length) loadPeople().then(function () { if (P.tab === "colors" && (T.people || []).length) paintColors(); });
+    $("acOn").onclick = function () { if (acOn()) ac._off = 1; else delete ac._off; acSave(); this.classList.toggle("on", acOn()); };
+    $("acAll").onclick = function () { Object.keys(ac).forEach(function (k) { if (k !== "_off") delete ac[k]; }); acSave(); paintColors(); toast("Цвета сброшены"); };
+    $("acList").onclick = function (e) {
+      var r = e.target.closest("[data-acu]"); if (!r) return;
+      var k = r.dataset.acu.toLowerCase(), b = e.target.closest("[data-ac]");
+      if (b) ac[k] = b.dataset.ac; else if (e.target.closest("[data-acreset]")) delete ac[k]; else return;
+      acSave(); paintColors();
     };
   }
   function resizePhoto(file, cb) {                                // квадрат 160×160, JPEG — небольшой, хранится на сервере
@@ -743,92 +967,24 @@
       + '<div class="x-field"><label>Текущий PIN</label><input type="password" id="pOld" inputmode="numeric" maxlength="8"></div><div class="x-field"><label>Новый PIN (4–8 цифр)</label><input type="password" id="pNew" inputmode="numeric" maxlength="8"></div><div class="x-field"><label>Повторите новый PIN</label><input type="password" id="pNew2" inputmode="numeric" maxlength="8"></div><div class="x-err" id="pErr"></div><button class="x-btn primary" id="pGo">Сменить PIN</button></div>';
     $("pGo").onclick = function () {
       if ($("pNew").value !== $("pNew2").value) { $("pErr").textContent = "Новые PIN не совпадают"; return; }
-      C.call("/me/pin", { body: { old: $("pOld").value, new: $("pNew").value } }).then(function () { C.me = null; try { localStorage.removeItem("mpb_session"); } catch (e) {} toast("PIN изменён — войдите заново"); renderMe(); }).catch(function (e) { $("pErr").textContent = String(e); });
+      C.call("/me/pin", { body: { old: $("pOld").value, new: $("pNew").value } }).then(function () { C.me = null; try { localStorage.removeItem("ds_session"); } catch (e) {} toast("PIN изменён — войдите заново"); renderMe(); }).catch(function (e) { $("pErr").textContent = String(e); });
     };
   }
-  var ROLE_NAMES = { admin: "Руководитель", user: "Сотрудник", engineer: "Инженер ТО" };
-  function roleOptions(cur) { return Object.keys(ROLE_NAMES).map(function (k) { return '<option value="' + k + '"' + (k === cur ? " selected" : "") + ">" + ROLE_NAMES[k] + "</option>"; }).join(""); }
   function paintStaff() {
     var body = $("meBody"); body.innerHTML = '<div class="x-panel"><div class="x-empty">Загрузка…</div></div>';
     C.call("/admin/users").then(function (us) {
-      body.innerHTML = '<div class="x-two"><div class="x-panel" id="stList">' + us.map(function (u) { return '<div class="x-urow">' + ava(u.name) + "<div><b>" + E(u.name) + "</b><small>" + (ROLE_NAMES[u.role] || "Сотрудник").replace(/^./, function (c) { return c.toLowerCase(); }) + (u.tg ? " · Telegram" : "") + (u.active ? "" : " · отключён") + '</small></div><div class="acts"><button class="x-btn ghost" style="padding:7px 12px" data-pin="' + u.id + '">Сбросить PIN</button><select class="x-rolesel" data-role="' + u.id + '" title="Роль">' + roleOptions(u.role) + '</select><button class="x-sw ' + (u.active ? "on" : "") + '" data-act="' + u.id + '" title="Доступ"></button></div></div>'; }).join("") + "</div>"
-        + '<div class="x-sticky"><div class="x-panel pad"><h3>Новый сотрудник</h3><p class="x-sub">PIN сообщите сотруднику лично</p><div class="x-field"><label>Имя</label><input type="text" id="nName"></div><div class="x-field"><label>PIN (4–8 цифр)</label><input type="password" id="nPin" inputmode="numeric" maxlength="8"></div><div class="x-field"><label>Роль</label><select id="nRole">' + roleOptions("user") + '</select></div><p class="x-sub" style="margin-top:-4px">Инженер ТО видит только «ТО МПБ» и чат «Техническое обслуживание». Объекты ТО ему открывает PIN специалиста в самой вкладке ТО.</p><div class="x-err" id="nErr"></div><button class="x-btn primary" id="nAdd">' + ic("plus") + "Добавить</button></div></div></div>";
-      $("nAdd").onclick = function () { C.call("/admin/users", { body: { name: $("nName").value, pin: $("nPin").value, role: $("nRole").value } }).then(function () { toast("Сотрудник добавлен"); paintStaff(); }).catch(function (e) { $("nErr").textContent = String(e); }); };
-      body.querySelectorAll("[data-act]").forEach(function (b) { b.onclick = function () { var on = !b.classList.contains("on"); C.call("/admin/users/" + b.dataset.act + "/active", { body: { active: on } }).then(paintStaff).catch(function (e) { toast(String(e)); }); }; });
-      body.querySelectorAll("[data-role]").forEach(function (b) { b.onchange = function () { C.call("/admin/users/" + b.dataset.role + "/role", { body: { role: b.value } }).then(function () { toast("Роль изменена"); paintStaff(); }).catch(function (e) { toast(String(e)); paintStaff(); }); }; });
+      body.innerHTML = '<div class="x-two"><div class="x-panel" id="stList">' + us.map(function (u) { return '<div class="x-urow">' + ava(u.name) + "<div><b>" + E(u.name) + "</b><small>" + (POS_TITLE[u.position] || "роль не назначена") + (u.tg ? " · Telegram" : "") + (u.active ? "" : " · отключён") + '</small></div><div class="acts"><button class="x-btn ' + (u.executor ? "primary" : "ghost") + '" style="padding:7px 12px" data-exe="' + u.id + '" data-on="' + (u.executor ? 1 : 0) + '" title="Можно назначать исполнителем проектов и показывать в «Занятости»">' + (u.executor ? "✓ Исполнитель" : "Исполнитель") + '</button><button class="x-btn ghost" style="padding:7px 12px" data-pin="' + u.id + '">Сбросить PIN</button><select data-pos="' + u.id + '" style="border:1px solid var(--line);border-radius:10px;padding:6px 8px;background:var(--surface);color:var(--ink)">' + (u.position ? "" : '<option value="">— роль —</option>') + Object.keys(POS_TITLE).map(function (k) { return '<option value="' + k + '"' + (u.position === k ? " selected" : "") + ">" + POS_TITLE[k] + "</option>"; }).join("") + '</select><button class="x-sw ' + (u.active ? "on" : "") + '" data-act="' + u.id + '" title="Доступ"></button></div></div>'; }).join("") + "</div>"
+        + '<div class="x-sticky"><div class="x-panel pad"><h3>Новый сотрудник</h3><p class="x-sub">PIN сообщите сотруднику лично</p><div class="x-field"><label>Имя</label><input type="text" id="nName"></div><div class="x-field"><label>Роль в CRM</label><select id="nPos">' + Object.keys(POS_TITLE).map(function (k) { return '<option value="' + k + '"' + (k === "designer" ? " selected" : "") + ">" + POS_TITLE[k] + "</option>"; }).join("") + '</select></div><div class="x-field"><label>PIN (4–8 цифр)</label><input type="password" id="nPin" inputmode="numeric" maxlength="8"></div><div class="x-err" id="nErr"></div><button class="x-btn primary" id="nAdd">' + ic("plus") + "Добавить</button></div></div></div>";
+      $("nAdd").onclick = function () { C.call("/admin/users", { body: { name: $("nName").value, pin: $("nPin").value, role: $("nPos").value === "owner" ? "admin" : "user", position: $("nPos").value } }).then(function () { toast("Сотрудник добавлен"); paintStaff(); }).catch(function (e) { $("nErr").textContent = String(e); }); };
+      body.querySelectorAll("[data-exe]").forEach(function (b) { b.onclick = function () { C.call("/admin/users/" + b.dataset.exe + "/executor", { body: { on: b.dataset.on !== "1" } }).then(function () { toast("Сохранено"); paintStaff(); }).catch(function (e) { toast(E(e)); }); }; });
+      body.querySelectorAll("[data-act]").forEach(function (b) { b.onclick = function () { var on = !b.classList.contains("on"); C.call("/admin/users/" + b.dataset.act + "/active", { body: { active: on } }).then(paintStaff).catch(function (e) { toast(E(e)); }); }; });
+      body.querySelectorAll("[data-pos]").forEach(function (s) { s.onchange = function () { if (!s.value) return; C.call("/admin/users/" + s.dataset.pos + "/position", { body: { position: s.value } }).then(function () { toast("Роль изменена"); paintStaff(); }).catch(function (e) { toast(E(e)); paintStaff(); }); }; });
       body.querySelectorAll("[data-pin]").forEach(function (b) {
         b.onclick = function () {
           xmodal('<h3>Сбросить PIN</h3><p class="x-sub">Новый PIN сотрудника (4–8 цифр). Он будет разлогинен на всех устройствах.</p><div class="x-field"><input type="password" id="rPin" class="x-pin" inputmode="numeric" maxlength="8"></div><div class="x-err" id="rErr"></div><div class="x-row"><button class="x-btn ghost" onclick="MPBT.closeModal()">Отмена</button><button class="x-btn primary" id="rGo">Сохранить</button></div>');
           $("rGo").onclick = function () { C.call("/admin/users/" + b.dataset.pin + "/pin", { body: { pin: $("rPin").value } }).then(function () { T.closeModal(); toast("PIN обновлён"); }).catch(function (e) { $("rErr").textContent = String(e); }); };
         };
       });
-    }).catch(function (e) { body.innerHTML = '<div class="x-panel"><div class="x-empty">' + E(e) + "</div></div>"; });
-  }
-
-  /* ---------- «Данные» (руководитель): где хранятся задачи, реестр и ТО; перенос из Google-таблицы; копии базы ---------- */
-  function paintData() {
-    var body = $("meBody"); body.innerHTML = '<div class="x-panel"><div class="x-empty">Загрузка…</div></div>';
-    Promise.all([C.call("/admin/storage"), C.call("/admin/backups").catch(function () { return []; })]).then(function (r) {
-      var st = r[0], bk = r[1], c = st.counts || {}, m = st.migrated, moved = st.mode === "bridge";
-      var kb = function (n) { return Math.max(1, Math.round(n / 1024)).toLocaleString("ru-RU") + " КБ"; };
-      var info = moved
-        ? '<p class="x-sub">Задачи, реестр КП и клиенты хранятся <b>в CRM</b> (база на сервере). Google-таблица больше не используется для работы.</p>'
-          + '<div class="pf-pills"><span>Задач: ' + c.tasks + "</span><span>В архиве: " + c.archived + "</span><span>Заявок: " + c.leads + "</span><span>Клиентов с ИНН: " + c.clients + "</span><span>ТО: " + (st.to === "bridge" ? "в CRM" : "в таблице") + "</span></div>"
-          + (m ? '<p class="x-sub" style="margin-top:10px">Перенесено ' + E(when(m.ts)) + " · " + E(m.by || "") + "</p>" : "")
-        : '<p class="x-sub">Сейчас задачи, реестр КП и ТО хранятся <b>в Google-таблице</b>. Перенос забирает всё в CRM; таблица при этом не меняется и остаётся архивом на дату переноса.</p>';
-      var pinField = function (id, ph) { return '<div class="x-field"><label>PIN руководителя вкладки «ТО МПБ»</label><input type="password" id="' + id + '" class="x-pin" inputmode="numeric" maxlength="8" placeholder="' + ph + '"></div>'; };
-      var again = !moved && m;                                 // работали в CRM, затем аварийно вернулись к таблице
-      var mig = moved ? "" : '<div class="x-panel pad" style="margin-top:12px"><h3>' + (again ? "Снова перейти в CRM" : "Перенести данные из таблицы") + "</h3>"
-        + (again
-          ? '<p class="x-sub">После возврата к таблице работали в ней. «Вернуться к данным CRM» — продолжить с тем, что было в CRM (правки в таблице после возврата не попадут). «Перенести заново» — взять задачи и реестр из таблицы (правки в CRM до возврата пропадут). ТО остаётся как есть.</p>'
-            + '<div class="x-err" id="dErr"></div><div class="x-row" style="justify-content:flex-start"><button class="x-btn primary" id="dResume">Вернуться к данным CRM</button><button class="x-btn ghost" id="dGo">Перенести заново из таблицы</button></div></div>'
-          : '<p class="x-sub">Перед переносом сервер сделает копию базы. Попросите сотрудников не вносить изменения несколько минут — после переноса у всех страница обновится сама.</p>'
-            + (st.to_pin_set || st.to === "bridge" ? "" : pinField("dToPin", "можно оставить пустым — ТО останется в таблице"))
-            + '<div class="x-err" id="dErr"></div><button class="x-btn primary" id="dGo">Перенести из таблицы</button></div>');
-      var toMig = moved && st.to !== "bridge" ? '<div class="x-panel pad" style="margin-top:12px"><h3>Перенести график ТО</h3><p class="x-sub">Задачи и реестр уже в CRM, а «ТО МПБ» пока в таблице. Задачи и реестр это не затронет.</p>'
-        + (st.to_pin_set ? "" : pinField("dTo2Pin", "PIN руководителя, не специалиста"))
-        + '<div class="x-err" id="dToErr"></div><button class="x-btn primary" id="dToGo">Перенести ТО</button></div>' : "";
-      var cut = moved && st.truncated ? '<div class="x-panel pad" style="margin-top:12px"><h3>Длинные тексты</h3><p class="x-sub">При переносе ' + st.truncated + ' комментариев/описаний длиннее 2000 символов могли обрезаться. Полный текст есть в старых листах таблицы — его можно дочитать (правки, сделанные в CRM, не затрагиваются).</p><div class="x-err" id="dCutErr"></div><button class="x-btn primary" id="dCut">Восстановить полный текст</button></div>' : "";
-      var back = moved ? '<div class="x-panel pad" style="margin-top:12px"><h3>Аварийно</h3><p class="x-sub">Вернуть работу в Google-таблицу. Данные в CRM сохранятся, но изменения, сделанные после переноса, в таблице не появятся.</p><button class="x-btn ghost" id="dBack">Вернуться к таблице</button></div>' : "";
-      body.innerHTML = '<div class="x-two"><div><div class="x-panel pad"><h3>Где данные</h3>' + info + "</div>" + mig + toMig + cut + back + "</div>"
-        + '<div class="x-sticky"><div class="x-panel pad"><h3>Копии базы</h3><p class="x-sub">Сервер делает копию раз в сутки и хранит последние 14</p>'
-        + (bk.length ? bk.slice(0, 6).map(function (b) { return '<div class="x-urow"><div><b>' + E(when(b.ts)) + "</b><small>" + E(b.name) + " · " + kb(b.size) + "</small></div></div>"; }).join("") : '<div class="x-empty">Копий пока нет</div>')
-        + '<button class="x-btn ghost" id="dBk" style="margin-top:10px">Сделать копию сейчас</button></div></div></div>';
-      $("dBk").onclick = function () { this.disabled = true; C.call("/admin/backups", { body: {} }).then(function () { toast("Копия базы сделана"); paintData(); }).catch(function (e) { toast(String(e)); paintData(); }); };
-      if ($("dGo")) $("dGo").onclick = function () {
-        var q = again ? "Перенести задачи и реестр из таблицы заново? Всё, что было изменено в CRM до возврата к таблице, будет заменено данными таблицы."
-          : "Перенести задачи, реестр КП, клиентов" + (st.to_pin_set || ($("dToPin") && $("dToPin").value) ? " и ТО" : "") + " из Google-таблицы в CRM?\n\nПосле этого все работают только в CRM.";
-        if (!confirm(q)) return;
-        var go = $("dGo"), label = go.textContent; go.disabled = true; go.textContent = "Переношу… (до минуты)"; $("dErr").textContent = "";
-        C.call("/admin/migrate", { body: { force: !!again, to_pin: $("dToPin") ? $("dToPin").value.trim() : "" } }).then(function (res) {
-          var t = res.to || {};
-          alert("Перенесено: задач " + res.tasks + ", заявок " + res.leads + ", клиентов " + res.clients
-            + (t.moved ? ", объектов ТО " + t.objects + (t.pins === "kept" ? " (PIN вкладки ТО прежние)" : ". PIN специалистов и бухгалтера ТО задайте заново во вкладке «ТО МПБ → Специалисты»") : ". График ТО остался в таблице")
-            + ".\nКопия базы до переноса: " + res.backup + "\n\nСтраница обновится.");
-          location.reload();
-        }).catch(function (e) { go.disabled = false; go.textContent = label; $("dErr").textContent = String(e); });
-      };
-      if ($("dResume")) $("dResume").onclick = function () {
-        if (!confirm("Вернуться к данным CRM? Правки, сделанные в таблице после возврата, в CRM не попадут.")) return;
-        C.call("/admin/storage", { body: { mode: "bridge" } }).then(function () { location.reload(); }).catch(function (e) { $("dErr").textContent = String(e); });
-      };
-      if ($("dToGo")) $("dToGo").onclick = function () {
-        var b = this; b.disabled = true; $("dToErr").textContent = "";
-        C.call("/admin/migrate-to", { body: { to_pin: $("dTo2Pin") ? $("dTo2Pin").value.trim() : "" } }).then(function (res) {
-          var t = res.to || {};
-          alert("График ТО перенесён: объектов " + t.objects + (t.pins === "kept" ? " (PIN вкладки ТО прежние)" : ". PIN специалистов и бухгалтера задайте заново во вкладке «ТО МПБ → Специалисты»") + ".");
-          location.reload();
-        }).catch(function (e) { b.disabled = false; $("dToErr").textContent = String(e); });
-      };
-      if ($("dCut")) $("dCut").onclick = function () {
-        var b = this; b.disabled = true; b.textContent = "Восстанавливаю…"; $("dCutErr").textContent = "";
-        C.call("/admin/restore-text", { body: {} }).then(function (r) { toast("Восстановлено текстов: " + r.fixed); paintData(); })
-          .catch(function (e) { b.disabled = false; b.textContent = "Восстановить полный текст"; $("dCutErr").textContent = String(e); });
-      };
-      if ($("dBack")) $("dBack").onclick = function () {
-        if (!confirm("Вернуть работу в Google-таблицу? Изменения, сделанные в CRM после переноса, в таблице НЕ появятся.")) return;
-        C.call("/admin/storage", { body: { mode: "sheet" } }).then(function () { location.reload(); }).catch(function (e) { toast(String(e)); });
-      };
     }).catch(function (e) { body.innerHTML = '<div class="x-panel"><div class="x-empty">' + E(e) + "</div></div>"; });
   }
 

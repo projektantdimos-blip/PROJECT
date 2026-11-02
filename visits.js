@@ -1,10 +1,12 @@
 /* Проекты DS — «Выезды» (мост: /api/ds/visits). Список по дате, сверху выезды без материалов; карточка выезда справа.
    Выезд всегда привязан к задаче: в карточке — её папка на сервере и система для проектирования.
    Кто едет — по городу (Кемерово — Иван, Санкт-Петербург — руководитель), иначе выбирают вручную.
+   Планировки для обследования (PDF, JPEG) прикладывает тот, кто назначает: в форме выезда и в карточке.
    «Выполнен» — только с материалами (фото, ТЗ обследования). В карточке заказа — блок «Выезды» (DSV.panel). */
 (function () {
   "use strict";
-  var V = window.DSV = { meta: null, data: null, month: "", who: "", tab: "all", sel: 0, form: null, err: "", busy: false, extra: null, up: "" };
+  var V = window.DSV = { meta: null, data: null, month: "", who: "", tab: "all", sel: 0, form: null, err: "", busy: false, extra: null, up: "", upKind: "" };
+  var PLAN_OK = /\.(pdf|jpe?g)$/i, PLAN_ACCEPT = ".pdf,.jpg,.jpeg,application/pdf,image/jpeg";
   var VIEW = ["owner", "ops", "sales", "design"];
   var KIND_COL = { survey: "#0F6E56", supervision: "#BA7517", handover: "#2f6fbd", other: "#888780" };
   var MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
@@ -192,7 +194,11 @@
       + (own ? '<div class="vz-add"><input id="vzTake" placeholder="Добавить: что взять с собой"><button class="btn ghost sm" data-vtakeadd="1">+</button></div>' : "");
     var files = (v.files || []).length
       ? '<div class="vz-files">' + v.files.map(function (f) { return '<button class="vz-fl" data-vfile="' + f.id + '" title="Скачать · ' + E(f.by_name) + '">📎 <span>' + E(f.name) + "</span>" + (own ? '<em data-vfdel="' + f.id + '" title="Удалить">✕</em>' : "") + "</button>"; }).join("") + "</div>" : "";
-    var drop = own && v.state !== "cancel" ? '<label class="vz-drop" id="vzDrop"><input type="file" id="vzFiles" multiple hidden>' + (V.up ? "Загружаю " + E(V.up) : "Перетащите сюда фото и ТЗ обследования или нажмите, чтобы выбрать") + "</label>" : "";
+    var drop = own && v.state !== "cancel" ? '<label class="vz-drop" id="vzDrop"><input type="file" id="vzFiles" multiple hidden>' + (V.up && V.upKind === "result" ? "Загружаю " + E(V.up) : "Перетащите сюда фото и ТЗ обследования или нажмите, чтобы выбрать") + "</label>" : "";
+    var plans = (v.plans || []).length
+      ? '<div class="vz-files">' + v.plans.map(function (f) { return '<button class="vz-fl" data-vfile="' + f.id + '" title="Скачать · ' + E(f.by_name) + '">🗺 <span>' + E(f.name) + "</span>" + (ed ? '<em data-vfdel="' + f.id + '" title="Удалить">✕</em>' : "") + "</button>"; }).join("") + "</div>"
+      : ed ? "" : '<div class="vz-hint">Планировок не приложили</div>';
+    var planDrop = ed && v.state !== "cancel" ? '<label class="vz-drop" id="vzPlanDrop"><input type="file" id="vzPlanFiles" multiple accept="' + PLAN_ACCEPT + '" hidden>' + (V.up && V.upKind === "plan" ? "Загружаю " + E(V.up) : "Перетащите планировки (PDF или JPEG) или нажмите, чтобы выбрать") + "</label>" : "";
     var exp = (v.expenses || []).map(function (x, i) { return "<span>" + E(x.name) + "</span><span class=\"r\">" + money(x.sum) + "</span><span>" + (own ? '<em data-vexpdel="' + i + '" title="Удалить">✕</em>' : "") + "</span>"; }).join("");
     var plan = ed ? '<input id="vzPlan" type="number" min="0" step="100" value="' + (v.plan_cost || 0) + '" style="width:90px;border:1px solid var(--line);border-radius:8px;padding:3px 6px;text-align:right;background:var(--surface)">' : money(v.plan_cost);
     var money2 = '<div class="vz-money">' + exp + '<span class="tot">Итого факт</span><span class="r tot">' + money(v.fact) + '</span><span class="tot"></span><span>Заложено в КП</span><span class="r">' + plan + "</span><span></span></div>"
@@ -211,6 +217,7 @@
       + "<dt>На объекте</dt><dd>" + E(v.contact || "—") + (v.phone ? '<br><a href="tel:' + E(v.phone.replace(/[^\d+]/g, "")) + '">' + E(v.phone) + "</a>" : "") + "</dd>"
       + "<dt>Задача</dt><dd>" + ord + "</dd>" + "<dt>Система</dt><dd>" + (v.system ? "<b>" + E(v.system) + "</b>" : '<span style="color:var(--muted)">не указана</span>') + "</dd>"
       + (v.goal ? "<dt>Цель</dt><dd>" + E(v.goal) + "</dd>" : "") + "</dl>" + folder(v)
+      + '<div class="vz-sec"><div class="h">Планировки для обследования <span>PDF, JPEG</span></div>' + plans + planDrop + "</div>"
       + '<div class="vz-sec"><div class="h">Взять с собой</div>' + (take || '<div class="vz-hint">—</div>') + "</div>"
       + '<div class="vz-sec"><div class="h">Материалы <span>' + (v.state === "done" ? "выезд закрыт" : "обязательно для закрытия") + "</span></div>" + files + drop + "</div>"
       + '<div class="vz-sec"><div class="h">Расходы</div>' + money2 + "</div>"
@@ -266,6 +273,8 @@
       + '<div class="vz-f2"><div class="fld"><label>Дата</label><input id="vfDay" type="date" value="' + E(f.day) + '"></div><div class="fld"><label>Время</label><input id="vfTm" type="time" value="' + E(f.tm) + '"></div></div>'
       + '<div class="vz-f2"><div class="fld"><label>Контакт на объекте</label><input id="vfCont" value="' + E(f.contact) + '" placeholder="Сергей, прораб"></div><div class="fld"><label>Телефон</label><input id="vfPhone" value="' + E(f.phone) + '" placeholder="+7 …"></div></div>'
       + '<div class="fld"><label>Цель</label><textarea id="vfGoal" placeholder="Обследование для проекта СПС, СОУЭ: 2 этаж, 3 200 м²">' + E(f.goal) + "</textarea></div>"
+      + (f.id ? "" : '<div class="fld"><label>Планировки для обследования (PDF, JPEG)</label><input type="file" id="vfPlans" multiple accept="' + PLAN_ACCEPT + '">'
+        + ((f.planFiles || []).length ? '<div class="vz-files" style="margin-top:6px">' + f.planFiles.map(function (x, i) { return '<span class="vz-fl">🗺 <span>' + E(x.name) + '</span><em data-vfpdel="' + i + '" title="Убрать">✕</em></span>'; }).join("") + "</div>" : "") + "</div>")
       + '<div class="vz-f2"><div class="fld"' + (f.kind === "supervision" ? "" : ' style="display:none"') + '><label>Надзор: всего выездов</label><input id="vfSup" type="number" min="0" value="' + (f.sup_total || "") + '" placeholder="по договору"></div>'
       + '<div class="fld"><label>Заложено в КП, ₽</label><input id="vfPlan" type="number" min="0" step="100" value="' + E(f.plan_cost) + '" placeholder="' + (f.id ? "0" : "из КП") + '"></div></div>'
       + (V.err ? '<div class="vz-note bad">' + E(V.err) + "</div>" : "")
@@ -295,6 +304,7 @@
       V.busy = false; V.form = null; V.sel = v.id;
       if (V.month !== v.day.slice(0, 7) && v.day < today()) V.month = v.day.slice(0, 7);
       put(v); toast(f.id ? "Выезд изменён" : "Выезд назначен: " + (v.executor || "")); paint();
+      if ((f.planFiles || []).length) sendFiles(f.planFiles, "plan");      // планировки — сразу к новому выезду
     }, function (e) { V.busy = false; V.err = String(e); paint(); });
   }
 
@@ -313,13 +323,15 @@
         var n = tabCount(t[0]); return '<button class="' + (V.tab === t[0] ? "on" : "") + '" data-vtab="' + t[0] + '">' + t[1] + '<span class="' + (t[0] === "need" && n ? "bad" : "") + '">' + n + "</span></button>";
       }).join("") + "</div>"
       + '<div class="vz-wrap' + (dr ? " dr" : "") + '"><section class="vz-list">' + groups() + "</section>" + dr + "</div></div>";
-    var drop = document.getElementById("vzDrop"), inp = document.getElementById("vzFiles");
-    if (inp) inp.onchange = function () { sendFiles(inp.files); };
-    if (drop) {
-      drop.ondragover = function (e) { e.preventDefault(); drop.classList.add("on"); };
-      drop.ondragleave = function () { drop.classList.remove("on"); };
-      drop.ondrop = function (e) { e.preventDefault(); drop.classList.remove("on"); sendFiles(e.dataTransfer.files); };
-    }
+    [["vzDrop", "vzFiles", "result"], ["vzPlanDrop", "vzPlanFiles", "plan"]].forEach(function (x) {
+      var drop = document.getElementById(x[0]), inp = document.getElementById(x[1]);
+      if (inp) inp.onchange = function () { sendFiles(inp.files, x[2]); };
+      if (drop) {
+        drop.ondragover = function (e) { e.preventDefault(); drop.classList.add("on"); };
+        drop.ondragleave = function () { drop.classList.remove("on"); };
+        drop.ondrop = function (e) { e.preventDefault(); drop.classList.remove("on"); sendFiles(e.dataTransfer.files, x[2]); };
+      }
+    });
     var pl = document.getElementById("vzPlan");
     if (pl) pl.onchange = function () { edit({ plan_cost: +pl.value || 0 }); };
   }
@@ -328,18 +340,22 @@
     var v = byId(V.sel); if (!v) return;
     api("/" + v.id + "/edit", body).then(function (nv) { put(nv); paint(); }, function (e) { toast(String(e)); });
   }
-  function sendFiles(list) {
+  function sendFiles(list, kind) {
     var v = byId(V.sel), files = Array.prototype.slice.call(list || []);
     if (!v || !files.length || V.up) return;
+    if (kind === "plan") {
+      var bad = files.filter(function (f) { return !PLAN_OK.test(f.name); });
+      if (bad.length) { toast("Планировки — только PDF или JPEG: " + bad.map(function (f) { return f.name; }).join(", ")); return; }
+    }
     var toks = [], i = 0;
     var next = function () {
       if (i >= files.length) return Promise.resolve();
       var f = files[i++];
-      return C().upload(f, f.name, function (pc) { V.up = f.name + " — " + pc + "%" + (files.length > 1 ? " (" + i + " из " + files.length + ")" : ""); var d = document.getElementById("vzDrop"); if (d) d.lastChild.textContent = "Загружаю " + V.up; })
+      return C().upload(f, f.name, function (pc) { V.up = f.name + " — " + pc + "%" + (files.length > 1 ? " (" + i + " из " + files.length + ")" : ""); var d = document.getElementById(kind === "plan" ? "vzPlanDrop" : "vzDrop"); if (d) d.lastChild.textContent = "Загружаю " + V.up; })
         .then(function (t) { toks.push(t); return next(); });
     };
-    V.up = files[0].name; paint();
-    next().then(function () { return api("/" + v.id + "/files", { uploads: toks }); })
+    V.up = files[0].name; V.upKind = kind; paint();
+    next().then(function () { return api("/" + v.id + "/files", { uploads: toks, kind: kind }); })
       .then(function (nv) { V.up = ""; put(nv); toast(files.length > 1 ? "Файлы загружены" : "Файл загружен"); paint(); }, function (e) { V.up = ""; toast(String(e)); paint(); });
   }
   function download(fid) {
@@ -352,7 +368,7 @@
   document.addEventListener("click", function (e) {
     var el = root();
     if (!el || !el.contains(e.target)) return;
-    var b = e.target.closest("[data-vsel],[data-vwho],[data-vtab],[data-vmon],[data-vnew],[data-vclose],[data-vsave],[data-vedit],[data-vstatus],[data-vdel],[data-vfile],[data-vfdel],[data-vtakeadd],[data-vexpadd],[data-vexpdel]");
+    var b = e.target.closest("[data-vfpdel],[data-vsel],[data-vwho],[data-vtab],[data-vmon],[data-vnew],[data-vclose],[data-vsave],[data-vedit],[data-vstatus],[data-vdel],[data-vfile],[data-vfdel],[data-vtakeadd],[data-vexpadd],[data-vexpdel]");
     if (!b) return;
     var d = b.dataset, v = byId(V.sel);
     if (d.vfdel != null) {
@@ -394,6 +410,7 @@
       edit({ expenses: (v.expenses || []).concat([{ name: n.trim(), sum: s }]) });
       return;
     }
+    if (d.vfpdel != null && V.form) { readForm(); V.form.planFiles.splice(+d.vfpdel, 1); paint(); return; }
     if (d.vexpdel != null && v) { edit({ expenses: (v.expenses || []).filter(function (x, i) { return i !== +d.vexpdel; }) }); return; }
   });
   document.addEventListener("change", function (e) {
@@ -402,6 +419,13 @@
     var t = e.target, v = byId(V.sel);
     if (t.hasAttribute("data-vtake") && v) { var i = +t.getAttribute("data-vtake"); edit({ take: (v.take || []).map(function (x, j) { return j === i ? { t: x.t, done: t.checked } : x; }) }); return; }
     if (t.hasAttribute("data-vexec") && v) { edit({ executor_id: +t.value }); return; }
+    if (V.form && t.id === "vfPlans") {
+      readForm();
+      var picked = Array.prototype.slice.call(t.files || []), bad = picked.filter(function (f) { return !PLAN_OK.test(f.name); });
+      if (bad.length) toast("Пропущены — не PDF и не JPEG: " + bad.map(function (f) { return f.name; }).join(", "));
+      V.form.planFiles = (V.form.planFiles || []).concat(picked.filter(function (f) { return PLAN_OK.test(f.name); }));
+      paint(); return;
+    }
     if (V.form && (t.id === "vfKind" || t.id === "vfCity" || t.id === "vfLink" || t.id === "vfExec")) {
       readForm();
       paint();
