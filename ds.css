@@ -1030,6 +1030,7 @@
 .sp-noterow{display:flex;gap:8px;align-items:center;justify-content:flex-end}
 .sp-noterow select{border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--ink);padding:6px 8px}
 .sp-b.sm{flex:none;padding:7px 12px;font-size:.84rem}
+.sp-mic{position:fixed;left:50%;transform:translateX(-50%);top:14px;z-index:10001;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 24px);background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:10px 12px;box-shadow:0 8px 28px rgba(0,0,0,.18);font-size:.9rem}
 .sp-b:disabled{opacity:.6;cursor:default}
 .sp-win.min .sp-top .sp-who small{display:none}
 .sp-win.talk{border-color:var(--ok)}

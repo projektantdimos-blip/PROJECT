@@ -129,7 +129,7 @@
         SP.host = host;
         var ua = new JsSIP.UA({ sockets: [new JsSIP.WebSocketInterface(sp.wss)], uri: "sip:" + sp.user + "@" + host, password: sp.password,
           display_name: sp.name || "", register: true, session_timers: false, user_agent: "DS-CRM" });
-        ua.on("registered", function () { SP.ready = true; SP.state = "ok"; spDot(); });
+        ua.on("registered", function () { SP.ready = true; SP.state = "ok"; spDot(); micCheck(); });
         ua.on("unregistered", function () { SP.ready = false; SP.state = "off"; spDot(); });
         ua.on("registrationFailed", function (e) { SP.ready = false; SP.state = "fail"; SP.why = e.cause || ""; spDot(); });
         ua.on("disconnected", function () { SP.ready = false; SP.state = "fail"; SP.why = "нет связи со шлюзом"; spDot(); });
@@ -148,6 +148,23 @@
   /* звонилка поднимается у тех, у кого есть внутренний номер и линия подключена к шлюзу (спрашиваем мост один раз за вход) */
   setInterval(function () { if (T.enabled && C.loggedIn() && !SP.ua && !SP.none) spStart(); }, 3000);
   function spDot() { document.body.classList.toggle("sp-on", !!SP.ready); var d = $("spState"); if (d) d.innerHTML = spStateText(); }
+  /* разрешение на микрофон — заранее, а не в момент «Ответить»: пока браузер спрашивает, Sipuni успевает увести звонок дальше по очереди */
+  function micCheck() {
+    if (SP.micAsked || !navigator.mediaDevices || !navigator.permissions) return;
+    navigator.permissions.query({ name: "microphone" }).then(function (p) {
+      if (p.state === "granted" || SP.micAsked) return;
+      SP.micAsked = true;
+      var bar = document.createElement("div"); bar.id = "spMic"; bar.className = "sp-mic";
+      bar.innerHTML = "<span>🎙 Чтобы принимать звонки в CRM, разрешите доступ к микрофону</span><button type=\"button\" class=\"sp-b ok sm\">Разрешить</button><button type=\"button\" class=\"sp-b sm\">Позже</button>";
+      document.body.appendChild(bar);
+      var bs = bar.querySelectorAll("button");
+      bs[0].onclick = function () {
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(function (st) { st.getTracks().forEach(function (t) { t.stop(); }); bar.remove(); toast("Микрофон разрешён — звонки можно принимать в CRM"); })
+          .catch(function () { toast("Браузер не дал доступ к микрофону — разрешите его в настройках сайта (значок замка в адресной строке)"); });
+      };
+      bs[1].onclick = function () { bar.remove(); };
+    }).catch(function () {});
+  }
   function spStateText() {
     return SP.state === "ok" ? '<span style="color:var(--ok)">● подключена</span> — «Позвонить» звонит прямо из CRM'
       : SP.state === "fail" ? '<span style="color:var(--bad)">● нет связи</span>' + (SP.why ? " (" + E(SP.why) + ")" : "") : "● не подключена";
@@ -246,6 +263,11 @@
   }
   function track(s, info) {
     SP.cur = s; callInfo(info); SP.t0 = 0; SP.state_call = info.dir === "in" ? "ringing-in" : "dialing"; SP.end = ""; SP.muted = false; SP.xfer = ""; SP.xferPick = false;
+    var iceT = null;                       // не ждём полного сбора ICE (бывает 10–40 с): хватает адреса через STUN или 1 с — иначе ответ не успевает до отмены
+    s.on("icecandidate", function (e) {
+      if (e.candidate && e.candidate.type === "srflx") { clearTimeout(iceT); e.ready(); }
+      else if (!iceT) iceT = setTimeout(e.ready, 1000);
+    });
     s.on("progress", function () { if (info.dir === "out") { SP.state_call = "ringing"; paintPhone(); } });
     s.on("accepted", function () { SP.state_call = "talk"; SP.t0 = Date.now(); ring(false); paintPhone(); });
     s.on("confirmed", function () { if (!SP.t0) SP.t0 = Date.now(); SP.state_call = "talk"; paintPhone(); });
@@ -278,7 +300,7 @@
     var name = x.customer || String(i.who || "").split(" · ")[0] || i.phone || "Неизвестный номер";
     var contact = x.contact || (String(i.who || "").split(" · ")[1] || "");
     var sub = [contact + (x.pos ? ", " + x.pos.toLowerCase() : ""), i.phone].filter(Boolean).join(" · ");
-    var head = (i.dir === "in" ? "↙ Входящий" : "↗ Исходящий") + (i.mode === "mobile" ? " · через ваш мобильный" : hk ? " · на вашем телефоне" : "") + (i.xfrom ? " · перевёл(а) " + i.xfrom : "");
+    var head = (i.dir === "in" ? "↙ Входящий" : "↗ Исходящий") + (i.mode === "mobile" ? " · через ваш мобильный" : hk ? (SP.ready ? " · ответьте в окне CRM, где звонит" : " · на вашем телефоне") : "") + (i.xfrom ? " · перевёл(а) " + i.xfrom : "");
     if (SP.xfer && st === "talk") label = "Переводим: " + SP.xfer + "…";
     var h = '<div class="sp-win ' + (talk ? "talk " : "") + st + (SP.min ? " min" : "") + '"><div class="sp-h"><span>' + E(head) + '</span><button type="button" data-sp="min" title="' + (SP.min ? "Развернуть" : "Свернуть") + '">' + (SP.min ? "▢" : "—") + "</button></div>"
       + '<div class="sp-top"><span class="sp-av">' + E(initials(name)) + '</span><div class="sp-who"><b>' + E(name) + "</b><small>" + E(sub) + '</small></div><div class="sp-st"><span>' + E(label) + "</span>" + timer + "</div></div>";
