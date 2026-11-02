@@ -2529,6 +2529,7 @@
   /* ---------- статистика руководителя ---------- */
   var MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
   function shiftMonth(m, n) { var y = +m.slice(0, 4), mm = +m.slice(5, 7) - 1 + n; y += Math.floor(mm / 12); mm = ((mm % 12) + 12) % 12; return y + "-" + ("0" + (mm + 1)).slice(-2); }
+  DS.statsMonth = function () { return S.st ? S.st.month : ""; };
   function loadStats() {
     if (!S.st) S.st = { month: isoDay(new Date()).slice(0, 7), data: null };
     return api("/stats?month=" + S.st.month).then(function (d) { S.st.data = d; S.err = ""; }, function (e) { S.st.data = null; S.err = String(e); });
@@ -2550,6 +2551,7 @@
     return '<div class="head"><div><h1>Статистика</h1><p>Закрытый кабинет руководителя: суммы и оплата из 1С, дни из отметок проектировщиков</p></div>'
       + '<div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg"><button data-stnav="-1">←</button><button class="on">' + MONTHS[mi] + " " + y + '</button><button data-stnav="1">→</button></div><button class="btn ghost" data-stcsv="1">' + ic("down") + "В Excel (CSV)</button></div></div>"
       + '<div class="rolebar" style="background:var(--warn-soft);color:var(--warn)">' + ic("lock") + "<span>Этот раздел виден только руководителю.</span></div>"
+      + (window.DSStats ? DSStats.html(d) : "")      /* «Деньги» и «Продажи» — stats.js */
       + '<div class="tiles">' + k("var(--brand)", d.totals.projects, "Проектов сдано") + k("var(--ok)", money(d.totals.sum), "Сумма сданных проектов")
       + k("var(--org)", d.kp.issued_n, "КП выставлено · " + money(d.kp.issued_sum)) + k("var(--accent)", d.kp.pct + "%", d.kp.paid_n + " оплачено · " + money(d.kp.paid_sum)) + "</div>"
       + '<div class="dsg21" style="margin-top:16px"><div class="panel"><div style="padding:18px 22px 0"><h3>Проектировщики за месяц</h3><p class="sub">Руководитель проектного отдела тоже проектирует</p></div>'
