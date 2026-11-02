@@ -172,9 +172,27 @@
   function fmtPhone(p) { var d = dialNum(p); return d.length === 11 && d[0] === "7" ? "+7 " + d.slice(1, 4) + " " + d.slice(4, 7) + "-" + d.slice(7, 9) + "-" + d.slice(9) : String(p || ""); }
   function dialNum(p) { var d = String(p || "").replace(/\D/g, ""); return d.length === 10 ? "7" + d : d.length === 11 && d[0] === "8" ? "7" + d.slice(1) : d; }
   var remote = new Audio(); remote.autoplay = true;
+  /* громкость: звонок (рингтон) и разговор — свои у каждого компьютера, хранятся в браузере */
+  var VOL = { ring: 0.5, talk: 1 };
+  try { var sv = JSON.parse(localStorage.getItem("ds_call_vol") || "{}"); if (sv.ring >= 0) VOL.ring = +sv.ring; if (sv.talk >= 0) VOL.talk = +sv.talk; } catch (e) {}
+  remote.volume = VOL.talk;
+  function volHtml(kind) {
+    var v = Math.round(VOL[kind] * 100);
+    return '<label class="sp-vol" title="' + (kind === "ring" ? "Громкость звонка" : "Громкость разговора") + '"><span>' + (kind === "ring" ? "🔔 Звонок" : "🔊 Разговор") + '</span><input type="range" min="0" max="100" step="5" data-vol="' + kind + '" value="' + v + '"><b data-volv="' + kind + '">' + v + "%</b></label>";
+  }
+  document.addEventListener("input", function (e) {
+    var k = e.target && e.target.getAttribute && e.target.getAttribute("data-vol");
+    if (!k) return;
+    VOL[k] = Math.max(0, Math.min(1, +e.target.value / 100));
+    if (k === "talk") remote.volume = VOL.talk;
+    document.querySelectorAll('[data-volv="' + k + '"]').forEach(function (b) { b.textContent = Math.round(VOL[k] * 100) + "%"; });
+    try { localStorage.setItem("ds_call_vol", JSON.stringify(VOL)); } catch (err) {}
+  });
+  document.addEventListener("change", function (e) { if (e.target && e.target.getAttribute && e.target.getAttribute("data-vol") === "ring" && !ringtone) beep(); });   // услышать новую громкость
   /* рингтон входящего — свой, через WebAudio: звучит, даже если звук уведомлений CRM выключен */
   var ringtone = null, actx = null;
   function beep() {
+    if (!VOL.ring) return;
     try {
       actx = actx || new (window.AudioContext || window.webkitAudioContext)();
       if (actx.state === "suspended") actx.resume();
@@ -183,7 +201,7 @@
         [[523, 0], [659, 0.17]].forEach(function (f) {
           var o = actx.createOscillator(), g = actx.createGain();
           o.type = "sine"; o.frequency.value = f[0];
-          g.gain.setValueAtTime(0.0001, t + d + f[1]); g.gain.exponentialRampToValueAtTime(0.25, t + d + f[1] + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + d + f[1] + 0.16);
+          g.gain.setValueAtTime(0.0001, t + d + f[1]); g.gain.exponentialRampToValueAtTime(0.5 * VOL.ring, t + d + f[1] + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + d + f[1] + 0.16);
           o.connect(g); g.connect(actx.destination); o.start(t + d + f[1]); o.stop(t + d + f[1] + 0.18);
         });
       });
@@ -214,7 +232,7 @@
   function attach(session) {
     var pc = session.connection;
     if (!pc) return;
-    pc.addEventListener("track", function (ev) { remote.srcObject = ev.streams[0]; remote.play().catch(function () {}); });
+    pc.addEventListener("track", function (ev) { remote.srcObject = ev.streams[0]; remote.volume = VOL.talk; remote.play().catch(function () {}); });
   }
   function opts() {
     return { mediaConstraints: { audio: true, video: false }, pcConfig: { iceServers: SP.info && SP.info.stun ? [{ urls: SP.info.stun }] : [] },
@@ -328,6 +346,7 @@
       : '<button type="button" class="sp-b" data-sp="mute">' + (SP.muted ? "🔇 Микрофон выкл." : "🎙 Микрофон") + "</button>"
         + (st === "talk" && team.length && !SP.xfer ? '<button type="button" class="sp-b" data-sp="xfer" title="Передать разговор коллеге">↪ Передать</button>' : "")
         + '<button type="button" class="sp-b no" data-sp="hang">Завершить</button>';
+    if (!SP.min && (st === "ringing-in" || st === "talk")) h += volHtml(st === "talk" ? "talk" : "ring");
     b.innerHTML = h + (SP.xferPick ? '<p class="sp-cap sp-xcap">Кому передать звонок?</p>' : "") + '<div class="sp-btns' + (SP.xferPick ? " sp-xfer" : "") + '">' + btns + "</div></div>";
     var ta = $("spNote");
     if (ta) {
@@ -528,7 +547,8 @@
       }
       h += '<div class="x-panel pad"><h3>Последние звонки</h3><p class="x-sub">' + (st.owner ? "Все звонки компании" : "Ваши звонки") + '</p><div class="calls-panel" style="margin-top:6px">' + rows(log) + "</div></div></div>";
       h += '<div class="x-sticky"><div class="x-panel pad"><h3>Мой номер</h3><p class="x-sub">' + (st.my_ext ? "Внутренний номер Sipuni: <b>" + E(st.my_ext) + "</b>" : "Внутренний номер не указан — его задаёт руководитель") + "</p>"
-        + (st.softphone ? '<p class="x-sub">Звонилка CRM: <span id="spState">' + spStateText() + "</span></p>" : "")
+        + (st.softphone ? '<p class="x-sub">Звонилка CRM: <span id="spState">' + spStateText() + "</span></p>"
+          + '<div class="sp-vols">' + volHtml("ring") + volHtml("talk") + '<button type="button" class="x-btn ghost" id="telRingTest" style="width:100%;justify-content:center">🔔 Проверить звонок</button></div>' : "")
         + (st.my_ext ? '<div class="x-field"><label>Мой мобильный — с телефона CRM звонит через него: отвечаете и говорите как по обычному телефону</label><input id="telMyMob" inputmode="tel" value="' + E(st.my_mobile || "") + '" placeholder="+7 …"></div><button class="x-btn ghost" id="telMyMobSave" style="width:100%;justify-content:center">Сохранить мобильный</button>' : "");
       if (st.owner) {
         var url = st.hook_path ? cfg().url + st.hook_path : "";
@@ -546,6 +566,7 @@
         };
       });
       if ($("telMyMobSave")) $("telMyMobSave").onclick = function () { api("/mobile", { phone: $("telMyMob").value.trim() }).then(function (st2) { T.st = st2; toast(st2.my_mobile ? "Мобильный сохранён" : "Мобильный убран"); T.paintMe(body); }).catch(function (e) { toast(String(e)); }); };
+      if ($("telRingTest")) $("telRingTest").onclick = function () { if (!VOL.ring) toast("Звук звонка выключен — сдвиньте ползунок «Звонок»"); else beep(); };
       if ($("telCopy")) $("telCopy").onclick = function () { var i = $("telHook"); i.select(); try { navigator.clipboard.writeText(i.value); } catch (e) { document.execCommand("copy"); } toast("Адрес скопирован"); };
       if ($("telPoll")) $("telPoll").onclick = function () { api("/poll", {}).then(function (r) { toast("Сверено: добавлено звонков — " + r.result.added); T.paintMe(body); }).catch(function (e) { toast(String(e)); }); };
     }).catch(function (e) { body.innerHTML = '<div class="x-panel"><div class="x-empty">' + E(e) + "</div></div>"; });
