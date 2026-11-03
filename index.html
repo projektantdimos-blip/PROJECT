@@ -513,6 +513,7 @@ globalRouter();
   <p>Адрес сервера проектной CRM и ключ доступа (BRIDGE_KEY из настроек сервера). Хранятся только в этом браузере. Обычно их вписывает администратор в файл config.js, и вводить ничего не нужно.</p>
   <label for="brUrl">Адрес сервера (https://…)</label><input id="brUrl" type="url" autocomplete="off" placeholder="https://ds-bridge.example.org">
   <label for="brKey">Ключ доступа</label><input id="brKey" type="password" autocomplete="off">
+  <div id="apiErr" style="color:#c0392b;font-size:13px;min-height:18px;margin-top:8px">Оставьте оба поля пустыми, чтобы взять настройки из config.js.</div>
   <div class="btns"><button type="button" id="apiCancel">Отмена</button><button type="button" class="ok" id="apiSave">Сохранить</button></div>
 </div></div>
 <script>
@@ -526,9 +527,26 @@ globalRouter();
   };
   document.getElementById("apiGear").onclick = openApiSettings;
   document.getElementById("apiCancel").onclick = function(){ m.classList.remove("on"); };
+  /* сохраняем, только если сервер по этому адресу принял ключ; совпадает с config.js или пусто — свои настройки не храним */
   document.getElementById("apiSave").onclick = function(){
-    try { localStorage.setItem("ds_bridge", JSON.stringify({ url: document.getElementById("brUrl").value.trim().replace(/\/+$/, ""), key: document.getElementById("brKey").value.trim() })); } catch(e){}
-    location.reload();
+    var d = window.DS_CONFIG || {}, du = String(d.url || "").replace(/\/+$/, ""), err = document.getElementById("apiErr");
+    var url = document.getElementById("brUrl").value.trim().replace(/\/+$/, ""), key = document.getElementById("brKey").value.trim();
+    function done(){
+      try {
+        if ((!url || url === du) && (!key || key === d.key)) localStorage.removeItem("ds_bridge");
+        else localStorage.setItem("ds_bridge", JSON.stringify({ url: url, key: key }));
+      } catch(e){}
+      location.reload();
+    }
+    if (!url && !key) return done();
+    var u = url || du, k = key || d.key;
+    if (!/^https?:\/\//i.test(u) || u.indexOf(location.origin) === 0 || /github\.io/i.test(u)) { err.textContent = "Это адрес сайта, а нужен адрес сервера CRM" + (du ? ": " + du : ""); return; }
+    if (!k) { err.textContent = "Введите ключ доступа"; return; }
+    err.textContent = "Проверяю подключение…";
+    fetch(u + "/api/crm/auth/users", { headers: { "X-Api-Key": k } }).then(function(r){
+      if (r.ok) return done();
+      err.textContent = r.status === 401 ? "Сервер не принял ключ — проверьте ключ доступа" : "Сервер ответил ошибкой " + r.status;
+    }, function(){ err.textContent = "Сервер не отвечает по этому адресу — проверьте адрес и интернет"; });
   };
   /* окно подключения открывается само только если сервер нигде не задан (ни в config.js, ни в этом браузере) */
   window.addEventListener("load", function(){
@@ -539,9 +557,25 @@ globalRouter();
 })();
 </script>
 <script src="config.js?v=20261031a"></script>
+<script>
+/* настройки подключения, сохранённые в браузере, важнее config.js: неверные сбрасываем, чтобы они не мешали входу */
+(function(){
+  var b = null, d = window.DS_CONFIG || {}, du = String(d.url || "").replace(/\/+$/, "");
+  try { b = JSON.parse(localStorage.getItem("ds_bridge") || "null"); } catch(e){ b = {}; }
+  if (!b) return;
+  function drop(){ try { localStorage.removeItem("ds_bridge"); } catch(e){} }
+  var url = String(b.url || "").replace(/\/+$/, "");
+  if (url && (!/^https?:\/\//i.test(url) || url.indexOf(location.origin) === 0 || /github\.io/i.test(url))) return drop();   // вписан адрес сайта
+  if ((!url || url === du) && (!b.key || b.key === d.key)) return drop();                                                    // то же, что в config.js
+  if (!du || !d.key || !b.key || b.key === d.key) return;
+  fetch((url || du) + "/api/crm/auth/users", { headers: { "X-Api-Key": b.key } }).then(function(r){                          // свой ключ: если сервер его не принял — обратно к config.js
+    if (r.status === 401) { drop(); location.reload(); }
+  }, function(){});
+})();
+</script>
 <script src="crm.js?v=20261031a"></script>
 <script src="extras.js?v=20261031b"></script>
-<script src="team.js?v=20261103a"></script>
+<script src="team.js?v=20261103b"></script>
 <script src="teamsearch.js?v=20261031a"></script>
 <script src="ai.js?v=20261031d"></script>
 <script src="chatpanel.js?v=20261031c"></script>

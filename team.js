@@ -216,7 +216,7 @@
   function roomItem(r, tag) {
     var hasU = r.urgent_open > 0, last = r.last, pin = !!pins()[r.id];
     return '<div class="x-dlg rc ' + (r.id === S.cur ? "on" : "") + (r.unread ? " x-new" : "") + '" data-r="' + E(r.id) + '" style="--rc:' + roomColor(r) + '">' + roomIcon(r) + '<div class="m"><b>' + (pin && !tag ? '<i class="x-pinmark" data-pin="' + E(r.id) + '" title="Открепить">📌</i>' : "") + '<em class="x-nm">' + E(r.name) + "</em>" + (hasU ? '<span class="x-flame">' + ic("flame") + "</span>" : "") + "</b><span>" + (tag ? '<small class="x-tag">' + tag + "</small>" : "") + (last ? E(last.user) + ": " + E(last.text) : "") + '</span></div><div class="tm">' + (last ? when(last.ts) : "") + "<br>" + (r.unread ? '<span class="x-un ' + (hasU ? "red" : "") + '">' + r.unread + "</span>" : "") + "</div>"
-      + (tag || pin ? "" : '<button type="button" class="x-pin" data-pin="' + E(r.id) + '" title="Закрепить первым в разделе">📌</button>') + "</div>";
+      + (tag || pin ? "" : '<button type="button" class="x-pinbtn" data-pin="' + E(r.id) + '" title="Закрепить первым в разделе">📌</button>') + "</div>";
   }
   (function () {
     var st = document.createElement("style");
@@ -227,10 +227,10 @@
       + ".x-dlg .m b{display:flex;align-items:center;gap:6px;min-width:0}.x-dlg .x-nm{font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}"
       + ".x-dlg .x-tag{font-size:.66rem;font-weight:700;color:var(--muted);background:color-mix(in srgb,var(--muted) 14%,transparent);border-radius:6px;padding:0 5px;margin-right:5px}"
       + ".x-dlg.x-new .m b{font-weight:800}.x-pinmark{font-style:normal;font-size:.72rem;flex:none;cursor:pointer}"
-      + ".x-dlg{position:relative}.x-pin{position:absolute;right:6px;top:3px;border:0;background:none;font-size:.72rem;line-height:1;min-height:0;cursor:pointer;opacity:0;filter:grayscale(1);padding:2px}"
-      + ".x-dlg:hover .x-pin{opacity:.55}.x-pin:hover{opacity:1!important;filter:none}"
+      + ".x-dlg{position:relative}.x-pinbtn{position:absolute;right:6px;top:3px;border:0;background:none;font-size:.72rem;line-height:1;min-height:0;cursor:pointer;opacity:0;filter:grayscale(1);padding:2px}"
+      + ".x-dlg:hover .x-pinbtn{opacity:.55}.x-pinbtn:hover{opacity:1!important;filter:none}"
       + ".x-more{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 16px 12px 72px;color:var(--blue,#1f5c99);font:inherit;font-weight:600;font-size:.82rem;cursor:pointer}"
-      + "@media (hover:none){.x-pin{display:none}}";
+      + "@media (hover:none){.x-pinbtn{display:none}}";
     document.head.appendChild(st);
   })();
   function byTime(a, b) { return ((b.last && b.last.ts) || 0) - ((a.last && a.last.ts) || 0); }
