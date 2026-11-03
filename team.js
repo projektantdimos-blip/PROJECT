@@ -203,10 +203,11 @@
       if (onChange) onChange();
     };
   }
-  /* список чатов: сверху «Новое» (непрочитанные, свежие первыми), ниже — разделы по времени последнего сообщения;
+  /* список чатов: сверху «Новое» (непрочитанные, свежие первыми), ниже — все чаты по разделам, по времени последнего сообщения
+     (непрочитанные — и в «Новом», и в своём разделе, чтобы чат всегда был на своём месте);
      разделы сворачиваются, чат можно закрепить 📌 (первым в своём разделе). Свёрнутое и закреплённое — на этом устройстве */
   var FT = [["all", "Все"], ["new", "Новое"], ["dm", "Личные"], ["group", "Чаты"], ["task", "Задачи"], ["chan", "Каналы"]];
-  var KIND_TAG = { dm: "Личное", chan: "Канал", group: "Чат", task: "Задача" }, TASK_LIMIT = 5;
+  var KIND_TAG = { dm: "Личное", chan: "Канал", group: "Чат", task: "Задача" };
   function lsKey(k) { return "ds_team_" + k + "_" + ((C.me && C.me.id) || 0); }
   function lsGet(k) { try { return JSON.parse(localStorage.getItem(lsKey(k)) || "{}") || {}; } catch (e) { return {}; } }
   function lsSet(k, v) { try { localStorage.setItem(lsKey(k), JSON.stringify(v)); } catch (e) {} }
@@ -229,7 +230,6 @@
       + ".x-dlg.x-new .m b{font-weight:800}.x-pinmark{font-style:normal;font-size:.72rem;flex:none;cursor:pointer}"
       + ".x-dlg{position:relative}.x-pinbtn{position:absolute;right:6px;top:3px;border:0;background:none;font-size:.72rem;line-height:1;min-height:0;cursor:pointer;opacity:0;filter:grayscale(1);padding:2px}"
       + ".x-dlg:hover .x-pinbtn{opacity:.55}.x-pinbtn:hover{opacity:1!important;filter:none}"
-      + ".x-more{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 16px 12px 72px;color:var(--blue,#1f5c99);font:inherit;font-weight:600;font-size:.82rem;cursor:pointer}"
       + "@media (hover:none){.x-pinbtn{display:none}}";
     document.head.appendChild(st);
   })();
@@ -247,13 +247,11 @@
     var empty = { dm: "Пока нет. Нажмите «Личное сообщение»", chan: "", group: "Свои чаты: нажмите «Новый чат»", task: "Чат создаётся сам при подписании договора. Свою задачу можно найти кнопкой «Диалог по задаче»" };
     var sec = function (kind, title) {
       if (!show(kind)) return "";
-      var list = mine.filter(function (r) { return r.kind === kind && !(r.unread > 0); }).sort(function (a, b) { return (pn[b.id] ? 1 : 0) - (pn[a.id] ? 1 : 0) || byTime(a, b); });
-      var all = mine.filter(function (r) { return r.kind === kind; }).length, shut = !q && ft === "all" && fd[kind];
-      var lim = kind === "task" && !q && !S.taskAll ? TASK_LIMIT : 1e9;
+      var list = mine.filter(function (r) { return r.kind === kind; }).sort(function (a, b) { return (pn[b.id] ? 1 : 0) - (pn[a.id] ? 1 : 0) || byTime(a, b); });
+      var all = list.length, shut = !q && ft === "all" && fd[kind];
       var h = '<div class="x-grp x-fold' + (shut ? " shut" : "") + '" data-fold="' + kind + '"><span class="x-car">▾</span>' + title + '<span class="x-cnt">' + all + "</span></div>";
       if (shut) return h;
-      return h + (list.slice(0, lim).map(function (r) { return roomItem(r); }).join("") || (all ? "" : '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : empty[kind]) + "</p>"))
-        + (list.length > lim ? '<button type="button" class="x-more" data-more="task">Ещё ' + (list.length - lim) + " →</button>" : "");
+      return h + (list.map(function (r) { return roomItem(r); }).join("") || '<p class="x-empty" style="padding:14px">' + (q ? "Ничего не найдено" : empty[kind]) + "</p>");
     };
     if ($("tChips")) $("tChips").innerHTML = FT.map(function (x) { return '<button type="button" data-ft="' + x[0] + '" class="' + (ft === x[0] ? "on" : "") + '">' + x[1] + (x[0] === "new" && nNew ? "<i>" + nNew + "</i>" : "") + "</button>"; }).join("");
     var tb = $("tTabs") && $("tTabs").querySelector('[data-ft="new"]'); if (tb) tb.innerHTML = "Новое" + (nNew ? " <i>" + nNew + "</i>" : "");
@@ -264,7 +262,6 @@
     el.innerHTML = (ft === "all" ? (urg.length && ft === "all" ? '<div class="x-grp red">' + ic("flame") + "Срочное</div>" + urg.map(function (r) { return '<div class="x-dlg" data-r="' + E(r.id) + '"><span class="x-rm red">' + ic("flame") + '</span><div class="m"><b>' + E(r.name) + "</b><span>" + E(r.last ? r.last.user + ": " + r.last.text : "") + "</span></div></div>"; }).join("") : "") : "") + newBlock
       + (ft === "new" ? "" : sec("dm", "Личные сообщения") + sec("chan", "Каналы") + sec("group", "Чаты") + sec("task", "Диалоги по задачам"));
     el.querySelectorAll("[data-fold]").forEach(function (h) { h.onclick = function () { var k = h.dataset.fold, f = folded(); if (f[k]) delete f[k]; else f[k] = 1; lsSet("folded", f); paintRooms(); }; });
-    el.querySelectorAll("[data-more]").forEach(function (b) { b.onclick = function () { S.taskAll = true; paintRooms(); }; });
     el.querySelectorAll("[data-pin]").forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); var k = b.dataset.pin, p = pins(); if (p[k]) delete p[k]; else p[k] = 1; lsSet("pins", p); paintRooms(); }; });
     el.querySelectorAll(".x-dlg").forEach(function (d) { d.onclick = function () { openRoom(d.dataset.r); }; });
     if (C.sync) { /* бейдж меню обновится при следующем опросе */ }
