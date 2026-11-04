@@ -212,7 +212,7 @@
     if (!on && ringtone) { clearInterval(ringtone); ringtone = null; }
   }
   function callInfo(info) {
-    SP.call_info = info; SP.ctx = null; SP.note = ""; SP.noteSaved = false; SP.noteOid = info.oid || 0; SP.min = false;
+    SP.call_info = info; SP.ctx = null; SP.note = ""; SP.noteSaved = false; SP.ai = null; SP.noteAi = false; SP.noteEdited = false; SP.noteOid = info.oid || 0; SP.min = false;
     var q = "?phone=" + encodeURIComponent(info.phone || "") + "&customer_id=" + (info.cid || 0);
     api("/context" + q).then(function (ctx) {
       if (SP.call_info !== info) return;
@@ -225,9 +225,12 @@
   function ended(why) {
     ring(false);
     SP.end = why; SP.state_call = "ended"; SP.dur = SP.t0 ? Math.round((Date.now() - SP.t0) / 1000) : 0; SP.cur = null;
-    remote.srcObject = null; paintPhone();
-    var me = SP.call_info;                                  // окно с итогом не закрываем само; пустое — через 20 с
-    setTimeout(function () { if (SP.call_info === me && SP.state_call === "ended" && !(SP.note || "").trim()) { SP.state_call = ""; paintPhone(); } }, 20000);
+    remote.srcObject = null;
+    var me = SP.call_info;                                  // окно с итогом не закрываем само; пустое — через 20 с (пока ИИ готовит итог — не закрываем)
+    SP.ai = null;
+    if (SP.dur >= 15 && me && me.phone) aiWait(me);
+    paintPhone();
+    setTimeout(function () { if (SP.call_info === me && SP.state_call === "ended" && !(SP.note || "").trim() && !SP.ai) { SP.state_call = ""; paintPhone(); } }, 20000);
   }
   function attach(session) {
     var pc = session.connection;
@@ -334,7 +337,8 @@
         h += "</div>";
       }
       var sel = orders.length > 1 ? '<select id="spNoteOid">' + orders.map(function (o) { return '<option value="' + o.id + '"' + (o.id === SP.noteOid ? " selected" : "") + ">№" + E(o.number) + "</option>"; }).join("") + "</select>" : "";
-      h += '<textarea id="spNote" rows="2" placeholder="Итог звонка — попадёт в историю ' + (orders.length ? "задачи" : "звонков") + '">' + E(SP.note || "") + "</textarea>"
+      if (st === "ended" && SP.ai) h += aiLine();
+      h += '<textarea id="spNote" rows="' + (SP.noteAi ? 5 : 2) + '" placeholder="Итог звонка — попадёт в историю ' + (orders.length ? "задачи" : "звонков") + '">' + E(SP.note || "") + "</textarea>"
         + '<div class="sp-noterow">' + sel + '<button type="button" class="sp-b sm" data-sp="note"' + (SP.noteSaved ? " disabled" : "") + ">" + (SP.noteSaved ? "✓ Сохранено" : "Сохранить итог") + "</button></div>";
     }
     var btns = st === "ringing-in" ? '<button type="button" class="sp-b ok" data-sp="answer">📞 Ответить</button><button type="button" class="sp-b no" data-sp="hang">Отклонить</button>'
@@ -350,7 +354,7 @@
     b.innerHTML = h + (SP.xferPick ? '<p class="sp-cap sp-xcap">Кому передать звонок?</p>' : "") + '<div class="sp-btns' + (SP.xferPick ? " sp-xfer" : "") + '">' + btns + "</div></div>";
     var ta = $("spNote");
     if (ta) {
-      ta.oninput = function () { SP.note = ta.value; if (SP.noteSaved) { SP.noteSaved = false; var nb = b.querySelector('[data-sp="note"]'); if (nb) { nb.disabled = false; nb.textContent = "Сохранить итог"; } } };
+      ta.oninput = function () { SP.note = ta.value; SP.noteEdited = true; if (SP.noteSaved) { SP.noteSaved = false; var nb = b.querySelector('[data-sp="note"]'); if (nb) { nb.disabled = false; nb.textContent = "Сохранить итог"; } } };
       if (focus) { ta.focus(); ta.selectionStart = ta.selectionEnd = ta.value.length; }
     }
     var so = $("spNoteOid"); if (so) so.onchange = function () { SP.noteOid = +so.value; };
@@ -377,6 +381,11 @@
       api("/transfer", { ext: to, phone: ci3.phone || "", order_id: SP.noteOid || ci3.oid || 0, customer_id: cx.customer_id || ci3.cid || 0 }).then(go, go);
     }
     else if (a === "min") { SP.min = !SP.min; paintPhone(); }
+    else if (a === "aireview" && SP.ai && SP.ai.call_id) T.aiOpen(SP.ai.call_id);
+    else if (a === "aitask" && SP.ai && SP.ai.data) {
+      var ad = SP.ai.data;
+      if (window.DS && DS.newTask) DS.newTask({ title: ad.next_step, order: SP.noteOid || 0, note: ad.summary });
+    }
     else if (a === "close") { SP.state_call = ""; paintPhone(); }
     else if (a === "hide") { var ci = SP.call_info || {}; if (ci.hk) hidden[ci.hk] = 1; SP.state_call = ""; paintPhone(); }
     else if (a === "hkhang" && SP.call_info && SP.call_info.hk) { api("/" + encodeURIComponent(SP.call_info.hk) + "/hangup", {}).catch(function (err) { toast(String(err)); }); }
@@ -392,6 +401,137 @@
   });
   window.addEventListener("beforeunload", function (e) { if (SP.cur) { e.preventDefault(); e.returnValue = "Идёт звонок"; } });
 
+
+  /* ---------- ИИ по звонкам: итог разговора и рецензия (мост: расшифровка SpeechKit → YandexGPT) ----------
+     После разговора окно звонка ждёт итог и подставляет его в поле «Итог звонка» (можно поправить).
+     Карточка итога (T.aiCard) — в ленте заказчика и в журнале звонков: резюме, договорённости, следующий шаг,
+     рецензия (оценка, пункты скрипта, сильные и слабые стороны, что улучшить — видят руководитель и сам сотрудник), расшифровка. */
+  var aiCss = document.createElement("style");
+  aiCss.textContent = ".sp-ai{margin:8px 0 6px;padding:7px 10px;border-radius:10px;background:color-mix(in srgb,#7F77DD 12%,transparent);font-size:.8rem;display:flex;gap:6px;align-items:center;flex-wrap:wrap}"
+    + ".sp-ai b{color:#7F77DD}.sp-ai button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:2px 8px;font:inherit;font-size:.76rem;cursor:pointer}.sp-ai .sp-ai-n{flex-basis:100%;color:var(--muted)}"
+    + ".cai{font-size:.86rem;line-height:1.4}.cai-h{display:flex;gap:8px;align-items:center;margin-bottom:6px}.cai-h b{color:#7F77DD}.cai-chip{margin-left:auto;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--surface-2,var(--surface));border:1px solid var(--line)}"
+    + ".cai-chip.positive{color:var(--ok);border-color:var(--ok)}.cai-chip.unhappy,.cai-chip.claim{color:var(--bad);border-color:var(--bad)}"
+    + ".cai p{margin:0 0 8px}.cai-sec{margin:8px 0}.cai-sec>small{display:block;font-size:.68rem;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:3px}"
+    + ".cai ul{margin:0;padding-left:18px}.cai li{margin:2px 0}.cai-next{display:flex;gap:8px;align-items:center;padding:7px 10px;border-radius:10px;border:1px dashed var(--line);margin:8px 0}.cai-next span{flex:1}"
+    + ".cai-btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:9px;padding:4px 10px;font:inherit;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap}.cai-btn:hover{border-color:var(--blue,#378ADD);color:var(--blue,#378ADD)}"
+    + ".cai-rev{margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2,var(--surface))}.cai-rh{display:flex;gap:10px;align-items:center;margin-bottom:6px}"
+    + ".cai-sc{font-size:1.35rem;font-weight:800;line-height:1}.cai-sc small{font-size:.75rem;color:var(--muted);font-weight:700}.cai-sc.g{color:var(--ok)}.cai-sc.m{color:#BA7517}.cai-sc.b{color:var(--bad)}"
+    + ".cai-ck{display:flex;gap:6px;padding:3px 0;font-size:.82rem}.cai-ck i{font-style:normal;font-weight:800;width:14px;flex:none}.cai-ck.ok i{color:var(--ok)}.cai-ck.miss i{color:var(--bad)}.cai-ck.na{color:var(--muted)}.cai-ck small{display:block;color:var(--muted)}"
+    + ".cai-good li::marker{color:var(--ok)}.cai-weak li::marker{color:var(--bad)}.cai-imp li::marker{color:var(--blue,#378ADD)}.cai-weak>small{color:var(--bad)!important}.cai-imp>small{color:var(--blue,#378ADD)!important}"
+    + ".cai-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.cai-tr{margin-top:8px;max-height:320px;overflow:auto;border-top:1px dashed var(--line);padding-top:6px;font-size:.82rem}.cai-tr p{margin:0 0 5px}.cai-tr b{font-weight:700}.cai-tr b.me{color:#7F77DD}.cai-tr i{font-style:normal;color:var(--muted);font-size:.72rem;margin-right:4px}"
+    + ".cai-wait{color:var(--muted)}.cai-err{color:var(--bad);font-size:.8rem;margin:4px 0}.cai-ov{position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.35);display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px;overflow:auto}"
+    + ".cai-md{background:var(--surface);color:var(--ink);border-radius:16px;max-width:560px;width:100%;padding:16px 18px;box-shadow:0 10px 40px rgba(0,0,0,.25)}.cai-md>.cai-x{float:right;border:0;background:none;font-size:1.2rem;cursor:pointer;color:var(--muted)}";
+  document.head.appendChild(aiCss);
+  var AI_WAIT = { wait: "ждём запись разговора", queued: "ждём запись разговора", stt: "расшифровываю запись", gpt: "пишу итог и рецензию" };
+  function ddmm(d) { var m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || ""); return m ? m[3] + "." + m[2] : ""; }
+  function aiNote(d) {
+    return [d.summary, d.agreed && d.agreed.length ? "Договорились: " + d.agreed.join("; ") : "", d.next_step ? "Дальше: " + d.next_step + (d.next_due ? " (до " + ddmm(d.next_due) + ")" : "") : ""].filter(Boolean).join("\n");
+  }
+  function aiWait(me) {                       // окно звонка: опрашиваем мост, пока итог не готов (до 6 минут)
+    var t0 = Date.now();
+    SP.ai = { state: "wait" };
+    (function poll() {
+      if (SP.call_info !== me || SP.state_call !== "ended") return;
+      api("/ai-latest?phone=" + encodeURIComponent(me.phone)).then(function (r) {
+        if (SP.call_info !== me) return;
+        if (r.state === "none") { SP.ai = null; paintPhone(); return; }
+        SP.ai = r;
+        if (r.state === "done" && r.data) {
+          if (!SP.noteEdited && !(SP.note || "").trim()) { SP.note = aiNote(r.data); SP.noteAi = true; }
+          paintPhone(); return;
+        }
+        if (r.state === "error") { paintPhone(); return; }
+        paintPhone();
+        if (Date.now() - t0 < 360000) setTimeout(poll, 6000); else { SP.ai = null; paintPhone(); }
+      }, function () { SP.ai = null; paintPhone(); });
+    })();
+  }
+  function aiLine() {
+    var a = SP.ai || {}, d = a.data;
+    if (a.state === "done" && d) {
+      return '<div class="sp-ai"><b>🤖 Итог от ИИ</b><span>' + (SP.noteAi ? "— подставлен ниже, можно поправить" : "готов") + "</span>"
+        + (a.review && d.score ? '<button type="button" data-sp="aireview">Рецензия · ' + d.score + "/10</button>" : '<button type="button" data-sp="aireview">Подробнее</button>')
+        + (d.next_step && window.DS && DS.newTask ? '<button type="button" data-sp="aitask">＋ Задача: ' + E(d.next_step.slice(0, 40)) + "</button>" : "") + "</div>";
+    }
+    if (a.state === "error") return '<div class="sp-ai"><b>🤖</b><span class="sp-ai-n">Итог не получился: ' + E(a.error || "") + "</span></div>";
+    return '<div class="sp-ai"><b>🤖 Готовлю итог разговора…</b><span>' + E(AI_WAIT[a.state] || "") + ", обычно 1–2 минуты</span>" + (a.error ? '<span class="sp-ai-n">' + E(a.error) + "</span>" : "") + "</div>";
+  }
+  function li(list, cls, title) {
+    return list && list.length ? '<div class="cai-sec ' + cls + '"><small>' + title + "</small><ul>" + list.map(function (x) { return "<li>" + E(x) + "</li>"; }).join("") + "</ul></div>" : "";
+  }
+  function aiHtml(r, oid) {
+    if (r.state === "none") {
+      return '<div class="cai"><p class="cai-wait">Итога от ИИ по этому звонку нет.</p>' + (r.can_start ? '<button type="button" class="cai-btn" data-cai-start="1">🤖 Сделать итог и рецензию</button>' : "") + "</div>";
+    }
+    if (r.state === "error") return '<div class="cai"><p class="cai-err">Итог не получился: ' + E(r.error) + '</p><button type="button" class="cai-btn" data-cai-start="1">↻ Повторить</button></div>';
+    if (r.state !== "done") return '<div class="cai"><p class="cai-wait">🤖 Готовлю итог… ' + E(AI_WAIT[r.state] || "") + "</p>" + (r.error ? '<p class="cai-err">' + E(r.error) + "</p>" : "") + "</div>";
+    var d = r.data || {}, h = '<div class="cai"><div class="cai-h"><b>🤖 Итог звонка</b>' + (d.tone_label ? '<span class="cai-chip ' + E(d.tone) + '">Заказчик: ' + E(d.tone_label) + "</span>" : "") + "</div>";
+    h += "<p>" + E(d.summary) + "</p>" + li(d.agreed, "", "Договорились");
+    if (d.next_step) h += '<div class="cai-next"><span>➜ ' + E(d.next_step) + (d.next_due ? " · до " + ddmm(d.next_due) : "") + "</span>"
+      + (window.DS && DS.newTask ? '<button type="button" class="cai-btn" data-cai-task="1" data-oid="' + (oid || 0) + '">＋ Задача</button>' : "") + "</div>";
+    if (r.review) {
+      var sc = d.score || 0;
+      h += '<div class="cai-rev"><div class="cai-rh"><span class="cai-sc ' + (sc >= 8 ? "g" : sc >= 5 ? "m" : "b") + '">' + sc + "<small>/10</small></span><div><b>Рецензия разговора</b><br><small style=\"color:var(--muted)\">"
+        + E(d.staff || "") + " · видят руководитель и сам сотрудник</small></div></div>"
+        + (d.checklist || []).map(function (c) { return '<div class="cai-ck ' + E(c.state) + '"><i>' + (c.state === "ok" ? "✓" : c.state === "miss" ? "✗" : "–") + "</i><span>" + E(c.item) + (c.note ? "<small>" + E(c.note) + "</small>" : "") + "</span></div>"; }).join("")
+        + li(d.strengths, "cai-good", "Хорошо") + li(d.weak, "cai-weak", "Слабые стороны") + li(d.improve, "cai-imp", "Что улучшить") + "</div>";
+    }
+    h += '<div class="cai-acts"><span class="cl-rec" data-rec="' + E(r.call_id) + '"><button type="button" class="cai-btn" data-play="' + E(r.call_id) + '">▶ Запись</button></span>'
+      + ((r.transcript || []).length ? '<button type="button" class="cai-btn" data-cai-tr="1">Расшифровка</button>' : "") + '<button type="button" class="cai-btn" data-cai-start="1" title="Сделать итог заново">↻</button></div>'
+      + '<div class="cai-tr" hidden>' + (r.transcript || []).map(function (x) { return "<p><i>" + E(x.t) + "</i><b" + (x.staff ? ' class="me"' : "") + ">" + E(x.who) + ":</b> " + E(x.text) + "</p>"; }).join("") + "</div>";
+    return h + "</div>";
+  }
+  T.aiCard = function (el, id, oid) {          // нарисовать итог звонка в el; пока готовится — опрашивать
+    el.classList.add("cai-box"); el.setAttribute("data-cai", id); el.setAttribute("data-caioid", oid || 0);
+    if (!el.innerHTML) el.innerHTML = '<p class="cai-wait">Загрузка…</p>';
+    var seq = (+el.getAttribute("data-caiseq") || 0) + 1; el.setAttribute("data-caiseq", seq);
+    function load(r) {
+      if (!document.body.contains(el) || +el.getAttribute("data-caiseq") !== seq) return;
+      el._cai = r; el.innerHTML = aiHtml(r, oid);
+      if (r.state !== "done" && r.state !== "none" && r.state !== "error") setTimeout(function () { api("/" + encodeURIComponent(id) + "/ai").then(load, function () {}); }, 6000);
+    }
+    api("/" + encodeURIComponent(id) + "/ai").then(load, function (e) { el.innerHTML = '<p class="cai-err">' + E(e) + "</p>"; });
+  };
+  T.aiOpen = function (id, oid) {
+    var ov = document.createElement("div");
+    ov.className = "cai-ov"; ov.innerHTML = '<div class="cai-md"><button type="button" class="cai-x" title="Закрыть">✕</button><div></div></div>';
+    document.body.appendChild(ov);
+    ov.onclick = function (e) { if (e.target === ov || (e.target.closest && e.target.closest(".cai-x"))) ov.remove(); };
+    T.aiCard(ov.querySelector(".cai-md>div"), id, oid);
+  };
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-aiopen],[data-cai-start],[data-cai-tr],[data-cai-task]");
+    if (!b) return;
+    if (b.hasAttribute("data-aiopen")) { T.aiOpen(b.getAttribute("data-aiopen")); return; }
+    var box = b.closest(".cai-box");
+    if (!box) return;
+    var id = box.getAttribute("data-cai"), oid = +box.getAttribute("data-caioid") || 0;
+    if (b.hasAttribute("data-cai-tr")) { var tr = box.querySelector(".cai-tr"); if (tr) tr.hidden = !tr.hidden; return; }
+    if (b.hasAttribute("data-cai-task")) {
+      var d = (box._cai && box._cai.data) || {};
+      if (window.DS && DS.newTask) DS.newTask({ title: d.next_step || "", order: oid, note: d.summary || "" });
+      return;
+    }
+    b.disabled = true;
+    api("/" + encodeURIComponent(id) + "/ai", {}).then(function () { T.aiCard(box, id, oid); }, function (err) { b.disabled = false; toast(String(err)); });
+  });
+  function aiSettings(el) {                     // Личный кабинет → Телефония (руководитель)
+    api("/ai-settings").then(function (s) {
+      if (!document.body.contains(el)) return;
+      el.innerHTML = '<h3>ИИ по звонкам</h3><p class="x-sub">После разговора CRM расшифровывает запись (Yandex SpeechKit), пишет итог, договорённости и следующий шаг, '
+        + "а также рецензию: оценку, пункты скрипта, слабые стороны и что улучшить. Рецензию видят руководитель и сам сотрудник. Заказчику ничего не отправляется.</p>"
+        + (!s.configured ? '<p class="x-sub" style="color:var(--bad)">ИИ не подключён: нужен ключ Yandex в .env моста.</p>' : "")
+        + (s.stt_error ? '<p class="x-sub" style="color:var(--bad)">' + E(s.stt_error) + "</p>" : "")
+        + '<label class="x-sub" style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox" id="caiAuto"' + (s.auto ? " checked" : "") + "> Делать итог сам для отвеченных звонков</label>"
+        + '<div class="x-field"><label>Не короче, секунд</label><input id="caiMin" inputmode="numeric" value="' + E(s.min_talk) + '"></div>'
+        + '<div class="x-field"><label>Скрипт звонка — по этим пунктам ИИ проверяет разговор (по строке на пункт)</label><textarea id="caiScript" rows="7" style="width:100%;box-sizing:border-box">' + E(s.script) + "</textarea></div>"
+        + '<p class="x-sub">За этот месяц: звонков с итогом — ' + s.month_calls + ", расшифровано ≈ " + s.month_minutes + " мин.</p>"
+        + '<button class="x-btn ghost" id="caiSave" style="width:100%;justify-content:center">Сохранить</button>';
+      $("caiSave").onclick = function () {
+        api("/ai-settings", { auto: $("caiAuto").checked, min_talk: +$("caiMin").value || 30, script: $("caiScript").value }).then(function () { toast("Сохранено"); aiSettings(el); }, function (e) { toast(String(e)); });
+      };
+    }, function () { el.innerHTML = ""; });
+  }
 
   /* ---------- набор номера: трубка у колокольчика (на телефоне — в нижнем меню) ----------
      Цифры или поиск заказчика по названию, контакту, телефону; без ввода — последние звонки. Звонит тем же путём, что «Позвонить заказчику». */
@@ -492,7 +632,8 @@
       var ico = miss ? (out ? "↗✕" : "↙✕") : out ? "↗" : "↙";
       var what = (out ? "Исходящий" : "Входящий") + (miss ? (out ? " · не дозвонились" : " · пропущен") : x.status === "answered" ? " · " + dur(x.talk) : x.status === "talk" ? " · идёт разговор" : "");
       return '<div class="cl-row' + (miss ? " miss" : "") + '"><span class="cl-ic">' + ico + '</span><div class="cl-t"><b>' + E(x.who || x.phone || "—") + "</b><small>" + E(what) + (x.user ? " · " + E(x.user) : "") + (x.number ? " · №" + E(x.number) : "") + "</small>"
-        + (x.record ? '<div class="cl-rec" data-rec="' + E(x.id) + '"><button type="button" class="btn ghost sm" data-play="' + E(x.id) + '">▶ Запись разговора</button></div>' : "") + "</div>"
+        + (x.record ? '<div class="cl-rec" data-rec="' + E(x.id) + '"><button type="button" class="btn ghost sm" data-play="' + E(x.id) + '">▶ Запись разговора</button>'
+          + (x.status === "answered" ? ' <button type="button" class="btn ghost sm" data-aiopen="' + E(x.id) + '">🤖 Итог и рецензия</button>' : "") + "</div>" : "") + "</div>"
         + '<span class="cl-tm">' + hm(x.ts) + "</span></div>";
     }).join("");
   }
@@ -557,7 +698,9 @@
           + (url ? '<div class="x-field"><label>Адрес для Sipuni («Настройки → API → События на АТС»)</label><input id="telHook" readonly value="' + E(url) + '"></div><button class="x-btn ghost" id="telCopy" style="width:100%;justify-content:center">Скопировать адрес</button>' : "")
           + (st.api ? '<p class="x-sub" style="margin-top:12px">Сверка со статистикой Sipuni — раз в ' + st.poll_minutes + " мин" + (st.last_poll ? ", последняя " + hm(st.last_poll) : "") + (st.poll_error ? '<br><span style="color:var(--bad)">' + E(st.poll_error) + "</span>" : "") + '</p><button class="x-btn ghost" id="telPoll" style="width:100%;justify-content:center">Сверить сейчас</button>' : "");
       }
+      if (st.owner) h += '<div id="telAi" style="margin-top:16px"></div>';
       body.innerHTML = h + "</div></div></div>";
+      if ($("telAi")) aiSettings($("telAi"));
       body.querySelectorAll("[data-extsave]").forEach(function (b) {
         b.onclick = function () {
           var id = +b.dataset.extsave, inp = body.querySelector('[data-ext="' + id + '"]'), mob = body.querySelector('[data-mob="' + id + '"]');

@@ -276,17 +276,19 @@ textarea{resize:vertical;min-height:64px}
 <link rel="stylesheet" href="theme-v2.css?v=20261031a">
 <script>try{var __t=localStorage.getItem("ds_theme");if(__t)document.documentElement.setAttribute("data-theme",__t)}catch(e){}</script>
 <link rel="stylesheet" href="ds.css?v=20261102c">
+<link rel="stylesheet" href="today.css?v=20261104a">
 </head>
 <body>
 <div class="app">
 <aside class="side">
-  <div class="sbrand" onclick="location.hash='#/'"><img src="logo.png" alt="Проекты DS"><b>Проекты DS</b><small>Проектная компания</small>
+  <div class="sbrand" onclick="location.hash='#/today'" title="Сегодня"><img src="logo.png" alt="Проекты DS"><b>Проекты DS</b><small>Проектная компания</small>
     <button class="sbell" data-notif="1" id="sbell" title="Уведомления" aria-label="Уведомления"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></button></div>
   <nav id="topnav"></nav>
   <div class="side-foot"><button class="ib2" id="themeBtn" title="Светлая / тёмная тема" aria-label="Тема"></button><div class="me" id="meChip">Проекты DS<small>CRM проектного отдела</small></div></div>
 </aside>
 <div class="main">
 <div class="subnavM" id="subnavM"></div>
+<div id="today-app" style="display:none"></div>
 <div id="tasks-app"><div class="loading">Загрузка…</div></div>
 <div id="kpreg-app" style="display:none"></div>
 <div id="kpc-app" class="kpc-scope" style="display:none"></div>
@@ -361,6 +363,7 @@ function tasksRouter(){
   if (window.DS) DS.route();       /* экран «Задачи» — ds.js */
 }
 function sectionForHash(h){
+  if (h.indexOf("#/today") === 0) return "today";
   if (h.indexOf("#/price") === 0) return "price";
   if (h.indexOf("#/scripts") === 0) return "scripts";
   if (h.indexOf("#/kpreg") === 0) return "kpreg";
@@ -383,15 +386,15 @@ function sectionForHash(h){
 }
 /* Какие разделы видит каждая роль (позиция сотрудника в CRM). Это интерфейс; данные ограничиваются на сервере (этап 2). */
 var DS_ALLOWED = {
-  owner:    ["flow","tasks","tz","cal","visits","risk","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","stats","log","auto","stages","onec","me"],
-  design:   ["tasks","cal","visits","risk","my","clients","chat","mail","team","report","me"],
-  sales:    ["flow","tasks","cal","visits","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","me"],
-  ops:      ["flow","tasks","tz","cal","visits","risk","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","me"],
-  acc:      ["tasks","kpreg","team","onec","me"],
-  designer: ["tasks","cal","visits","my","team","me"],
-  norm:     ["my","chat","mail","team","me"]          /* нормативный специалист: свои задачи и диалоги своих заказчиков */
+  owner:    ["today","flow","tasks","tz","cal","visits","risk","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","stats","log","auto","stages","onec","me"],
+  design:   ["today","tasks","cal","visits","risk","my","clients","chat","mail","team","report","me"],
+  sales:    ["today","flow","tasks","cal","visits","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","me"],
+  ops:      ["today","flow","tasks","tz","cal","visits","risk","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","me"],
+  acc:      ["today","tasks","kpreg","team","onec","me"],
+  designer: ["today","tasks","cal","visits","my","team","me"],
+  norm:     ["today","my","chat","mail","team","me"]          /* нормативный специалист: свои задачи и диалоги своих заказчиков */
 };
-var DS_HOME = { owner: "#/", design: "#/", sales: "#/", ops: "#/", acc: "#/", designer: "#/", norm: "#/my" };
+var DS_HOME = { owner: "#/today", design: "#/today", sales: "#/today", ops: "#/today", acc: "#/today", designer: "#/today", norm: "#/today" };      /* главный экран — «Сегодня» */
 function dsPosition(){ return (window.MPBC && MPBC.me) ? (MPBC.me.position || (MPBC.me.role === "admin" ? "owner" : "")) : ""; }
 var DS_READY = false, DS_HAS_TOKEN = false;
 try { DS_HAS_TOKEN = !!localStorage.getItem("ds_session"); } catch (e) {}
@@ -404,7 +407,7 @@ function dsAllowed(sec){
 }
 function renderTopNav(){
   var cur = sectionForHash(location.hash);
-  var own = { risk:1, scripts:1, tasks:1, cal:1, my:1, chat:1, mail:1, team:1, log:1, me:1, auto:1, stages:1, onec:1, clients:1, report:1, stats:1, flow:1, tz:1, visits:1 };
+  var own = { today:1, risk:1, scripts:1, tasks:1, cal:1, my:1, chat:1, mail:1, team:1, log:1, me:1, auto:1, stages:1, onec:1, clients:1, report:1, stats:1, flow:1, tz:1, visits:1 };
   var pa = own[cur] ? cur : "commerce";
   var ok = dsAllowed;
   var b = function(go, ic, t, on, sec){ return ok(sec) ? '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+'<span>'+t+'</span></button>' : ""; };
@@ -433,6 +436,7 @@ function renderTopNav(){
   if (window.MPBX && window.MPBX.badge) window.MPBX.badge();
   if (window.MPBC && window.MPBC.afterNav) window.MPBC.afterNav();
 }function globalRouter(){
+  if (!location.hash || location.hash === "#") history.replaceState(null, "", location.pathname + location.search + "#/today");      // приложение открывается на «Сегодня»
   if (location.hash.indexOf("#/dash") === 0) { location.hash = "#/"; return; }       // старые ссылки на «Обзор» ведут в «Задачи»
   var sec0 = sectionForHash(location.hash);
   if (!dsAllowed(sec0)) { var hm = dsPosition() ? (DS_HOME[dsPosition()] || '#/me') : '#/me'; if (location.hash !== hm) { location.hash = hm; return; } }
@@ -441,6 +445,8 @@ function renderTopNav(){
   if (window.__lastSec && window.__lastSec !== sec && !/^#\/t(ask)?\//.test(location.hash) && window.DS && DS.closeAll) DS.closeAll();      // окно задачи не должно висеть поверх другого раздела
   window.__lastSec = sec;
   document.body.classList.toggle("chat-fs", sec === "chat" || sec === "mail");
+  document.getElementById("today-app").style.display = (sec === "today") ? "block" : "none";
+  if (sec === "today" && window.DSToday) DSToday.mount(document.getElementById("today-app"));
   document.getElementById("tasks-app").style.display = (sec === "tasks") ? "block" : "none";
   document.getElementById("kpreg-app").style.display = (sec === "kpreg") ? "block" : "none";
   document.getElementById("kpc-app").style.display = (sec === "kpc") ? "block" : "none";
@@ -506,7 +512,7 @@ globalRouter();
 </style>
 <script src="noautofill.js?v=20261031a"></script>
 <script src="sound.js?v=20261031a"></script>
-<script src="chat.js?v=20261031a"></script>
+<script src="chat.js?v=20261104a"></script>
 <button id="apiGear" title="Настройки подключения" aria-label="Настройки">⚙</button>
 <div id="apiModal"><div class="box">
   <h2>Подключение к серверу CRM</h2>
@@ -578,12 +584,13 @@ globalRouter();
 <script src="team.js?v=20261103c"></script>
 <script src="teamsearch.js?v=20261031a"></script>
 <script src="ai.js?v=20261031d"></script>
-<script src="chatpanel.js?v=20261031c"></script>
-<script src="ds.js?v=20261103a"></script>
+<script src="chatpanel.js?v=20261104a"></script>
+<script src="ds.js?v=20261104a"></script>
 <script src="stats.js?v=20261102a"></script>
 <script src="visits.js?v=20261102b"></script>
-<script src="calls.js?v=20261102c"></script>
+<script src="calls.js?v=20261104a"></script>
 <script src="remind.js?v=20261031a"></script>
+<script src="today.js?v=20261104a"></script>
 <script>
 (function(){
   var KEY = "ds_theme", t = "light";

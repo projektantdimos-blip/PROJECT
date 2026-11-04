@@ -205,7 +205,9 @@
     ".ml-card .cm-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}" +
     ".ml-card .cm-acts button{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--muted);font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;transition:.15s}" +
     ".ml-card .cm-acts button:hover{color:var(--blue);border-color:var(--blue)}.ml-card .cm-acts .cm-del:hover,.ml-card .cm-acts .cm-del[data-sure]{color:var(--bad);border-color:var(--bad)}" +
-    "#chatMailHint{padding:6px 12px;font-size:.8rem;color:var(--muted);border-top:1px solid var(--line)}" +
+    "#chatMailHint{padding:6px 12px;font-size:.8rem;color:var(--muted);border-top:1px solid var(--line);display:flex;flex-wrap:wrap;align-items:center;gap:6px}" +
+    "#chatMailHint select,#chatMailHint input{font:inherit;font-size:.8rem;padding:3px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);max-width:340px}" +
+    "#chatMailHint input{flex:1;min-width:180px}#chatMailHint button{font:inherit;font-size:.78rem;font-weight:600;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--blue,#1f5c99);padding:3px 9px;cursor:pointer}" +
     "body.chat-fs #chat-app .chat-tools[data-title]::before{content:attr(data-title)!important}";
   document.head.appendChild(css3);
   var css4 = document.createElement("style");          // переписка в мессенджерах: дни, группы, панель действий, шапка, поле ответа
@@ -798,13 +800,47 @@
     }
     return false;
   }
-  function mailHint(t) {                        // над полем ответа: письмо уйдёт в эту же переписку
+  /* почта: у заказчика бывает несколько проектов — ответ уходит в выбранную тему (по умолчанию — последнюю), или новое письмо с новой темой */
+  function mailTopics() {
+    var seen = {}, out = [];
+    for (var i = st.msgs.length - 1; i >= 0; i--) {
+      var s = baseSubj(st.msgs[i].subject), k = s.toLowerCase();
+      if (s && !seen[k]) { seen[k] = 1; out.push(s); }
+    }
+    return out;
+  }
+  function mailState(t) {
+    var tp = mailTopics(), m = st.mail;
+    if (!m || m.tid !== t.id) m = st.mail = { tid: t.id, topic: tp[0] || "", subj: "", isNew: !tp.length, auto: !tp.length };
+    if (m.auto && tp.length) { m.isNew = m.auto = false; m.topic = tp[0]; }       // письма догрузились — по умолчанию ответ в последнюю тему
+    if (!m.isNew && tp.indexOf(m.topic) < 0) m.topic = tp[0] || "";
+    return m;
+  }
+  function mailHint(t) {
     var c = document.getElementById("chatComposer"); if (!c) return;
     var h = document.getElementById("chatMailHint");
-    if (!h) { h = document.createElement("div"); h.id = "chatMailHint"; c.parentNode.insertBefore(h, c); }
-    var on = !!(t && t.channel === "mail" && st.msgs.length);
+    if (!h) {
+      h = document.createElement("div"); h.id = "chatMailHint"; c.parentNode.insertBefore(h, c);
+      h.onclick = function (e) {
+        var b = e.target.closest && e.target.closest("[data-mt]"), cur = curThread(); if (!b || !cur) return;
+        var m = mailState(cur); m.isNew = b.getAttribute("data-mt") === "new"; m.auto = false; h.__k = ""; mailHint(cur);
+        var f = document.getElementById(m.isNew ? "chatSubj" : "chatText"); if (f) f.focus();
+      };
+      h.onchange = function (e) { if (e.target.id === "chatTopic" && st.mail) st.mail.topic = e.target.value; };
+      h.oninput = function (e) { if (e.target.id === "chatSubj" && st.mail) st.mail.subj = e.target.value; };
+    }
+    var on = !!(t && t.channel === "mail");
     h.hidden = !on;
-    if (on) { var sj = threadSubj(); h.textContent = "↩ Ответ уйдёт в эту же переписку" + (sj ? ": «Re: " + sj + "»" : "") + " · с цитатой последнего письма"; }
+    if (!on) return;
+    var tp = mailTopics(), m = mailState(t);
+    var html = m.isNew
+      ? '✉ Новое письмо, тема: <input id="chatSubj" maxlength="200" placeholder="Например: Проект СПС, ул. Ленина, 5" autocomplete="off">' + (tp.length ? '<button type="button" data-mt="reply">↩ Ответить в тему</button>' : "")
+      : '↩ Ответ в тему <select id="chatTopic">' + tp.map(function (s) { return '<option value="' + esc(s) + '"' + (s === m.topic ? " selected" : "") + ">Re: " + esc(s) + "</option>"; }).join("")
+        + '</select> · с цитатой последнего письма этой темы <button type="button" data-mt="new">✉ Новая тема</button>';
+    var k = t.id + "|" + m.isNew + "|" + m.topic + "|" + tp.join("|");
+    if (h.__k === k) return;                    // перерисовка списка сообщений не сбивает набор темы
+    h.__k = k; h.innerHTML = html;
+    var si = document.getElementById("chatSubj"); if (si) si.value = m.subj;
   }
 
   /* ---------- правая панель: заказчик, связанные дела, быстрые действия (как в макете) ---------- */
@@ -1131,15 +1167,24 @@
       setErr("Письмом можно отправить до " + MAIL_MB + " МБ вложений вместе — разделите на несколько писем или отправьте через Telegram или MAX");
       return;
     }
+    var mail = {};
+    if (t.channel === "mail") {
+      var m = mailState(t);
+      if (m.isNew) {
+        if (!m.subj.trim() && mailTopics().length) { setErr("Укажите тему нового письма"); var si = document.getElementById("chatSubj"); if (si) si.focus(); return; }
+        mail.subject = m.subj.trim();
+      } else mail.topic = m.topic;
+    }
     st.sending = true; el.send.disabled = true; el.send.textContent = "Отправка…";
     var job = fs.length
       ? uploadAll(fs, function (p) { el.send.textContent = "Загрузка " + p + "%"; }).then(function (toks) {
           el.send.textContent = "Отправка…";
-          return api("/api/threads/" + encodeURIComponent(t.id) + "/send-file", { method: "POST", body: { text: text, filename: "", uploads: toks } });
+          return api("/api/threads/" + encodeURIComponent(t.id) + "/send-file", { method: "POST", body: Object.assign({ text: text, filename: "", uploads: toks }, mail) });
         })
-      : api("/api/threads/" + encodeURIComponent(t.id) + "/send", { method: "POST", body: { text: text } });
+      : api("/api/threads/" + encodeURIComponent(t.id) + "/send", { method: "POST", body: Object.assign({ text: text }, mail) });
     job.then(function (r) {
       el.text.value = ""; if (el.grow) el.grow(); setErr(""); st.files = []; showFileBar();
+      if (mail.subject) st.mail = { tid: t.id, topic: mail.subject, subj: "", isNew: false };     // новая тема ушла — дальше отвечаем в неё
       if (st.draftKp) {                              // КП ушло заказчику: статус «КП отправлено» и дата общения
         var kid = st.draftKp; st.draftKp = 0;
         api("/api/ds/kp/" + kid + "/status", { method: "POST", body: { status: "КП отправлено" } }).then(null, function () {});

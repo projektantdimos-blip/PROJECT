@@ -99,13 +99,108 @@
     draw(); load();
   };
 
+  /* «Лента» заказчика: звонки (с итогом ИИ и рецензией), оплаты, стадии задач, КП, договоры, переписка, комментарии — по дням.
+     Данные — /customers/<id>/feed (ds_feed.py). Видят руководитель, продажи и операционный менеджер. o.mini — последние события на вкладке «Заказчик». */
+  var fcss = document.createElement("style");
+  fcss.textContent = ".fe-chips{display:flex;gap:5px;flex-wrap:wrap;margin:0 0 10px}.fe-chips button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:20px;padding:4px 11px;font:inherit;font-size:.78rem;font-weight:600;cursor:pointer}.fe-chips button.on{background:var(--brand-soft,var(--surface-2));border-color:var(--brand-2,var(--brand));color:var(--brand)}"
+    + ".fe-day{font-size:.7rem;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin:12px 0 4px}.fe-day:first-child{margin-top:0}"
+    + ".fe{display:flex;gap:9px;padding:8px 0;border-top:1px dashed var(--line)}.fe-day+.fe{border-top:0}.fe-ic{flex:none;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;background:var(--surface-2,var(--surface));border:1px solid var(--line)}"
+    + ".fe-call .fe-ic{background:color-mix(in srgb,#7F77DD 15%,transparent);border-color:#7F77DD;color:#7F77DD}.fe-miss .fe-ic{background:color-mix(in srgb,#E24B4A 12%,transparent);border-color:var(--bad);color:var(--bad)}"
+    + ".fe-money .fe-ic{background:color-mix(in srgb,#1D9E75 14%,transparent);border-color:var(--ok);color:var(--ok)}.fe-task .fe-ic,.fe-kp .fe-ic{background:color-mix(in srgb,#378ADD 12%,transparent);border-color:#378ADD;color:#378ADD}"
+    + ".fe-b{flex:1;min-width:0}.fe-t{display:flex;gap:6px;align-items:baseline}.fe-t b{font-size:.88rem;font-weight:700;overflow-wrap:anywhere}.fe-t i{margin-left:auto;font-style:normal;font-size:.74rem;color:var(--muted);white-space:nowrap}"
+    + ".fe-b>small{display:block;color:var(--muted);font-size:.76rem}.fe-x{font-size:.84rem;margin-top:2px;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}"
+    + ".fe-sc{display:inline-block;margin-left:6px;font-size:.72rem;font-weight:800;padding:1px 7px;border-radius:20px;border:1px solid var(--line)}.fe-sc.g{color:var(--ok);border-color:var(--ok)}.fe-sc.m{color:#BA7517;border-color:#EF9F27}.fe-sc.b{color:var(--bad);border-color:var(--bad)}"
+    + ".fe-acts{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}.fe-acts button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:2px 9px;font:inherit;font-size:.76rem;font-weight:600;cursor:pointer}.fe-acts button:hover{border-color:var(--blue,#378ADD);color:var(--blue,#378ADD)}"
+    + ".fe-ai{margin-top:8px;padding:10px 11px;border:1px solid #7F77DD;border-radius:12px;background:color-mix(in srgb,#7F77DD 6%,transparent)}.fe-more{width:100%;justify-content:center;margin-top:10px}.fe-off .fe-t b{text-decoration:line-through;color:var(--muted)}"
+    + ".fe-mini{border:1px solid var(--line);border-radius:14px;padding:11px 13px;margin-top:12px;background:var(--surface-2,var(--surface))}.fe-mini h5{display:flex;margin:0 0 6px;font-size:.74rem;text-transform:uppercase;letter-spacing:1px;font-weight:800;color:var(--muted)}.fe-mini h5 a{margin-left:auto;text-transform:none;letter-spacing:0;color:var(--blue,#378ADD);font-weight:700;font-size:.8rem}";
+  document.head.appendChild(fcss);
+  function feedOk() { var m = C() && C().me; if (!m) return false; var p = m.position || (m.role === "admin" ? "owner" : ""); return p === "owner" || p === "sales" || p === "ops"; }
+  var FK = [["", "Все"], ["call", "Звонки"], ["money", "Деньги"], ["task,kp", "Задачи и КП"], ["msg,note", "Переписка"]], feedKind = {};
+  var FICON = { call: "📞", money: "₽", task: "📋", kp: "КП", msg: "✉", note: "💬" };
+  function dayLabel(ts) {
+    var d = new Date(ts * 1000), t = new Date(), y = new Date(Date.now() - 86400000);
+    if (d.toDateString() === t.toDateString()) return "Сегодня";
+    if (d.toDateString() === y.toDateString()) return "Вчера";
+    return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" }) + (d.getFullYear() !== t.getFullYear() ? " " + d.getFullYear() : "");
+  }
+  function feItem(x, fs) {
+    var ic = x.kind === "call" ? (x.miss ? (x.dir === "out" ? "↗✕" : "↙✕") : "📞") : FICON[x.kind] || "•";
+    var tm = x.day_only ? "" : new Date(x.ts * 1000).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+    var ai = x.ai || {}, text = x.text || "", sc = ai.score;
+    if (x.kind === "call" && !text && ai.state && ai.state !== "done" && ai.state !== "error") text = "🤖 итог разговора готовится…";
+    var h = '<div class="fe fe-' + E(x.kind) + (x.miss ? " fe-miss" : "") + (x.off ? " fe-off" : "") + '"><span class="fe-ic">' + ic + '</span><div class="fe-b"><div class="fe-t"><b>' + E(x.title)
+      + (sc ? '<span class="fe-sc ' + (sc >= 8 ? "g" : sc >= 5 ? "m" : "b") + '" title="Оценка разговора">' + sc + "/10</span>" : "") + "</b><i>" + tm + "</i></div>"
+      + (x.who ? "<small>" + E(x.who) + "</small>" : "") + (text ? '<div class="fe-x">' + E(text) + "</div>" : "");
+    if (x.callback) h += "<small>→ задача «Перезвонить» · " + (x.callback.done ? "выполнена" : "открыта") + "</small>";
+    if (x.kind === "call" && x.status === "answered" && x.record) {
+      var open = fs && fs.open[x.call_id];
+      h += '<div class="fe-acts"><button type="button" data-fe-ai="' + E(x.call_id) + '">' + (open ? "Свернуть" : ai.state === "done" ? "🤖 Итог и рецензия" : "🤖 Итог от ИИ") + "</button>"
+        + '<span class="cl-rec" data-rec="' + E(x.call_id) + '"><button type="button" data-play="' + E(x.call_id) + '">▶ Запись</button></span></div>'
+        + (open ? '<div class="fe-ai" data-fe-box="' + E(x.call_id) + '" data-oid="' + (x.order_id || 0) + '"></div>' : "");
+    }
+    if (x.kind === "msg" && x.thread_id) h += '<div class="fe-acts"><button type="button" data-fe-th="' + E(x.thread_id) + '">Открыть переписку</button></div>';
+    return h + "</div></div>";
+  }
+  D.feed = function (el, cid, o) {
+    o = o || {};
+    var fs = { items: null, before: 0, more: false, kinds: o.mini ? "" : (feedKind[cid] || ""), busy: false, err: "", open: {} };
+    function load(more) {
+      fs.busy = true; if (!more) draw();
+      api("/customers/" + cid + "/feed?limit=" + (o.mini ? 3 : 30) + "&kinds=" + encodeURIComponent(fs.kinds) + (more && fs.before ? "&before=" + fs.before : "")).then(function (r) {
+        fs.items = more ? (fs.items || []).concat(r.items) : r.items; fs.before = r.before; fs.more = r.more; fs.busy = false; fs.err = ""; draw();
+      }, function (e) { fs.busy = false; fs.err = String(e); fs.items = fs.items || []; draw(); });
+    }
+    function draw() {
+      if (!document.body.contains(el)) return;
+      var list = fs.items || [], h = "", day = "";
+      if (o.mini) {
+        if (fs.items && !list.length) { el.innerHTML = ""; return; }
+        h = '<div class="fe-mini"><h5>Последние события<a href="#" data-fe-all="1">Вся лента →</a></h5>';
+      } else {
+        h = '<div class="fe-chips">' + FK.map(function (k) { return '<button type="button" data-fe-k="' + k[0] + '" class="' + (fs.kinds === k[0] ? "on" : "") + '">' + k[1] + "</button>"; }).join("") + "</div>";
+      }
+      if (fs.err) h += '<p class="err">' + E(fs.err) + "</p>";
+      if (fs.items === null) h += '<p class="note">Загрузка…</p>';
+      list.forEach(function (x) {
+        var dl = dayLabel(x.ts);
+        if (!o.mini && dl !== day) { h += '<div class="fe-day">' + dl + "</div>"; day = dl; }
+        h += feItem(x, fs);
+      });
+      if (!o.mini && fs.items && !list.length) h += '<p class="note">' + (fs.kinds ? "Таких событий пока нет." : "Событий по заказчику пока нет.") + "</p>";
+      if (!o.mini && fs.more) h += '<button class="x-btn ghost fe-more" data-fe-more="1"' + (fs.busy ? " disabled" : "") + ">" + (fs.busy ? "Загрузка…" : "Показать ещё") + "</button>";
+      el.innerHTML = h + (o.mini ? "</div>" : "");
+      el.querySelectorAll("[data-fe-box]").forEach(function (b) { if (window.DSCalls && DSCalls.aiCard) DSCalls.aiCard(b, b.getAttribute("data-fe-box"), +b.getAttribute("data-oid")); });
+    }
+    el.onclick = function (e) {
+      var b = e.target.closest && e.target.closest("[data-fe-k],[data-fe-more],[data-fe-ai],[data-fe-all],[data-fe-th]");
+      if (!b || !el.contains(b)) return;
+      if (b.hasAttribute("data-fe-k")) { fs.kinds = feedKind[cid] = b.getAttribute("data-fe-k"); fs.items = null; fs.open = {}; load(false); }
+      else if (b.hasAttribute("data-fe-more")) load(true);
+      else if (b.hasAttribute("data-fe-all")) { e.preventDefault(); if (o.all) o.all(); }
+      else if (b.hasAttribute("data-fe-th")) { location.hash = "#/chat?t=" + encodeURIComponent(b.getAttribute("data-fe-th")); }
+      else {
+        var id = b.getAttribute("data-fe-ai");
+        if (o.mini) { if (window.DSCalls && DSCalls.aiOpen) DSCalls.aiOpen(id); return; }
+        fs.open[id] = !fs.open[id]; draw();
+      }
+    };
+    draw(); load(false);
+  };
+  function tabFeed(body, t, name, s, box) {
+    var l = s.link || {};
+    if (!l.customer || l.service) { body.innerHTML = '<p class="note">Привяжите диалог к заказчику — здесь появится лента: звонки с итогом ИИ, оплаты, задачи, КП и переписка.</p>'; return; }
+    body.innerHTML = '<div class="pc-name">' + E(l.customer.name) + '</div><div id="dspFeed"></div>';
+    D.feed($("dspFeed"), l.customer.id, {});
+  }
+
   D.render = function (box, t, name) {
     var s = st(t);
     if (!C() || !MPBC.loggedIn()) { box.innerHTML = '<div class="dsp"><p class="note">Войдите, чтобы работать с заказчиком.</p></div>'; return; }
     var ai = !!(window.DSAI && DSAI.on());                 // вкладка «ИИ» — когда помощник подключён и включён руководителем (ai.js)
     if (window.DSAI && !DSAI.st && !s.aiWait) { s.aiWait = true; DSAI.whenLoaded(function () { if (DSAI.on() && document.body.contains(box)) D.render(box, t, name); }); }
     if (s.tab === "a" && !ai) s.tab = "c";
-    box.innerHTML = '<div class="dsp"><div class="tabs">' + (ai ? [["a", "ИИ"]] : []).concat(norm() ? [["c", "Заказчик"]] : [["c", "Заказчик"], ["k", "КП из диалога"]]).map(function (x) { return '<button data-t="' + x[0] + '" class="' + (s.tab === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + '</div><div id="dspBody"></div></div>';
+    if (s.tab === "f" && !feedOk()) s.tab = "c";
+    box.innerHTML = '<div class="dsp"><div class="tabs">' + (ai ? [["a", "ИИ"]] : []).concat(norm() ? [["c", "Заказчик"]] : [["c", "Заказчик"]].concat(feedOk() ? [["f", "Лента"]] : [], [["k", "КП из диалога"]])).map(function (x) { return '<button data-t="' + x[0] + '" class="' + (s.tab === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + '</div><div id="dspBody"></div></div>';
     box.querySelectorAll(".tabs button").forEach(function (b) { b.onclick = function () { s.tab = b.dataset.t; s.err = ""; D.render(box, t, name); }; });
     var body = $("dspBody");
     body.innerHTML = '<p class="note">Загрузка…</p>';
@@ -115,7 +210,8 @@
       setChip(t, l);
       if (!document.body.contains(body)) return;           // пока ждали ответ, открыли другой диалог — панель уже другая
       if (s.tab === "a" && ai) DSAI.tab(body, t, name, s, { customer: function (p) { s.prefill = p; s.create = true; s.tab = "c"; s.err = ""; D.render(box, t, name); } });
-      else if (s.tab === "k" && !norm()) tabKp(body, t, name, s, box); else tabCustomer(body, t, name, s, box);
+      else if (s.tab === "k" && !norm()) tabKp(body, t, name, s, box);
+      else if (s.tab === "f" && feedOk()) tabFeed(body, t, name, s, box); else tabCustomer(body, t, name, s, box);
       if (s.focusUntil > Date.now() && $("dspQ")) $("dspQ").focus();
     }, function (e) { body.innerHTML = '<p class="err">' + E(e) + "</p>"; });
   };
@@ -206,6 +302,7 @@
       if (window.DSCalls && DSCalls.bar) { var cb = DSCalls.bar(ph ? [{ fio: ct.fio, phone: ph }] : [], 0, c.id); if (cb) h += '<div class="callrow">' + cb + "</div>"; }     // звонок через Sipuni (calls.js)
       if (l.auto) h += '<p class="note">Диалог привязан автоматически: ' + E(l.auto) + ".</p>";
       if (!l.service && window.DSAI && DSAI.on()) h += '<div id="dspAiCust"></div>';          // «Что с заказчиком?» (ai.js)
+      if (!l.service && feedOk()) h += '<div id="dspFeedMini"></div>';                         // последние события из «Ленты»
       var tasks = l.tasks || [], NEXTT = { a1: "Сбор вводных", a2: "КП" };
       if (tasks.length) {
         h += '<div class="pb pb-orange"><h5>Задачи по диалогу · ' + tasks.length + "</h5>" + tasks.map(function (k) {
@@ -218,7 +315,11 @@
         }).join("") + "</div>";
       }
       if (!l.service) h += '<div id="dspNotes"></div>';            // «Комментарии» о заказчике (у общей карточки amoCRM — нет)
-      function notes() { if ($("dspNotes")) D.notes($("dspNotes"), c.id, t.id); if ($("dspAiCust")) DSAI.customer($("dspAiCust"), c.id); }
+      function notes() {
+        if ($("dspNotes")) D.notes($("dspNotes"), c.id, t.id);
+        if ($("dspAiCust")) DSAI.customer($("dspAiCust"), c.id);
+        if ($("dspFeedMini")) D.feed($("dspFeedMini"), c.id, { mini: true, all: function () { s.tab = "f"; D.render(box, t, name); } });
+      }
       if (norm()) { body.innerHTML = h; bindTasks(); notes(); return; }          /* нормативному специалисту — без проектов, КП и передачи по конвейеру */
       h += '<div class="pb pb-blue"><h5>В работе</h5>' + (l.orders.map(function (o) {
         return '<a class="pi" href="#/task/' + o.id + '"><b>№' + E(o.number) + " · " + E(o.object) + "</b><small>" + E(o.stage) + (o.system ? " · " + E(o.system) : "") + (o.executor ? " · " + E(o.executor) : "")
