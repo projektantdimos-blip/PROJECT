@@ -1,5 +1,5 @@
 /* Проекты DS — главный экран «Сегодня» (today.js). Цвета — переменные .ds из ds.css, поэтому светлая и тёмная темы работают сами. */
-.ds.td{max-width:1400px}
+.ds.td{max-width:none}                    /* на всю ширину экрана, как остальные разделы */
 .ds.td .head h1{text-transform:none}
 .ds .td-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
 .ds .td-kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow-s);padding:12px 16px;text-align:left;display:block}
@@ -22,7 +22,7 @@
 .ds .td-hint{color:var(--muted);font-size:.78rem}
 .ds .td-link{color:var(--brand);font-weight:600;font-size:.84rem;padding:0}
 .ds .td-cols{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;margin-top:14px;align-items:start}
-.ds .td-cols.one{grid-template-columns:minmax(0,1fr);max-width:900px}
+.ds .td-cols.one{grid-template-columns:minmax(0,1fr)}
 .ds .td-p{margin-bottom:14px}
 .ds .td-ph{display:flex;align-items:center;gap:8px;width:100%;padding:12px 16px;border-bottom:1px solid var(--line);text-align:left}
 .ds .td-ph h3{font-size:.98rem;margin:0}
