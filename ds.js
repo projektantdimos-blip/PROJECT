@@ -1387,14 +1387,14 @@
     var canEdit = p === "owner" || p === "design";
     var READY = "Готов к проектированию";
     var act_ = loadOrders().filter(function (o) { return (ACTIVE_WORK.indexOf(o.stage) >= 0 || o.stage === READY) && o.executor; });      // назначенные, но ещё не начатые — тоже у исполнителя
-    var unassigned = loadOrders().filter(function (o) { return o.stage === "Готов к проектированию" && !o.executor; });
+    var unassigned = loadOrders().filter(function (o) { return (o.stage === "Готов к проектированию" || ACTIVE_WORK.indexOf(o.stage) >= 0) && !o.executor; });      // и корректировка/проверка без исполнителя (например, «Сразу на корректировку»)
     var cards = people.map(function (u) {
       var mine = act_.filter(function (o) { return o.executor_id === u.id || o.executor === u.name; });
       var late = mine.filter(function (o) { return o.left_days != null && o.left_days < 0; }).length;
       var wait = mine.filter(function (o) { return o.stage === READY; }).length;
       return '<div class="panel person" style="display:flex;gap:12px;align-items:center;padding:13px 15px">' + ava(u.name, "lg") + "<div><b>" + E(u.name) + '</b><br><small style="color:var(--muted)">' + (mine.length - wait) + " активн." + (wait ? " · " + wait + " не начато" : "") + (late ? ' · <span style="color:var(--bad)">' + late + " просроч.</span>" : "") + "</small></div></div>";
-    }).join("") + '<div class="panel person" style="display:flex;gap:12px;align-items:center;padding:13px 15px"><span class="ava lg" style="background:var(--line);color:var(--muted)">?</span><div><b>Не назначено</b><br><small style="color:var(--muted)">' + unassigned.length + " готовы к проектированию</small></div></div>";
-    var head = '<div class="head"><div><h1>Занятость</h1><p>Кто чем занят. Серым показаны задачи без исполнителя, готовые к проектированию.' + (canEdit ? " Нажмите на любую полоску: можно назначить исполнителя и сроки прямо здесь." : "") + '</p></div>'
+    }).join("") + '<div class="panel person" style="display:flex;gap:12px;align-items:center;padding:13px 15px"><span class="ava lg" style="background:var(--line);color:var(--muted)">?</span><div><b>Не назначено</b><br><small style="color:var(--muted)">' + unassigned.length + " без исполнителя</small></div></div>";
+    var head = '<div class="head"><div><h1>Занятость</h1><p>Кто чем занят. Серым показаны задачи без исполнителя.' + (canEdit ? " Нажмите на любую полоску: можно назначить исполнителя и сроки прямо здесь." : "") + '</p></div>'
       + '<div class="seg"><button data-ld="week" class="' + (S.ld === "week" ? "on" : "") + '">План на неделю</button><button data-ld="tl" class="' + (S.ld === "tl" ? "on" : "") + '">Месяц</button></div></div>'
       + "";
     var cardsHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px">' + cards + "</div>", headBase = head;
@@ -1496,7 +1496,7 @@
     })() : "";
     var nodates = loadOrders().filter(function (o) { return (ACTIVE_WORK.indexOf(o.stage) >= 0 || o.stage === READY) && !span(o)[0] && !span(o)[1]; });      // и неназначенные
     var legend = '<div class="glegend"><span>Цвет полосы — своя у каждой задачи</span><span><i style="background:#8794ab;opacity:.5"></i>Бледные — уже сделано: ✓ проектирование, ↻ корректировка, 👁 проверка</span><span><i style="background:' + BAR.hot + '"></i>Оранжевая кромка — горит</span><span><i style="background:' + BAR.late + '"></i>Красная рамка — просрочено</span><span><i style="background:' + BAR.done + '"></i>Сдано</span>'
-      + '<span><i style="background:' + BAR.gray + '"></i>Серые — не назначены, на стадии «Готов к проектированию»: от даты постановки до последнего дня договора</span><span><i style="background:#8794ab;opacity:.6;outline:1px dashed #fff;outline-offset:-2px"></i>Пунктир — исполнитель назначен, работа не начата</span><span>Срок прошёл, а работа не сдана — полоса тянется до сегодня</span><span class="muted">Полоска снизу — число задач в день (красная ≥ 3)</span></div>'
+      + '<span><i style="background:' + BAR.gray + '"></i>Серые — без исполнителя («Готов к проектированию», проверка, корректировка): от даты постановки до последнего дня договора</span><span><i style="background:#8794ab;opacity:.6;outline:1px dashed #fff;outline-offset:-2px"></i>Пунктир — исполнитель назначен, работа не начата</span><span>Срок прошёл, а работа не сдана — полоса тянется до сегодня</span><span class="muted">Полоска снизу — число задач в день (красная ≥ 3)</span></div>'
       + (nodates.length ? '<div class="glegend">Без дат (не на шкале): ' + nodates.map(function (o) { return '<a href="#/task/' + o.id + '">№' + E(o.number || "—") + "</a>"; }).join(" ") + "</div>" : "");
     var bodyHtml = people.map(person).join("") + unBlock;
     return headBase + nav + '<div class="panel gpanel"><div style="zoom:' + z + '">' + header + (bodyHtml || '<div class="note" style="padding:16px;margin:0">Задач в плане нет</div>') + "</div></div>" + legend;
