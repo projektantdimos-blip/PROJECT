@@ -1385,12 +1385,14 @@
   function loadScreen() {
     var p = pos(), people = staff(), mon = monday(), today = isoDay(new Date());
     var canEdit = p === "owner" || p === "design";
-    var act_ = loadOrders().filter(function (o) { return ACTIVE_WORK.indexOf(o.stage) >= 0 && o.executor; });
+    var READY = "Готов к проектированию";
+    var act_ = loadOrders().filter(function (o) { return (ACTIVE_WORK.indexOf(o.stage) >= 0 || o.stage === READY) && o.executor; });      // назначенные, но ещё не начатые — тоже у исполнителя
     var unassigned = loadOrders().filter(function (o) { return o.stage === "Готов к проектированию" && !o.executor; });
     var cards = people.map(function (u) {
       var mine = act_.filter(function (o) { return o.executor_id === u.id || o.executor === u.name; });
       var late = mine.filter(function (o) { return o.left_days != null && o.left_days < 0; }).length;
-      return '<div class="panel person" style="display:flex;gap:12px;align-items:center;padding:13px 15px">' + ava(u.name, "lg") + "<div><b>" + E(u.name) + '</b><br><small style="color:var(--muted)">' + mine.length + " активн." + (late ? ' · <span style="color:var(--bad)">' + late + " просроч.</span>" : "") + "</small></div></div>";
+      var wait = mine.filter(function (o) { return o.stage === READY; }).length;
+      return '<div class="panel person" style="display:flex;gap:12px;align-items:center;padding:13px 15px">' + ava(u.name, "lg") + "<div><b>" + E(u.name) + '</b><br><small style="color:var(--muted)">' + (mine.length - wait) + " активн." + (wait ? " · " + wait + " не начато" : "") + (late ? ' · <span style="color:var(--bad)">' + late + " просроч.</span>" : "") + "</small></div></div>";
     }).join("") + '<div class="panel person" style="display:flex;gap:12px;align-items:center;padding:13px 15px"><span class="ava lg" style="background:var(--line);color:var(--muted)">?</span><div><b>Не назначено</b><br><small style="color:var(--muted)">' + unassigned.length + " готовы к проектированию</small></div></div>";
     var head = '<div class="head"><div><h1>Занятость</h1><p>Кто чем занят. Серым показаны задачи без исполнителя, готовые к проектированию.' + (canEdit ? " Нажмите на любую полоску: можно назначить исполнителя и сроки прямо здесь." : "") + '</p></div>'
       + '<div class="seg"><button data-ld="week" class="' + (S.ld === "week" ? "on" : "") + '">План на неделю</button><button data-ld="tl" class="' + (S.ld === "tl" ? "on" : "") + '">Месяц</button></div></div>'
@@ -1408,7 +1410,7 @@
           + (mine.map(function (o) {
             var sp = span(o), tn = tone(o);
             return '<button style="display:block;width:100%;text-align:left;padding:11px 15px;border-bottom:1px solid var(--line)" ' + openAttr(o) + '="' + o.id + '"><div style="display:flex;gap:10px;align-items:baseline"><span style="font-weight:800;color:var(--brand);font-size:1.15rem">№' + E(o.number) + '</span><span style="font-weight:600">' + E(o.object) + "</span></div>"
-              + '<div style="margin-top:6px"><span class="pill ' + tn + '">' + E(leftText(o.left_days)) + '</span></div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:8px">'
+              + '<div style="margin-top:6px"><span class="pill ' + tn + '">' + E(leftText(o.left_days)) + "</span>" + (o.stage === READY ? ' <span class="pill">не начата</span>' : "") + '</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:8px">'
               + wkDays.map(function (d) { var on = sp[0] && sp[1] && d >= sp[0] && d <= sp[1]; return '<span title="' + dmy(d).slice(0, 5) + '" style="height:9px;border-radius:3px;border:1px solid ' + (on ? (tn === "bad" ? "var(--bad)" : "var(--brand)") : "var(--line)") + ";background:" + (on ? (tn === "bad" ? "var(--bad)" : "var(--brand)") : "var(--surface-2)") + '"></span>'; }).join("") + "</div></button>";
           }).join("") || '<div class="note" style="padding:14px 15px;margin:0">Задач в плане нет</div>') + "</div>";
       }).join("") + "</div>";
@@ -1427,7 +1429,7 @@
         + (S.ldMenu ? '<div class="ldpop"><b>Показывать в «Занятости»</b>' + staffAll().map(function (u) { var on = people.some(function (x) { return x.name === u.name; }); return '<button type="button" class="ldchk ' + (on ? "on" : "") + '" data-ldp="' + E(u.name) + '"><i>' + (on ? "✓" : "") + "</i>" + E(u.name) + "</button>"; }).join("") + '<button class="btn ghost sm" data-ldmenu="0" style="margin-top:8px">Готово</button></div>' : "") + "</div>" : "");
     var BAR = { work: "#5aa2ee", hot: "#f0924d", late: "#e5483c", done: "#3aa876", gray: "#8794ab" };
     var PAL = ["#4f8ef0", "#e0734a", "#2fa66a", "#8b6fe0", "#d4a017", "#1fb3b3", "#d9568a", "#6f7de0", "#8c9a2a", "#b0632f", "#3c9bd1", "#c24bb0"];
-    function barKind(o, un) { if (un) return "gray"; if (o.stage === "Сдано" || o.stage === "Закрыто") return "done"; if (o.left_days != null && o.left_days < 0) return "late"; if (o.urgent || (o.left_days != null && o.left_days <= 2)) return "hot"; return "work"; }
+    function barKind(o, un) { if (un) return o.left_days != null && o.left_days < 0 ? "late" : "gray"; if (o.stage === "Сдано" || o.stage === "Закрыто") return "done"; if (o.left_days != null && o.left_days < 0) return "late"; if (o.urgent || (o.left_days != null && o.left_days <= 2)) return "hot"; return "work"; }
     function taskColor(o) { var h = 0; String(o.number || o.id).split("").forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return PAL[(h + (+o.id || 0)) % PAL.length]; }
     function cellBg(i, row) {
       var we = dow[i] >= 5, td = iso[i] === today;
@@ -1436,6 +1438,7 @@
     function range(o) {                       // индексы начала и конца полосы в окне; null — вне окна
       var sp = span(o), s0 = sp[0] || iso[0], e0 = sp[1] || s0;
       if (!sp[0] && !sp[1]) return null;
+      if (!o.hist && (ACTIVE_WORK.indexOf(o.stage) >= 0 || o.stage === READY) && e0 < today) e0 = today;      // срок прошёл, а работа не сдана — занят до сегодня
       if (e0 < iso[0] || s0 > iso[dim - 1]) return null;
       var a_ = Math.max(0, iso.indexOf(s0)); if (s0 < iso[0]) a_ = 0;
       var b_ = iso.indexOf(e0); if (b_ < 0) b_ = e0 > iso[dim - 1] ? dim - 1 : 0;
@@ -1459,8 +1462,9 @@
           + '" style="grid-column:' + (a_ + 2) + "/" + (b_ + 3) + ";grid-row:" + (x.lane + 1) + ";background:" + taskColor(o) + ';opacity:.5" class="gbar hist">'
           + HK[o.hist] + "№" + E(o.number) + " · " + E(o.object || "") + "</div>";
       }
-      return '<div ' + openAttr(o) + '="' + o.id + '" title="' + E("№" + o.number + " · " + (o.object || "") + " · " + dmy(sp[0] || iso[0]) + " — " + dmy(sp[1] || sp[0] || iso[0]) + " · " + (o.executor || "не назначен") + " · " + o.stage) + '" style="grid-column:' + (a_ + 2) + "/" + (b_ + 3) + ";grid-row:" + (x.lane + 1) + ";background:" + (un ? BAR.gray : kind === "done" ? BAR.done : taskColor(o)) + (un ? ";color:#fff;opacity:.85" : "") + (kind === "late" ? ";box-shadow:inset 0 0 0 2px #e5483c,0 0 0 1px #e5483c" : kind === "hot" ? ";box-shadow:inset 4px 0 0 #f0924d" : "") + '" class="gbar' + (o.stage === "Корректировка" ? " fix" : "") + '">'
-        + (o.stage === "Корректировка" ? "↻ К" + (o.fix_n || "") + " · " : "") + "№" + E(o.number) + " · " + E((o.object || "").split(",")[0]) + "</div>";
+      var wait = !un && o.stage === READY;                                  // назначена, но ещё не начата — пунктиром
+      return '<div ' + openAttr(o) + '="' + o.id + '" title="' + E("№" + o.number + " · " + (o.object || "") + " · " + dmy(sp[0] || iso[0]) + " — " + dmy(sp[1] || sp[0] || iso[0]) + " · " + (o.executor || "не назначен") + " · " + o.stage + (o.left_days != null && o.left_days < 0 ? " · просрочено " + (-o.left_days) + " дн." : "")) + '" style="grid-column:' + (a_ + 2) + "/" + (b_ + 3) + ";grid-row:" + (x.lane + 1) + ";background:" + (un ? BAR.gray : kind === "done" ? BAR.done : taskColor(o)) + (un ? ";color:#fff;opacity:.85" : "") + (wait ? ";opacity:.6;outline:2px dashed rgba(255,255,255,.75);outline-offset:-3px" : "") + (kind === "late" ? ";box-shadow:inset 0 0 0 2px #e5483c,0 0 0 1px #e5483c" : kind === "hot" ? ";box-shadow:inset 4px 0 0 #f0924d" : "") + '" class="gbar' + (o.stage === "Корректировка" ? " fix" : "") + '">'
+        + (o.stage === "Корректировка" ? "↻ К" + (o.fix_n || "") + " · " : wait ? "не начата · " : "") + "№" + E(o.number) + " · " + E((o.object || "").split(",")[0]) + "</div>";
     }
     var header = '<div class="ghead" style="grid-template-columns:' + cols + ';min-width:' + minw + 'px"><div class="gname">Сотрудник</div>'
       + iso.map(function (d, i) {
@@ -1469,7 +1473,7 @@
       }).join("") + "</div>";
     function person(u) {
       var color = personColor(u.name);
-      var mine = loadOrders().filter(function (o) { return (o.executor_id === u.id || o.executor === u.name) && (ACTIVE_WORK.indexOf(o.stage) >= 0 || o.stage === "На согласовании" || o.stage === "Сдано" || o.stage === "Закрыто"); });      // закрытые — чтобы было видно прошлое
+      var mine = loadOrders().filter(function (o) { return (o.executor_id === u.id || o.executor === u.name) && (ACTIVE_WORK.indexOf(o.stage) >= 0 || o.stage === READY || o.stage === "На согласовании" || o.stage === "Сдано" || o.stage === "Закрыто"); });      // закрытые — чтобы было видно прошлое
       var past = (S.lh || []).filter(function (h) { return h.user_id === u.id || h.who === u.name; }).map(function (h) {
         return { id: h.order_id, number: h.number, object: h.object, stage: "", plan_start: h.start, plan_end: h.end, hist: h.kind, fix_n: h.fix_n, who: h.who };
       }).filter(function (h) { return !mine.some(function (o) { var sp = span(o); return o.id === h.id && sp[0] && h.plan_end >= sp[0]; }); });      // не дублируем текущий план той же задачи
@@ -1490,9 +1494,9 @@
       return '<div class="grow2 gun" style="grid-template-columns:' + cols + ";grid-template-rows:repeat(" + rows + ',24px);min-width:' + minw + 'px"><div class="gname gp" style="grid-row:1/span ' + rows + '"><span class="ava sm" style="background:var(--line);color:var(--muted)">?</span><b style="color:var(--muted)">Не назначены</b></div>'
         + bg + UL.items.map(function (x) { return barEl(x, true); }).join("") + "</div>";
     })() : "";
-    var nodates = loadOrders().filter(function (o) { return o.executor && ACTIVE_WORK.indexOf(o.stage) >= 0 && !span(o)[0] && !span(o)[1]; });
+    var nodates = loadOrders().filter(function (o) { return (ACTIVE_WORK.indexOf(o.stage) >= 0 || o.stage === READY) && !span(o)[0] && !span(o)[1]; });      // и неназначенные
     var legend = '<div class="glegend"><span>Цвет полосы — своя у каждой задачи</span><span><i style="background:#8794ab;opacity:.5"></i>Бледные — уже сделано: ✓ проектирование, ↻ корректировка, 👁 проверка</span><span><i style="background:' + BAR.hot + '"></i>Оранжевая кромка — горит</span><span><i style="background:' + BAR.late + '"></i>Красная рамка — просрочено</span><span><i style="background:' + BAR.done + '"></i>Сдано</span>'
-      + '<span><i style="background:' + BAR.gray + '"></i>Серые — не назначены, на стадии «Готов к проектированию»: от даты постановки до последнего дня договора</span><span class="muted">Полоска снизу — число задач в день (красная ≥ 3)</span></div>'
+      + '<span><i style="background:' + BAR.gray + '"></i>Серые — не назначены, на стадии «Готов к проектированию»: от даты постановки до последнего дня договора</span><span><i style="background:#8794ab;opacity:.6;outline:1px dashed #fff;outline-offset:-2px"></i>Пунктир — исполнитель назначен, работа не начата</span><span>Срок прошёл, а работа не сдана — полоса тянется до сегодня</span><span class="muted">Полоска снизу — число задач в день (красная ≥ 3)</span></div>'
       + (nodates.length ? '<div class="glegend">Без дат (не на шкале): ' + nodates.map(function (o) { return '<a href="#/task/' + o.id + '">№' + E(o.number || "—") + "</a>"; }).join(" ") + "</div>" : "");
     var bodyHtml = people.map(person).join("") + unBlock;
     return headBase + nav + '<div class="panel gpanel"><div style="zoom:' + z + '">' + header + (bodyHtml || '<div class="note" style="padding:16px;margin:0">Задач в плане нет</div>') + "</div></div>" + legend;
