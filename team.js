@@ -455,7 +455,7 @@
   function paintThread(keep) {
     var el = $("tThread"); if (!el) return;
     var room = S.rooms.filter(function (r) { return r.id === S.cur; })[0] || { name: "Чат", descr: "", kind: "chan", id: S.cur };
-    var pin = S.msgs.filter(function (m) { return m.urgent; }).slice(-1)[0];
+    var pin = room.urgent_open > 0 ? S.msgs.filter(function (m) { return m.urgent; }).slice(-1)[0] : null;      // полоса «Срочное» — пока не прочитано
     var prevDay = "", body = S.msgs.map(function (m) { var d = dayLabel(m.ts), h = (d !== prevDay ? '<span class="x-day">' + d + "</span>" : "") + msgHtml(m); prevDay = d; return h; }).join("");
     var wasBottom = true, old = el.querySelector(".x-msgs"), val = $("tIn") ? $("tIn").value : (S.drafts[S.cur] || "");
     var hadFocus = document.activeElement && document.activeElement.id === "tIn", ss = hadFocus ? document.activeElement.selectionStart : 0, se = hadFocus ? document.activeElement.selectionEnd : 0;

@@ -39,6 +39,13 @@
   /* должность в проектах: нормативный специалист с признаком «Исполнитель» работает со своими проектами как проектировщик */
   function projPos() { var p = pos(); return p === "norm" && C.me.executor ? "designer" : p; }
   function api(path, body) { return C.call("/../ds" + path, body ? { body: body } : {}); }
+  /* оплата задачи: аванс на всю сумму — оплачено; часть — «Аванс получен»; аванс предусмотрен, но не пришёл — «Ждём аванс» */
+  function prepaid(o) { return !!o.adv_paid && +o.amount > 0 && +o.adv_sum >= +o.amount; }
+  function payPill(o) {
+    if (o.post_paid || prepaid(o)) return '<span class="pill ok">₽ Оплачено</span>';
+    if (o.adv_paid) return '<span class="pill info" title="Остаток по акту: ' + E(String(Math.max(0, (+o.amount || 0) - (+o.adv_sum || 0)))) + ' ₽">₽ Аванс получен</span>';
+    return '<span class="pill warn">₽ ' + (o.adv_mode === "advance" ? "Ждём аванс" : "Не оплачено") + "</span>";
+  }
   function toast(m) {           /* своя плашка вместо alert(): в приложении на телефоне и во встроенных браузерах alert() часто не показывается */
     if (window.toast) return window.toast(m);
     var t = document.getElementById("xToast"); if (!t) { t = document.createElement("div"); t.id = "xToast"; t.className = "x-toast"; document.body.appendChild(t); }
@@ -202,7 +209,7 @@
       + '<span class="meta">' + (o.executor ? ava(o.executor, "sm") + '<span style="font-size:.84rem;margin-right:auto">' + E(o.executor) + "</span>" : '<span class="pill muted" style="margin-right:auto">не назначен</span>')
       + (needPhone(o) ? '<span class="pill bad" title="В карточке заказчика не указан сотовый телефон">Нет телефона</span>' : "")
       + (withStage ? '<span class="pill muted"><i class="dot" style="background:' + (STAGE_COLOR[stage] || "#999") + '"></i>' + E(stage) + "</span>" : "")
-      + (money_ ? (o.post_paid ? '<span class="pill ok">₽ Оплачено</span>' : '<span class="pill warn">₽ Не оплачено</span>') : "")
+      + (money_ ? payPill(o) : "")
       + '<span class="pill ' + tone(o) + '">' + E(leftText(o.left_days)) + "</span></span></span></button>";
   }
   /* ---------- операционные задачи и продажи: сроки, ответственные, состояния ---------- */
@@ -468,7 +475,7 @@
       hot: act_.filter(function (o) { return o.left_days != null && o.left_days >= 0 && o.left_days <= 2; }).length,
       review: all.filter(function (o) { return o.stage === "На согласовании"; }).length,
       edits: all.filter(function (o) { return o.edits > 0; }).length,
-      unpaid: hasMoney ? all.filter(function (o) { return !o.post_paid && o.stage !== "Закрыто"; }).length : 0
+      unpaid: hasMoney ? all.filter(function (o) { return !o.post_paid && !o.adv_paid && o.stage !== "Закрыто"; }).length : 0
     };
     var visStages = S.meta.stages || [];
     var T = [["active", "В работе", "var(--brand)"], ["over", "Просрочено", "var(--bad)"], ["hot", "Горят (≤ 2 дн.)", "var(--accent)"]];
@@ -482,7 +489,7 @@
       if (f.tile === "hot" && !(isAct && l != null && l >= 0 && l <= 2)) return false;
       if (f.tile === "review" && o.stage !== "На согласовании") return false;
       if (f.tile === "edits" && !(o.edits > 0)) return false;
-      if (f.tile === "unpaid" && (o.post_paid || o.stage === "Закрыто")) return false;
+      if (f.tile === "unpaid" && (o.post_paid || o.adv_paid || o.stage === "Закрыто")) return false;
       if (f.stage && o.stage !== f.stage) return false;
       if (q && (o.number + " " + (o.customer || "") + " " + o.object + " " + (o.system || "") + " " + (o.executor || "")).toLowerCase().indexOf(q) < 0) return false;
       return true;
@@ -864,7 +871,7 @@
         + docRow(true, "Договор №" + o.number + " · " + money(o.amount), "подписан" + (o.contract_date ? " " + dmy(o.contract_date) : ""))
         + docRow(!adv || o.adv_paid, "Аванс" + (adv ? " " + money(o.adv_sum) : ""), !adv ? "не предусмотрен" : o.adv_paid ? "оплачен " + dmy(o.adv_date) : "ждём оплату")
         + docRow(!!o.act_signed, "Акт", o.act_signed ? "подписан" : o.act_sent ? "отправлен, ждём подпись" : "будет после сдачи")
-        + docRow(!!o.post_paid, "Постоплата", o.post_paid ? "получена " + dmy(o.post_date) : "ожидается") + "</div>"
+        + docRow(!!o.post_paid || prepaid(o), "Постоплата", o.post_paid ? "получена " + dmy(o.post_date) : prepaid(o) ? "не нужна: 100% аванс" : "ожидается") + "</div>"
         + accButtons(o) + "</div>";
     }
     var canCreate = p === "owner" || p === "sales" || p === "ops";
@@ -887,7 +894,7 @@
     if (o.stage === "Сдано") {
       if (!o.act_sent) b.push('<button class="btn ghost sm" data-act="sent">Акт отправлен</button>');
       if (!o.act_signed) b.push('<button class="btn ghost sm" data-act="signed">Акт подписан</button>');
-      if (!o.post_paid) b.push('<button class="btn ghost sm" data-pay="post">Оплата получена</button>');
+      if (!o.post_paid && !prepaid(o)) b.push('<button class="btn ghost sm" data-pay="post">Оплата получена</button>');
     }
     return b.length ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">' + b.join("") + "</div>" : "";
   }
@@ -1080,7 +1087,7 @@
     var body = S.tab === "log" ? logTab() : S.tab === "tz" ? tzTab() : S.tab === "rounds" ? roundsTab(o) : (menuOn && S.tab === "info") ? tmHtml() : infoTab(o);
     var money_ = can("money") && o.amount != null;
     return '<div class="modal-bg" data-bg="1"><div class="modal"><div class="m-head"><div class="row"><h2>№' + E(o.number) + (o.customer ? " · " + E(o.customer) : "") + "</h2>"
-      + (o.urgent ? '<span class="pill urg">⚡ Срочно</span>' : "") + (money_ ? (o.post_paid ? '<span class="pill ok">₽ Оплачено</span>' : '<span class="pill warn">₽ Не оплачено</span>') : "")
+      + (o.urgent ? '<span class="pill urg">⚡ Срочно</span>' : "") + (money_ ? payPill(o) : "")
       + '<button class="x" data-close="1">✕</button></div><div style="color:var(--muted);margin-top:2px">' + E(o.object) + "</div>" + tzLine(o) + taskCallHtml(o) + custChatHtml(o) + stepper(o) + "</div>"
       + '<div class="m-body">' + nx + '<div class="tabs">' + tabs.map(function (t) { return '<button data-tab="' + t[0] + '" class="' + (S.tab === t[0] ? "on" : "") + '">' + t[1] + "</button>"; }).join("") + "</div>" + body + "</div></div></div>";
   }
@@ -1329,7 +1336,8 @@
     if (!opened) return '<div class="ovr">' + head + "</div>";
     var items = cm.map(function (x) {
       var d = new Date(x.ts * 1000);
-      return '<div class="ovc-i"><b>' + E(x.user) + '</b> <small>' + d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) + "</small><div>" + E(x.text) + "</div></div>";
+      return '<div class="ovc-i"><b>' + E(x.user) + '</b> <small>' + d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) + "</small>"
+        + (x.can_del ? ' <button type="button" class="lnk" style="color:var(--muted);font-size:.8rem" data-cmdel="' + x.id + '" title="Удалить комментарий">✕</button>' : "") + "<div>" + E(x.text) + "</div></div>";
     }).join("") || '<div class="note" style="margin:0">Комментариев пока нет</div>';
     S.cmDraft = S.cmDraft || {};
     return '<div class="ovr open">' + head + '<div class="ovc">' + items
@@ -2663,7 +2671,7 @@
     if (!inModal && !(S.mount && S.mount.el && S.mount.el.contains(e.target))) return;
     var bg = e.target.getAttribute && e.target.getAttribute("data-bg");
     if (bg) { closeAll(); return; }
-    var t = e.target.closest("[data-who],[data-osel],[data-oselx],[data-oview],[data-gmore],[data-kpgo],[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-audload],[data-audlist],[data-audclose],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
+    var t = e.target.closest("[data-who],[data-osel],[data-oselx],[data-oview],[data-gmore],[data-kpgo],[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-audload],[data-audlist],[data-audclose],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-cmdel],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
     if (!t) return;
     var d = t.dataset;
     if (d.close) return closeAll();
@@ -2710,6 +2718,10 @@
       }, function (e) { toast(String(e)); });
     }
     if (d.cmtoggle) { var oi = +d.cmtoggle; S.cmOpen = S.cmOpen || {}; S.cmOpen[oi] = !S.cmOpen[oi]; return paint(); }
+    if (d.cmdel) {
+      if (!confirm("Удалить комментарий?")) return;
+      return api("/comments/" + d.cmdel + "/delete", {}).then(function () { return api("/comments"); }).then(function (c) { S.cm = c; paint(); }, function (e) { toast(String(e)); });
+    }
     if (d.cmsend) {
       var coid = +d.cmsend, txt = ((S.cmDraft || {})[coid] || "").trim();
       if (!txt) return toast("Напишите комментарий");
