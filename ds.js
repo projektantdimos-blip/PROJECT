@@ -214,6 +214,8 @@
   }
   /* ---------- операционные задачи и продажи: сроки, ответственные, состояния ---------- */
   function taskTone(t) { return t.left_days == null ? "muted" : t.left_days < 0 ? "bad" : t.left_days <= 2 ? "warn" : "info"; }
+  function ackMine(t) { return !!(t.ack_wait && C && C.me && t.assignee_id === C.me.id); }      // личная задача ждёт, что я подтвержу получение
+  function ackWhen(t) { return new Date(t.ack_at * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); }
   function taskCard(t) {
     var tn = taskTone(t), kindName = t.kind === "acc" ? "Бухгалтерия" : t.kind === "ops" ? "Операционная" : t.kind === "chat" ? "Переписка" : t.kind === "design" ? "Проектный отдел" : t.kind === "norm" ? "Нормативный специалист" : "Продажи";
     var btns = [];
@@ -225,6 +227,7 @@
     if (t.thread_id) btns.push('<button class="btn primary sm" data-chatopen="' + E(t.thread_id) + '">Открыть диалог</button>');
     if (t.order_id && t.order_number && !t.visit_id) btns.push('<a class="btn ' + (find(t.order_id) ? "ghost" : "primary") + ' sm" style="text-decoration:none" href="' + folderUrl({ number: t.order_number, object: t.object }, false) + '" title="Папка задачи на сервере">📂 Папка на сервере</a>');
     if (t.order_id && t.kind === "design" && !t.visit_id && find(t.order_id)) btns.push('<button class="btn primary sm" data-open="' + t.order_id + '">Открыть задачу</button>');
+    if (ackMine(t)) btns.unshift('<button class="btn primary sm" data-tack="' + t.id + '">✓ Подтвердить получение</button>');
     if (t.state !== "work") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':work">В работу</button>');
     if (t.state !== "wait") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':wait">Ждём ответа</button>');
     btns.push('<button class="btn ok sm" data-tstate="' + t.id + ':done">Выполнено</button>');
@@ -240,6 +243,7 @@
       + (t.object ? '<span class="con" style="display:block">' + E(t.object) + "</span>" : "")
       + (t.note ? '<span class="con" style="display:block;color:var(--muted)">' + E(t.note) + "</span>" : "")
       + (t.author ? '<span class="con" style="display:block;font-size:.78rem;color:var(--muted)">Поставил(а): ' + E(t.author) + "</span>" : "")
+      + (t.need_ack ? '<span class="con" style="display:block;font-size:.78rem;color:' + (t.ack_wait ? "var(--warn)" : "var(--muted)") + '">' + (t.ack_wait ? "Получение не подтверждено" : "Получено " + E(ackWhen(t))) + "</span>" : "")
       + '<span class="meta" style="margin-bottom:8px"><span class="pill ' + tn + '">' + (t.due ? "до " + dmy(t.due).slice(0, 5) + " · " : "") + E(leftText(t.left_days)) + "</span></span>"
       + '<span class="meta" style="gap:6px">' + btns.join("") + "</span>" + replyBox(t) + "</span></div>";
   }
@@ -297,6 +301,7 @@
     tn = taskTone(u);
     var acts = "";
     if (u.step === "a1" || u.step === "a2") acts += '<button class="cmb" data-lead="' + u.id + ':skip" title="Задача не требуется">Не требуется</button><button class="cmb on" data-lead="' + u.id + ':next">Дальше →</button>';
+    if (ackMine(u)) acts += '<button class="cmb on" data-tack="' + u.id + '" title="Подтвердить получение задачи">Получено</button>';
     acts += '<button class="cmb" data-tstate="' + u.id + ':done" title="Выполнено">✓</button>';
     if (taskCtl() || taskMine(u)) acts += '<button class="cmb" data-tedit="' + u.id + '" title="Править">✎</button>';
     if (taskCtl() || taskAuthor(u)) acts += '<button class="cmb" data-tdel="' + u.id + '" title="Удалить" style="color:var(--bad)">🗑</button>';
@@ -345,7 +350,7 @@
     var col = olColOf(x), du = olDue(x), title, sub, who, attr, ck = "<span></span>";
     if (x.t) {
       var t = x.t;
-      title = E((t.title || "").replace(/:\s*№.*$/, "")) + (t.state === "wait" ? '<span class="olst wait">ждём ответа</span>' : t.state === "work" ? '<span class="olst work">в работе</span>' : "");
+      title = E((t.title || "").replace(/:\s*№.*$/, "")) + (t.ack_wait ? '<span class="olst wait">не подтверждена</span>' : t.state === "wait" ? '<span class="olst wait">ждём ответа</span>' : t.state === "work" ? '<span class="olst work">в работе</span>' : "");
       sub = [t.order_number ? "№" + t.order_number : "", t.object || t.note || ""].filter(Boolean).join(" · ");
       who = t.assignee || "";
       attr = 'data-osel="' + olKey(x) + '"';
@@ -394,7 +399,7 @@
   function olDrawer(t) {
     var x = { t: t, left: t.left_days }, col = olColOf(x), du = olDue(x), tn = taskTone(t);
     var proj = t.order_id && !!find(t.order_id);
-    var acts = "";
+    var acts = ackMine(t) ? '<div class="olacts"><button class="btn primary sm grow1" data-tack="' + t.id + '">✓ Подтвердить получение</button></div>' : "";
     if (t.visit_id) acts += '<div class="olacts"><a class="btn primary sm grow1" style="text-decoration:none;justify-content:center" href="#/visits?v=' + t.visit_id + '">📍 Открыть выезд: адрес, материалы, расходы</a></div>';
     if (t.step === "a1" || t.step === "a2") acts += '<div class="olacts"><button class="btn ghost sm" data-lead="' + t.id + ':skip">Задача не требуется</button><button class="btn primary sm grow1" data-lead="' + t.id + ':next">Передать дальше → ' + (t.step === "a1" ? "Сбор вводных" : "КП") + "</button></div>";
     if (t.can_reply) acts += '<div class="olacts"><button class="btn ghost sm grow1" data-trep="' + t.id + '">💬 Написать ответ' + (t.src_room ? " в чат" : t.author ? ": " + E(t.author) : "") + "</button></div>" + replyBox(t);
@@ -407,6 +412,7 @@
       + "<h2>" + E((t.title || "").replace(/:\s*№.*$/, "")) + '</h2></div><div class="oldb">' + taskFolder(t) + '<dl class="olkv">'
       + '<dt>Срок</dt><dd style="font-weight:600;color:' + (tn === "bad" ? "var(--bad)" : tn === "warn" ? "var(--warn)" : "inherit") + '">' + (t.due ? dmy(t.due) + " · " : "") + E(leftText(t.left_days)) + "</dd>"
       + "<dt>Исполнитель</dt><dd>" + (t.assignee ? '<span class="olwho">' + ava(t.assignee, "sm") + E(t.assignee) + "</span>" : "—") + "</dd>"
+      + (t.need_ack ? '<dt>Получение</dt><dd style="color:' + (t.ack_wait ? "var(--warn)" : "inherit") + '">' + (t.ack_wait ? "Не подтверждено" : "Подтверждено " + E(ackWhen(t))) + "</dd>" : "")
       + (t.order_id ? "<dt>Задача в CRM</dt><dd>" + (proj ? '<button class="lnk" data-open="' + t.order_id + '">№' + E(t.order_number) + " →</button>" : "№" + E(t.order_number) + ' <span style="color:var(--muted)">· карточка вам не видна, всё нужное — в папке</span>') + "</dd>" : "")
       + (t.object ? "<dt>Объект</dt><dd>" + E(t.object) + "</dd>" : "")
       + (proj ? '<dt>Чат задачи</dt><dd><button class="lnk" data-taskchat="' + t.order_id + '">Перейти в чат →</button></dd>' : "")
@@ -2681,7 +2687,7 @@
     var bg = e.target.getAttribute && e.target.getAttribute("data-bg");
     if (bg) { closeAll(); return; }
     if (e.target.closest("[data-trbox]") && !e.target.closest("[data-trsend]")) return;      // поле ответа в карточке задачи
-    var t = e.target.closest("[data-trep],[data-trsend],[data-who],[data-osel],[data-oselx],[data-oview],[data-gmore],[data-kpgo],[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-audload],[data-audlist],[data-audclose],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-cmdel],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
+    var t = e.target.closest("[data-tack],[data-trep],[data-trsend],[data-who],[data-osel],[data-oselx],[data-oview],[data-gmore],[data-kpgo],[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-audload],[data-audlist],[data-audclose],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-cmdel],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
     if (!t) return;
     var d = t.dataset;
     if (d.close) return closeAll();
@@ -2769,6 +2775,7 @@
     if (d.ctmake != null && t.hasAttribute("data-ctmake")) return makeContract();
     if (d.ctstandalone != null && t.hasAttribute("data-ctstandalone")) { S.cmode = "kp"; return newStandalone(); }
     if (d.ctsign != null && t.hasAttribute("data-ctsign")) return signContract();
+    if (d.tack) return act2(api("/tasks/" + d.tack + "/ack", {}).then(function () { toast("Получение подтверждено"); S.tasks = null; return load(); }), false);
     if (d.tstate) { var ts = d.tstate.split(":"); return act2(api("/tasks/" + ts[0] + "/state", { state: ts[1] }).then(function () { S.tasks = null; return load(); }), false); }
     if (d.flstep) { S.flStep = S.flStep === d.flstep ? null : d.flstep; return paint(); }
     if (d.fltab) { S.flTab = d.fltab; if (d.fltab === "path" && !S.flOrder && (S.orders || []).length) S.flOrder = S.orders[0].id; return loadPath().then(paint); }

@@ -193,6 +193,28 @@
     D.feed($("dspFeed"), l.customer.id, {});
   }
 
+  /* заявка с сайта: итоги после разговора — кто заказчик, как прошёл разговор, чем закончилось */
+  function siteResult(host, t) {
+    var url = "/site/" + encodeURIComponent(t.id) + "/result", when = function (r) {
+      return r.ts ? "Сохранил(а) " + E(r.user_name) + ", " + new Date(r.ts * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+    };
+    function paint(r) {
+      if (!document.body.contains(host)) return;
+      host.innerHTML = '<div class="panel pad" style="margin:0 0 12px"><h3 style="margin:0 0 8px">Итоги по заявке</h3>'
+        + '<div class="fld"><label>1. Заказчик</label><div style="display:flex;flex-wrap:wrap;gap:6px">' + r.kinds.map(function (k) {
+            return '<button type="button" class="btn sm ' + (r.kind === k ? "primary" : "ghost") + '" data-srk="' + E(k) + '">' + E(k) + "</button>"; }).join("") + "</div></div>"
+        + '<div class="fld"><label>2. Как прошёл разговор</label><textarea rows="3" id="srTalk">' + E(r.talk) + "</textarea></div>"
+        + '<div class="fld"><label>3. Итоги</label><textarea rows="3" id="srRes">' + E(r.result) + "</textarea></div>"
+        + '<div style="display:flex;align-items:center;gap:10px"><button type="button" class="btn primary sm" id="srSave">Сохранить</button><small class="note" style="margin:0" id="srWhen">' + when(r) + "</small></div></div>";
+      host.querySelectorAll("[data-srk]").forEach(function (b) { b.onclick = function () {
+        r.talk = $("srTalk").value; r.result = $("srRes").value; r.kind = r.kind === b.dataset.srk ? "" : b.dataset.srk; paint(r);
+      }; });
+      $("srSave").onclick = function () {
+        api(url, { kind: r.kind, talk: $("srTalk").value, result: $("srRes").value }).then(paint, function (e) { $("srWhen").textContent = String(e); });
+      };
+    }
+    api(url).then(paint, function () {});
+  }
   D.render = function (box, t, name) {
     var s = st(t);
     if (!C() || !MPBC.loggedIn()) { box.innerHTML = '<div class="dsp"><p class="note">Войдите, чтобы работать с заказчиком.</p></div>'; return; }
@@ -204,6 +226,7 @@
     box.querySelectorAll(".tabs button").forEach(function (b) { b.onclick = function () { s.tab = b.dataset.t; s.err = ""; D.render(box, t, name); }; });
     var body = $("dspBody");
     body.innerHTML = '<p class="note">Загрузка…</p>';
+    if (t.channel === "site") { var srBox = document.createElement("div"); box.querySelector(".dsp").insertBefore(srBox, box.querySelector(".dsp").firstChild); siteResult(srBox, t); }
     if (s.link) setChip(t, s.link);                       // метка в шапке — сразу по прошлым данным, пока грузится свежая привязка
     api("/threads/" + encodeURIComponent(t.id) + "/link?title=" + encodeURIComponent(name || "") + "&peer=" + encodeURIComponent(t.peer || "")).then(function (l) {
       s.link = l;

@@ -132,6 +132,7 @@
     if (t.thread_id) return btn("Диалог", 'data-tdchat="' + E(t.thread_id) + '"');
     return "";
   }
+  function ackBtn(t) { return t.ack_wait && t.assignee_id === me().id ? btn("✓ Подтвердить получение", 'data-tdack="' + t.id + '"', "primary") : ""; }
   function orderSub(o) {
     return [o.customer, o.object, o.stage, o.executor].filter(Boolean).map(E).join(" · ");
   }
@@ -142,7 +143,7 @@
     d.hot.forEach(function (h) {
       if (h.type === "task") {
         rows.push(row(dot("bad"), E(h.title) + (h.author ? "" : tag("авто", "auto")), "срок был " + E(dm(h.due)) + (h.order_number ? " · №" + E(h.order_number) + " " + E(h.object || "") : "") + (h.note ? " · " + E(h.note) : ""),
-          '<b class="bad">' + E(h.reason) + "</b>", btn("✓ Готово", 'data-tddone="' + h.id + '"', "ok") + openBtn(h)));
+          '<b class="bad">' + E(h.reason) + "</b>", ackBtn(h) + btn("✓ Готово", 'data-tddone="' + h.id + '"', "ok") + openBtn(h)));
         return;
       }
       var acts = btn("Открыть", 'data-tdorder="' + h.id + '"');
@@ -190,6 +191,16 @@
     return "";
   }
 
+  /* поставил другому, а получение ещё не подтвердили */
+  function sentPanel(d) {
+    var s = d.sent || [];
+    if (!s.length) return "";
+    return panel("sent", "Не подтвердили получение", s.length, cap("sent", s.map(function (t) {
+      var ago = Math.round((Date.now() / 1000 - t.created) / 3600);
+      return row(dot(ago >= 24 ? "bad" : "warn"), E(String(t.title).replace(/:\s*№.*$/, "")), E(t.assignee) + " · поставлена " + (ago < 1 ? "только что" : ago < 24 ? ago + " ч назад" : dn(Math.round(ago / 24)) + " назад"), "", t.order_id ? btn("Открыть", 'data-tdorder="' + t.order_id + '"') : "");
+    })));
+  }
+
   /* мои задачи + напоминания по срокам */
   function reminders(d) { return (d.reminders || []).map(function (r) { r._l = left(r.d); return r; }); }
   function allMine(d) {
@@ -210,7 +221,7 @@
     }
     var when = (m.l != null && m.l > 0 ? dayLabel(m.due) : "") + (m.tm ? (m.l > 0 ? " " : "") + m.tm : "");
     var ck = m.k === "task" ? 'data-tddone="' + m.id + '"' : 'data-tdrem="' + m.id + '"';
-    var acts = (m.k === "task" ? openBtn(x) : (m.link ? btn("Открыть", 'data-tdhash="' + E(m.link) + '"') : "") + btn("⏰", 'data-tdsnooze="' + m.id + '" title="Отложить на час"'));
+    var acts = (m.k === "task" ? ackBtn(x) + openBtn(x) : (m.link ? btn("Открыть", 'data-tdhash="' + E(m.link) + '"') : "") + btn("⏰", 'data-tdsnooze="' + m.id + '" title="Отложить на час"'));
     return '<div class="td-it td-mine"><button class="td-ck" ' + ck + ' title="Готово">✓</button><div class="td-g"><div class="td-t">' + E(m.title) + tags + "</div>"
       + (sub.length ? '<div class="td-s">' + sub.map(E).join(" · ") + "</div>" : "") + "</div>" + (when ? '<div class="td-r">' + E(when) + "</div>" : "") + (acts ? '<div class="td-a">' + acts + "</div>" : "") + "</div>";
   }
@@ -309,7 +320,7 @@
       + quickHtml(d)
       + '<div class="td-cols' + (roles ? "" : " one") + '"><div>'
       + panel("hot", "🔥 Горит", hot.length, hot.length ? cap("hot", hot) : '<div class="td-empty">Ничего не горит 👍</div>', "td-hot")
-      + conf + mine.html + "</div>" + (roles ? "<div>" + roles + "</div>" : "") + "</div></div>";
+      + conf + sentPanel(d) + mine.html + "</div>" + (roles ? "<div>" + roles + "</div>" : "") + "</div></div>";
     S.el.innerHTML = html;
     if (keep) { var ni = S.el.querySelector("[data-tdinput]"); if (ni) { ni.value = keep[0]; if (keep[1]) ni.focus(); preview(); } }
   }
@@ -338,6 +349,7 @@
     if (d.tdorder) { location.hash = "#/task/" + d.tdorder; return; }
     if (d.tdchat) { location.hash = "#/chat?t=" + encodeURIComponent(d.tdchat); return; }
     if (d.tdhash) { location.hash = d.tdhash; return; }
+    if (d.tdack) { busy(t, api("/tasks/" + d.tdack + "/ack", {}).then(function () { toast("Получение подтверждено"); })); return; }
     if (d.tddone) { busy(t, api("/tasks/" + d.tddone + "/done", {}).then(function () { toast("Готово"); })); return; }
     if (d.tdrem) { busy(t, C.call("/reminders/" + d.tdrem + "/done", { body: { done: true } }).then(function () { toast("Готово"); })); return; }
     if (d.tdsnooze) { busy(t, C.call("/reminders/" + d.tdsnooze + "/snooze", { body: { minutes: 60 } }).then(function () { toast("Напомню через час"); })); return; }
