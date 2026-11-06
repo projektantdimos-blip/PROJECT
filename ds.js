@@ -228,6 +228,7 @@
     if (t.state !== "work") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':work">В работу</button>');
     if (t.state !== "wait") btns.push('<button class="btn ghost sm" data-tstate="' + t.id + ':wait">Ждём ответа</button>');
     btns.push('<button class="btn ok sm" data-tstate="' + t.id + ':done">Выполнено</button>');
+    if (t.can_reply) btns.push('<button class="btn ghost sm" data-trep="' + t.id + '" title="' + (t.src_room ? "Ответ уйдёт в чат, откуда задача" : "Ответ уйдёт личным сообщением: " + E(t.author || "")) + '">💬 Написать ответ</button>');
     if (taskCtl() || taskMine(t)) btns.push('<button class="btn ghost sm" data-tedit="' + t.id + '" title="Править задачу: название, срок, комментарий">✎</button>');
     if (taskCtl() || taskAuthor(t)) btns.push('<button class="btn ghost sm" data-tdel="' + t.id + '" title="Удалить задачу" style="color:var(--bad)">🗑</button>');
     var proj = t.order_id && !!find(t.order_id);      /* карточка проекта открывается, только если она вам видна (иначе — папка на сервере) */
@@ -240,7 +241,7 @@
       + (t.note ? '<span class="con" style="display:block;color:var(--muted)">' + E(t.note) + "</span>" : "")
       + (t.author ? '<span class="con" style="display:block;font-size:.78rem;color:var(--muted)">Поставил(а): ' + E(t.author) + "</span>" : "")
       + '<span class="meta" style="margin-bottom:8px"><span class="pill ' + tn + '">' + (t.due ? "до " + dmy(t.due).slice(0, 5) + " · " : "") + E(leftText(t.left_days)) + "</span></span>"
-      + '<span class="meta" style="gap:6px">' + btns.join("") + "</span></span></div>";
+      + '<span class="meta" style="gap:6px">' + btns.join("") + "</span>" + replyBox(t) + "</span></div>";
   }
   function kpNo(n) { return "КП №" + String(n == null ? "" : n).replace(/^К-/, ""); }
   function kpTone(k) { return k.last_days == null ? "muted" : k.last_days > 5 ? "bad" : k.last_days >= 3 ? "warn" : "info"; }
@@ -381,6 +382,10 @@
     });
     return out || '<div class="note">Ничего не найдено</div>';
   }
+  function replyBox(t) {
+    if (S.trep !== t.id) return "";
+    return '<span class="ovc-f" data-trbox="1" style="display:flex;gap:8px;margin-top:8px"><textarea rows="2" style="flex:1;min-width:0" data-trd="' + t.id + '" placeholder="' + (t.src_room ? "Ответ в чат" : "Ответ для: " + E(t.author || "")) + '…">' + E((S.trDraft || {})[t.id] || "") + '</textarea><button class="btn primary sm" data-trsend="' + t.id + '">Отправить</button></span>';
+  }
   function taskFolder(t) {
     if (!t.order_id || !t.order_number) return "";
     return '<div class="olfold"><span>📂</span><div><b>' + E(FOLDER_ROOT + "\\" + t.order_number + ". " + (t.object || "")) + "</b><small>Папка задачи на сервере — материалы и то, что нужно сделать</small>"
@@ -392,6 +397,7 @@
     var acts = "";
     if (t.visit_id) acts += '<div class="olacts"><a class="btn primary sm grow1" style="text-decoration:none;justify-content:center" href="#/visits?v=' + t.visit_id + '">📍 Открыть выезд: адрес, материалы, расходы</a></div>';
     if (t.step === "a1" || t.step === "a2") acts += '<div class="olacts"><button class="btn ghost sm" data-lead="' + t.id + ':skip">Задача не требуется</button><button class="btn primary sm grow1" data-lead="' + t.id + ':next">Передать дальше → ' + (t.step === "a1" ? "Сбор вводных" : "КП") + "</button></div>";
+    if (t.can_reply) acts += '<div class="olacts"><button class="btn ghost sm grow1" data-trep="' + t.id + '">💬 Написать ответ' + (t.src_room ? " в чат" : t.author ? ": " + E(t.author) : "") + "</button></div>" + replyBox(t);
     acts += '<div class="olacts"><button class="btn ok sm grow1" data-tstate="' + t.id + ':done">✓ Выполнено</button>'
       + '<button class="btn ' + (t.state === "work" ? "primary" : "ghost") + ' sm" data-tstate="' + t.id + ':work">В работу</button>'
       + '<button class="btn ' + (t.state === "wait" ? "primary" : "ghost") + ' sm" data-tstate="' + t.id + ':wait">Ждём ответа</button></div>';
@@ -1256,7 +1262,8 @@
       + tmInp("Проектируемая система", "system")
       + '<label class="tm-l">Приоритет</label><div class="tm-chips">' + PRIOS.map(function (x) { return '<button type="button" class="tmchip ' + (x[0] === o.priority ? "on" : "") + '" data-tmprio="' + x[0] + '"><i style="background:' + x[2] + '"></i>' + x[1] + "</button>"; }).join("") + "</div>"
       + '<div class="g2f">' + tmInp("Дата постановки", "start_date", "date") + tmInp("Срок по договору", "due_date", "date") + "</div>"
-      + '<div class="g2f">' + tmInp("Начало работ (план)", "plan_start", "date") + tmInp("Срок сдачи (план)", "plan_end", "date") + "</div>"
+      + '<div class="g2f">' + (fixDates(o) ? tmInp("Начало корректировки №" + o.fix_n, "fix_start", "date") + tmInp("Срок корректировки", "fix_end", "date")
+        : tmInp("Начало работ (план)", "plan_start", "date") + tmInp("Срок сдачи (план)", "plan_end", "date")) + "</div>"
       + tmInp("Правок от заказчика", "edits", "number")
       + (money_ ? '<label class="tm-l">Оплата и акт</label><div class="g2f">' + tmInp("Сумма, ₽", "amount", "number") + tmInp("Аванс, ₽", "adv_sum", "number") + "</div>"
         + '<div class="g2f">' + tmInp("Дата аванса", "adv_date", "date") + tmInp("Дата постоплаты", "post_date", "date") + "</div>"
@@ -1269,6 +1276,7 @@
     var o = S.oe; if (!o) return "";
     return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:12px"><div class="modal tm"><div class="m-head"><div class="row"><div><h2 style="font-size:1.25rem">№' + E(o.number) + " · " + E(o.customer || "") + '</h2>' + tzLine(o) + '</div><button class="x" data-close="1">✕</button></div></div><div class="m-body tm-body">' + tmHtml() + "</div></div></div>";
   }
+  function fixDates(o) { return !!o.fix_n && o.stage === "Корректировка" && (find(o.id) || {}).stage === "Корректировка"; }      // на корректировке правятся её сроки, а не основной работы
   function tmOpen(id) {
     var o = find(+id); if (!o) return;
     S.oe = JSON.parse(JSON.stringify(o)); S.oeErr = ""; S.tm = true;
@@ -1279,6 +1287,7 @@
     S.oeErr = "";
     var pl = { number: o.number, customer: o.customer, object: o.object, system: o.system, stage: o.stage, executor_id: +o.executor_id || 0, start_date: o.start_date || "", due_date: o.due_date || "",
       plan_start: o.plan_start || "", plan_end: o.plan_end || "", priority: o.priority, edits: +o.edits || 0, urgent: o.urgent ? 1 : 0 };
+    if (fixDates(o)) { pl.plan_start = o.fix_start || ""; pl.plan_end = o.fix_end || ""; }
     if (fullCtl()) pl.nonproj = o.nonproj ? 1 : 0;
     if (o.stage === "Корректировка") { pl.fix_days = +o.fix_days || 0; pl.fix_remarks = o.fix_remarks || ""; pl.fix_cat = o.fix_cat || ""; }
     if (can("money") && o.amount != null) Object.assign(pl, { amount: +o.amount || 0, adv_sum: +o.adv_sum || 0, adv_date: o.adv_date || "", post_date: o.post_date || "", adv_paid: o.adv_paid ? 1 : 0, post_paid: o.post_paid ? 1 : 0, act_sent: o.act_sent ? 1 : 0, act_signed: o.act_signed ? 1 : 0 });
@@ -1511,13 +1520,13 @@
   }
   function planHtml() {
     var o = find(S.edit); if (!o) return "";
-    var sp = span(o), today = isoDay(new Date());
+    var sp = span(o), today = isoDay(new Date()), fx = fixDates(o);
     var people = staff().filter(function (u) { return u.id; });
     return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:16px"><div class="modal" style="width:min(520px,100%);height:auto;max-height:92vh;border-radius:20px">'
       + '<div class="m-head"><div class="row"><div><h2 style="font-size:1.2rem">Назначить сроки · №' + E(o.number) + '</h2><div style="color:var(--muted);font-size:.86rem">' + E(o.object) + '</div></div><button class="x" data-close="1">✕</button></div></div><div class="m-body">'
       + '<div class="fld"><label>Исполнитель</label><select id="pl-who"><option value="0">— не назначен —</option>' + people.map(function (u) { return '<option value="' + u.id + '"' + (u.id === o.executor_id ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div>"
-      + '<div class="g2f"><div class="fld"><label>Начало работ</label><input id="pl-s" type="date" value="' + E(o.plan_start || (o.start_date > today ? o.start_date : today)) + '"></div>'
-      + '<div class="fld"><label>Срок сдачи</label><input id="pl-e" type="date" value="' + E(o.plan_end || o.due_date || "") + '"></div></div>'
+      + '<div class="g2f"><div class="fld"><label>' + (fx ? "Начало корректировки №" + o.fix_n : "Начало работ") + '</label><input id="pl-s" type="date" value="' + E(fx ? o.fix_start || today : o.plan_start || (o.start_date > today ? o.start_date : today)) + '"></div>'
+      + '<div class="fld"><label>' + (fx ? "Срок корректировки" : "Срок сдачи") + '</label><input id="pl-e" type="date" value="' + E(fx ? o.fix_end || "" : o.plan_end || o.due_date || "") + '"></div></div>'
       + '<div class="dbox"><small>Что произойдёт</small>' + (o.stage === "Готов к проектированию" ? "Исполнитель получит уведомление «Вам поставлена задача №" + E(o.number) + "», стадия станет «В проектировании»; срок появится в «Занятости» и в окне задачи." : "Изменятся исполнитель и сроки плана; стадия останется прежней.") + "</div>"
       + '<button class="btn primary block" data-saveplan="' + o.id + '">Сохранить</button>'
       + '<button class="btn ghost block" style="margin-top:10px" data-open="' + o.id + '">Открыть окно задачи</button></div></div></div>';
@@ -2671,7 +2680,8 @@
     if (!inModal && !(S.mount && S.mount.el && S.mount.el.contains(e.target))) return;
     var bg = e.target.getAttribute && e.target.getAttribute("data-bg");
     if (bg) { closeAll(); return; }
-    var t = e.target.closest("[data-who],[data-osel],[data-oselx],[data-oview],[data-gmore],[data-kpgo],[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-audload],[data-audlist],[data-audclose],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-cmdel],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
+    if (e.target.closest("[data-trbox]") && !e.target.closest("[data-trsend]")) return;      // поле ответа в карточке задачи
+    var t = e.target.closest("[data-trep],[data-trsend],[data-who],[data-osel],[data-oselx],[data-oview],[data-gmore],[data-kpgo],[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-audload],[data-audlist],[data-audclose],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-cmdel],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
     if (!t) return;
     var d = t.dataset;
     if (d.close) return closeAll();
@@ -2716,6 +2726,12 @@
       return api("/tasks/" + lp[0] + "/lead", { action: lp[1] }).then(function (r) {
         toast(lp[1] === "skip" ? "Задача закрыта: не требуется" : "Передано дальше: " + r.next); S.tasks = null; return load().then(paint);
       }, function (e) { toast(String(e)); });
+    }
+    if (d.trep) { S.trep = S.trep === +d.trep ? 0 : +d.trep; paint(); var trf = document.querySelector('[data-trd="' + d.trep + '"]'); if (trf) trf.focus(); return; }
+    if (d.trsend) {
+      var trid = +d.trsend, trt = ((S.trDraft || {})[trid] || "").trim();
+      if (!trt) return toast("Напишите ответ");
+      return api("/tasks/" + trid + "/reply", { text: trt }).then(function () { S.trDraft[trid] = ""; S.trep = 0; toast("Ответ отправлен"); paint(); }, function (er) { toast(String(er)); });
     }
     if (d.cmtoggle) { var oi = +d.cmtoggle; S.cmOpen = S.cmOpen || {}; S.cmOpen[oi] = !S.cmOpen[oi]; return paint(); }
     if (d.cmdel) {
@@ -2863,6 +2879,7 @@
     if (e.target.dataset && e.target.dataset.te && S.te && e.target.tagName !== "SELECT") { S.te[e.target.dataset.te] = e.target.value; return; }
     if (e.target.dataset && e.target.dataset.scf) { var cs_ = (S.sc || []).filter(function (x) { return x.id === S.scSel; })[0]; if (cs_) cs_[e.target.dataset.scf] = e.target.value; return; }
     if (e.target.dataset && e.target.dataset.cmd != null) { (S.cmDraft = S.cmDraft || {})[e.target.dataset.cmd] = e.target.value; return; }
+    if (e.target.dataset && e.target.dataset.trd != null) { (S.trDraft = S.trDraft || {})[e.target.dataset.trd] = e.target.value; return; }
     if (e.target.id === "dsQ") { S.ov.q = e.target.value; return paint(); }
     if (e.target.id === "cuQ") { S.cu.q = e.target.value; return custFilter(); }
     var sd = e.target.dataset && e.target.dataset.sd;
