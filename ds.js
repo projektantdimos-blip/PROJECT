@@ -62,7 +62,7 @@
   function ic(n) { return '<svg class="i" viewBox="0 0 24 24">' + (ICON[n] || "") + "</svg>"; }
 
   /* ---------- загрузка ---------- */
-  var CUST_POS = ["owner", "sales", "ops", "design", "acc"], PEOPLE_POS = ["owner", "design", "ops"], KP_POS = ["owner", "sales", "ops"], ONEC_POS = ["owner", "acc"];      // ONEC_POS — как onec.ROLES в мосте
+  var CUST_POS = ["owner", "sales", "ops", "design", "acc"], PEOPLE_POS = ["owner", "design", "ops"], KP_POS = ["owner", "sales", "ops"], ONEC_POS = ["owner", "acc", "sales"];      // ONEC_POS — как onec.ROLES в мосте
   function lastPos() { try { return localStorage.getItem("ds_pos") || ""; } catch (e) { return ""; } }
   /* Задачи, настройки роли, заказчики и сотрудники — одним залпом (раньше заказчики и сотрудники ждали настроек роли).
      Роль берётся из входа или запомненная с прошлого раза; если она неизвестна или сменилась — догружаем после настроек. */

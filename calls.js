@@ -283,7 +283,7 @@
     }
   }
   function track(s, info) {
-    SP.cur = s; callInfo(info); SP.t0 = 0; SP.state_call = info.dir === "in" ? "ringing-in" : "dialing"; SP.end = ""; SP.muted = false; SP.xfer = ""; SP.xferPick = false;
+    SP.cur = s; callInfo(info); SP.t0 = 0; SP.state_call = info.dir === "in" ? "ringing-in" : "dialing"; SP.end = ""; SP.muted = false; SP.xfer = ""; SP.xferPick = false; SP.pad = false; SP.dtmf = "";
     var iceT = null;                       // не ждём полного сбора ICE (бывает 10–40 с): хватает адреса через STUN или 1 с — иначе ответ не успевает до отмены
     s.on("icecandidate", function (e) {
       if (e.candidate && e.candidate.type === "srflx") { clearTimeout(iceT); e.ready(); }
@@ -306,6 +306,23 @@
   function mmss(s) { return Math.floor(s / 60) + ":" + ("0" + s % 60).slice(-2); }
   function dmy(d) { var m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || ""); return m ? m[3] + "." + m[2] : ""; }
   function initials(t) { var w = String(t || "").replace(/[«»"']/g, "").replace(/^(ООО|АО|ПАО|ЗАО|ОАО|ИП)\s+/i, "").trim().split(/\s+/); return ((w[0] || "?")[0] + ((w[1] || "")[0] || "")).toUpperCase(); }
+  /* донабор в разговоре: цифры уходят в линию, как с кнопок телефона (голосовое меню, внутренний номер у заказчика) */
+  function padHtml() {
+    return '<div class="sp-pad"><div class="sp-padn" id="spDtmf">' + E(SP.dtmf || "Наберите номер") + "</div><div class=\"sp-keys\">" + "123456789*0#".split("").map(function (k) { return '<button type="button" data-sp="dtmf" data-d="' + k + '">' + k + "</button>"; }).join("") + "</div></div>";
+  }
+  function dtmf(k) {
+    var s = SP.cur; if (!s || SP.state_call !== "talk") return;
+    var pc = s.connection, snd = pc && pc.getSenders ? pc.getSenders().filter(function (x) { return x.track && x.track.kind === "audio"; })[0] : null;
+    try {                                     // шлюз принимает тоны в потоке (RFC 4733); если браузер не договорился о них — сообщением SIP INFO
+      s.sendDTMF(k, snd && snd.dtmf && snd.dtmf.canInsertDTMF ? { transportType: "RFC2833", duration: 160, interToneGap: 70 } : { duration: 200, interToneGap: 100 });
+    } catch (err) { toast("Донабор: " + err.message); return; }
+    SP.dtmf = (SP.dtmf || "") + k;
+    var o = $("spDtmf"); if (o) o.textContent = SP.dtmf;
+  }
+  document.addEventListener("keydown", function (e) {
+    if (!SP.pad || e.ctrlKey || e.metaKey || e.altKey || !/^[0-9*#]$/.test(e.key) || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+    e.preventDefault(); dtmf(e.key);
+  });
   function paintPhone() {
     var b = phoneBox(), st = SP.state_call, i = SP.call_info || {}, x = SP.ctx || {};
     clearInterval(tick); tick = null;
@@ -314,7 +331,7 @@
     var focus = document.activeElement && document.activeElement.id === "spNote";
     var talk = st === "talk" || st === "cb-talk" || st === "hk-talk", hk = st.indexOf("hk") === 0;
     var team = (SP.info && SP.info.team) || [];
-    if (st !== "talk") SP.xferPick = false;
+    if (st !== "talk") { SP.xferPick = false; SP.pad = false; }
     var label = st === "dialing" ? "Соединяем…" : st === "ringing" ? "Идут гудки…" : st === "ringing-in" || st === "hk-ring-in" ? "Звонит" : talk ? "Разговор"
       : st === "hk-ring" ? "Звоним…" : st === "cb-wait" ? "Ответьте на мобильном" + (i.mobile ? " " + i.mobile : "") : st === "cb-ring" ? "Вызываем заказчика…" : (SP.end === "ok" ? "Завершён" : SP.end);
     var timer = talk ? '<b class="sp-t" id="spT">' + mmss(Math.round((Date.now() - SP.t0) / 1000)) + "</b>" : st === "ended" && SP.dur ? '<b class="sp-t">' + mmss(SP.dur) + "</b>" : "";
@@ -348,9 +365,11 @@
       : SP.xferPick ? team.map(function (t) { return '<button type="button" class="sp-b" data-sp="xferto" data-ext="' + E(t.ext) + '" data-name="' + E(t.name) + '">' + E(t.name) + " · " + E(t.ext) + "</button>"; }).join("")
         + '<button type="button" class="sp-b" data-sp="xfer">Отмена</button>'
       : '<button type="button" class="sp-b" data-sp="mute">' + (SP.muted ? "🔇 Микрофон выкл." : "🎙 Микрофон") + "</button>"
+        + (st === "talk" ? '<button type="button" class="sp-b' + (SP.pad ? " on" : "") + '" data-sp="pad" title="Набрать цифры в разговоре: внутренний номер сотрудника, пункт голосового меню">⌨ Донабор</button>' : "")
         + (st === "talk" && team.length && !SP.xfer ? '<button type="button" class="sp-b" data-sp="xfer" title="Передать разговор коллеге">↪ Передать</button>' : "")
         + '<button type="button" class="sp-b no" data-sp="hang">Завершить</button>';
     if (!SP.min && (st === "ringing-in" || st === "talk")) h += volHtml(st === "talk" ? "talk" : "ring");
+    if (SP.pad && st === "talk") h += padHtml();
     b.innerHTML = h + (SP.xferPick ? '<p class="sp-cap sp-xcap">Кому передать звонок?</p>' : "") + '<div class="sp-btns' + (SP.xferPick ? " sp-xfer" : "") + '">' + btns + "</div></div>";
     var ta = $("spNote");
     if (ta) {
@@ -367,7 +386,9 @@
     if (a === "answer" && s) { ring(false); s.answer(opts()); }
     else if (a === "hang" && s) { try { s.terminate(); } catch (err) {} }
     else if (a === "mute" && s) { SP.muted = !SP.muted; if (SP.muted) s.mute({ audio: true }); else s.unmute({ audio: true }); paintPhone(); }
-    else if (a === "xfer") { SP.xferPick = !SP.xferPick; paintPhone(); }
+    else if (a === "pad") { SP.pad = !SP.pad; SP.xferPick = false; paintPhone(); }
+    else if (a === "dtmf") dtmf(b.getAttribute("data-d"));
+    else if (a === "xfer") { SP.xferPick = !SP.xferPick; SP.pad = false; paintPhone(); }
     else if (a === "xferto" && s) {
       var to = b.getAttribute("data-ext"), nm = b.getAttribute("data-name"), ci3 = SP.call_info || {}, cx = SP.ctx || {};
       SP.xferPick = false; SP.xfer = nm; paintPhone();
@@ -407,7 +428,9 @@
      Карточка итога (T.aiCard) — в ленте заказчика и в журнале звонков: резюме, договорённости, следующий шаг,
      рецензия (оценка, пункты скрипта, сильные и слабые стороны, что улучшить — видят руководитель и сам сотрудник), расшифровка. */
   var aiCss = document.createElement("style");
-  aiCss.textContent = ".sp-ai{margin:8px 0 6px;padding:7px 10px;border-radius:10px;background:color-mix(in srgb,#7F77DD 12%,transparent);font-size:.8rem;display:flex;gap:6px;align-items:center;flex-wrap:wrap}"
+  aiCss.textContent = ".sp-b.on{border-color:var(--brand);color:var(--brand)}.sp-btns .sp-b{min-width:0;padding-left:4px;padding-right:4px;overflow-wrap:anywhere}.sp-pad{margin:0 0 10px}.sp-padn{min-height:30px;padding:4px 10px;margin-bottom:8px;border-radius:10px;background:var(--surface-2,var(--surface));text-align:center;font-weight:700;letter-spacing:.14em;overflow-wrap:anywhere}"
+    + ".sp-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.sp-keys button{border:1px solid var(--line);background:var(--card,var(--surface));color:var(--ink);border-radius:10px;padding:9px 0;font:inherit;font-size:1.05rem;font-weight:700;cursor:pointer}.sp-keys button:hover{border-color:var(--brand)}.sp-keys button:active{background:var(--brand-soft)}"
+    + ".sp-ai{margin:8px 0 6px;padding:7px 10px;border-radius:10px;background:color-mix(in srgb,#7F77DD 12%,transparent);font-size:.8rem;display:flex;gap:6px;align-items:center;flex-wrap:wrap}"
     + ".sp-ai b{color:#7F77DD}.sp-ai button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:2px 8px;font:inherit;font-size:.76rem;cursor:pointer}.sp-ai .sp-ai-n{flex-basis:100%;color:var(--muted)}"
     + ".cai{font-size:.86rem;line-height:1.4}.cai-h{display:flex;gap:8px;align-items:center;margin-bottom:6px}.cai-h b{color:#7F77DD}.cai-chip{margin-left:auto;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--surface-2,var(--surface));border:1px solid var(--line)}"
     + ".cai-chip.positive{color:var(--ok);border-color:var(--ok)}.cai-chip.unhappy,.cai-chip.claim{color:var(--bad);border-color:var(--bad)}"
