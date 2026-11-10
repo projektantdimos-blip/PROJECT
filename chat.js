@@ -112,6 +112,8 @@
     ".cm{max-width:min(620px,82%);padding:8px 12px;border-radius:12px;background:var(--card);border:1px solid var(--line);white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere}" +
     ".cm.out{align-self:flex-end;background:var(--blue-l);border-color:transparent}" +
     ".cm .sj{font-size:.78rem;font-weight:600;color:var(--muted);margin-bottom:3px}" +
+    ".cm .cm-q{display:block;width:100%;text-align:left;margin:0 0 6px;padding:4px 9px;border:0;border-left:3px solid var(--blue);border-radius:6px;background:color-mix(in srgb,var(--blue) 10%,transparent);color:var(--ink);font:inherit;font-size:.8rem;cursor:pointer;white-space:normal}" +
+    ".cm .cm-q b{display:block;color:var(--blue);font-size:.76rem}.cm .cm-q span{display:block;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
     ".cm .mt{font-size:.7rem;color:var(--muted);margin-top:4px;text-align:right}" +
     ".cm .cm-acts{float:left;display:inline-flex;gap:10px;margin-right:12px}.cm .cm-acts button{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;opacity:.8;text-decoration:underline dotted;text-underline-offset:2px}.cm .cm-acts button:hover{opacity:1;text-decoration-style:solid}.cm .cm-acts .cm-del[data-sure]{font-weight:700;opacity:1}" +
     ".cm.cm-editing{outline:2px solid var(--accent,#ee9264);outline-offset:2px}" +
@@ -274,7 +276,7 @@
         '<button type="button" id="chatRefresh" title="Обновить сейчас">⟳</button></span></div></div>' +
         '<div id="chatThreads"></div></aside>' +
         '<section class="chat-thread"><div id="chatHead"></div><div id="chatAssign"></div><div id="chatMsgs"></div>' +
-        '<div id="chatComposer"><div id="chatFileBar" class="chat-filebar" hidden></div><div id="chatEditBar" class="chat-filebar chat-editbar" hidden></div><button type="button" id="chatAttach" class="chat-attach" title="Прикрепить файлы (каждый до 50 МБ; письмом — до 25 МБ все вместе)">📎</button><input type="file" id="chatFile" multiple hidden><button type="button" id="chatScripts" class="chat-attach" title="Скрипты: готовые тексты">📋</button><textarea id="chatText" placeholder="Ответ… (Ctrl+Enter — отправить)"></textarea><button id="chatSend">Отправить</button></div></section>' +
+        '<div id="chatComposer"><div id="chatFileBar" class="chat-filebar" hidden></div><div id="chatEditBar" class="chat-filebar chat-editbar" hidden></div><div id="chatReplyBar" class="chat-filebar chat-editbar" hidden></div><button type="button" id="chatAttach" class="chat-attach" title="Прикрепить файлы (каждый до 50 МБ; письмом — до 25 МБ все вместе)">📎</button><input type="file" id="chatFile" multiple hidden><button type="button" id="chatScripts" class="chat-attach" title="Скрипты: готовые тексты">📋</button><textarea id="chatText" placeholder="Ответ… (Ctrl+Enter — отправить)"></textarea><button id="chatSend">Отправить</button></div></section>' +
         '<aside class="chat-info" id="chatInfoPane"></aside>' +
       '</div>';
     el.banner = document.getElementById("chatBanner");
@@ -291,6 +293,8 @@
     el.q.oninput = function () { st.q = el.q.value.trim().toLowerCase(); renderThreads(); };
     el.send.onclick = sendMsg;
     el.fileBar = document.getElementById("chatFileBar");
+    el.replyBar = document.getElementById("chatReplyBar");
+    el.replyBar.onclick = function (e) { if (e.target.closest("[data-x]")) stopReply(); };
     el.editBar = document.getElementById("chatEditBar");
     el.editBar.onclick = function (e) { if (e.target.closest("[data-x]")) stopEdit(true); };
     el.box = document.getElementById("chatBox");
@@ -339,6 +343,10 @@
       }
       var b = e.target.closest ? e.target.closest(".cf") : null;
       if (b) openFile(b.getAttribute("data-fid"), b.getAttribute("data-name"), b.getAttribute("data-mime"));
+      var rp = e.target.closest ? e.target.closest("[data-cmreply]") : null;
+      if (rp) { startReply(+rp.getAttribute("data-cmreply")); return; }
+      var jq = e.target.closest ? e.target.closest("[data-cmjump]") : null;
+      if (jq) { var tg = document.getElementById("cm" + jq.getAttribute("data-cmjump")); if (tg) { tg.scrollIntoView({ block: "center", behavior: "smooth" }); tg.classList.add("ml-flash"); setTimeout(function () { tg.classList.remove("ml-flash"); }, 1600); } return; }
       var ed = e.target.closest ? e.target.closest("[data-cmedit]") : null;
       if (ed) { startEdit(+ed.getAttribute("data-cmedit")); return; }
       var dl = e.target.closest ? e.target.closest("[data-cmdel]") : null;
@@ -407,7 +415,6 @@
         '<button id="hdGo" style="padding:9px 18px;border:0;background:var(--blue);color:#fff;border-radius:10px;cursor:pointer;font:inherit;font-weight:600">Передать</button></div></div>';
       document.body.appendChild(bg);
       var close = function () { bg.remove(); };
-      bg.onclick = function (e) { if (e.target === bg) close(); };
       bg.querySelector("#hdCancel").onclick = close;
       bg.querySelector("#hdGo").onclick = function () {
         var btn = this; btn.disabled = true;
@@ -428,7 +435,6 @@
         + '<div style="text-align:right;margin-top:6px"><a href="#/scripts" id="scGo" style="color:var(--blue);margin-right:14px">Править скрипты</a><button id="scClose" style="padding:8px 16px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;cursor:pointer;font:inherit">Закрыть</button></div></div>';
       document.body.appendChild(bg);
       var close = function () { bg.remove(); };
-      bg.onclick = function (e) { if (e.target === bg) close(); };
       bg.querySelector("#scClose").onclick = close;
       bg.querySelector("#scGo").onclick = close;
       Array.prototype.forEach.call(bg.querySelectorAll("[data-i]"), function (b) {
@@ -467,7 +473,6 @@
       '<button id="nmGo" style="padding:9px 18px;border:0;background:var(--blue);color:#fff;border-radius:10px;cursor:pointer;font:inherit;font-weight:600">Отправить</button></div></div>';
     document.body.appendChild(bg);
     var close = function () { bg.remove(); };
-    bg.onclick = function (e) { if (e.target === bg) close(); };
     bg.querySelector("#nmCancel").onclick = close;
     if (bg.querySelector("#nmCopy")) bg.querySelector("#nmCopy").onclick = function () { copyLink(this); };
     bg.querySelector("#nmCh").onchange = function () {
@@ -714,15 +719,33 @@
       if (dl !== day) { day = dl; out.push('<div class="cday">' + dl + "</div>"); }
       var prev = near(list[i - 1], m), next = near(m, list[i + 1]), mine = m.direction === "out";
       var g = prev && next ? "g-mid" : prev ? "g-last" : next ? "g-first" : "g-one";
-      var tools = (m.text ? '<button type="button" data-cmcopy="' + m.id + '" title="Скопировать">⧉</button>' : "")
+      var tools = (canReply() ? '<button type="button" data-cmreply="' + m.id + '" title="Ответить с цитатой">↩</button>' : "")
+        + (m.text ? '<button type="button" data-cmcopy="' + m.id + '" title="Скопировать">⧉</button>' : "")
         + (mine ? '<button type="button" data-cmedit="' + m.id + '" title="Изменить">✎</button><button type="button" class="cm-del" data-cmdel="' + m.id + '" data-ask="Удалить у заказчика?" title="Удалить у заказчика">🗑</button>' : "");
-      out.push('<div class="cm ' + (mine ? "out" : "in") + " " + g + (st.edit && st.edit.id === m.id ? " cm-editing" : "") + '">'
-        + (m.subject ? '<div class="sj">' + esc(m.subject) + "</div>" : "") + esc(m.text) + filesHtml(m.files)
+      out.push('<div class="cm ' + (mine ? "out" : "in") + " " + g + (st.edit && st.edit.id === m.id ? " cm-editing" : "") + '" id="cm' + m.id + '">'
+        + quoteHtml(m) + (m.subject ? '<div class="sj">' + esc(m.subject) + "</div>" : "") + esc(m.text) + filesHtml(m.files)
         + '<span class="mt" title="' + fmtFull(m.ts) + '">' + (m.edited ? "изм. " : "") + hhmm(m.ts) + (mine ? " ✓" : "") + "</span>"
         + (tools ? '<span class="cm-tools">' + tools + "</span>" : "") + "</div>");
     });
     return out.join("");
   }
+  /* ответ с цитатой (Telegram и MAX): у заказчика приходит ответом на его сообщение, в CRM — цитата над текстом */
+  function canReply() { var t = curThread(); return !!t && (t.channel === "tg" || t.channel === "max" || t.channel === "maxbot"); }
+  function msgWho(m) { return m.direction === "out" ? "Вы" : (m.sender || "Заказчик"); }
+  function msgSnip(m) { var x = String(m.text || "").replace(/\s+/g, " ").trim() || (m.files && m.files.length ? "📎 " + m.files[0].name : "сообщение"); return x.length > 90 ? x.slice(0, 90) + "…" : x; }
+  function quoteHtml(m) {
+    var q = m.reply_mid ? st.msgs.filter(function (x) { return x.id === m.reply_mid; })[0] : null;
+    return q ? '<button type="button" class="cm-q" data-cmjump="' + q.id + '" title="Показать сообщение"><b>' + esc(msgWho(q)) + "</b><span>" + esc(msgSnip(q)) + "</span></button>" : "";
+  }
+  function startReply(id) {
+    var m = st.msgs.filter(function (x) { return x.id === id; })[0]; if (!m) return;
+    if (st.edit) stopEdit(true);
+    st.reply = { tid: st.sel, id: id };
+    el.replyBar.hidden = false;
+    el.replyBar.innerHTML = '↩ <b>Ответ</b> ' + esc(msgWho(m)) + ": <i>" + esc(msgSnip(m)) + '</i> <button type="button" data-x="1" title="Без цитаты">✕</button>';
+    el.text.focus();
+  }
+  function stopReply() { st.reply = null; if (el.replyBar) { el.replyBar.hidden = true; el.replyBar.innerHTML = ""; } }
   function moreMenu(anchor, t) {                 // «⋯» в шапке диалога: фото собеседника, «непрочитанное»
     var old = document.getElementById("chatMoreMenu"); if (old) { old.remove(); return; }
     var m = document.createElement("div"); m.id = "chatMoreMenu"; m.className = "cmenu";
@@ -1079,6 +1102,7 @@
   }
 
   function openThread(id) {
+    if (st.reply && st.reply.tid !== id) stopReply();
     if (st.edit) stopEdit(true);
     st.sel = id; st.msgs = []; st.mopen = {}; st.mfull = {}; st.mall = false;
     renderThreads(); renderThread();
@@ -1181,9 +1205,9 @@
           el.send.textContent = "Отправка…";
           return api("/api/threads/" + encodeURIComponent(t.id) + "/send-file", { method: "POST", body: Object.assign({ text: text, filename: "", uploads: toks }, mail) });
         })
-      : api("/api/threads/" + encodeURIComponent(t.id) + "/send", { method: "POST", body: Object.assign({ text: text }, mail) });
+      : api("/api/threads/" + encodeURIComponent(t.id) + "/send", { method: "POST", body: Object.assign({ text: text }, mail, st.reply && st.reply.tid === t.id ? { reply_id: st.reply.id } : {}) });
     job.then(function (r) {
-      el.text.value = ""; if (el.grow) el.grow(); setErr(""); st.files = []; showFileBar();
+      el.text.value = ""; if (el.grow) el.grow(); setErr(""); st.files = []; showFileBar(); stopReply();
       if (mail.subject) st.mail = { tid: t.id, topic: mail.subject, subj: "", isNew: false };     // новая тема ушла — дальше отвечаем в неё
       if (st.draftKp) {                              // КП ушло заказчику: статус «КП отправлено» и дата общения
         var kid = st.draftKp; st.draftKp = 0;

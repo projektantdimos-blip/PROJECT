@@ -182,7 +182,7 @@
     if (kind === "flow") add(loadFlow);
     if (kind === "tz") add(loadTz);
     if (kind === "auto") add(loadAuto);
-    if (kind === "onec" || (kind === "kp" && ONEC_POS.indexOf(pos()) >= 0)) add(loadOnec);      // в реестре КП — вкладка «Оплаты 1С»
+    if (kind === "onec") add(loadOnec);
     if (kind === "report") add(loadReport);
     if (kind === "stats") add(loadStats);
     var need = Promise.all(jobs);
@@ -1709,7 +1709,11 @@
   addEventListener("resize", fitKpWrap);
   function kpIsLate(k) { return k.last_days != null && k.last_days > 5 && !kpDone(k); }
   function kpArchived(k) { return k.status === "Закрыто" || k.status === "Отказ"; }      // закрытые и отказы — в архиве
-  var KP_CSS = ".ds .kpfun .kpst{cursor:pointer;border:1px solid transparent}.ds .kpfun .kpst.on{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}"
+  var KP_CSS = ".ds .kphead{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.ds .kphead h1{flex:none;margin:0;cursor:help}"
+    + ".ds .kpfun.cmp{flex:1 1 380px;min-width:0;justify-content:center;gap:5px}.ds .kpfun.cmp .pill{min-height:0;height:auto;padding:4px 10px;flex-direction:row;font-size:.76rem;line-height:1.25}"
+    + ".ds .kpbar{display:flex;align-items:center;justify-content:space-between;gap:10px 18px;flex-wrap:wrap;margin:0 0 10px}.ds .kpbar .kpflt{margin:0}"
+    + ".ds .kptot.cmp{display:flex;gap:16px;flex-wrap:wrap;margin:0}.ds .kptot.cmp div{border:0;padding:0;background:none}.ds .kptot.cmp small{display:inline;margin-right:5px}.ds .kptot.cmp b{display:inline;font-size:.95rem;margin:0}"
+    + ".ds .kpfun .kpst{cursor:pointer;border:1px solid transparent}.ds .kpfun .kpst.on{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}"
     + ".ds .kpflt{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}.ds .kpflt label{display:inline;margin:0;font-size:.78rem;color:var(--muted);font-weight:700;text-transform:none}"
     + ".ds .kpflt input,.ds .kpflt select{width:auto!important;flex:0 0 auto;min-width:0;height:auto;border:1px solid var(--line);border-radius:9px;background-color:var(--surface);padding:6px 9px;font-size:.86rem;line-height:1.3}.ds .kpflt select{padding-right:30px}.ds .kpflt .btn{flex:0 0 auto}"
     + ".ds .kptot{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}.ds .kptot div{border:1px solid var(--line);border-radius:12px;padding:8px 12px;background:var(--surface-2,var(--surface))}"
@@ -1734,22 +1738,24 @@
     var per = all.filter(function (k) { var d = dOf(k); return (!f.from || d >= f.from) && (!f.to || (d && d <= f.to)); });
     var list = per.filter(function (k) { return f.st ? k.status === f.st : !kpArchived(k); });      // «Все» — в работе, без закрытых и отказов
     var kpz = kpFont();
-    var head = '<div class="head"><div><h1>Реестр КП</h1><p>Выставленные стоимости: аванс и постоплата отдельно. Красным выделены КП, по которым нет общения более 5 дней</p></div>'
-      + '<div style="display:flex;gap:10px;align-items:center"><div class="seg" title="Размер шрифта таблицы"><button data-kpz="-1">A−</button><button data-kpz="0">' + kpz + ' px</button><button data-kpz="1">A+</button></div>'
-      + (canEdit ? '<a class="btn accent" href="#/kpc" style="text-decoration:none">' + ic("plus") + "Составить КП</a>" : "") + "</div></div>";
     var nAll = per.filter(function (k) { return !kpArchived(k); }).length;
     var tot = [["КП в выборке", list.length], ["Сумма КП", money(list.reduce(function (a, k) { return a + (k.amount || 0); }, 0))],
       ["Получено", money(list.reduce(function (a, k) { return a + kpPaid(k); }, 0))], ["Ждём оплату", money(list.reduce(function (a, k) { return a + kpWait(k); }, 0))]];
-    var funnel = '<div class="panel pad" style="margin-bottom:16px"><h3>Воронка</h3><p class="sub">Нажмите на этап — в таблице останутся только его КП; «Все» — КП в работе, без закрытых и отказов. «В работе» создаёт проектную задачу и чат. Дальше этапы идут сами: аванс из 1С → «В работе», проект «Сдано» → «В постоплате», оплата по акту → «Закрыто»</p><div class="kpfun">'
-      + '<button class="pill info kpst' + (!f.st ? " on" : "") + '" data-kpst="">Все · ' + nAll + "</button>"
-      + KP_FUNNEL.map(function (s, i) {
+    var pills = '<div class="kpfun cmp">'
+      + '<button class="pill info kpst' + (!f.st ? " on" : "") + '" data-kpst="" title="КП в работе, без закрытых и отказов">Все · ' + nAll + "</button>"
+      + KP_FUNNEL.map(function (s) {
         var ks = per.filter(function (k) { return k.status === s; }), sum = ks.reduce(function (a, k) { return a + (k.amount || 0); }, 0);
-        return (i ? '<span style="color:var(--muted)">' + (s === "Отказ" ? "·" : "→") + "</span>" : "") + '<button class="pill ' + KP_TONE[s] + " kpst" + (f.st === s ? " on" : "") + '" data-kpst="' + E(s) + '">' + E(s) + " · " + ks.length + "<small>" + money(sum) + "</small></button>";
-      }).join("") + "</div>"
+        return '<button class="pill ' + KP_TONE[s] + " kpst" + (f.st === s ? " on" : "") + '" data-kpst="' + E(s) + '" title="' + E(s) + ": " + ks.length + " КП на " + E(money(sum)) + '">' + E(s) + " · " + ks.length + "</button>";
+      }).join("") + "</div>";
+    // шапка в одну строку: заголовок · воронка · шрифт и «Составить КП» — таблице остаётся больше места по высоте
+    var head = '<div class="head kphead"><h1 title="Нажмите на этап — в таблице останутся только его КП. «В работе» создаёт проектную задачу и чат; дальше этапы идут сами: аванс из 1С → «В работе», проект «Сдано» → «В постоплате», оплата по акту → «Закрыто». Красным — КП без общения больше 5 дней">Реестр КП</h1>' + pills
+      + '<div style="display:flex;gap:10px;align-items:center;flex:none"><div class="seg" title="Размер шрифта таблицы"><button data-kpz="-1">A−</button><button data-kpz="0">' + kpz + ' px</button><button data-kpz="1">A+</button></div>'
+      + (canEdit ? '<a class="btn accent" href="#/kpc" style="text-decoration:none">' + ic("plus") + "Составить КП</a>" : "") + "</div></div>";
+    var funnel = '<div class="kpbar">'
       + '<div class="kpflt"><label>Период</label><select id="kpBy"><option value="d"' + (f.by === "d" ? " selected" : "") + '>по дате обращения</option><option value="s"' + (f.by === "s" ? " selected" : "") + '>по дате этапа</option></select>'
       + '<label>с</label><input type="date" id="kpFrom" value="' + E(f.from) + '"><label>по</label><input type="date" id="kpTo" value="' + E(f.to) + '">'
       + '<button class="btn ghost sm" data-kpper="month">Этот месяц</button><button class="btn ghost sm" data-kpper="all">Весь период</button></div>'
-      + '<div class="kptot">' + tot.map(function (x) { return "<div><small>" + x[0] + "</small><b>" + x[1] + "</b></div>"; }).join("") + "</div></div>";
+      + '<div class="kptot cmp">' + tot.map(function (x) { return "<div><small>" + x[0] + "</small><b>" + x[1] + "</b></div>"; }).join("") + "</div></div>";
     var rows = list.map(function (k) {
       var late = kpIsLate(k), arch = kpArchived(k);
       var st = '<span class="pill ' + (KP_TONE[k.status] || "info") + '">' + E(kpStatusLabel(k.status)) + "</span>" + (k.status_date ? '<small class="kpsd">с ' + dmy(k.status_date).slice(0, 5) + "</small>" : "");
@@ -1762,12 +1768,7 @@
         + "<td>" + (k.lead_date || k.issued_date ? dmy(k.lead_date || k.issued_date) : "—") + "</td><td><b>" + money(k.amount) + "</b></td><td>" + st + '</td><td class="kpa">' + adv + '</td><td class="kpv">' + post + "</td>"
         + '<td class="lastc ' + (late ? "late" : "") + '">' + (k.last_days == null ? "—" : k.last_days === 0 ? "сегодня" : plural(k.last_days, ["день", "дня", "дней"]) + " назад") + (late ? " ⚠" : "") + '</td><td class="mg">' + E(k.manager) + '</td><td class="nw">' + acts + "</td></tr>";
     }).join("");
-    var payTab = ONEC_POS.indexOf(p) >= 0, tab = payTab && S.kpTab === "pay" ? "pay" : "kp", nAtt = S.on && S.on.attention || 0;
-    var tabs = payTab ? '<div class="seg" style="margin-bottom:14px">' + [["kp", "КП"], ["pay", "Оплаты 1С" + (nAtt ? " · " + nAtt + " не разобрано" : "")]].map(function (x) {
-      return '<button data-kptab="' + x[0] + '" class="' + (tab === x[0] ? "on" : "") + '">' + x[1] + "</button>";
-    }).join("") + "</div>" : "";
-    if (tab === "pay") return head + tabs + '<div class="kparch" style="margin:0 0 12px;justify-content:space-between;flex-wrap:wrap"><span>' + onecSub(S.on) + "</span>" + onecRunBtn(S.on) + "</div>" + onecBody();
-    return head + tabs + funnel + '<div class="panel kpwrap" data-arch="' + !!S.kpArch + '"><table class="tbl grid-c kpt" style="font-size:' + kpz + 'px"><thead><tr><th>№ КП</th><th>Заказчик</th><th>Объект / услуги / комментарий</th><th>Дата обращения</th><th>Сумма</th><th>Статус</th><th>Аванс</th><th>Постоплата</th><th>Последнее общение</th><th>Менеджер</th><th>Действия</th></tr></thead><tbody>'
+    return head + funnel + '<div class="panel kpwrap" data-arch="' + !!S.kpArch + '"><table class="tbl grid-c kpt" style="font-size:' + kpz + 'px"><thead><tr><th>№ КП</th><th>Заказчик</th><th>Объект / услуги / комментарий</th><th>Дата обращения</th><th>Сумма</th><th>Статус</th><th>Аванс</th><th>Постоплата</th><th>Последнее общение</th><th>Менеджер</th><th>Действия</th></tr></thead><tbody>'
       + (rows || '<tr><td colspan="11">' + (f.st || f.from || f.to ? "По этому фильтру КП нет" : "КП пока нет") + "</td></tr>") + "</tbody></table></div>";
   }
   document.addEventListener("click", function (e) {
@@ -2685,7 +2686,7 @@
     var inModal = !!e.target.closest("#ds-modal");
     if (!inModal && !(S.mount && S.mount.el && S.mount.el.contains(e.target))) return;
     var bg = e.target.getAttribute && e.target.getAttribute("data-bg");
-    if (bg) { closeAll(); return; }
+    if (bg) return;                                    // щелчок мимо окна его не закрывает: набранное не теряется, закрыть — крестиком или «Отмена»
     if (e.target.closest("[data-trbox]") && !e.target.closest("[data-trsend]")) return;      // поле ответа в карточке задачи
     var t = e.target.closest("[data-tack],[data-trep],[data-trsend],[data-who],[data-osel],[data-oselx],[data-oview],[data-gmore],[data-kpgo],[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-audload],[data-audlist],[data-audclose],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-cmdel],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
     if (!t) return;
@@ -3014,7 +3015,6 @@
         adv_mode: f.adv ? "advance" : "none", adv_sum: f.adv ? (+f.advSum || 0) : 0, contract_date: new Date().toISOString().slice(0, 10), nonproj: f.np ? 1 : -1 });
     }).then(function () { S.form = null; S.customers = null; S.orders = null; DS.route(); }, function (er) { f.err = String(er); paint(); });
   }
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && (S.open || S.form) && document.getElementById("ds-modal")) closeAll(); });
   if (C) { C.on("logout", function () { BOOT = null; S.orders = S.meta = S.customers = S.people = S.tasks = null; S.cu.q = ""; S.kp = S.cm = null; S.open = null; var m = document.getElementById("ds-modal"); if (m) m.innerHTML = ""; }); }
   bootStart();
 })();

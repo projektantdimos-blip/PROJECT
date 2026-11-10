@@ -273,7 +273,7 @@ textarea{resize:vertical;min-height:64px}
 <!-- шрифты подгружаются без блокировки страницы: если Google Fonts недоступен (в РФ бывает), CRM всё равно откроется -->
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Onest:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Onest:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="theme-v2.css?v=20261031a">
+<link rel="stylesheet" href="theme-v2.css?v=20261109a">
 <script>try{var __t=localStorage.getItem("ds_theme");if(__t)document.documentElement.setAttribute("data-theme",__t)}catch(e){}</script>
 <link rel="stylesheet" href="ds.css?v=20261102c">
 <link rel="stylesheet" href="today.css?v=20261104b">
@@ -407,19 +407,19 @@ function dsAllowed(sec){
 }
 function renderTopNav(){
   var cur = sectionForHash(location.hash);
-  var own = { today:1, risk:1, scripts:1, tasks:1, cal:1, my:1, chat:1, mail:1, team:1, log:1, me:1, auto:1, stages:1, onec:1, clients:1, report:1, stats:1, flow:1, tz:1, visits:1 };
+  var own = { today:1, risk:1, scripts:1, tasks:1, cal:1, my:1, chat:1, mail:1, team:1, log:1, me:1, auto:1, stages:1, clients:1, report:1, stats:1, flow:1, tz:1, visits:1 };
   var pa = own[cur] ? cur : "commerce";
   var ok = dsAllowed;
   var b = function(go, ic, t, on, sec){ return ok(sec) ? '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+'<span>'+t+'</span></button>' : ""; };
   var pos = dsPosition();
-  var sub = '<div class="sub">'+b("#/kpreg/","list","Реестр КП",cur==="kpreg","kpreg")+b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc")+b("#/price","list","Прайс",cur==="price","price")+b("#/contracts","file","Договоры",cur==="contracts","contracts")+'</div>';
-  var comm = (ok("kpreg") || ok("kpc") || ok("contracts")) ? '<button data-goto="#/kpreg/" class="'+(pa==="commerce"?"active":"")+'">'+icon("briefcase")+'<span>Коммерция</span></button>' + (pa==="commerce" ? sub : "") : "";
+  var sub = '<div class="sub">'+b("#/kpreg/","list","Реестр КП",cur==="kpreg","kpreg")+b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc")+b("#/price","list","Прайс",cur==="price","price")+b("#/contracts","file","Договоры",cur==="contracts","contracts")+b("#/onec","wallet","Оплаты 1С",cur==="onec","onec")+'</div>';
+  var comm = (ok("kpreg") || ok("kpc") || ok("contracts") || ok("onec")) ? '<button data-goto="#/kpreg/" class="'+(pa==="commerce"?"active":"")+'">'+icon("briefcase")+'<span>Коммерция</span></button>' + (pa==="commerce" ? sub : "") : "";
   var lab = function(t, secs){ return secs.some(ok) ? '<div class="nav-label">'+t+'</div>' : ""; };
   document.getElementById("topnav").innerHTML =
     lab("Работа", ["flow","tasks","tz","cal","visits","risk","my"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/visits","pin","Выезды",pa==="visits","visits") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
     + lab("Заказчики и продажи", ["clients","kpreg","kpc","contracts"]) + b("#/clients","users",pos==="design"?"Кому звонить":"База заказчиков",pa==="clients","clients") + comm
     + lab("Общение", ["team","chat","mail","scripts","report"]) + b("#/team","team","Внутренние",pa==="team","team") + b("#/chat","chat","Мессенджеры",pa==="chat","chat") + b("#/mail","mail","Почта",pa==="mail","mail") + b("#/scripts","list","Скрипты",pa==="scripts","scripts") + b("#/report","list","Пятничный созвон",pa==="report","report")
-    + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","onec","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/onec","wallet","Оплаты из 1С",pa==="onec","onec") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
+    + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
   var bn = function(go, ic, t, on){ return '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+t+'</button>'; };
   document.getElementById("bottomnav").innerHTML =
     (dsAllowed("tasks")?bn("#/","tasks",pos==="designer"?"Проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks"):"") + (dsAllowed("my")?bn("#/my","bell",pos==="designer"?"План":"Мои",pa==="my"):"") + (dsAllowed("team")?bn("#/team","team","Внутренние",pa==="team"):"") + (dsAllowed("chat")?bn("#/chat","chat","Мессенджеры",pa==="chat"):"") + (dsAllowed("mail")?bn("#/mail","mail","Почта",pa==="mail"):"")
@@ -512,7 +512,7 @@ globalRouter();
 </style>
 <script src="noautofill.js?v=20261031a"></script>
 <script src="sound.js?v=20261031a"></script>
-<script src="chat.js?v=20261104a"></script>
+<script src="chat.js?v=20261110a"></script>
 <button id="apiGear" title="Настройки подключения" aria-label="Настройки">⚙</button>
 <div id="apiModal"><div class="box">
   <h2>Подключение к серверу CRM</h2>
@@ -580,16 +580,17 @@ globalRouter();
 })();
 </script>
 <script src="crm.js?v=20261031a"></script>
+<script src="download.js?v=20261109b"></script>
 <script src="extras.js?v=20261031b"></script>
 <script src="team.js?v=20261105a"></script>
 <script src="teamsearch.js?v=20261031a"></script>
 <script src="ai.js?v=20261031d"></script>
 <script src="chatpanel.js?v=20261106a"></script>
-<script src="ds.js?v=20261106c"></script>
+<script src="ds.js?v=20261110a"></script>
 <script src="stats.js?v=20261102a"></script>
 <script src="visits.js?v=20261102b"></script>
 <script src="calls.js?v=20261106a"></script>
-<script src="remind.js?v=20261031a"></script>
+<script src="remind.js?v=20261110a"></script>
 <script src="today.js?v=20261106a"></script>
 <script>
 (function(){

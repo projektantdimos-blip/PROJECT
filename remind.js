@@ -36,7 +36,6 @@
       + '<div class="rm-err" id="rmErr"></div><button type="button" class="rm-go" id="rmGo">Поставить напоминание</button></div>';
     document.body.appendChild(bg);
     var close = function () { bg.remove(); };
-    bg.onclick = function (e) { if (e.target === bg) close(); };
     $("rmX").onclick = close;
     var nowD = new Date(Date.now() + 60 * 60000); $("rmD").value = isoD(nowD); $("rmT").value = hm(nowD);
     $("rmChips").onclick = function (e) {
