@@ -252,6 +252,15 @@
       var over = o.sla != null && o.days > o.sla;
       return row(dot(over ? "bad" : "ok"), "№" + E(o.number) + " · " + E(o.customer || ""), E(o.object || ""), "<b" + (over ? ' class="bad"' : "") + ">" + dn(o.days) + "</b>" + (o.sla != null ? "срок этапа " + o.sla : ""), btn("Открыть", 'data-tdorder="' + o.id + '"'));
     })));
+    if (b.kp_promise && b.kp_promise.length) {                // ⭐ «Следим» в реестре КП: заказчик обещал оплату
+      var td = b.today_iso || "", psum = 0;
+      h += panel("kp_promise", "⭐ Обещали оплату", b.kp_promise.length, cap("kp_promise", b.kp_promise.map(function (k) {
+        var s = k.adv_sum || k.amount || 0, late = k.pay_expect && k.pay_expect < td, now = k.pay_expect === td; psum += s;
+        return row(dot(late ? "bad" : now ? "ok" : "warn"), E(k.number) + " · " + E(k.customer || ""), [k.watch_note ? "💬 " + k.watch_note : "", k.object, k.manager].filter(Boolean).map(E).join(" · "),
+          "<b" + (late ? ' class="bad"' : "") + ">" + (!k.pay_expect ? "без даты" : now ? "сегодня" : (late ? "просрочено, " : "к ") + E(dm(k.pay_expect))) + "</b>" + money(s),
+          btn("Был контакт", 'data-tdtouch="' + k.id + '"') + btn("Реестр", 'data-tdhash="#/kpreg/"'));
+      })), "", "Обещали на сумму " + money(psum));
+    }
     if (b.kp_silent && b.kp_silent.length) {
       var sum = b.kp_silent.reduce(function (a, k) { return a + (k.amount || 0); }, 0);
       h += panel("kp_silent", "КП без ответа", b.kp_silent.length, cap("kp_silent", b.kp_silent.map(function (k) {

@@ -619,8 +619,16 @@
       .then(function () { toast("КП сохранено"); paint(); }, function (er) { e.err = String(er); modalRoot().innerHTML = keHtml(); });
   }
   document.addEventListener("click", function (e) {
-    var t = e.target.closest ? e.target.closest("[data-kpedit],[data-kpz],[data-kesave],[data-kectr],[data-kcopen],[data-kcsave],[data-kcclose],[data-kpcancel],[data-keadv]") : null; if (!t) return;
+    var t = e.target.closest ? e.target.closest("[data-kpedit],[data-kpz],[data-kesave],[data-kectr],[data-kcopen],[data-kcsave],[data-kcclose],[data-kpcancel],[data-keadv],[data-kpstar],[data-kwp],[data-kwsave],[data-kwoff],[data-kwclose]") : null; if (!t) return;
     var d = t.dataset;
+    if (d.kpstar) {
+      var kw = (S.kp || []).filter(function (x) { return x.id === +d.kpstar; })[0]; if (!kw) return;
+      S.kw = { id: kw.id, date: kw.pay_expect || "", prob: kw.pay_prob || "", note: kw.watch_note || "", err: "" }; modalRoot().innerHTML = kwHtml(); return;
+    }
+    if (d.kwp && S.kw) { S.kw.date = (document.getElementById("kwDate") || {}).value || ""; S.kw.note = (document.getElementById("kwNote") || {}).value || ""; S.kw.prob = S.kw.prob === d.kwp ? "" : d.kwp; modalRoot().innerHTML = kwHtml(); return; }
+    if (d.kwsave != null && S.kw) return kwSave(false);
+    if (d.kwoff != null && S.kw) return kwSave(true);
+    if (d.kwclose != null) { S.kw = null; modalRoot().innerHTML = ""; return; }
     if (d.keadv != null && S.ke) {                     // быстрый выбор аванса: без аванса, 30%, 50%, 100%
       var am = document.querySelector('[data-ke="amount"]'); if (am) S.ke.amount = +am.value || 0;
       S.ke.adv_sum = Math.round((+S.ke.amount || 0) * +d.keadv); modalRoot().innerHTML = keHtml(); return;
@@ -1707,9 +1715,39 @@
     w.style.maxHeight = Math.max(260, innerHeight - (w.getBoundingClientRect().top + scrollY) - 18) + "px";
   }
   addEventListener("resize", fitKpWrap);
+  var KP_PROB_RU = { high: "высокая", mid: "средняя", low: "низкая" };
+  function kpDays(a, b) { return Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 864e5); }
+  function kpDue(k) { return k.status === "В предоплате" || k.status === "КП отправлено" || k.status === "Доки отправлены" ? (k.has_adv ? k.adv_sum || 0 : k.amount || 0) : kpWait(k) || k.amount || 0; }
+  /* «⭐ Следим»: заказчик обещал оплату — к какому дню, вероятность, что обещали */
+  function kwHtml() {
+    var w = S.kw, k = (S.kp || []).filter(function (x) { return x.id === w.id; })[0]; if (!k) return "";
+    return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:16px"><div class="modal" style="width:min(420px,100%);height:auto;max-height:92vh;border-radius:18px">'
+      + '<div class="m-head"><div class="row"><div><h2 style="font-size:1.1rem">⭐ Следим за ' + E(kpNo(k.number)) + "</h2><div style=\"color:var(--muted);font-size:.86rem\">" + E(k.customer || "") + " · " + E(money(kpDue(k))) + '</div></div><button class="x" data-kwclose="1" aria-label="Закрыть">✕</button></div></div>'
+      + '<div class="m-body" style="padding:16px 20px">'
+      + '<div class="fld"><label>Обещали оплатить к</label><input type="date" id="kwDate" value="' + E(w.date) + '"></div>'
+      + '<div class="fld"><label>Вероятность</label><div class="kwseg">' + [["high", "высокая"], ["mid", "средняя"], ["low", "низкая"]].map(function (x) {
+          return '<button type="button" class="btn sm ' + (w.prob === x[0] ? "primary" : "ghost") + '" data-kwp="' + x[0] + '">' + x[1] + "</button>"; }).join("") + "</div></div>"
+      + '<div class="fld"><label>Что обещали (коротко)</label><input id="kwNote" maxlength="300" placeholder="Например: счёт у бухгалтера, оплатят до пятницы" value="' + E(w.note) + '"></div>'
+      + (w.err ? '<div class="note" style="color:var(--bad)">' + E(w.err) + "</div>" : "")
+      + '<div style="display:flex;gap:8px;justify-content:space-between;margin-top:6px">' + (k.watch ? '<button class="btn ghost" data-kwoff="1">Не следить</button>' : "<span></span>")
+      + '<button class="btn primary" data-kwsave="1">Сохранить</button></div></div></div></div>';
+  }
+  function kwSave(off) {
+    var w = S.kw; w.date = (document.getElementById("kwDate") || {}).value || ""; w.note = (document.getElementById("kwNote") || {}).value || "";
+    var body = off ? { watch: 0 } : { watch: 1, pay_expect: w.date, pay_prob: w.prob || "", watch_note: w.note };
+    api("/kp/" + w.id + "/edit", body).then(function () { S.kw = null; modalRoot().innerHTML = ""; return loadKp(); })
+      .then(function () { toast(off ? "Больше не следим" : "⭐ Следим: напомним в день обещанной оплаты"); paint(); }, function (e) { if (S.kw) { S.kw.err = String(e); modalRoot().innerHTML = kwHtml(); } });
+  }
   function kpIsLate(k) { return k.last_days != null && k.last_days > 5 && !kpDone(k); }
   function kpArchived(k) { return k.status === "Закрыто" || k.status === "Отказ"; }      // закрытые и отказы — в архиве
-  var KP_CSS = ".ds .kphead{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.ds .kphead h1{flex:none;margin:0;cursor:help}"
+  var KP_CSS = ".ds .kpstar{border:0;background:none;color:var(--muted);font-size:1.05rem;line-height:1;padding:0 5px 0 0;cursor:pointer;vertical-align:-1px}.ds .kpstar.on{color:#e0a800}"
+    + ".ds .kpt tr.kpwatch td{background:color-mix(in srgb,#f5c542 7%,var(--surface))}.ds .kpt tr.kpwatch td:first-child{box-shadow:inset 4px 0 0 #e0a800}.ds .kpt tr.kpwatch.wlate td:first-child{box-shadow:inset 4px 0 0 var(--bad)}"
+    + ".ds .kpt tr.kpsep td{background:var(--surface-2);color:var(--muted);font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;text-align:left;padding:4px 10px}"
+    + ".ds .kpprom{display:inline-flex;flex-direction:column;gap:1px;border-radius:9px;padding:3px 8px;font-weight:700;background:color-mix(in srgb,#f5c542 18%,transparent);color:#b88600;white-space:normal;max-width:190px}"
+    + ".ds .kpprom.today{background:var(--ok-soft);color:var(--ok)}.ds .kpprom.late{background:var(--bad-soft);color:var(--bad)}.ds .kpprom small{font-weight:600;opacity:.85}.ds .kpnone{color:var(--muted)}"
+    + ".ds .kpstar-chip{background:color-mix(in srgb,#f5c542 18%,transparent);color:#b88600;border-color:#e0a800!important}"
+    + ".ds .kwseg{display:flex;gap:6px}.ds .kwseg button{flex:1}"
+    + ".ds .kphead{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.ds .kphead h1{flex:none;margin:0;cursor:help}"
     + ".ds .kpfun.cmp{flex:1 1 380px;min-width:0;justify-content:center;gap:5px}.ds .kpfun.cmp .pill{min-height:0;height:auto;padding:4px 10px;flex-direction:row;font-size:.76rem;line-height:1.25}"
     + ".ds .kpbar{display:flex;align-items:center;justify-content:space-between;gap:10px 18px;flex-wrap:wrap;margin:0 0 10px}.ds .kpbar .kpflt{margin:0}"
     + ".ds .kptot.cmp{display:flex;gap:16px;flex-wrap:wrap;margin:0}.ds .kptot.cmp div{border:0;padding:0;background:none}.ds .kptot.cmp small{display:inline;margin-right:5px}.ds .kptot.cmp b{display:inline;font-size:.95rem;margin:0}"
@@ -1736,12 +1774,19 @@
     var p = pos(), canEdit = p === "owner" || p === "sales" || p === "ops", all = S.kp || [], f = kpFlt();
     var dOf = function (k) { return f.by === "s" ? k.status_date || "" : k.lead_date || k.issued_date || ""; };
     var per = all.filter(function (k) { var d = dOf(k); return (!f.from || d >= f.from) && (!f.to || (d && d <= f.to)); });
-    var list = per.filter(function (k) { return f.st ? k.status === f.st : !kpArchived(k); });      // «Все» — в работе, без закрытых и отказов
+    var list = per.filter(function (k) { return f.st === "watch" ? k.watch && !kpArchived(k) : f.st ? k.status === f.st : !kpArchived(k); });      // «Все» — в работе, без закрытых и отказов
+    var tdy = isoDay(new Date()), wkey = function (k) { return k.watch ? "0" + (k.pay_expect || "9999") : "1"; };
+    list = list.map(function (k, i) { return [k, i]; }).sort(function (a, b) { var x = wkey(a[0]), y = wkey(b[0]); return x < y ? -1 : x > y ? 1 : a[1] - b[1]; }).map(function (x) { return x[0]; });
+    var watched = per.filter(function (k) { return k.watch && !kpArchived(k); });
+    var wLate = watched.filter(function (k) { return k.pay_expect && k.pay_expect < tdy; }).length;
     var kpz = kpFont();
     var nAll = per.filter(function (k) { return !kpArchived(k); }).length;
     var tot = [["КП в выборке", list.length], ["Сумма КП", money(list.reduce(function (a, k) { return a + (k.amount || 0); }, 0))],
       ["Получено", money(list.reduce(function (a, k) { return a + kpPaid(k); }, 0))], ["Ждём оплату", money(list.reduce(function (a, k) { return a + kpWait(k); }, 0))]];
+    if (watched.length) tot.push(["⭐ Обещали оплатить", money(watched.reduce(function (a, k) { return a + kpDue(k); }, 0))]);
+    if (wLate) tot.push(['<span style="color:var(--bad)">Просрочено обещаний</span>', '<span style="color:var(--bad)">' + wLate + "</span>"]);
     var pills = '<div class="kpfun cmp">'
+      + (watched.length ? '<button class="pill kpst kpstar-chip' + (f.st === "watch" ? " on" : "") + '" data-kpst="watch" title="Отмеченные ⭐: заказчик обещал оплату">⭐ Следим · ' + watched.length + " · " + E(money(watched.reduce(function (a, k) { return a + kpDue(k); }, 0))) + "</button>" : "")
       + '<button class="pill info kpst' + (!f.st ? " on" : "") + '" data-kpst="" title="КП в работе, без закрытых и отказов">Все · ' + nAll + "</button>"
       + KP_FUNNEL.map(function (s) {
         var ks = per.filter(function (k) { return k.status === s; }), sum = ks.reduce(function (a, k) { return a + (k.amount || 0); }, 0);
@@ -1756,20 +1801,25 @@
       + '<label>с</label><input type="date" id="kpFrom" value="' + E(f.from) + '"><label>по</label><input type="date" id="kpTo" value="' + E(f.to) + '">'
       + '<button class="btn ghost sm" data-kpper="month">Этот месяц</button><button class="btn ghost sm" data-kpper="all">Весь период</button></div>'
       + '<div class="kptot cmp">' + tot.map(function (x) { return "<div><small>" + x[0] + "</small><b>" + x[1] + "</b></div>"; }).join("") + "</div></div>";
-    var rows = list.map(function (k) {
-      var late = kpIsLate(k), arch = kpArchived(k);
+    var nW = list.filter(function (k) { return k.watch; }).length, sep = function (t) { return '<tr class="kpsep"><td colspan="10">' + t + "</td></tr>"; };
+    var rows = list.map(function (k, i) {
+      var late = kpIsLate(k), arch = kpArchived(k), wlate = k.watch && k.pay_expect && k.pay_expect < tdy;
+      var head_ = nW && nW < list.length ? (i === 0 ? sep("⭐ Следим · " + nW + " — сначала просроченные обещания, потом ближайшие") : i === nW ? sep("Остальные · " + (list.length - nW)) : "") : "";
       var st = '<span class="pill ' + (KP_TONE[k.status] || "info") + '">' + E(kpStatusLabel(k.status)) + "</span>" + (k.status_date ? '<small class="kpsd">с ' + dmy(k.status_date).slice(0, 5) + "</small>" : "");
-      var adv = k.has_adv ? money(k.adv_sum) + (k.status === "В предоплате" && !k.adv_paid ? '<small class="kpw">ждём</small>' : "") : "—";
-      var post = k.post_sum ? money(k.post_sum) + (k.status === "В постоплате" && !k.post_paid ? '<small class="kpw">ждём</small>' : "") : "—";
+      var pay = k.has_adv ? "аванс " + money(k.adv_sum) + (k.adv_paid ? " ✓" : "") : "по акту";
+      var prom = !k.watch ? '<span class="kpnone">—</span>' : '<span class="kpprom' + (wlate ? " late" : k.pay_expect === tdy ? " today" : "") + '"' + (k.watch_note ? ' title="' + E(k.watch_note) + '"' : "") + ">"
+        + (!k.pay_expect ? "дата не указана" : k.pay_expect === tdy ? "сегодня" : (wlate ? "к " + dmy(k.pay_expect).slice(0, 5) + " · просрочено " + plural(kpDays(k.pay_expect, tdy), ["день", "дня", "дней"]) : "к " + dmy(k.pay_expect).slice(0, 5) + " · через " + plural(kpDays(tdy, k.pay_expect), ["день", "дня", "дней"])))
+        + (k.pay_prob ? "<small>вероятность: " + E(KP_PROB_RU[k.pay_prob] || k.pay_prob) + "</small>" : "") + (k.watch_note ? "<small>💬 " + E(k.watch_note) + "</small>" : "") + "</span>";
       var acts = canEdit ? '<div class="kpacts">' + (arch ? "" : '<button class="btn ghost sm" data-kptouch="' + k.id + '" title="Был контакт с заказчиком — дата общения станет сегодняшней">Актуализировать</button>')
         + '<button class="btn primary sm" data-kpedit="' + k.id + '" title="Карточка КП: заказчик, объект, суммы, этап, документы">Править</button></div>' : kpDocs(k, false);
       var svc = k.services.map(function (s) { return s.name; }).join(", ");
-      return '<tr class="' + (late ? "late" : "") + (k.id === S.kpHot ? " hot" : "") + '" data-kprow="' + k.id + '"><td><b>' + E(kpNo(k.number)) + "</b>" + (k.order_id && k.order_number ? '<small><button class="kplink" data-open="' + k.order_id + '" title="Открыть задачу">задача №' + E(k.order_number) + "</button></small>" : "") + '</td><td class="cu">' + E(k.customer) + '</td><td class="ell" title="' + E(k.object + " — " + svc + (k.comment ? " — " + k.comment : "")) + '">' + E(k.object) + "<small>" + E(svc) + "</small>" + (k.comment ? '<small class="kpcm">💬 ' + E(k.comment) + "</small>" : "") + "</td>"
-        + "<td>" + (k.lead_date || k.issued_date ? dmy(k.lead_date || k.issued_date) : "—") + "</td><td><b>" + money(k.amount) + "</b></td><td>" + st + '</td><td class="kpa">' + adv + '</td><td class="kpv">' + post + "</td>"
+      return head_ + '<tr class="' + (late ? "late" : "") + (k.watch ? " kpwatch" + (wlate ? " wlate" : "") : "") + (k.id === S.kpHot ? " hot" : "") + '" data-kprow="' + k.id + '"><td>'
+        + (canEdit && !arch ? '<button class="kpstar' + (k.watch ? " on" : "") + '" data-kpstar="' + k.id + '" title="' + (k.watch ? "Следим: изменить или снять" : "Следить: заказчик обещал оплату") + '">' + (k.watch ? "★" : "☆") + "</button>" : "") + "<b>" + E(kpNo(k.number)) + "</b>" + (k.order_id && k.order_number ? '<small><button class="kplink" data-open="' + k.order_id + '" title="Открыть задачу">задача №' + E(k.order_number) + "</button></small>" : "") + '</td><td class="cu">' + E(k.customer) + '</td><td class="ell" title="' + E(k.object + " — " + svc + (k.comment ? " — " + k.comment : "")) + '">' + E(k.object) + "<small>" + E(svc) + "</small>" + (k.comment ? '<small class="kpcm">💬 ' + E(k.comment) + "</small>" : "") + "</td>"
+        + "<td>" + (k.lead_date || k.issued_date ? dmy(k.lead_date || k.issued_date) : "—") + "</td><td><b>" + money(k.amount) + '</b><small class="kpw">' + pay + "</small></td><td>" + st + '</td><td class="kpa">' + prom + "</td>"
         + '<td class="lastc ' + (late ? "late" : "") + '">' + (k.last_days == null ? "—" : k.last_days === 0 ? "сегодня" : plural(k.last_days, ["день", "дня", "дней"]) + " назад") + (late ? " ⚠" : "") + '</td><td class="mg">' + E(k.manager) + '</td><td class="nw">' + acts + "</td></tr>";
     }).join("");
-    return head + funnel + '<div class="panel kpwrap" data-arch="' + !!S.kpArch + '"><table class="tbl grid-c kpt" style="font-size:' + kpz + 'px"><thead><tr><th>№ КП</th><th>Заказчик</th><th>Объект / услуги / комментарий</th><th>Дата обращения</th><th>Сумма</th><th>Статус</th><th>Аванс</th><th>Постоплата</th><th>Последнее общение</th><th>Менеджер</th><th>Действия</th></tr></thead><tbody>'
-      + (rows || '<tr><td colspan="11">' + (f.st || f.from || f.to ? "По этому фильтру КП нет" : "КП пока нет") + "</td></tr>") + "</tbody></table></div>";
+    return head + funnel + '<div class="panel kpwrap" data-arch="' + !!S.kpArch + '"><table class="tbl grid-c kpt" style="font-size:' + kpz + 'px"><thead><tr><th>№ КП</th><th>Заказчик</th><th>Объект / услуги / комментарий</th><th>Дата обращения</th><th>Сумма</th><th>Статус</th><th>Обещали оплату</th><th>Последнее общение</th><th>Менеджер</th><th>Действия</th></tr></thead><tbody>'
+      + (rows || '<tr><td colspan="10">' + (f.st || f.from || f.to ? "По этому фильтру КП нет" : "КП пока нет") + "</td></tr>") + "</tbody></table></div>";
   }
   document.addEventListener("click", function (e) {
     var t = e.target.closest ? e.target.closest("[data-kpst],[data-kpper]") : null; if (!t) return;
