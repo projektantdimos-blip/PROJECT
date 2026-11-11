@@ -2681,6 +2681,31 @@
     if (i.kind === "kpdate") return '<input type="date" data-rpkp="' + i.kp + "|" + i.field + '" value="' + E(i.v || "") + '" ' + st + dis + ">";
     return '<input data-rpk="' + E(i.key) + '" value="' + E(i.v || "") + '" ' + st + ' placeholder="' + E(i.ph || "") + '"' + (i.kind === "num" ? ' inputmode="numeric"' : "") + dis + ">";
   }
+  /* ячейка строки: номер задачи — ссылка на её карточку (у всех отделов) */
+  function rpLink(c, r) {
+    var s = rpCell(c);
+    if (!r.oid || typeof c !== "string") return s;
+    var a = '<a href="#/task/' + r.oid + '" title="Открыть карточку задачи">', n = "№" + E(r.onum);
+    if (c.trim() === r.onum) return a + n + "</a>";
+    return s.replace(n, a + n + "</a>");
+  }
+  /* строки вопроса таблицей: № по порядку, «Всего», у плана оплат — × «убрать из плана на эту неделю» */
+  function rpTable(it, ro, cls) {
+    if (!it.cols.length) return "";
+    rpxCss();
+    var hid = it.hidden || [];
+    var more = hid.length ? '<div class="rphid">Убрано из плана: ' + hid.length + " (" + hid.map(function (h) { return E(h[1]); }).join(", ") + ")"
+      + (ro ? "" : ' · <button type="button" data-rpunhide="' + E(it.id) + '">вернуть все</button>') + "</div>" : "";
+    if (!it.rows.length) return '<div class="note">' + E(it.empty || "Нет данных") + "</div>" + more;
+    var x = !ro && it.rows.some(function (r) { return r.hide_key; });
+    return '<div class="rpcnt">Всего: ' + it.rows.length + '</div><div style="overflow:auto"><table class="' + cls + '"><thead><tr><th class="rpno">№</th>'
+      + it.cols.map(function (c) { return "<th>" + E(c) + "</th>"; }).join("") + (x ? '<th class="rpno"></th>' : "") + "</tr></thead><tbody>"
+      + it.rows.map(function (r, n) {
+        return '<tr><td class="rpno">' + (n + 1) + "</td>" + r.cells.map(function (c) { return "<td>" + rpLink(c, r) + "</td>"; }).join("")
+          + (r.inputs || []).map(function (i) { return "<td>" + rpInput(i, ro) + "</td>"; }).join("")
+          + (x ? '<td class="rpno">' + (r.hide_key ? '<button type="button" class="rpx-x" data-rphide="' + E(r.hide_key) + '" title="Убрать из плана на эту неделю">×</button>' : "") + "</td>" : "") + "</tr>";
+      }).join("") + "</tbody></table></div>" + more;
+  }
   function rpDone(it) {
     if (it.mode === "auto" || it.auto_text) return true;
     var rowsOk = it.rows.every(function (r) { return !(r.inputs || []).length || r.inputs.some(function (i) { return i.v; }); });
@@ -2691,11 +2716,7 @@
     var body = "";
     if (it.hint) body += '<div style="color:var(--muted);font-size:.8rem;margin:-2px 0 8px">' + E(it.hint) + "</div>";
     if (it.kv.length) body += '<div style="display:flex;gap:22px;flex-wrap:wrap;margin-bottom:10px">' + it.kv.map(function (x) { return '<div style="font-size:.82rem;color:var(--muted)">' + E(x[0]) + '<b style="display:block;font-size:1.12rem;color:var(--ink)">' + E(x[1]) + "</b></div>"; }).join("") + "</div>";
-    if (it.cols.length) {
-      body += it.rows.length ? '<div style="overflow:auto"><table class="tbl"><thead><tr>' + it.cols.map(function (c) { return "<th>" + E(c) + "</th>"; }).join("") + "</tr></thead><tbody>"
-        + it.rows.map(function (r) { return "<tr>" + r.cells.map(function (c) { return "<td>" + rpCell(c) + "</td>"; }).join("") + (r.inputs || []).map(function (i) { return "<td>" + rpInput(i, ro) + "</td>"; }).join("") + "</tr>"; }).join("")
-        + "</tbody></table></div>" : '<div class="note">' + E(it.empty || "Нет данных") + "</div>";
-    }
+    body += rpTable(it, ro, "tbl");
     if (it.total) body += '<div style="display:flex;justify-content:space-between;font-weight:700;padding-top:8px"><span>Итого</span><span>' + E(it.total) + "</span></div>";
     if (it.note) body += '<div class="note" style="margin-top:8px">' + E(it.note) + "</div>";
     if (it.auto_text) {
@@ -2734,6 +2755,12 @@
     + ".ds .rpxc textarea:focus{box-shadow:inset 0 0 0 2px var(--brand);background:var(--surface);font-style:normal}.ds .rpxc textarea::placeholder{color:var(--muted)}"
     + ".ds .rpxs{margin:0 8px 8px;padding:8px 10px;border:1px dashed var(--brand);border-radius:10px;background:var(--brand-soft);font-size:.84rem}"
     + ".ds .rpxs b{display:block;color:var(--brand);font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}.ds .rpxs .t{white-space:pre-wrap;line-height:1.4;color:var(--ink)}"
+    + ".ds .rpx .rpxv{padding:8px 10px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}.ds .rpx .rpxn{padding:0 10px 8px;font-size:.78rem;color:var(--muted)}"
+    + ".ds .rpx .rpxin{padding:4px 10px 8px}.ds .rpx .rpxin label{display:block;font-size:.76rem;color:var(--muted);margin-bottom:3px}.ds .rpx .rpxtb{padding:6px 8px 8px}"
+    + ".ds .rpx table.rpxi{min-width:0;width:100%;table-layout:auto;border-collapse:collapse}.ds .rpx .rpxi th,.ds .rpx .rpxi td{border:0;border-bottom:1px solid var(--line);padding:5px 8px;font-size:.84rem;vertical-align:middle;line-height:1.35}"
+    + ".ds .rpx .rpxi thead th{position:static;height:auto;text-align:left;font-size:.72rem;letter-spacing:0;background:var(--surface-2)}.ds .rpx .rpxi tr:last-child td{border-bottom:0}.ds .rpx .rpxi input,.ds .rpx .rpxi select{min-width:0!important;width:100%!important;padding:4px 6px!important;font-size:.82rem!important}"
+    + ".ds .rpcnt{font-size:.74rem;color:var(--muted);margin:2px 0 4px}.ds .rphid{font-size:.76rem;color:var(--muted);margin-top:6px}.ds .rphid button{border:0;background:none;color:var(--brand);font:inherit;font-weight:700;cursor:pointer;padding:0}"
+    + ".ds th.rpno,.ds td.rpno{width:34px;text-align:center;color:var(--muted);font-weight:700}.ds .rpx-x{border:0;background:none;color:var(--muted);font-size:1.15rem;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px}.ds .rpx-x:hover{color:var(--bad);background:var(--surface-2)}"
     + ".ds .rpxs .bt{display:flex;gap:8px;margin-top:7px}.ds .rpxs button{border:1px solid var(--brand);background:var(--brand);color:#fff;border-radius:8px;padding:4px 10px;font:inherit;font-size:.78rem;font-weight:700;cursor:pointer}";
   function rpxCss() { if (!document.getElementById("ds-rpx-css")) { var st = document.createElement("style"); st.id = "ds-rpx-css"; st.textContent = RPX_CSS; document.head.appendChild(st); } }
   function rpOwn(it) { return it.mode === "manual" && it.inputs.length === 1 && !it.rows.length && !it.kv.length && !it.auto_text ? it.inputs[0] : null; }      // ответ ячейки — сам ответ на вопрос (CRM о нём ничего не знает)
@@ -2761,25 +2788,33 @@
     setTimeout(rpFit, 0);
     var MODE = { auto: "считает CRM", semi: "CRM + ваш комментарий", manual: "отвечаете вы", fill: "заполнила CRM · можно дописать комментарий" };
     var rows = r.items.map(function (it, i) {
-      var own = rpOwn(it), v = own ? own.v || "" : "", ed = !own && !!it.edited;
-      var base = own ? v : it.edited || it.crm || "";
-      return '<tr><td class="rn">' + (i + 3) + '</td><td class="c num">' + it.n + '</td><td class="c q">' + E(it.q) + "<small>" + E(MODE[it.auto_text ? "fill" : it.mode] || "") + (it.hint && !it.auto_text ? " · " + E(it.hint) : "") + "</small></td>"
-        + '<td class="a' + (ed ? " ed" : "") + '"><textarea data-rpx="' + E(it.id) + '" rows="' + rpRows(base) + '" placeholder="' + (ro ? "" : own ? "Ответ…" : "") + '"' + (ro ? " disabled" : "") + ">" + E(base) + "</textarea>"
-        + (ed ? '<div class="rpxm"><span>изменено вручную</span>' + (ro ? "" : '<button type="button" data-rpxreset="' + E(it.id) + '" title="Вернуть ответ, собранный CRM">↺ как у CRM</button>') + "</div>" : "") + rpCm(it, ro) + "</td></tr>";
+      return '<tr><td class="c num">' + it.n + '</td><td class="c q">' + E(it.q) + "<small>" + E(MODE[it.auto_text ? "fill" : it.mode] || "") + (it.hint && !it.auto_text ? " · " + E(it.hint) : "") + "</small></td>"
+        + '<td class="a">' + rpXAns(it, ro) + "</td></tr>";
     }).join("");
-    return '<div class="rpx"><table><colgroup><col style="width:38px"><col style="width:52px"><col style="width:34%"><col></colgroup>'
-      + '<thead><tr><th></th><th>A</th><th>B</th><th>C</th></tr></thead><tbody>'
-      + '<tr class="ttl"><td class="rn">1</td><td class="c" colspan="3">Пятничный созвон: ' + E(r.title) + (r.person ? " (" + E(r.person) + ")" : "") + " · " + dmy(r.week_start).slice(0, 5) + " — " + dmy(r.week_end).slice(0, 5) + "</td></tr>"
-      + '<tr class="hd"><td class="rn">2</td><td class="c num">№</td><td class="c">Вопрос</td><td class="c">Ответ</td></tr>' + rows + "</tbody></table></div>";
+    return '<div class="rpx"><table><colgroup><col style="width:52px"><col style="width:24%"><col></colgroup><tbody>'
+      + '<tr class="ttl"><td class="c" colspan="3">Пятничный созвон: ' + E(r.title) + (r.person ? " (" + E(r.person) + ")" : "") + " · " + dmy(r.week_start).slice(0, 5) + " — " + dmy(r.week_end).slice(0, 5) + "</td></tr>"
+      + '<tr class="hd"><td class="c num">№</td><td class="c">Вопрос</td><td class="c">Ответ</td></tr>' + rows + "</tbody></table></div>";
+  }
+  /* ответ в ячейке: свой ответ на ручной вопрос — правится; посчитанное CRM — только читать, под ним комментарий */
+  function rpXAns(it, ro) {
+    var own = rpOwn(it);
+    if (own) return '<textarea data-rpx="' + E(it.id) + '" rows="' + rpRows(own.v) + '" placeholder="' + (ro ? "" : "Ответ…") + '"' + (ro ? " disabled" : "") + ">" + E(own.v || "") + "</textarea>" + rpSug(it, ro);
+    var h = "";
+    if (it.auto_text) return '<div class="rpxv">' + E(it.auto_text) + "</div>" + rpCm(it, ro);        // CRM уже вписала ответ — предложение не повторяем
+    else {
+      if (it.kv.length) h += '<div class="rpxv">' + it.kv.map(function (x) { return E(x[0]) + ": <b>" + E(x[1]) + "</b>"; }).join("\n") + "</div>";
+      if (it.cols.length) h += '<div class="rpxtb">' + rpTable(it, ro, "rpxi") + "</div>";
+      if (it.total) h += '<div class="rpxv"><b>Итого: ' + E(it.total) + "</b></div>";
+      if (it.note) h += '<div class="rpxn">' + E(it.note) + "</div>";
+      h += it.inputs.map(function (i) { return '<div class="rpxin">' + (i.label ? "<label>" + E(i.label) + "</label>" : "") + rpInput(i, ro) + "</div>"; }).join("");
+      if (!h) h = '<div class="rpxv">' + E(it.crm || it.empty || "—") + "</div>";
+    }
+    return h + rpSug(it, ro) + rpCm(it, ro);
   }
   function rpSaveX(id, text) {
     var it = ((S.rp && S.rp.data && S.rp.data.items) || []).filter(function (x) { return x.id === id; })[0]; if (!it) return;
     var own = rpOwn(it);
     if (own) return rpSave(own.key, text);
-    var same = text.trim() === String(it.crm || "").trim();
-    it.edited = same ? "" : text;
-    var td = document.querySelector('[data-rpx="' + CSS.escape(id) + '"]'); if (td && (!!td.closest("td.ed")) !== !!it.edited) paint();
-    return rpSave(id + ":all", it.edited);
   }
   document.addEventListener("input", function (e) {
     var t = e.target; if (!t.dataset || !(t.dataset.rpx || t.dataset.rpc)) return;
@@ -2796,7 +2831,12 @@
     }
   });
   document.addEventListener("click", function (e) {
-    var t = e.target.closest ? e.target.closest("[data-rpview],[data-rpxreset],[data-rpsug]") : null; if (!t || !S.rp || !S.rp.data) return;
+    var t = e.target.closest ? e.target.closest("[data-rpview],[data-rpsug],[data-rphide],[data-rpunhide]") : null; if (!t || !S.rp || !S.rp.data) return;
+    if (t.dataset.rphide) { t.disabled = true; return rpSave(t.dataset.rphide, "1").then(loadReport).then(paint); }
+    if (t.dataset.rpunhide) {
+      var hi = S.rp.data.items.filter(function (x) { return x.id === t.dataset.rpunhide; })[0]; if (!hi) return;
+      return Promise.all((hi.hidden || []).map(function (h) { return rpSave(h[0], ""); })).then(loadReport).then(paint);
+    }
     if (t.dataset.rpsug) {
       var si = S.rp.data.items.filter(function (x) { return x.id === t.dataset.rpsug; })[0]; if (!si || !si.suggest) return;
       t.disabled = true;
@@ -2804,8 +2844,6 @@
       return Promise.all(Object.keys(fill).map(function (k) { return rpSave(k, fill[k]); })).then(loadReport).then(function () { toast("Подставлено — можно дописать"); paint(); });
     }
     if (t.dataset.rpview) { S.rpView = t.dataset.rpview; try { localStorage.setItem("ds_rp_view", S.rpView); } catch (er) {} return loadReport().then(paint); }
-    var it = S.rp.data.items.filter(function (x) { return x.id === t.dataset.rpxreset; })[0]; if (!it) return;
-    it.edited = ""; rpSave(it.id + ":all", ""); paint();
   });
   function rpView() { if (!S.rpView) { try { S.rpView = localStorage.getItem("ds_rp_view") || "x"; } catch (e) { S.rpView = "x"; } } return S.rpView; }
   function reportScreen() {
@@ -2823,7 +2861,7 @@
       + '<div style="margin-left:auto;min-width:200px;font-size:.82rem;color:var(--muted)">Заполнено ' + done + " из " + r.items.length + '<div style="height:7px;background:var(--line);border-radius:9px;margin-top:5px;overflow:hidden"><i style="display:block;height:100%;width:' + Math.round(done / r.items.length * 100) + '%;background:var(--ok)"></i></div></div></div>';
     var legend = '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.8rem;color:var(--muted);margin-bottom:12px"><span>' + rpTag("auto") + " считает CRM</span><span>" + rpTag("semi") + " список из CRM, вы дописываете «что сделал · следующий шаг»</span><span>" + rpTag("manual") + " отвечаете вы</span></div>";
     var tiles = '<div class="tiles" style="margin-bottom:16px">' + r.tiles.map(function (x) { return '<div class="tile" style="--c:' + (tone[x[0]] || "var(--brand)") + '"><div class="n">' + E(x[1]) + '</div><div class="l">' + E(x[2]) + "</div></div>"; }).join("") + "</div>";
-    if (rpView() === "x") return head + who + tiles + '<div class="note" style="margin:0 0 10px">Ответы можно править прямо в ячейках — сохраняются сами. Цифры и списки CRM подставляет сама; переписанный ответ подсвечен, «↺ как у CRM» вернёт посчитанный. Где CRM может ответить сама, ответ уже вписан — при необходимости допишите комментарий под ним. Списки с выбором (вероятность оплаты, причины) — во вкладке «Карточки».</div>' + rpExcel(r, ro);
+    if (rpView() === "x") return head + who + tiles + '<div class="note" style="margin:0 0 10px">То, что посчитала CRM, не правится — при необходимости допишите комментарий под ответом. Ответы на свои вопросы и поля в таблицах сохраняются сами. Номер задачи открывает её карточку; в плане оплат лишние КП убираются крестиком ×.</div>' + rpExcel(r, ro);
     return head + who + tiles + legend + r.items.map(function (it) { return rpItem(it, ro); }).join("");
   }
   document.addEventListener("click", function (e) {
