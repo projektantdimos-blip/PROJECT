@@ -2779,6 +2779,15 @@
     + ".ds .rpx .rpxk span{font-size:.8rem;color:var(--muted)}.ds .rpx .rpxk span+span:before{content:'·';margin-right:8px;color:var(--muted)}.ds .rpx .rpxk b{color:var(--ink);font-size:.9rem}"
     + ".ds .rpx .rpxi th.c,.ds .rpx .rpxi td.c,.ds .tbl th.c,.ds .tbl td.c{text-align:center}.ds .rpx .rpxi td.c,.ds .tbl td.c{white-space:nowrap}.ds .rpx .rpxi select{min-width:105px!important}.ds .rpx .rpxi th.r,.ds .rpx .rpxi td.r,.ds .tbl th.r,.ds .tbl td.r{text-align:right;white-space:nowrap}"
     + ".ds .rpx .rpxi td.rpin,.ds .tbl td.rpin{min-width:230px;width:36%}.ds .rpx .rpxin.need label{color:var(--bad);font-weight:700}"
+    + ".ds .rpx.rpql{border:0;background:none;box-shadow:none;overflow:visible;border-radius:0}"
+    + ".ds .rpqt{padding:10px 14px;margin:0 0 12px;border-radius:12px;background:var(--brand-soft);color:var(--brand);font-weight:700;font-size:1rem}"
+    + ".ds .rpq{background:var(--surface);border:1px solid var(--line);border-radius:14px;margin:0 0 16px;overflow:hidden;box-shadow:var(--shadow-s,none)}.ds .rpq.need{border-color:var(--warn)}"
+    + ".ds .rpqh{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:flex-start;padding:10px 14px;background:var(--brand-soft);border-bottom:1px solid var(--line)}"
+    + ".ds .rpqh .qn{flex:none;min-width:30px;height:30px;padding:0 6px;border-radius:9px;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:800;font-size:.95rem}"
+    + ".ds .rpqh .qt{flex:1;min-width:200px;font-weight:700;color:var(--ink);line-height:1.35;padding-top:4px}.ds .rpqh .qt small{display:block;font-weight:400;color:var(--muted);font-size:.76rem;margin-top:2px}"
+    + ".ds .rpqh .qneed{flex:none;margin-top:4px}.ds .rpqh .qs{flex-basis:100%;display:flex;flex-wrap:wrap;gap:2px 16px;padding-left:42px;font-size:.8rem;color:var(--muted)}.ds .rpqh .qs b{color:var(--brand);font-size:.95rem}"
+    + ".ds .rpqb{padding:6px 6px 4px}.ds .rpx .rpqb>textarea{border:1px solid var(--line);border-radius:10px;margin:6px 8px;width:calc(100% - 16px)}"
+    + "@media (max-width:640px){.ds .rpqh .qs{padding-left:0}.ds .rpqh .qt{min-width:0}}"
     + ".ds .rpxs .bt{display:flex;gap:8px;margin-top:7px}.ds .rpxs button{border:1px solid var(--brand);background:var(--brand);color:#fff;border-radius:8px;padding:4px 10px;font:inherit;font-size:.78rem;font-weight:700;cursor:pointer}";
   function rpxCss() { if (!document.getElementById("ds-rpx-css")) { var st = document.createElement("style"); st.id = "ds-rpx-css"; st.textContent = RPX_CSS; document.head.appendChild(st); } }
   function rpOwn(it) { return it.mode === "manual" && it.inputs.length === 1 && !it.rows.length && !it.kv.length && !it.auto_text ? it.inputs[0] : null; }      // ответ ячейки — сам ответ на вопрос (CRM о нём ничего не знает)
@@ -2805,29 +2814,35 @@
     rpxCss();
     setTimeout(rpFit, 0);
     var MODE = { auto: "считает CRM", semi: "CRM + ваш комментарий", manual: "отвечаете вы", fill: "заполнила CRM · можно дописать комментарий" };
-    var rows = r.items.map(function (it, i) {
-      return '<tr><td class="c num">' + it.n + '</td><td class="c q">' + E(it.q) + "<small>" + E(MODE[it.auto_text ? "fill" : it.mode] || "") + (it.hint && !it.auto_text ? " · " + E(it.hint) : "") + "</small></td>"
-        + '<td class="a">' + rpXAns(it, ro) + "</td></tr>";
+    var cards = r.items.map(function (it) {
+      var sum = rpSum(it), need = !ro && !rpDone(it);
+      return '<section class="rpq' + (need ? " need" : "") + '"><div class="rpqh"><span class="qn">' + it.n + '</span><div class="qt">' + E(it.q)
+        + "<small>" + E(MODE[it.auto_text ? "fill" : it.mode] || "") + (it.hint && !it.auto_text ? " · " + E(it.hint) : "") + "</small></div>"
+        + (need ? '<span class="pill warn qneed">заполнить</span>' : "")
+        + (sum.length ? '<div class="qs">' + sum.map(function (x) { return "<span>" + E(x[0]) + " <b>" + E(x[1]) + "</b></span>"; }).join("") + "</div>" : "")
+        + '</div><div class="rpqb">' + rpXAns(it, ro) + "</div></section>";
     }).join("");
-    return '<div class="rpx"><table><colgroup><col style="width:48px"><col style="width:20%"><col></colgroup><tbody>'
-      + '<tr class="ttl"><td class="c" colspan="3">Пятничный созвон: ' + E(r.title) + (r.person ? " (" + E(r.person) + ")" : "") + " · " + dmy(r.week_start).slice(0, 5) + " — " + dmy(r.week_end).slice(0, 5) + "</td></tr>"
-      + '<tr class="hd"><td class="c num">№</td><td class="c">Вопрос</td><td class="c">Ответ</td></tr>' + rows + "</tbody></table></div>";
+    return '<div class="rpx rpql"><div class="rpqt">Пятничный созвон: ' + E(r.title) + (r.person ? " (" + E(r.person) + ")" : "") + " · " + dmy(r.week_start).slice(0, 5) + " — " + dmy(r.week_end).slice(0, 5) + "</div>" + cards + "</div>";
   }
   /* ответ в ячейке: свой ответ на ручной вопрос — правится; посчитанное CRM — только читать, под ним комментарий */
+  /* итоги вопроса: цифры CRM, «Всего» строк, «Итого» — в полосу-заголовок вопроса */
+  function rpSum(it) {
+    if (it.auto_text || rpOwn(it)) return [];
+    var sum = it.kv.slice();
+    if (it.cols.length && it.rows.length) sum.push(["Всего", String(it.rows.length)]);
+    if (it.total) sum.push(["Итого", it.total]);
+    return sum;
+  }
   function rpXAns(it, ro) {
     var own = rpOwn(it);
     if (own) return '<textarea data-rpx="' + E(it.id) + '" rows="' + rpRows(own.v) + '" placeholder="' + (ro ? "" : "Ответ…") + '"' + (ro ? " disabled" : "") + ">" + E(own.v || "") + "</textarea>" + rpSug(it, ro);
     var h = "";
     if (it.auto_text) return '<div class="rpxv">' + E(it.auto_text) + "</div>" + rpCm(it, ro);        // CRM уже вписала ответ — предложение не повторяем
     else {
-      var sum = it.kv.slice();
-      if (it.cols.length && it.rows.length) sum.push(["Всего", String(it.rows.length)]);
-      if (it.total) sum.push(["Итого", it.total]);
-      if (sum.length) h += '<div class="rpxk">' + sum.map(function (x) { return "<span>" + E(x[0]) + " <b>" + E(x[1]) + "</b></span>"; }).join("") + "</div>";
       if (it.cols.length) h += '<div class="rpxtb">' + rpTable(it, ro, "rpxi") + "</div>";
       if (it.note) h += '<div class="rpxn">' + E(it.note) + "</div>";
       h += it.inputs.map(function (i) { return '<div class="rpxin' + (i.req && !i.v ? " need" : "") + '">' + (i.label ? "<label>" + E(i.label) + "</label>" : "") + rpInput(i, ro) + "</div>"; }).join("");
-      if (!h) h = '<div class="rpxv">' + E(it.crm || it.empty || "—") + "</div>";
+      if (!h && !rpSum(it).length) h = '<div class="rpxv">' + E(it.crm || it.empty || "—") + "</div>";        // только цифры — они уже в полосе вопроса
     }
     return h + rpSug(it, ro) + rpCm(it, ro);
   }
