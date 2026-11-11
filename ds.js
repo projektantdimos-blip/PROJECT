@@ -199,12 +199,62 @@
     var cu = (S.customers || []).filter(function (c) { return c.id === o.customer_id; })[0];
     return !!cu && !(cu.contacts || []).some(function (x) { return x.phone && String(x.phone).trim(); });
   }
+  /* ---------- проектируемые системы: справочник (из /meta), плашки, мультивыбор ---------- */
+  var SYS_FALLBACK = ["СПС", "СОУЭ", "АУП", "ВПВ", "АПТ", "ДУ", "ФЭС", "АО", "ОГЗ", "СКУД", "СВН", "СКС", "ПЭ", "РР", "Декларация", "ИД", "Спецификация"];
+  function sysCat() { return (S.meta && S.meta.systems && S.meta.systems.items) || SYS_FALLBACK.map(function (c) { return { code: c, name: c }; }); }
+  function sysName(c) { var x = sysCat().filter(function (s) { return s.code === c; })[0]; return x ? x.name : c; }
+  function sysSec(c) { return c === "СПС" || c === "СОУЭ" ? "СПС.СОУЭ" : c; }
+  /* плашки систем: каждая отдельно; система другого раздела (ВПВ, АУП рядом с СПС/СОУЭ) — фиолетовая, с исполнителем раздела */
+  function sysChips(o, sm) {
+    var codes = (o && o.systems) || [], main = codes.length ? sysSec(codes[0]) : "", out = codes.map(function (c) {
+      var part = ((o.parts || []).filter(function (p) { return p.system === c; })[0]), other = sysSec(c) !== main;
+      var who = part ? (part.delivered ? "сдан" : part.executor || "не назначен") : "";
+      return '<span class="sysch' + (other ? " oth" : "") + '" title="' + E(sysName(c) + (part ? " · отдельный раздел: " + who + (part.plan_end ? ", срок " + dmy(part.plan_end) : "") : other ? " · другой раздел" : "")) + '">'
+        + E(c) + (part ? "<small>" + E(who) + "</small>" : "") + "</span>";
+    });
+    if (o && o.systems_other) out.push('<span class="sysch o" title="Нет в справочнике">' + E(o.systems_other) + "</span>");
+    if (o && o.modern) out.push('<span class="sysch m">модернизация</span>');
+    if (!out.length && o && o.system) out.push('<span class="sysch o">' + E(o.system) + "</span>");      // мост ещё без списка систем
+    return out.length ? '<div class="syschips' + (sm ? " sm" : "") + '">' + out.join("") + "</div>" : "";
+  }
+  function sysLabel(st) { return ((st.systems || []).join(".") + (st.systems_other ? " " + st.systems_other : "") + (st.modern ? " модернизация" : "")).trim(); }      // строка для старого моста
+  function sysText(o) { return o ? ((o.systems || []).join(".") + (o.systems_other ? " " + o.systems_other : "") + (o.modern ? " модернизация" : "")).trim() || o.system || "" : ""; }
+  /* мультивыбор: кнопки справочника + «прочее» + метка «модернизация»; who — "form" (новая задача) или "oe" (меню задачи) */
+  function sysPick(st, who) {
+    var sel = st.systems || [];
+    return '<div class="fld"><label>Проектируемые системы <small style="color:var(--muted);font-weight:500">— отметьте все, что есть в задаче</small></label><div class="syspick">'
+      + sysCat().map(function (s) { return '<button type="button" class="' + (sel.indexOf(s.code) >= 0 ? "on" : "") + '" data-syspk="' + who + ":" + E(s.code) + '" title="' + E(s.name) + '">' + E(s.code) + "</button>"; }).join("")
+      + '</div><div class="sysrow"><input type="text" data-sysoth="' + who + '" value="' + E(st.systems_other || "") + '" placeholder="Прочее — чего нет в списке" ' + (who === "oe" ? OE_FIELD : "") + ">"
+      + '<label style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" data-sysmod="' + who + '"' + (st.modern ? " checked" : "") + "> модернизация</label></div>"
+      + (sel.filter(function (c) { return sysSec(c) !== sysSec(sel[0]); }).length ? '<div class="note" style="margin:8px 0 0">Системы другого раздела станут отдельными подзадачами со своим исполнителем и сроком — вкладка «Разделы и корректировки».</div>' : "")
+      + "</div>";
+  }
+  function sysTarget(who) { return who === "oe" ? S.oe : S.form; }
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest ? e.target.closest("[data-syspk]") : null; if (!t) return;
+    var a = t.dataset.syspk.split(":"), st = sysTarget(a[0]); if (!st) return;
+    var cur = (st.systems || []).slice(), i = cur.indexOf(a[1]);
+    if (i >= 0) cur.splice(i, 1); else cur.push(a[1]);
+    var order = sysCat().map(function (s) { return s.code; });
+    st.systems = cur.sort(function (x, y) { return order.indexOf(x) - order.indexOf(y); });
+    if (a[0] === "oe") tmRepaint(); else paint();
+  });
+  document.addEventListener("input", function (e) {
+    var w = e.target.dataset && (e.target.dataset.sysoth || e.target.dataset.sysmod); if (!w) return;
+    var st = sysTarget(w); if (!st) return;
+    if (e.target.dataset.sysoth) st.systems_other = e.target.value; else st.modern = e.target.checked ? 1 : 0;
+  });
+  document.addEventListener("change", function (e) {
+    var w = e.target.dataset && e.target.dataset.sysmod; if (!w) return;
+    var st = sysTarget(w); if (st) st.modern = e.target.checked ? 1 : 0;
+  });
+
   function card(o, withStage) {
     var stage = o.stage, money_ = can("money") && o.amount != null;
     return '<button class="task ' + (o.urgent ? "urgent" : "") + '" data-open="' + o.id + '"' + (taskCtl() ? ' draggable="true" data-dragid="' + o.id + '"' : "") + '><span class="stripe" style="--c:' + (o.urgent || (o.left_days != null && o.left_days < 0) ? "var(--bad)" : (STAGE_COLOR[stage] || "var(--brand)")) + '"></span><span class="body">'
       + '<span class="r1"><span class="num">№' + E(o.number) + "</span><span>" + E(o.customer || "") + '</span><span class="fl">' + (o.urgent ? '<span class="pill urg">⚡ Срочно</span>' : "") + "</span></span>"
       + '<span class="ttl" style="display:block">' + E(o.object) + "</span>"
-      + (o.system ? '<span class="con" style="display:block;color:var(--brand);font-weight:600">' + E(o.system) + "</span>" : "")
+      + sysChips(o, true)
       + '<span class="con ' + (o.left_days != null && o.left_days < 0 ? "bad" : "") + '" style="display:block">Договор до ' + dmy(o.due_date) + "</span>"
       + '<span class="meta">' + (o.executor ? ava(o.executor, "sm") + '<span style="font-size:.84rem;margin-right:auto">' + E(o.executor) + "</span>" : '<span class="pill muted" style="margin-right:auto">не назначен</span>')
       + (needPhone(o) ? '<span class="pill bad" title="В карточке заказчика не указан сотовый телефон">Нет телефона</span>' : "")
@@ -276,7 +326,7 @@
     var items = (S.tasks || []).filter(function (t) { return !(t.kind === "design" && /^(Проверить проект|Корректировка|Доработка)/.test(t.title || "")); })
       .map(function (t) { return { t: t, left: t.left_days, wait: t.state === "wait", text: (t.title || "") + " " + (t.assignee || "") + " " + (t.object || "") + " " + (t.note || "") }; });
     (S.orders || []).filter(function (o) { return o.nonproj && DONE_ST.indexOf(o.stage) < 0; }).forEach(function (o) {      // риски, планы эвакуации … ведёт операционный отдел
-      items.push({ o: o, left: o.left_days, wait: o.stage === "На согласовании", text: o.number + " " + (o.customer || "") + " " + (o.object || "") + " " + (o.system || "") + " " + (o.executor || "") });
+      items.push({ o: o, left: o.left_days, wait: o.stage === "На согласовании", text: o.number + " " + (o.customer || "") + " " + (o.object || "") + " " + (o.system || "") + " " + sysText(o) + " " + (o.executor || "") });
     });
     (S.kp || []).filter(function (k) { return !kpDone(k) && !k.order_id; }).forEach(function (k) {
       items.push({ kp: k, left: k.last_days != null && k.last_days > 5 ? -1 : (k.last_days != null && k.last_days >= 3 ? 1 : 9), wait: k.status === "КП отправлено", text: k.number + " " + k.customer + " " + (k.object || "") });
@@ -288,7 +338,7 @@
     if (it.o) {
       var o = it.o;
       tn = o.left_days != null && o.left_days < 0 ? "bad" : o.left_days != null && o.left_days <= 2 ? "warn" : "ok";
-      return '<div class="ovr"><div class="ovl"><span class="num">№' + E(o.number) + '</span><span class="cu" title="' + E(o.system || o.object) + '">' + E(o.system || "Не проектная работа") + '</span><span class="ob">' + E((o.customer ? o.customer + " · " : "") + (o.object || "")) + "</span>"
+      return '<div class="ovr"><div class="ovl"><span class="num">№' + E(o.number) + '</span><span class="cu" title="' + E(sysText(o) || o.object) + '">' + E(sysText(o) || "Не проектная работа") + '</span><span class="ob">' + E((o.customer ? o.customer + " · " : "") + (o.object || "")) + "</span>"
         + '<span class="pill info">' + E(o.stage) + '</span><span class="ex">' + E(o.executor || "не назначен") + '</span><span class="pill ' + tn + '">' + (o.due_date ? "до " + dmy(o.due_date).slice(0, 5) + " · " : "") + E(leftText(o.left_days)) + '</span><span class="lc"></span><button class="cmb" data-open="' + o.id + '">Открыть</button></div></div>';
     }
     if (it.kp) {
@@ -357,7 +407,7 @@
       ck = '<button type="button" class="olck" data-tstate="' + t.id + ':done" title="Выполнено"></button>';
     } else if (x.o) {
       var o = x.o;
-      title = E(o.system || "Не проектная работа");
+      title = E(sysText(o) || "Не проектная работа");
       sub = ["№" + o.number, o.customer || "", o.object || ""].filter(Boolean).join(" · ");
       who = o.executor || "";
       attr = 'data-open="' + o.id + '" title="Открыть задачу №' + E(o.number) + '"';
@@ -503,7 +553,7 @@
       if (f.tile === "edits" && !(o.edits > 0)) return false;
       if (f.tile === "unpaid" && (o.post_paid || o.adv_paid || o.stage === "Закрыто")) return false;
       if (f.stage && o.stage !== f.stage) return false;
-      if (q && (o.number + " " + (o.customer || "") + " " + o.object + " " + (o.system || "") + " " + (o.executor || "")).toLowerCase().indexOf(q) < 0) return false;
+      if (q && (o.number + " " + (o.customer || "") + " " + o.object + " " + (o.system || "") + " " + sysText(o) + " " + (o.executor || "")).toLowerCase().indexOf(q) < 0) return false;
       return true;
     }).sort(function (a, b) { return (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0) || (a.left_days == null ? 9999 : a.left_days) - (b.left_days == null ? 9999 : b.left_days); });
     var chips = '<div class="chips"><button class="chip ' + (!f.stage ? "on" : "") + '" data-ostage="">Все стадии</button>'
@@ -700,6 +750,17 @@
       var rem = r.kind === "fix" ? '<div class="rdrem">' + (r.remarks ? E(r.remarks) : '<i style="color:var(--muted)">Замечания не записаны</i>') + "</div>"
         + '<div class="rdplan">' + (r.category ? '<span class="pill info">' + E(r.category) + "</span> " : '<span class="pill warn">категория не указана</span> ') + (r.cause ? E(r.cause) : "") + (r.paid ? ' · <b>платная</b>' : "") + "</div>" : "";
       var ed = "";
+      if (r.kind === "part") {                    // раздел-подзадача: свой исполнитель и срок; сдаёт исполнитель раздела или руководитель
+        rem = "";
+        var mineP = d.can_edit || (r.executor_id && r.executor_id === d.me);
+        var doneBtn = mineP && r.executor_id ? (r.delivered ? '<button class="btn ghost sm" data-rddone="' + r.id + ':0">↺ Вернуть в работу</button>' : '<button class="btn primary sm" data-rddone="' + r.id + ':1">✓ Раздел сдан</button>') : "";
+        ed = d.can_edit && rd.edit === r.id ? '<div class="rdform"><div class="g2f"><div class="fld"><label>Начало</label><input type="date" data-rdf="plan_start" value="' + E(r.plan_start || "") + '"></div><div class="fld"><label>Срок, рабочих дней</label><input type="number" min="1" max="120" data-rdf="workdays" placeholder="напр. 10"></div></div>'
+          + '<div class="fld"><label>или срок датой</label><input type="date" data-rdf="plan_end" value="' + E(r.plan_end || "") + '"></div>'
+          + '<div class="fld"><label>Исполнитель раздела ' + E(r.system || "") + '</label><select data-rdf="executor_id"><option value="0">— не менять —</option>' + people.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +r.executor_id ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div>"
+          + '<div style="display:flex;gap:8px"><button class="btn primary sm" data-rdsave="' + r.id + '">Сохранить</button><button class="btn ghost sm" data-rdedit="0">Отмена</button></div></div>'
+          : '<div style="display:flex;gap:8px;flex-wrap:wrap">' + (d.can_edit ? '<button class="btn ghost sm" data-rdedit="' + r.id + '">✎ Исполнитель и срок</button>' : "") + doneBtn + "</div>";
+        return '<div class="rdcard part' + (r.open ? " open" : "") + '"><div class="rdh"><b>' + E(r.title) + "</b>" + (r.delivered ? '<span class="pill ok">сдан</span>' : r.executor_id ? rdPill(r) : '<span class="pill warn">исполнитель не назначен</span>') + "</div>" + facts + plan + who + ed + "</div>";
+      }
       if (r.kind === "fix" && d.can_edit) {
         ed = rd.edit === r.id ? '<div class="rdform"><div class="fld"><label>Замечания заказчика</label><textarea rows="3" data-rdf="remarks">' + E(r.remarks || "") + "</textarea></div>"
           + '<div class="g2f"><div class="fld"><label>Категория</label><select data-rdf="category"><option value="">—</option>' + FIX_CAT.map(function (x) { return '<option' + (x === r.category ? " selected" : "") + ">" + E(x) + "</option>"; }).join("") + "</select></div>"
@@ -713,16 +774,21 @@
       }
       return '<div class="rdcard ' + r.kind + (r.open ? " open" : "") + '"><div class="rdh"><b>' + E(r.title) + "</b>" + rdPill(r) + "</div>" + facts + plan + who + rem + ed + "</div>";
     }).join("");
-    return head + (rd.msg ? '<div class="err">' + E(rd.msg) + "</div>" : "") + '<p class="sub" style="margin:8px 0">Основной срок по договору не меняется: у каждой корректировки свои сроки в рабочих днях. Даты начала и сдачи фиксируются автоматически.</p>' + cards;
+    return head + (rd.msg ? '<div class="err">' + E(rd.msg) + "</div>" : "") + '<p class="sub" style="margin:8px 0">Основной срок по договору не меняется: у каждой корректировки свои сроки в рабочих днях. Даты начала и сдачи фиксируются автоматически.'
+      + (d.part_count ? " Разделы (ВПВ, АУП …) — подзадачи со своим исполнителем и сроком; идут параллельно основной работе и в сумму дней не входят." : "") + "</p>" + cards;
   }
   document.addEventListener("click", function (e) {
-    var t = e.target.closest ? e.target.closest("[data-rdedit],[data-rdsave]") : null; if (!t || !S.rd) return;
+    var t = e.target.closest ? e.target.closest("[data-rdedit],[data-rdsave],[data-rddone]") : null; if (!t || !S.rd) return;
+    if (t.dataset.rddone) {
+      var dn = t.dataset.rddone.split(":");
+      return api("/orders/" + S.rd.id + "/rounds/" + dn[0] + "/edit", { done: +dn[1] }).then(function (r) { S.rd.data = r; S.rd.msg = ""; toast(+dn[1] ? "Раздел сдан" : "Раздел снова в работе"); S.orders = null; return load(); }).then(paint, function (er) { S.rd.msg = String(er); paint(); });
+    }
     if (t.dataset.rdedit != null && t.hasAttribute("data-rdedit")) { S.rd.edit = +t.dataset.rdedit; S.rd.msg = ""; return paint(); }
     if (t.dataset.rdsave) {
       var box = t.closest(".rdform"), body = {};
       box.querySelectorAll("[data-rdf]").forEach(function (el) { var k = el.dataset.rdf; if (k === "workdays") { if (el.value) body.workdays = +el.value; } else if (k === "executor_id") { if (+el.value) body.executor_id = +el.value; } else body[k] = el.value; });
       if (body.workdays) delete body.plan_end;
-      api("/orders/" + S.rd.id + "/rounds/" + t.dataset.rdsave + "/edit", body).then(function (r) { S.rd.data = r; S.rd.edit = 0; S.rd.msg = ""; toast("Корректировка сохранена"); S.orders = null; return load(); }).then(paint, function (er) { S.rd.msg = String(er); paint(); });
+      api("/orders/" + S.rd.id + "/rounds/" + t.dataset.rdsave + "/edit", body).then(function (r) { S.rd.data = r; S.rd.edit = 0; S.rd.msg = ""; toast("Сохранено"); S.orders = null; return load(); }).then(paint, function (er) { S.rd.msg = String(er); paint(); });
     }
   });
   var FIX_CAT = ["Ошибка отдела", "Просьба заказчика", "Недостаток вводных", "Экспертиза", "Спорно"];
@@ -870,7 +936,8 @@
   function infoTab(o) {
     var p = projPos(), cu = customerOf(o), designerView = p === "designer";
     var dl = '<div class="dl ' + (o.left_days != null && o.left_days < 0 ? "bad" : "") + '"><div><small style="color:var(--muted);font-weight:700;text-transform:uppercase;font-size:.68rem">Дедлайн</small><br><b>' + dmy(o.due_date) + "</b></div><b style=\"font-size:.95rem\">" + E(leftText(o.left_days)) + "</b></div>";
-    var work = '<div class="panel pad"><h3>Работа</h3>' + dl + '<div class="kv">' + (o.system ? "<span>Система</span><span><b>" + E(o.system) + "</b></span>" : "") + '<span>Исполнитель</span><span><b>' + E(o.executor || "не назначен") + "</b></span><span>Стадия</span><span>" + E(o.stage) + "</span>"
+    var work = '<div class="panel pad"><h3>Работа</h3>' + dl + '<div class="kv">' + (sysText(o) ? "<span>Системы</span><span><b>" + E(sysText(o)) + "</b>"
+      + (o.parts || []).map(function (p) { return '<br><small>Раздел ' + E(p.system) + ": " + E(p.delivered ? "сдан " + dmy(p.delivered) : (p.executor || "исполнитель не назначен") + (p.plan_end ? ", срок " + dmy(p.plan_end) : "")) + "</small>"; }).join("") + "</span>" : "") + '<span>Исполнитель</span><span><b>' + E(o.executor || "не назначен") + "</b></span><span>Стадия</span><span>" + E(o.stage) + "</span>"
       + (o.contract_date ? "<span>Договор от</span><span>" + dmy(o.contract_date) + "</span>" : "") + "<span>Приоритет</span><span>" + E(o.priority) + "</span>"
       + (designerView ? "" : "<span>Правок</span><span>" + (o.edits || 0) + "</span>") + "</div></div>";
     var cust = "";
@@ -895,7 +962,7 @@
         + accButtons(o) + "</div>";
     }
     var canCreate = p === "owner" || p === "sales" || p === "ops";
-    var fol = '<div class="panel pad"><h3>Папка и чат</h3><div class="doc" style="margin-top:10px"><span>📂</span><div style="flex:1"><b>' + E(FOLDER_ROOT) + "\\" + E(o.number) + ". " + E(o.object) + "</b><small>Откроется в проводнике (нужен VPN и установленная кнопка)</small></div></div>"
+    var fol = '<div class="panel pad"><h3>Папка и чат</h3><div class="doc" style="margin-top:10px"><span>📂</span><div style="flex:1"><b>' + E(FOLDER_ROOT) + "\\" + E(o.number) + ". " + E(folderName(o)) + "</b><small>Откроется в проводнике (нужен VPN и установленная кнопка)</small></div></div>"
       + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px"><a class="btn ghost sm" style="text-decoration:none" href="' + folderUrl(o, false) + '">Перейти в папку на сервере</a>'
       + (canCreate ? '<a class="btn ghost sm" style="text-decoration:none" href="' + folderUrl(o, true) + '">Создать папку</a>' : "") + "</div>"
       + '<div class="doc"><span>💬</span><div style="flex:1"><b>Чат проекта</b><small>Обсуждение задачи №' + E(o.number) + '</small></div><button class="btn ghost sm" data-taskchat="' + o.id + '">Перейти в чат</button></div></div>';
@@ -903,8 +970,17 @@
   }
   /* папку открывает server-link/open-folder.ps1 на компьютере сотрудника (свой протокол dsfolder://, не путается с кнопкой МПБ) */
   var FOLDER_ROOT = "\\\\176.197.21.187\\ServAmani\\Проектная компания\\Задачи";
+  /* имя папки «№. Объект, системы - Заказчик» (номер добавляет программа); начинается с объекта — по нему же ищется папка, если номеров несколько */
+  function folderName(o) {
+    var sys = (o.systems && o.systems.length) ? o.systems.join(".") + (o.systems_other ? " " + o.systems_other : "") : (o.system && o.system.length <= 40 ? o.system : "");
+    return [String(o.object || "").replace(/\s+/g, " ").trim(), sys].filter(Boolean).join(", ") + (o.customer ? " - " + o.customer : "");
+  }
   function folderUrl(o, create) {
-    return "dsfolder://open?num=" + encodeURIComponent(o.number) + "&name=" + encodeURIComponent(o.object || "") + (create ? "&create=1" : "");
+    return "dsfolder://open?num=" + encodeURIComponent(o.number) + "&name=" + encodeURIComponent(folderName(o)) + (create ? "&create=1" : "");
+  }
+  /* папка по шаблону (server-link/open-folder.ps1: разделы и паспорт задачи) — сразу при создании задачи; нужен VPN и установленная кнопка */
+  function makeFolder(o) {
+    try { var a = document.createElement("a"); a.href = folderUrl(o, true); document.body.appendChild(a); a.click(); a.remove(); } catch (e) {}
   }
   DS.folderUrl = folderUrl; DS.FOLDER_ROOT = FOLDER_ROOT;      // папка задачи на сервере — и в карточке выезда (visits.js)
   function accButtons(o) {
@@ -1101,14 +1177,14 @@
     }
     var menuOn = canMenu(), tabs = menuOn ? [["info", "Меню задачи"], ["inf2", "Информация"]] : [["info", "Информация"]];
     if (["owner", "ops", "sales", "design"].indexOf(p) >= 0) tabs.push(["tz", "Тех. задание"]);
-    tabs.push(["rounds", "Корректировки" + (o.fix_total ? " (" + o.fix_total + ")" : "")]);
+    tabs.push(["rounds", ((o.parts || []).length ? "Разделы и корректировки" : "Корректировки") + (o.fix_total || (o.parts || []).length ? " (" + ((o.fix_total || 0) + (o.parts || []).length) + ")" : "")]);
     tabs.push(["log", "История"]);
     if (menuOn && S.tab === "info" && (!S.oe || S.oe.id !== o.id)) { S.oe = JSON.parse(JSON.stringify(o)); S.oeErr = ""; }
     var body = S.tab === "log" ? logTab() : S.tab === "tz" ? tzTab() : S.tab === "rounds" ? roundsTab(o) : (menuOn && S.tab === "info") ? tmHtml() : infoTab(o);
     var money_ = can("money") && o.amount != null;
     return '<div class="modal-bg" data-bg="1"><div class="modal"><div class="m-head"><div class="row"><h2>№' + E(o.number) + (o.customer ? " · " + E(o.customer) : "") + "</h2>"
       + (o.urgent ? '<span class="pill urg">⚡ Срочно</span>' : "") + (money_ ? payPill(o) : "")
-      + '<button class="x" data-close="1">✕</button></div><div style="color:var(--muted);margin-top:2px">' + E(o.object) + "</div>" + tzLine(o) + taskCallHtml(o) + custChatHtml(o) + stepper(o) + "</div>"
+      + '<button class="x" data-close="1">✕</button></div>' + sysChips(o) + '<div style="color:var(--muted);margin-top:6px">' + E(o.object) + "</div>" + tzLine(o) + taskCallHtml(o) + custChatHtml(o) + stepper(o) + "</div>"
       + '<div class="m-body">' + nx + '<div class="tabs">' + tabs.map(function (t) { return '<button data-tab="' + t[0] + '" class="' + (S.tab === t[0] ? "on" : "") + '">' + t[1] + "</button>"; }).join("") + "</div>" + body + "</div></div></div>";
   }
   function formHtml() {
@@ -1119,9 +1195,7 @@
       + '<div class="fld"><label>Номер задачи</label><input id="nfNum" value="' + E(f.number) + '" placeholder="например 432"></div>'
       + '<div class="fld"><label>Заказчик (компания)</label><input id="nfCust" value="' + E(f.customer) + '" list="dsCust"></div><datalist id="dsCust">' + (S.customers || []).map(function (c) { return '<option value="' + E(c.name) + '">'; }).join("") + "</datalist>"
       + '<div class="fld"><label>Объект</label><input id="nfObj" value="' + E(f.object) + '"></div>'
-      + '<div class="fld"><label>Проектируемая система</label><input id="nfSys" value="' + E(f.system || "") + '" list="dsSys" placeholder="например СПС.СОУЭ"></div><datalist id="dsSys">'
-      + ["СПС.СОУЭ", "ФЭС (фотолюминесцентная эвакуационная система)", "АУП (модульная)", "АУП (спринклерная, дренчерная)", "Аварийное освещение", "СКУД", "Видеонаблюдение (СВН)", "СКС", "ВПВ", "Огнезащита"]
-        .map(function (x) { return '<option value="' + E(x) + '">'; }).join("") + "</datalist>"
+      + sysPick(f, "form")
       + '<div class="g2f"><div class="fld"><label>Срок по договору</label><input id="nfDue" type="date" value="' + E(f.due) + '"></div><div class="fld"><label>Сумма, ₽</label><input id="nfSum" type="number" min="0" value="' + E(f.amount) + '"></div></div>'
       + '<div class="fld"><label><input type="checkbox" id="nfAdv" ' + (f.adv ? "checked" : "") + '> Предусмотрен аванс</label></div>'
       + '<div class="fld"><label title="Без галочки — определится по названию работы (риск, категории, план эвакуации, спецификация)"><input type="checkbox" id="nfNp" ' + (f.np ? "checked" : "") + '> Не проектная работа — в операционный отдел, не в проектный</label></div>'
@@ -1137,8 +1211,8 @@
       + '<div class="g2f"><div class="fld"><label>Номер задачи</label><input id="nfNum" value="' + E(f.number) + '" placeholder="например 432"></div>'
       + '<div class="fld"><label>Заказчик (компания)</label><input id="nfCust" value="' + E(f.customer) + '" list="dsCust"></div></div><datalist id="dsCust">' + (S.customers || []).map(function (c) { return '<option value="' + E(c.name) + '">'; }).join("") + "</datalist>"
       + '<div class="fld"><label>Объект</label><input id="nfObj" value="' + E(f.object) + '"></div>'
-      + '<div class="g2f"><div class="fld"><label>Проектируемая система</label><input id="nfSys" value="' + E(f.system || "") + '" placeholder="например СПС.СОУЭ"></div>'
-      + '<div class="fld"><label>Исполнитель</label><select id="nfExec"><option value="0">— не назначен —</option>' + people.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +f.exec ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div></div>"
+      + sysPick(f, "form")
+      + '<div class="fld"><label>Исполнитель</label><select id="nfExec"><option value="0">— не назначен —</option>' + people.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +f.exec ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div>"
       + '<div class="g2f"><div class="fld"><label>Срок корректировки, рабочих дней</label><input id="nfFixDays" type="number" min="1" max="120" value="' + E(f.fixDays) + '" placeholder="типовой срок этапа"></div>'
       + '<div class="fld"><label>Срок по договору</label><input id="nfDue" type="date" value="' + E(f.due) + '"></div></div>'
       + '<div class="fld"><label>Замечания заказчика</label><textarea id="nfRemarks" rows="3">' + E(f.remarks || "") + "</textarea></div>"
@@ -1273,7 +1347,7 @@
       + '<div class="fld"><label>Заказчик</label><input data-oe="customer" list="dsCust" value="' + E(o.customer || "") + '" ' + OE_FIELD + (full ? "" : " disabled") + "></div>"
       + '<datalist id="dsCust">' + (S.customers || []).map(function (c) { return '<option value="' + E(c.name) + '">'; }).join("") + "</datalist>"
       + '<div class="fld"><label>Объект (адрес)</label><textarea rows="3" data-oe="object" ' + OE_FIELD + ">" + E(o.object || "") + "</textarea></div>"
-      + tmInp("Проектируемая система", "system")
+      + sysPick(o, "oe")
       + '<label class="tm-l">Приоритет</label><div class="tm-chips">' + PRIOS.map(function (x) { return '<button type="button" class="tmchip ' + (x[0] === o.priority ? "on" : "") + '" data-tmprio="' + x[0] + '"><i style="background:' + x[2] + '"></i>' + x[1] + "</button>"; }).join("") + "</div>"
       + '<div class="g2f">' + tmInp("Дата постановки", "start_date", "date") + tmInp("Срок по договору", "due_date", "date") + "</div>"
       + '<div class="g2f">' + (fixDates(o) ? tmInp("Начало корректировки №" + o.fix_n, "fix_start", "date") + tmInp("Срок корректировки", "fix_end", "date")
@@ -1288,7 +1362,7 @@
   function tmRepaint() { if (S.tm) modalRoot().innerHTML = tmWrap(); else paint(); }
   function tmWrap() {
     var o = S.oe; if (!o) return "";
-    return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:12px"><div class="modal tm"><div class="m-head"><div class="row"><div><h2 style="font-size:1.25rem">№' + E(o.number) + " · " + E(o.customer || "") + '</h2>' + tzLine(o) + '</div><button class="x" data-close="1">✕</button></div></div><div class="m-body tm-body">' + tmHtml() + "</div></div></div>";
+    return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:12px"><div class="modal tm"><div class="m-head"><div class="row"><div><h2 style="font-size:1.25rem">№' + E(o.number) + " · " + E(o.customer || "") + '</h2>' + sysChips(find(o.id) || o) + tzLine(o) + '</div><button class="x" data-close="1">✕</button></div></div><div class="m-body tm-body">' + tmHtml() + "</div></div></div>";
   }
   function fixDates(o) { return !!o.fix_n && o.stage === "Корректировка" && (find(o.id) || {}).stage === "Корректировка"; }      // на корректировке правятся её сроки, а не основной работы
   function tmOpen(id) {
@@ -1299,7 +1373,7 @@
   function oeSave() {
     var o = S.oe; if (!o) return;
     S.oeErr = "";
-    var pl = { number: o.number, customer: o.customer, object: o.object, system: o.system, stage: o.stage, executor_id: +o.executor_id || 0, start_date: o.start_date || "", due_date: o.due_date || "",
+    var pl = { number: o.number, customer: o.customer, object: o.object, system: sysLabel(o), systems: o.systems || [], systems_other: o.systems_other || "", modern: o.modern ? 1 : 0, stage: o.stage, executor_id: +o.executor_id || 0, start_date: o.start_date || "", due_date: o.due_date || "",
       plan_start: o.plan_start || "", plan_end: o.plan_end || "", priority: o.priority, edits: +o.edits || 0, urgent: o.urgent ? 1 : 0 };
     if (fixDates(o)) { pl.plan_start = o.fix_start || ""; pl.plan_end = o.fix_end || ""; }
     if (fullCtl()) pl.nonproj = o.nonproj ? 1 : 0;
@@ -1350,7 +1424,7 @@
     var cm = (S.cm || {})[o.id] || [], opened = S.cmOpen && S.cmOpen[o.id], last = cm[cm.length - 1];
     var tn = o.left_days == null ? "muted" : o.left_days < 0 ? "bad" : o.left_days <= 2 ? "warn" : "info";
     var head = '<div class="ovl' + (o.urgent ? " urg" : "") + '"><button class="num" data-open="' + o.id + '" title="Открыть окно задачи">№' + E(o.number) + "</button>"
-      + '<span class="cu" title="' + E(o.customer || "") + '">' + E(o.customer || "—") + '</span><span class="ob" title="' + E((o.object || "") + (o.system ? " · " + o.system : "")) + '">' + E(o.object || "") + (o.system ? " · " + E(o.system) : "") + "</span>"
+      + '<span class="cu" title="' + E(o.customer || "") + '">' + E(o.customer || "—") + '</span><span class="ob" title="' + E((o.object || "") + (sysText(o) ? " · " + sysText(o) : "")) + '">' + E(o.object || "") + (sysText(o) ? " · <b>" + E(sysText(o)) + "</b>" : "") + "</span>"
       + '<span class="pill muted"><i class="dot" style="background:' + (STAGE_COLOR[o.stage] || "#999") + '"></i>' + E(o.stage) + "</span>"
       + '<span class="ex">' + E(o.executor || "не назначен") + "</span>"
       + '<span class="pill ' + tn + '">' + E(o.left_days == null ? "Без срока" : leftText(o.left_days)) + "</span>"
@@ -1397,7 +1471,18 @@
     rg.oninput = function () { gp.scrollLeft = +rg.value; };
     label();
   }
-  function loadOrders() { return pos() === "designer" ? (S.lo || []) : (S.orders || []); }
+  /* разделы-подзадачи (ВПВ, АУП …) в «Занятости» — отдельные полосы у своих исполнителей; без исполнителя — серые в «Не назначено» */
+  var PART_ST = ["Готов к проектированию", "В проектировании", "Проверка", "Корректировка"];
+  function partItem(o, p) {
+    return { id: o.id, number: o.number, object: "Раздел " + p.system + " · " + (o.object || ""), customer: o.customer, executor_id: p.executor_id, executor: p.executor,
+      stage: p.executor_id && PART_ST.indexOf(o.stage) >= 0 ? "В проектировании" : o.stage, plan_start: p.plan_start, plan_end: p.plan_end, start_date: o.start_date,
+      due_date: p.plan_end || o.due_date, left_days: p.left_days != null ? p.left_days : o.left_days, urgent: o.urgent, systems: [p.system], parts: [], part: p };
+  }
+  function loadOrders() {
+    var base = pos() === "designer" ? (S.lo || []) : (S.orders || []), out = [];
+    base.forEach(function (o) { out.push(o); (o.parts || []).forEach(function (p) { if (!p.delivered) out.push(partItem(o, p)); }); });
+    return out;
+  }
   function staffAll() {
     var by = {};
     (S.people || []).forEach(function (u) { by[u.name] = { id: u.id, name: u.name, pos: u.position }; });
@@ -1440,7 +1525,7 @@
         return '<div class="panel"><div style="display:flex;gap:10px;align-items:center;padding:13px 15px;background:var(--surface-2);border-bottom:1px solid var(--line)">' + ava(u.name) + '<div style="flex:1"><b>' + E(u.name) + '</b><br><small style="color:var(--muted)">' + mine.length + " в плане · " + lbl + "</small></div></div>"
           + (mine.map(function (o) {
             var sp = span(o), tn = tone(o);
-            return '<button style="display:block;width:100%;text-align:left;padding:11px 15px;border-bottom:1px solid var(--line)" ' + openAttr(o) + '="' + o.id + '"><div style="display:flex;gap:10px;align-items:baseline"><span style="font-weight:800;color:var(--brand);font-size:1.15rem">№' + E(o.number) + '</span><span style="font-weight:600">' + E(o.object) + "</span></div>"
+            return '<button style="display:block;width:100%;text-align:left;padding:11px 15px;border-bottom:1px solid var(--line)" ' + openAttr(o) + '="' + o.id + '"><div style="display:flex;gap:10px;align-items:baseline"><span style="font-weight:800;color:var(--brand);font-size:1.15rem">№' + E(o.number) + '</span><span style="font-weight:600">' + E(o.object) + "</span></div>" + sysChips(o, true)
               + '<div style="margin-top:6px"><span class="pill ' + tn + '">' + E(leftText(o.left_days)) + "</span>" + (o.stage === READY ? ' <span class="pill">не начата</span>' : "") + '</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:8px">'
               + wkDays.map(function (d) { var on = sp[0] && sp[1] && d >= sp[0] && d <= sp[1]; return '<span title="' + dmy(d).slice(0, 5) + '" style="height:9px;border-radius:3px;border:1px solid ' + (on ? (tn === "bad" ? "var(--bad)" : "var(--brand)") : "var(--line)") + ";background:" + (on ? (tn === "bad" ? "var(--bad)" : "var(--brand)") : "var(--surface-2)") + '"></span>'; }).join("") + "</div></button>";
           }).join("") || '<div class="note" style="padding:14px 15px;margin:0">Задач в плане нет</div>') + "</div>";
@@ -1495,7 +1580,7 @@
       }
       var wait = !un && o.stage === READY;                                  // назначена, но ещё не начата — пунктиром
       return '<div ' + openAttr(o) + '="' + o.id + '" title="' + E("№" + o.number + " · " + (o.object || "") + " · " + dmy(sp[0] || iso[0]) + " — " + dmy(sp[1] || sp[0] || iso[0]) + " · " + (o.executor || "не назначен") + " · " + o.stage + (o.left_days != null && o.left_days < 0 ? " · просрочено " + (-o.left_days) + " дн." : "")) + '" style="grid-column:' + (a_ + 2) + "/" + (b_ + 3) + ";grid-row:" + (x.lane + 1) + ";background:" + (un ? BAR.gray : kind === "done" ? BAR.done : taskColor(o)) + (un ? ";color:#fff;opacity:.85" : "") + (wait ? ";opacity:.6;outline:2px dashed rgba(255,255,255,.75);outline-offset:-3px" : "") + (kind === "late" ? ";box-shadow:inset 0 0 0 2px #e5483c,0 0 0 1px #e5483c" : kind === "hot" ? ";box-shadow:inset 4px 0 0 #f0924d" : "") + '" class="gbar' + (o.stage === "Корректировка" ? " fix" : "") + '">'
-        + (o.stage === "Корректировка" ? "↻ К" + (o.fix_n || "") + " · " : wait ? "не начата · " : "") + "№" + E(o.number) + " · " + E((o.object || "").split(",")[0]) + "</div>";
+        + (o.stage === "Корректировка" ? "↻ К" + (o.fix_n || "") + " · " : wait ? "не начата · " : "") + "№" + E(o.number) + " · " + (!o.part && sysText(o) ? "<b>" + E(sysText(o)) + "</b> · " : "") + E((o.object || "").split(",")[0]) + "</div>";
     }
     var header = '<div class="ghead" style="grid-template-columns:' + cols + ';min-width:' + minw + 'px"><div class="gname">Сотрудник</div>'
       + iso.map(function (d, i) {
@@ -2122,11 +2207,7 @@
     var kpRow = (S.kp || []).filter(function (x) { return x.id === c.kid; })[0];
     api("/kp/" + c.kid + "/sign", {}).then(function (r) {
       S.ct = null; S.orders = null; S.tasks = null;
-      try {                                                   // создаём папку на сервере через установленную кнопку (нужен VPN)
-        var a = document.createElement("a");
-        a.href = folderUrl({ number: r.number, object: kpRow ? kpRow.object : "" }, true);
-        document.body.appendChild(a); a.click(); a.remove();
-      } catch (e) {}
+      makeFolder({ number: r.number, object: r.object != null ? r.object : (kpRow ? kpRow.object : ""), customer: r.customer || (kpRow ? kpRow.customer : ""), systems: r.systems, systems_other: r.systems_other, system: r.system });      // папка по шаблону через установленную кнопку (нужен VPN)
       toast("Договор подписан: создана задача №" + r.number + (r.stage === "Ожидает аванс" ? " (ждёт аванс)" : " (на «Сборе данных»)"));
       location.hash = "#/";
     }, function (e) { c.err = String(e); paint(); });
@@ -2593,6 +2674,7 @@
   function rpInput(i, ro) {
     var dis = ro ? " disabled" : "", st = 'style="width:100%;min-width:120px;border:1px solid var(--line);border-radius:9px;padding:6px 9px;background:var(--surface);color:var(--ink);font:inherit"';
     if (i.kind === "area") return '<textarea rows="2" data-rpk="' + E(i.key) + '" ' + st + ' placeholder="' + E(i.ph || "Ответ") + '"' + dis + ">" + E(i.v || "") + "</textarea>";
+    if (i.sv && !i.v && i.kind === "text") return '<input data-rpk="' + E(i.key) + '" value="' + E(i.sv) + '" ' + st + dis + ' title="Заполнила CRM — можно поправить">';      // предложение CRM вписано сразу
     if (i.kind === "select") return '<select data-rpk="' + E(i.key) + '" ' + st + dis + ">" + i.options.map(function (o) { return '<option value="' + E(o) + '"' + (o === i.v ? " selected" : "") + ">" + E(o || "— причина —") + "</option>"; }).join("") + "</select>";
     if (i.kind === "chips") return '<div style="display:flex;gap:4px;flex-wrap:wrap">' + i.options.map(function (o) { return '<button type="button" class="btn sm ' + (o === i.v ? "primary" : "ghost") + '" data-rpchip="' + E(i.key) + "|" + E(o) + '"' + dis + ">" + E(o) + "</button>"; }).join("") + "</div>";
     if (i.kind === "kp") return '<select data-rpkp="' + i.kp + "|" + i.field + '" ' + st + dis + ">" + i.options.map(function (o) { return '<option value="' + E(o[0]) + '"' + (o[0] === (i.v || "") ? " selected" : "") + ">" + E(o[1]) + "</option>"; }).join("") + "</select>";
@@ -2600,7 +2682,7 @@
     return '<input data-rpk="' + E(i.key) + '" value="' + E(i.v || "") + '" ' + st + ' placeholder="' + E(i.ph || "") + '"' + (i.kind === "num" ? ' inputmode="numeric"' : "") + dis + ">";
   }
   function rpDone(it) {
-    if (it.mode === "auto") return true;
+    if (it.mode === "auto" || it.auto_text) return true;
     var rowsOk = it.rows.every(function (r) { return !(r.inputs || []).length || r.inputs.some(function (i) { return i.v; }); });
     var qOk = !it.inputs.length || it.inputs.some(function (i) { return i.v; });
     return it.mode === "manual" ? qOk : rowsOk && qOk;
@@ -2616,9 +2698,13 @@
     }
     if (it.total) body += '<div style="display:flex;justify-content:space-between;font-weight:700;padding-top:8px"><span>Итого</span><span>' + E(it.total) + "</span></div>";
     if (it.note) body += '<div class="note" style="margin-top:8px">' + E(it.note) + "</div>";
-    body += it.inputs.map(function (i) { return '<div class="fld" style="margin-top:8px">' + (i.label ? "<label>" + E(i.label) + "</label>" : "") + rpInput(i, ro) + "</div>"; }).join("");
+    if (it.auto_text) {
+      body += '<div style="white-space:pre-wrap;line-height:1.45;padding:8px 10px;border-radius:10px;background:var(--brand-soft)"><small style="display:block;color:var(--brand);font-weight:700;margin-bottom:3px">Заполнила CRM</small>' + E(it.auto_text) + "</div>"
+        + '<div class="fld" style="margin-top:8px"><label>Комментарий — по необходимости</label>' + rpInput(Object.assign({}, it.inputs[0], { ph: "Комментарий" }), ro) + "</div>";
+    } else body += it.inputs.map(function (i) { return '<div class="fld" style="margin-top:8px">' + (i.label ? "<label>" + E(i.label) + "</label>" : "") + rpInput(i, ro) + "</div>"; }).join("");
+    if (it.comment_key && !it.auto_text) body += '<div class="fld" style="margin-top:8px"><label>Комментарий — по необходимости</label><textarea rows="2" data-rpc="' + E(it.id) + '" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:6px 9px;background:var(--surface);color:var(--ink);font:inherit" placeholder="Комментарий"' + (ro ? " disabled" : "") + ">" + E(it.comment || "") + "</textarea></div>";
     if (it.src) body += '<div style="font-size:.74rem;color:var(--muted);margin-top:8px">⛁ ' + E(it.src) + "</div>";
-    return '<div class="panel pad" style="margin-bottom:12px"><div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px"><span style="flex:none;width:26px;height:26px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-weight:700;font-size:.8rem;color:var(--muted)">' + it.n + '</span><b style="flex:1;line-height:1.35">' + E(it.q) + "</b>" + rpTag(it.mode) + "</div>"
+    return '<div class="panel pad" style="margin-bottom:12px"><div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px"><span style="flex:none;width:26px;height:26px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-weight:700;font-size:.8rem;color:var(--muted)">' + it.n + '</span><b style="flex:1;line-height:1.35">' + E(it.q) + "</b>" + rpTag(it.auto_text ? "semi" : it.mode) + "</div>"
       + '<div style="padding-left:36px">' + body + "</div></div>";
   }
   function reportKind() { var p = pos(); return p === "ops" ? "ops" : p === "sales" ? "sales" : (p === "owner" ? (S.rp && S.rp.kind) || "sales" : "design"); }
@@ -2629,8 +2715,99 @@
   }
   function rpCsv(r) {
     var q = function (v) { v = String(v == null ? "" : v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-    return "﻿" + [["Пятничный созвон: " + r.title + (r.person ? " (" + r.person + ")" : ""), dmy(r.week_start) + " — " + dmy(r.week_end), ""], ["№", "Вопрос", "Ответ"]].concat(r.excel).map(function (row) { return row.map(q).join(";"); }).join("\r\n");
+    return "﻿" + [["Пятничный созвон: " + r.title + (r.person ? " (" + r.person + ")" : ""), dmy(r.week_start) + " — " + dmy(r.week_end), ""], ["№", "Вопрос", "Ответ"]].concat(r.items.map(function (it) { return [it.n, it.q, rpAns(it) || "—"]; })).map(function (row) { return row.map(q).join(";"); }).join("\r\n");
   }
+  /* вид «как в Excel» (как была таблица «Созвоны»): строка на вопрос, ячейка «Ответ» правится целиком.
+     Ответ на ручной вопрос — это сам ответ (тот же, что в карточке); ответ, собранный CRM, можно переписать — он сохранится отдельно
+     ({вопрос}:all) и заменит собранный в отчёте и выгрузке, «↺ как у CRM» возвращает собранный. */
+  var RPX_CSS = ".ds .rpx{overflow:auto;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:14px;box-shadow:var(--shadow-s,none)}"
+    + ".ds .rpx table{border-collapse:collapse;width:100%;min-width:560px;table-layout:fixed}.ds .rpx th,.ds .rpx td{border:1px solid var(--line);vertical-align:top;padding:0}"
+    + ".ds .rpx tr>*:first-child{border-left:0}.ds .rpx tr>*:last-child{border-right:0}.ds .rpx thead th{border-top:0}"
+    + ".ds .rpx thead th{background:var(--surface-2);color:var(--muted);font-weight:600;font-size:.7rem;letter-spacing:.06em;text-align:center;height:24px;position:sticky;top:0;z-index:1}"
+    + ".ds .rpx .rn{background:var(--surface-2);color:var(--muted);text-align:center;font-size:.72rem;width:38px;padding:7px 0}.ds .rpx .ttl td.c{background:var(--brand-soft);color:var(--brand);font-weight:700;font-size:1rem}"
+    + ".ds .rpx .hd td.c{background:var(--surface-2);font-weight:700;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}.ds .rpx td.c{padding:8px 10px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere}.ds .rpx td.num{text-align:center;font-weight:700;color:var(--muted)}"
+    + ".ds .rpx td.q{font-weight:600}.ds .rpx td.q small{display:block;color:var(--muted);font-weight:400;font-size:.76rem;margin-top:4px;white-space:normal}.ds .rpx td.a{padding:0;position:relative}.ds .rpx td.a.ed{background:var(--warn-soft)}"
+    + ".ds .rpx textarea{display:block;width:100%;border:0;outline:0;resize:none;background:transparent;color:inherit;font:inherit;line-height:1.4;padding:8px 10px;margin:0;min-height:34px;overflow:hidden;box-shadow:none;border-radius:0}"
+    + ".ds .rpx textarea:focus{box-shadow:inset 0 0 0 2px var(--brand);background:var(--surface)}.ds .rpx textarea[disabled]{color:inherit;-webkit-text-fill-color:var(--ink);opacity:1}"
+    + ".ds .rpx .rpxm{display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:0 10px 6px;font-size:.72rem;color:var(--warn)}.ds .rpx .rpxm button{border:0;background:none;color:var(--brand);font:inherit;font-weight:700;cursor:pointer;padding:0}"
+    + ".ds .rpxc{border-top:1px dashed var(--line)}.ds .rpxc textarea{display:block;width:100%;border:0;outline:0;resize:none;background:transparent;color:inherit;font:inherit;font-size:.86rem;font-style:italic;line-height:1.4;padding:6px 10px;margin:0;min-height:30px;overflow:hidden;box-shadow:none;border-radius:0}"
+    + ".ds .rpxc textarea:focus{box-shadow:inset 0 0 0 2px var(--brand);background:var(--surface);font-style:normal}.ds .rpxc textarea::placeholder{color:var(--muted)}"
+    + ".ds .rpxs{margin:0 8px 8px;padding:8px 10px;border:1px dashed var(--brand);border-radius:10px;background:var(--brand-soft);font-size:.84rem}"
+    + ".ds .rpxs b{display:block;color:var(--brand);font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}.ds .rpxs .t{white-space:pre-wrap;line-height:1.4;color:var(--ink)}"
+    + ".ds .rpxs .bt{display:flex;gap:8px;margin-top:7px}.ds .rpxs button{border:1px solid var(--brand);background:var(--brand);color:#fff;border-radius:8px;padding:4px 10px;font:inherit;font-size:.78rem;font-weight:700;cursor:pointer}";
+  function rpxCss() { if (!document.getElementById("ds-rpx-css")) { var st = document.createElement("style"); st.id = "ds-rpx-css"; st.textContent = RPX_CSS; document.head.appendChild(st); } }
+  function rpOwn(it) { return it.mode === "manual" && it.inputs.length === 1 && !it.rows.length && !it.kv.length && !it.auto_text ? it.inputs[0] : null; }      // ответ ячейки — сам ответ на вопрос (CRM о нём ничего не знает)
+  /* предложение CRM показываем, пока сотрудник сам не ответил (у вопроса «по сотрудникам» — пока все строки пустые) */
+  function rpSugOpen(it) {
+    if (!it.suggest) return false;
+    var own = rpOwn(it); if (own) return !own.v;
+    var keys = Object.keys(it.suggest.fill || {});
+    return !it.edited && keys.every(function (k) { var i = rpFind(k); return !i || !i.v; });
+  }
+  function rpSug(it, ro) {
+    if (!rpSugOpen(it)) return "";
+    return '<div class="rpxs"><b>💡 Предложение CRM</b><div class="t">' + E(it.suggest.text) + "</div>" + (ro ? "" : '<div class="bt"><button type="button" data-rpsug="' + E(it.id) + '" title="Подставить в ответ — дальше можно дописать">Подставить</button></div>') + "</div>";
+  }
+  function rpAns(it) { var own = rpOwn(it); if (own) return own.v || ""; var t = it.edited || it.crm || ""; return it.comment ? (t ? t + "\n" : "") + "Комментарий: " + it.comment : t; }
+  function rpCm(it, ro) {                  // комментарий сотрудника к ответу CRM — по необходимости
+    if (!it.comment_key || (ro && !it.comment)) return "";
+    return '<div class="rpxc"><textarea data-rpc="' + E(it.id) + '" rows="1" placeholder="Комментарий — по необходимости"' + (ro ? " disabled" : "") + ">" + E(it.comment || "") + "</textarea></div>";
+  }
+  function rpRows(text) { return Math.min(40, Math.max(1, String(text || "").split("\n").length)); }
+  function rpFit() { document.querySelectorAll(".rpx textarea, .rpxc textarea").forEach(function (t) { t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; }); }      // высота ячейки — по тексту, как «Перенос текста» в Excel
+  addEventListener("resize", function () { if (document.querySelector(".rpx")) rpFit(); });
+  function rpExcel(r, ro) {
+    rpxCss();
+    setTimeout(rpFit, 0);
+    var MODE = { auto: "считает CRM", semi: "CRM + ваш комментарий", manual: "отвечаете вы", fill: "заполнила CRM · можно дописать комментарий" };
+    var rows = r.items.map(function (it, i) {
+      var own = rpOwn(it), v = own ? own.v || "" : "", ed = !own && !!it.edited;
+      var base = own ? v : it.edited || it.crm || "";
+      return '<tr><td class="rn">' + (i + 3) + '</td><td class="c num">' + it.n + '</td><td class="c q">' + E(it.q) + "<small>" + E(MODE[it.auto_text ? "fill" : it.mode] || "") + (it.hint && !it.auto_text ? " · " + E(it.hint) : "") + "</small></td>"
+        + '<td class="a' + (ed ? " ed" : "") + '"><textarea data-rpx="' + E(it.id) + '" rows="' + rpRows(base) + '" placeholder="' + (ro ? "" : own ? "Ответ…" : "") + '"' + (ro ? " disabled" : "") + ">" + E(base) + "</textarea>"
+        + (ed ? '<div class="rpxm"><span>изменено вручную</span>' + (ro ? "" : '<button type="button" data-rpxreset="' + E(it.id) + '" title="Вернуть ответ, собранный CRM">↺ как у CRM</button>') + "</div>" : "") + rpCm(it, ro) + "</td></tr>";
+    }).join("");
+    return '<div class="rpx"><table><colgroup><col style="width:38px"><col style="width:52px"><col style="width:34%"><col></colgroup>'
+      + '<thead><tr><th></th><th>A</th><th>B</th><th>C</th></tr></thead><tbody>'
+      + '<tr class="ttl"><td class="rn">1</td><td class="c" colspan="3">Пятничный созвон: ' + E(r.title) + (r.person ? " (" + E(r.person) + ")" : "") + " · " + dmy(r.week_start).slice(0, 5) + " — " + dmy(r.week_end).slice(0, 5) + "</td></tr>"
+      + '<tr class="hd"><td class="rn">2</td><td class="c num">№</td><td class="c">Вопрос</td><td class="c">Ответ</td></tr>' + rows + "</tbody></table></div>";
+  }
+  function rpSaveX(id, text) {
+    var it = ((S.rp && S.rp.data && S.rp.data.items) || []).filter(function (x) { return x.id === id; })[0]; if (!it) return;
+    var own = rpOwn(it);
+    if (own) return rpSave(own.key, text);
+    var same = text.trim() === String(it.crm || "").trim();
+    it.edited = same ? "" : text;
+    var td = document.querySelector('[data-rpx="' + CSS.escape(id) + '"]'); if (td && (!!td.closest("td.ed")) !== !!it.edited) paint();
+    return rpSave(id + ":all", it.edited);
+  }
+  document.addEventListener("input", function (e) {
+    var t = e.target; if (!t.dataset || !(t.dataset.rpx || t.dataset.rpc)) return;
+    t.style.height = "auto"; t.style.height = t.scrollHeight + "px";
+  });
+  document.addEventListener("change", function (e) {
+    var t = e.target; if (!t.dataset || !S.rp || !S.rp.data) return;
+    if (t.dataset.rpx) return rpSaveX(t.dataset.rpx, t.value);
+    if (t.dataset.rpc) {
+      var it = S.rp.data.items.filter(function (x) { return x.id === t.dataset.rpc; })[0]; if (!it || !it.comment_key) return;
+      it.comment = t.value.trim();
+      if (it.auto_text) it.inputs[0].v = it.comment;                // у ручного вопроса комментарий хранится как ответ
+      rpSave(it.comment_key, it.comment);
+    }
+  });
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest ? e.target.closest("[data-rpview],[data-rpxreset],[data-rpsug]") : null; if (!t || !S.rp || !S.rp.data) return;
+    if (t.dataset.rpsug) {
+      var si = S.rp.data.items.filter(function (x) { return x.id === t.dataset.rpsug; })[0]; if (!si || !si.suggest) return;
+      t.disabled = true;
+      var fill = si.suggest.fill || {};
+      return Promise.all(Object.keys(fill).map(function (k) { return rpSave(k, fill[k]); })).then(loadReport).then(function () { toast("Подставлено — можно дописать"); paint(); });
+    }
+    if (t.dataset.rpview) { S.rpView = t.dataset.rpview; try { localStorage.setItem("ds_rp_view", S.rpView); } catch (er) {} return loadReport().then(paint); }
+    var it = S.rp.data.items.filter(function (x) { return x.id === t.dataset.rpxreset; })[0]; if (!it) return;
+    it.edited = ""; rpSave(it.id + ":all", ""); paint();
+  });
+  function rpView() { if (!S.rpView) { try { S.rpView = localStorage.getItem("ds_rp_view") || "x"; } catch (e) { S.rpView = "x"; } } return S.rpView; }
   function reportScreen() {
     var p = pos(), r = S.rp && S.rp.data;
     var tabs = p === "owner" ? '<div class="seg">' + RP_KINDS.map(function (x) { return '<button data-rpkind="' + x[0] + '" class="' + (S.rp && S.rp.kind === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>" : "";
@@ -2639,12 +2816,14 @@
     var done = r.items.filter(rpDone).length, auto = r.items.filter(function (it) { return it.mode !== "manual"; }).length;
     var head = '<div class="head"><div><h1>Пятничный созвон · ' + E(r.title) + "</h1><p>Неделя " + dmy(r.week_start).slice(0, 5) + " — " + dmy(r.week_end).slice(0, 5) + ". Цифры и списки CRM считает сама; допишите комментарии и ответы на ручные вопросы — в пятницу в 17:00 отчёт уйдёт руководителю.</p></div>"
       + '<div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg"><button data-rpnav="-1">← Пред.</button><button data-rpnav="0" class="on">Эта</button><button data-rpnav="1">След. →</button></div>'
-      + '<button class="btn ghost" data-rpdl="1" title="Таблица в прежнем виде: вопрос — ответ">Как в Excel</button>' + (p !== "owner" ? '<button class="btn primary" data-rppub="1">Отправить руководителю</button>' : "") + "</div></div>"
+      + '<div class="seg" title="Вид отчёта"><button data-rpview="x" class="' + (rpView() === "x" ? "on" : "") + '">Таблица</button><button data-rpview="c" class="' + (rpView() === "c" ? "on" : "") + '">Карточки</button></div>'
+      + '<button class="btn ghost" data-rpdl="1" title="Скачать таблицу: вопрос — ответ (откроется в Excel)">Скачать для Excel</button>' + (p !== "owner" ? '<button class="btn primary" data-rppub="1">Отправить руководителю</button>' : "") + "</div></div>"
       + (tabs ? '<div style="margin-bottom:14px">' + tabs + "</div>" : "");
     var who = '<div class="panel pad" style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">' + (r.person ? ava(r.person, "lg") : "") + "<div><b>" + E(r.person || r.title) + '</b><br><small style="color:var(--muted)">' + E(r.title) + " · " + r.items.length + " вопросов · CRM отвечает на " + auto + "</small></div>"
       + '<div style="margin-left:auto;min-width:200px;font-size:.82rem;color:var(--muted)">Заполнено ' + done + " из " + r.items.length + '<div style="height:7px;background:var(--line);border-radius:9px;margin-top:5px;overflow:hidden"><i style="display:block;height:100%;width:' + Math.round(done / r.items.length * 100) + '%;background:var(--ok)"></i></div></div></div>';
     var legend = '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.8rem;color:var(--muted);margin-bottom:12px"><span>' + rpTag("auto") + " считает CRM</span><span>" + rpTag("semi") + " список из CRM, вы дописываете «что сделал · следующий шаг»</span><span>" + rpTag("manual") + " отвечаете вы</span></div>";
     var tiles = '<div class="tiles" style="margin-bottom:16px">' + r.tiles.map(function (x) { return '<div class="tile" style="--c:' + (tone[x[0]] || "var(--brand)") + '"><div class="n">' + E(x[1]) + '</div><div class="l">' + E(x[2]) + "</div></div>"; }).join("") + "</div>";
+    if (rpView() === "x") return head + who + tiles + '<div class="note" style="margin:0 0 10px">Ответы можно править прямо в ячейках — сохраняются сами. Цифры и списки CRM подставляет сама; переписанный ответ подсвечен, «↺ как у CRM» вернёт посчитанный. Где CRM может ответить сама, ответ уже вписан — при необходимости допишите комментарий под ним. Списки с выбором (вероятность оплаты, причины) — во вкладке «Карточки».</div>' + rpExcel(r, ro);
     return head + who + tiles + legend + r.items.map(function (it) { return rpItem(it, ro); }).join("");
   }
   document.addEventListener("click", function (e) {
@@ -2909,7 +3088,7 @@
     if (d.tab) { S.tab = d.tab; if (d.tab === "tz") return loadTzItem(S.open).then(paint); return paint(); }
     if (d.kb) { S.kb = d.kb; return paint(); }
     if (d.new) {
-      S.form = { number: "", customer: "", object: "", system: "", due: "", amount: "", adv: false, advSum: "", err: "", fix: d.new === "fix", exec: 0, fixDays: "", remarks: "" };
+      S.form = { number: "", customer: "", object: "", system: "", systems: [], systems_other: "", modern: 0, due: "", amount: "", adv: false, advSum: "", err: "", fix: d.new === "fix", exec: 0, fixDays: "", remarks: "" };
       if (S.form.fix && S.people == null) api("/people").then(function (x) { S.people = x; paint(); }, function () {});
       return paint();
     }
@@ -3056,14 +3235,16 @@
     var f = S.form;
     if (!f.number.trim() || !f.customer.trim() || !f.object.trim()) { f.err = "Заполните номер, заказчика и объект"; return paint(); }
     if (f.fix) {                                                // заказчика мост находит или заводит по названию, карточку не трогает
-      return api("/orders", { number: f.number.trim(), customer: f.customer.trim(), object: f.object.trim(), system: (f.system || "").trim(), due_date: f.due || "", stage: "Корректировка",
+      return api("/orders", { number: f.number.trim(), customer: f.customer.trim(), object: f.object.trim(), system: sysLabel(f), systems: f.systems || [], systems_other: (f.systems_other || "").trim(), modern: f.modern ? 1 : 0, due_date: f.due || "", stage: "Корректировка",
         executor_id: +f.exec || 0, fix_days: +f.fixDays || 0, fix_remarks: f.remarks || "" })
-        .then(function (r) { S.form = null; S.customers = null; S.orders = null; toast("Задача поставлена на корректировку"); S.open = r.id; S.tab = "rounds"; S.rd = null; S.history = []; return load().then(paint); }, function (er) { f.err = String(er); paint(); });
+        .then(function (r) { makeFolder({ number: f.number.trim(), object: f.object.trim(), customer: f.customer.trim(), systems: f.systems, systems_other: (f.systems_other || "").trim() });
+          S.form = null; S.customers = null; S.orders = null; toast("Задача поставлена на корректировку"); S.open = r.id; S.tab = "rounds"; S.rd = null; S.history = []; return load().then(paint); }, function (er) { f.err = String(er); paint(); });
     }
     api("/customers", { name: f.customer.trim() }).then(function (c) {
-      return api("/orders", { number: f.number.trim(), customer_id: c.id, object: f.object.trim(), system: (f.system || "").trim(), due_date: f.due || "", amount: +f.amount || 0,
+      return api("/orders", { number: f.number.trim(), customer_id: c.id, object: f.object.trim(), system: sysLabel(f), systems: f.systems || [], systems_other: (f.systems_other || "").trim(), modern: f.modern ? 1 : 0, due_date: f.due || "", amount: +f.amount || 0,
         adv_mode: f.adv ? "advance" : "none", adv_sum: f.adv ? (+f.advSum || 0) : 0, contract_date: new Date().toISOString().slice(0, 10), nonproj: f.np ? 1 : -1 });
-    }).then(function () { S.form = null; S.customers = null; S.orders = null; DS.route(); }, function (er) { f.err = String(er); paint(); });
+    }).then(function () { makeFolder({ number: f.number.trim(), object: f.object.trim(), customer: f.customer.trim(), systems: f.systems, systems_other: (f.systems_other || "").trim() });
+      S.form = null; S.customers = null; S.orders = null; DS.route(); }, function (er) { f.err = String(er); paint(); });
   }
   if (C) { C.on("logout", function () { BOOT = null; S.orders = S.meta = S.customers = S.people = S.tasks = null; S.cu.q = ""; S.kp = S.cm = null; S.open = null; var m = document.getElementById("ds-modal"); if (m) m.innerHTML = ""; }); }
   bootStart();

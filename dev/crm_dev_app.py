@@ -27,7 +27,7 @@ from fastapi.middleware.cors import CORSMiddleware      # noqa: E402
 
 from datetime import date, timedelta                                   # noqa: E402
 
-from app import config, crm_auth, crm_db, crm_routes, crm_sched, db, max_bot, onec, sipuni, sipuni_routes, tg_bot, uploads, ds_orders, ds_reports, ds_routes, ds_auto, ds_ai, ds_ai_ops, ds_visits, ai_yandex   # noqa: E402
+from app import config, crm_auth, crm_db, crm_routes, crm_sched, db, max_bot, onec, sipuni, sipuni_routes, tg_bot, uploads, ds_orders, ds_reports, ds_routes, ds_auto, ds_ai, ds_ai_ops, ds_site_leads, ds_visits, ai_yandex   # noqa: E402
 
 
 # --- поддельный Telegram-бот: сообщения складываются в TG_LOG (смотреть на /dev/tg) ---
@@ -150,6 +150,7 @@ def seed():
     ds_ai.init()
     ds_ai_ops.init()
     ds_visits.init()
+    ds_site_leads.init()
     crm_auth.bootstrap_admin()
     ai_yandex._post, ds_ai.PAUSE = fake_ai, 3                    # ИИ: поддельный YandexGPT, разбор через 3 с после сообщения
     if not crm_db.kv_get(ds_ai.SETTINGS_KEY):
@@ -246,6 +247,7 @@ app.include_router(ds_routes.router)
 app.include_router(sipuni_routes.router)
 app.include_router(ds_ai.router)
 app.include_router(ds_ai_ops.router)
+app.include_router(ds_site_leads.results)
 app.include_router(ds_visits.router)
 
 
