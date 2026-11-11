@@ -2678,6 +2678,7 @@
     if (i.kind === "select") return '<select data-rpk="' + E(i.key) + '" ' + st + dis + ">" + i.options.map(function (o) { return '<option value="' + E(o) + '"' + (o === i.v ? " selected" : "") + ">" + E(o || "— причина —") + "</option>"; }).join("") + "</select>";
     if (i.kind === "chips") return '<div style="display:flex;gap:4px;flex-wrap:wrap">' + i.options.map(function (o) { return '<button type="button" class="btn sm ' + (o === i.v ? "primary" : "ghost") + '" data-rpchip="' + E(i.key) + "|" + E(o) + '"' + dis + ">" + E(o) + "</button>"; }).join("") + "</div>";
     if (i.kind === "kp") return '<select data-rpkp="' + i.kp + "|" + i.field + '" ' + st + dis + ">" + i.options.map(function (o) { return '<option value="' + E(o[0]) + '"' + (o[0] === (i.v || "") ? " selected" : "") + ">" + E(o[1]) + "</option>"; }).join("") + "</select>";
+    if (i.kind === "kptext") return '<input data-rpkp="' + i.kp + "|" + i.field + '" value="' + E(i.v || "") + '" ' + st + ' placeholder="' + E(i.ph || "") + '"' + dis + ">";
     if (i.kind === "kpdate") return '<input type="date" data-rpkp="' + i.kp + "|" + i.field + '" value="' + E(i.v || "") + '" ' + st + dis + ">";
     return '<input data-rpk="' + E(i.key) + '" value="' + E(i.v || "") + '" ' + st + ' placeholder="' + E(i.ph || "") + '"' + (i.kind === "num" ? ' inputmode="numeric"' : "") + dis + ">";
   }
@@ -2698,18 +2699,29 @@
       + (ro ? "" : ' · <button type="button" data-rpunhide="' + E(it.id) + '">вернуть все</button>') + "</div>" : "";
     if (!it.rows.length) return '<div class="note">' + E(it.empty || "Нет данных") + "</div>" + more;
     var x = !ro && it.rows.some(function (r) { return r.hide_key; });
-    return '<div class="rpcnt">Всего: ' + it.rows.length + '</div><div style="overflow:auto"><table class="' + cls + '"><thead><tr><th class="rpno">№</th>'
-      + it.cols.map(function (c) { return "<th>" + E(c) + "</th>"; }).join("") + (x ? '<th class="rpno"></th>' : "") + "</tr></thead><tbody>"
+    var al = it.cols.map(function (c, k) { return rpAl(it.rows[0].cells[k], it.rows[0].inputs && it.rows[0].inputs[k - it.rows[0].cells.length]); });
+    return (cls === "tbl" ? '<div class="rpcnt">Всего: ' + it.rows.length + "</div>" : "") + '<div style="overflow:auto"><table class="' + cls + '"><thead><tr><th class="rpno">№</th>'
+      + it.cols.map(function (c, k) { return '<th class="' + al[k] + '">' + E(c) + "</th>"; }).join("") + (x ? '<th class="rpno"></th>' : "") + "</tr></thead><tbody>"
       + it.rows.map(function (r, n) {
-        return '<tr><td class="rpno">' + (n + 1) + "</td>" + r.cells.map(function (c) { return "<td>" + rpLink(c, r) + "</td>"; }).join("")
-          + (r.inputs || []).map(function (i) { return "<td>" + rpInput(i, ro) + "</td>"; }).join("")
+        return '<tr><td class="rpno">' + (n + 1) + "</td>" + r.cells.map(function (c, k) { return '<td class="' + al[k] + '">' + rpLink(c, r) + "</td>"; }).join("")
+          + (r.inputs || []).map(function (i, k) { return '<td class="' + al[r.cells.length + k] + '">' + rpInput(i, ro) + "</td>"; }).join("")
           + (x ? '<td class="rpno">' + (r.hide_key ? '<button type="button" class="rpx-x" data-rphide="' + E(r.hide_key) + '" title="Убрать из плана на эту неделю">×</button>' : "") + "</td>" : "") + "</tr>";
       }).join("") + "</tbody></table></div>" + more;
+  }
+  /* выравнивание столбца по первой строке: плашки, даты, № — по центру; суммы — справа; комментарий — широкая графа */
+  function rpAl(c, inp) {
+    if (inp) return inp.kind === "text" || inp.kind === "kptext" || inp.kind === "area" ? "rpin" : "c";
+    if (c && typeof c === "object") return "c";
+    var t = String(c == null ? "" : c).trim();
+    if (/^(\d{2}\.\d{2}(\.\d{2,4})?|—|[\w-]{1,6})$/.test(t)) return "c";
+    if (/^\d[\d\s]*(₽)?$/.test(t)) return "r";
+    return "";
   }
   function rpDone(it) {
     if (it.mode === "auto" || it.auto_text) return true;
     var rowsOk = it.rows.every(function (r) { return !(r.inputs || []).length || r.inputs.some(function (i) { return i.v; }); });
-    var qOk = !it.inputs.length || it.inputs.some(function (i) { return i.v; });
+    var req = it.inputs.filter(function (i) { return i.req; });
+    var qOk = !it.inputs.length || (req.length ? req.every(function (i) { return i.v; }) : it.inputs.some(function (i) { return i.v; }));
     return it.mode === "manual" ? qOk : rowsOk && qOk;
   }
   function rpItem(it, ro) {
@@ -2761,6 +2773,12 @@
     + ".ds .rpx .rpxi thead th{position:static;height:auto;text-align:left;font-size:.72rem;letter-spacing:0;background:var(--surface-2)}.ds .rpx .rpxi tr:last-child td{border-bottom:0}.ds .rpx .rpxi input,.ds .rpx .rpxi select{min-width:0!important;width:100%!important;padding:4px 6px!important;font-size:.82rem!important}"
     + ".ds .rpcnt{font-size:.74rem;color:var(--muted);margin:2px 0 4px}.ds .rphid{font-size:.76rem;color:var(--muted);margin-top:6px}.ds .rphid button{border:0;background:none;color:var(--brand);font:inherit;font-weight:700;cursor:pointer;padding:0}"
     + ".ds th.rpno,.ds td.rpno{width:34px;text-align:center;color:var(--muted);font-weight:700}.ds .rpx-x{border:0;background:none;color:var(--muted);font-size:1.15rem;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px}.ds .rpx-x:hover{color:var(--bad);background:var(--surface-2)}"
+    + ".ds .rpx tbody tr:not(.ttl):not(.hd)>td{border-top:3px solid var(--line)}.ds .rpx tbody tr:not(.ttl):not(.hd)>td.num,.ds .rpx tbody tr:not(.ttl):not(.hd)>td.q{background:var(--surface-2)}"
+    + ".ds .rpx td.num{font-size:1.05rem;color:var(--brand)}"
+    + ".ds .rpx .rpxk{display:flex;flex-wrap:wrap;gap:6px 8px;margin:8px 10px 2px;padding:7px 10px;border-radius:10px;background:var(--brand-soft);border-left:3px solid var(--brand)}"
+    + ".ds .rpx .rpxk span{font-size:.8rem;color:var(--muted)}.ds .rpx .rpxk span+span:before{content:'·';margin-right:8px;color:var(--muted)}.ds .rpx .rpxk b{color:var(--ink);font-size:.9rem}"
+    + ".ds .rpx .rpxi th.c,.ds .rpx .rpxi td.c,.ds .tbl th.c,.ds .tbl td.c{text-align:center}.ds .rpx .rpxi td.c,.ds .tbl td.c{white-space:nowrap}.ds .rpx .rpxi select{min-width:105px!important}.ds .rpx .rpxi th.r,.ds .rpx .rpxi td.r,.ds .tbl th.r,.ds .tbl td.r{text-align:right;white-space:nowrap}"
+    + ".ds .rpx .rpxi td.rpin,.ds .tbl td.rpin{min-width:230px;width:36%}.ds .rpx .rpxin.need label{color:var(--bad);font-weight:700}"
     + ".ds .rpxs .bt{display:flex;gap:8px;margin-top:7px}.ds .rpxs button{border:1px solid var(--brand);background:var(--brand);color:#fff;border-radius:8px;padding:4px 10px;font:inherit;font-size:.78rem;font-weight:700;cursor:pointer}";
   function rpxCss() { if (!document.getElementById("ds-rpx-css")) { var st = document.createElement("style"); st.id = "ds-rpx-css"; st.textContent = RPX_CSS; document.head.appendChild(st); } }
   function rpOwn(it) { return it.mode === "manual" && it.inputs.length === 1 && !it.rows.length && !it.kv.length && !it.auto_text ? it.inputs[0] : null; }      // ответ ячейки — сам ответ на вопрос (CRM о нём ничего не знает)
@@ -2791,7 +2809,7 @@
       return '<tr><td class="c num">' + it.n + '</td><td class="c q">' + E(it.q) + "<small>" + E(MODE[it.auto_text ? "fill" : it.mode] || "") + (it.hint && !it.auto_text ? " · " + E(it.hint) : "") + "</small></td>"
         + '<td class="a">' + rpXAns(it, ro) + "</td></tr>";
     }).join("");
-    return '<div class="rpx"><table><colgroup><col style="width:52px"><col style="width:24%"><col></colgroup><tbody>'
+    return '<div class="rpx"><table><colgroup><col style="width:48px"><col style="width:20%"><col></colgroup><tbody>'
       + '<tr class="ttl"><td class="c" colspan="3">Пятничный созвон: ' + E(r.title) + (r.person ? " (" + E(r.person) + ")" : "") + " · " + dmy(r.week_start).slice(0, 5) + " — " + dmy(r.week_end).slice(0, 5) + "</td></tr>"
       + '<tr class="hd"><td class="c num">№</td><td class="c">Вопрос</td><td class="c">Ответ</td></tr>' + rows + "</tbody></table></div>";
   }
@@ -2802,11 +2820,13 @@
     var h = "";
     if (it.auto_text) return '<div class="rpxv">' + E(it.auto_text) + "</div>" + rpCm(it, ro);        // CRM уже вписала ответ — предложение не повторяем
     else {
-      if (it.kv.length) h += '<div class="rpxv">' + it.kv.map(function (x) { return E(x[0]) + ": <b>" + E(x[1]) + "</b>"; }).join("\n") + "</div>";
+      var sum = it.kv.slice();
+      if (it.cols.length && it.rows.length) sum.push(["Всего", String(it.rows.length)]);
+      if (it.total) sum.push(["Итого", it.total]);
+      if (sum.length) h += '<div class="rpxk">' + sum.map(function (x) { return "<span>" + E(x[0]) + " <b>" + E(x[1]) + "</b></span>"; }).join("") + "</div>";
       if (it.cols.length) h += '<div class="rpxtb">' + rpTable(it, ro, "rpxi") + "</div>";
-      if (it.total) h += '<div class="rpxv"><b>Итого: ' + E(it.total) + "</b></div>";
       if (it.note) h += '<div class="rpxn">' + E(it.note) + "</div>";
-      h += it.inputs.map(function (i) { return '<div class="rpxin">' + (i.label ? "<label>" + E(i.label) + "</label>" : "") + rpInput(i, ro) + "</div>"; }).join("");
+      h += it.inputs.map(function (i) { return '<div class="rpxin' + (i.req && !i.v ? " need" : "") + '">' + (i.label ? "<label>" + E(i.label) + "</label>" : "") + rpInput(i, ro) + "</div>"; }).join("");
       if (!h) h = '<div class="rpxv">' + E(it.crm || it.empty || "—") + "</div>";
     }
     return h + rpSug(it, ro) + rpCm(it, ro);
@@ -2831,7 +2851,8 @@
     }
   });
   document.addEventListener("click", function (e) {
-    var t = e.target.closest ? e.target.closest("[data-rpview],[data-rpsug],[data-rphide],[data-rpunhide]") : null; if (!t || !S.rp || !S.rp.data) return;
+    var t = e.target.closest ? e.target.closest("[data-rpview],[data-rpsug],[data-rphide],[data-rpunhide],[data-rpref]") : null; if (!t || !S.rp || !S.rp.data) return;
+    if (t.dataset.rpref) { t.disabled = true; return loadReport().then(paint).then(function () { toast("Отчёт обновлён"); }); }
     if (t.dataset.rphide) { t.disabled = true; return rpSave(t.dataset.rphide, "1").then(loadReport).then(paint); }
     if (t.dataset.rpunhide) {
       var hi = S.rp.data.items.filter(function (x) { return x.id === t.dataset.rpunhide; })[0]; if (!hi) return;
@@ -2855,7 +2876,7 @@
     var head = '<div class="head"><div><h1>Пятничный созвон · ' + E(r.title) + "</h1><p>Неделя " + dmy(r.week_start).slice(0, 5) + " — " + dmy(r.week_end).slice(0, 5) + ". Цифры и списки CRM считает сама; допишите комментарии и ответы на ручные вопросы — в пятницу в 17:00 отчёт уйдёт руководителю.</p></div>"
       + '<div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg"><button data-rpnav="-1">← Пред.</button><button data-rpnav="0" class="on">Эта</button><button data-rpnav="1">След. →</button></div>'
       + '<div class="seg" title="Вид отчёта"><button data-rpview="x" class="' + (rpView() === "x" ? "on" : "") + '">Таблица</button><button data-rpview="c" class="' + (rpView() === "c" ? "on" : "") + '">Карточки</button></div>'
-      + '<button class="btn ghost" data-rpdl="1" title="Скачать таблицу: вопрос — ответ (откроется в Excel)">Скачать для Excel</button>' + (p !== "owner" ? '<button class="btn primary" data-rppub="1">Отправить руководителю</button>' : "") + "</div></div>"
+      + '<button class="btn ghost" data-rpref="1" title="Пересчитать отчёт по данным CRM на сейчас">⟳ Обновить</button><button class="btn ghost" data-rpdl="1" title="Скачать таблицу: вопрос — ответ (откроется в Excel)">Скачать для Excel</button>' + (p !== "owner" ? '<button class="btn primary" data-rppub="1">Отправить руководителю</button>' : "") + "</div></div>"
       + (tabs ? '<div style="margin-bottom:14px">' + tabs + "</div>" : "");
     var who = '<div class="panel pad" style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">' + (r.person ? ava(r.person, "lg") : "") + "<div><b>" + E(r.person || r.title) + '</b><br><small style="color:var(--muted)">' + E(r.title) + " · " + r.items.length + " вопросов · CRM отвечает на " + auto + "</small></div>"
       + '<div style="margin-left:auto;min-width:200px;font-size:.82rem;color:var(--muted)">Заполнено ' + done + " из " + r.items.length + '<div style="height:7px;background:var(--line);border-radius:9px;margin-top:5px;overflow:hidden"><i style="display:block;height:100%;width:' + Math.round(done / r.items.length * 100) + '%;background:var(--ok)"></i></div></div></div>';
