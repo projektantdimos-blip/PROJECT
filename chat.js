@@ -424,6 +424,37 @@
       };
     }, function (e) { setErr(String(e)); });
   }
+  /* «Переименовать»: своё имя диалога в CRM — кто это и от какой компании; имя из мессенджера остаётся подсказкой */
+  function renameDialog(t) {
+    var bg = document.createElement("div");
+    bg.style.cssText = "position:fixed;inset:0;background:rgba(10,20,35,.5);z-index:400;display:grid;place-items:center;padding:16px";
+    var fld = "width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;margin:4px 0 6px;background:var(--card);color:var(--ink);font:inherit";
+    var btn = "padding:9px 16px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;cursor:pointer;font:inherit";
+    var orig = t.peer_title || t.title || t.peer;
+    bg.innerHTML = '<div style="background:var(--card,#fff);color:var(--ink);border-radius:16px;padding:20px 22px;width:min(460px,100%);box-shadow:0 20px 60px rgba(0,0,0,.3)">' +
+      '<h3 style="margin:0 0 4px">Переименовать диалог</h3><p style="margin:0 0 12px;color:var(--muted);font-size:.88rem">Так диалог будет называться в CRM у всех сотрудников. Заказчик имя не видит.</p>' +
+      '<label style="font-size:.8rem;color:var(--muted)">Имя</label><input id="rnName" maxlength="120" style="' + fld + '" placeholder="Например: Ирина — ООО «Ромашка», бухгалтер" value="' + esc(t.alias || t.title || "") + '">' +
+      '<div style="font-size:.8rem;color:var(--muted)">В мессенджере: <b>' + esc(orig) + "</b>" + (t.peer && t.peer !== orig ? " · " + esc(t.peer) : "") + "</div>" +
+      '<div id="rnErr" style="color:var(--bad);min-height:18px;margin-top:6px"></div><div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:6px">' +
+      (t.alias ? '<button id="rnReset" style="' + btn + ';margin-right:auto">Вернуть имя из мессенджера</button>' : "") +
+      '<button id="rnCancel" style="' + btn + '">Отмена</button><button id="rnGo" style="padding:9px 18px;border:0;background:var(--blue);color:#fff;border-radius:10px;cursor:pointer;font:inherit;font-weight:600">Сохранить</button></div></div>';
+    document.body.appendChild(bg);
+    var inp = bg.querySelector("#rnName"), close = function () { bg.remove(); };
+    inp.focus(); inp.select();
+    var save = function (name, b) {
+      b.disabled = true;
+      api("/api/ds/threads/" + encodeURIComponent(t.id) + "/rename", { method: "POST", body: { name: name } }).then(function (r) {
+        st.threads.forEach(function (x) { if (x.id === t.id) { x.title = r.title; x.alias = r.alias; x.peer_title = r.peer_title; } });
+        t.title = r.title; t.alias = r.alias; t.peer_title = r.peer_title;
+        close(); renderThreads(); if (st.sel === t.id) renderThread(true);
+        if (window.MPBT && MPBT.toast) MPBT.toast(r.alias ? "Переименовано: " + r.title : "Имя из мессенджера: " + r.title);
+      }, function (e) { b.disabled = false; bg.querySelector("#rnErr").textContent = String(e); });
+    };
+    bg.querySelector("#rnCancel").onclick = close;
+    bg.querySelector("#rnGo").onclick = function () { save(inp.value.trim(), this); };
+    inp.onkeydown = function (e) { if (e.key === "Enter") save(inp.value.trim(), bg.querySelector("#rnGo")); else if (e.key === "Escape") close(); };
+    var rs = bg.querySelector("#rnReset"); if (rs) rs.onclick = function () { save("", this); };
+  }
   window.__chatHandoff = function () { var t = curThread(); if (t) handoffDialog(t); };
   function scriptsDialog() {
     api("/api/ds/scripts").then(function (list) {
@@ -539,7 +570,7 @@
       if (!inMode(t)) return false;
       if (st.box === "mine" && !myOpen().some(function (a) { return a.thread_id === t.id; })) return false;
       if (st.filter !== "all" && t.channel !== st.filter && !(st.filter === "max" && t.channel === "maxbot")) return false;      // «MAX» — и бот, и прежний личный аккаунт
-      if (st.q && (t.title + " " + t.last_text + " " + t.peer).toLowerCase().indexOf(st.q) < 0) return false;
+      if (st.q && (t.title + " " + (t.peer_title || "") + " " + t.last_text + " " + t.peer).toLowerCase().indexOf(st.q) < 0) return false;
       return true;
     });
   }
@@ -604,7 +635,7 @@
     var r = anchor.getBoundingClientRect();
     pop.style.cssText = "position:fixed;z-index:420;min-width:230px;background:var(--card,#fff);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.25);padding:6px;top:" + Math.min(r.bottom + 4, innerHeight - 190) + "px;left:" + Math.max(8, Math.min(r.left - 190, innerWidth - 246)) + "px";
     var items = [[th.unread ? "Пометить прочитанным" : "Пометить непрочитанным", "read"]];
-    if (canLink()) items.push(["🔗 Привязать к задаче / заказчику…", "link"]);
+    if (canLink()) { items.push(["✏️ Переименовать…", "ren"]); items.push(["🔗 Привязать к задаче / заказчику…", "link"]); }
     if (["design", "acc", "norm"].indexOf(myPos()) < 0) { items.push(["＋ Задача по конвейеру…", "task"]); items.push(["Передать специалисту…", "hand"]); }
     pop.innerHTML = items.map(function (x, i) { return '<button type="button" data-a="' + x[1] + '" style="display:block;width:100%;text-align:left;padding:9px 12px;border:0;background:none;border-radius:8px;cursor:pointer;font:inherit;color:inherit">' + esc(x[0]) + "</button>"; }).join("");
     document.body.appendChild(pop);
@@ -622,6 +653,7 @@
         } else if (a === "task") {
           if (window.DS && DS.newTask) DS.newTask({ step: "a2", thread_id: th.id, thread_title: th.title || th.peer }); else setErr("Раздел задач ещё не загрузился — обновите страницу");
         } else if (a === "hand") handoffDialog(th);
+        else if (a === "ren") renameDialog(th);
         else if (a === "link") { if (st.sel !== th.id) openThread(th.id); openLink(curThread() || th, true); }
       };
     });
@@ -667,13 +699,14 @@
     var ci = chInfo(t.channel), av = avUrl(t), ini = (t.title || "?").trim().charAt(0).toUpperCase();
     el.head.innerHTML = '<button class="back" id="chatBack" title="К списку">←</button>' +
       '<div class="hava" style="' + avStyle(t, av) + '">' + (av ? "" : esc(ini)) + chBadge(t) + "</div>" +
-      '<div class="hmain"><b>' + esc(t.title || t.peer) + "</b><small>" + esc(t.peer) + "</small></div>" +
+      '<div class="hmain"><b' + (canLink() ? ' id="chatRename" style="cursor:pointer" title="Переименовать диалог"' : "") + ">" + esc(t.title || t.peer) + "</b><small>" + (t.alias && t.peer_title ? esc(t.peer_title) + " · " : "") + esc(t.peer) + "</small></div>" +
       (canLink() ? '<button class="chat-link" id="chatLinkChip" data-tid="' + esc(t.id) + '" title="Привязка к заказчику и задаче">🔗 <span>…</span></button>' : "") +
       '<button class="hbtn" id="chatRemind" title="Напомнить мне про этот диалог" style="width:auto;padding:0 10px;white-space:nowrap">⏰<span class="rmtxt"> Напомнить</span></button>' +
       '<button class="hbtn" id="chatMore" title="Ещё: фото собеседника, «непрочитанное»">⋯</button>' +
       '<button class="hbtn chat-infobtn" id="chatInfoBtn" title="Заказчик, создание заказчика и КП">Заказчик · КП</button>' +
       '<input type="file" id="chatAvFile" accept="image/*" hidden>';
     document.getElementById("chatBack").onclick = function () { st.sel = null; renderThreads(); renderThread(); };
+    var rn = document.getElementById("chatRename"); if (rn) rn.onclick = function () { renameDialog(t); };
     var lc = document.getElementById("chatLinkChip");
     if (lc) lc.onclick = function () { openLink(t, !lc.classList.contains("on")); };
     var ub = document.getElementById("chatUnread");
@@ -750,7 +783,7 @@
   function moreMenu(anchor, t) {                 // «⋯» в шапке диалога: фото собеседника, «непрочитанное»
     var old = document.getElementById("chatMoreMenu"); if (old) { old.remove(); return; }
     var m = document.createElement("div"); m.id = "chatMoreMenu"; m.className = "cmenu";
-    m.innerHTML = '<button type="button" data-a="ph">📷 Загрузить фото собеседника</button>'
+    m.innerHTML = (canLink() ? '<button type="button" data-a="ren">✏️ Переименовать</button>' : "") + '<button type="button" data-a="ph">📷 Загрузить фото собеседника</button>'
       + (t.avatar_ts ? '<button type="button" data-a="phdel">✕ Убрать фото</button>' : "")
       + '<button type="button" data-a="unread">● Пометить непрочитанным</button>';
     var r = anchor.getBoundingClientRect();
@@ -761,7 +794,8 @@
     m.onclick = function (e) {
       var a = e.target.closest ? e.target.closest("[data-a]") : null; if (!a) return;
       var k = a.getAttribute("data-a");
-      if (k === "ph") document.getElementById("chatAvFile").click();
+      if (k === "ren") renameDialog(t);
+      else if (k === "ph") document.getElementById("chatAvFile").click();
       else if (k === "phdel") { if (confirm("Убрать фото у «" + (t.title || t.peer) + "»?")) removeAvatar(t.id); }
       else if (k === "unread") { t.unread = t.unread || 1; renderThreads(); applyBadge(); api("/api/threads/" + encodeURIComponent(t.id) + "/unread", { method: "POST" }).then(null, function () {}); }
       close();
