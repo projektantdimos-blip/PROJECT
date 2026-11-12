@@ -62,7 +62,7 @@
   function ic(n) { return '<svg class="i" viewBox="0 0 24 24">' + (ICON[n] || "") + "</svg>"; }
 
   /* ---------- загрузка ---------- */
-  var CUST_POS = ["owner", "sales", "ops", "design", "acc"], PEOPLE_POS = ["owner", "design", "ops"], KP_POS = ["owner", "sales", "ops"], ONEC_POS = ["owner", "acc", "sales"];      // ONEC_POS — как onec.ROLES в мосте
+  var CUST_POS = ["owner", "sales", "ops", "design", "acc"], PEOPLE_POS = ["owner", "design", "ops", "sales"], KP_POS = ["owner", "sales", "ops"], ONEC_POS = ["owner", "acc", "sales"];      // ONEC_POS — как onec.ROLES в мосте
   function lastPos() { try { return localStorage.getItem("ds_pos") || ""; } catch (e) { return ""; } }
   /* Задачи, настройки роли, заказчики и сотрудники — одним залпом (раньше заказчики и сотрудники ждали настроек роли).
      Роль берётся из входа или запомненная с прошлого раза; если она неизвестна или сменилась — догружаем после настроек. */
@@ -486,7 +486,8 @@
     var f = S.ov, q = (f.q || "").toLowerCase();
     var tabs = orgOk ? '<div class="seg">' + [["p", "Проектные"], ["o", "Организационные"]].map(function (x) { return '<button data-kb="' + x[0] + '" class="' + (type === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>" : "";
     var views = '<div class="seg">' + (type === "o" ? [["l", "Список"], ["k", "Канбан"]] : [["k", "Канбан"], ["l", "Список"]]).map(function (x) { return '<button data-' + (type === "o" ? "oview" : "view") + '="' + x[0] + '" class="' + (view === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>";
-    var btns = '<div style="display:flex;gap:10px;flex-wrap:wrap">' + (type === "p" && taskCtl() ? '<button class="btn ghost" data-new="fix" title="Замечания по уже сделанному проекту: задача сразу встаёт на «Корректировку» со сроком">' + ic("plus") + "Сразу на корректировку</button>" : "")
+    var btns = '<div style="display:flex;gap:10px;flex-wrap:wrap">' + (type === "p" && fullCtl() ? '<button class="btn ghost" data-new="work" title="Исходные уже есть: задача минует аванс и сбор данных и сразу уходит исполнителю «В проектирование»">' + ic("plus") + "Сразу в проектирование</button>" : "")
+      + (type === "p" && taskCtl() ? '<button class="btn ghost" data-new="fix" title="Замечания по уже сделанному проекту: задача сразу встаёт на «Корректировку» со сроком">' + ic("plus") + "Сразу на корректировку</button>" : "")
       + '<button class="btn accent" data-ntopen="1">' + ic("plus") + "Новая задача</button></div>";
     var head = '<div class="head"><div><h1>Задачи</h1><p>' + (type === "p" ? "Проекты по стадиям: нажмите на номер, чтобы открыть окно задачи" : "Продажи, операционный менеджер и бухгалтерия — одной цепочкой от обращения до закрытия") + "</p></div>" + btns + "</div>"
       + '<div class="tb">' + tabs + '<span class="grow"></span><span class="vlab">Вид</span>' + views + "</div>";
@@ -567,6 +568,10 @@
       if (q && (o.number + " " + (o.customer || "") + " " + o.object + " " + (o.system || "") + " " + sysText(o) + " " + (o.executor || "")).toLowerCase().indexOf(q) < 0) return false;
       return true;
     }).sort(function (a, b) { return (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0) || (a.left_days == null ? 9999 : a.left_days) - (b.left_days == null ? 9999 : b.left_days); });
+    // поиск находит и не проектные работы (риски, категории …): они ведутся в «Организационных», здесь — ссылкой
+    var npHits = q ? (S.orders || []).filter(function (o) { return o.nonproj && (o.number + " " + (o.customer || "") + " " + o.object + " " + (o.system || "") + " " + sysText(o) + " " + (o.executor || "")).toLowerCase().indexOf(q) >= 0; }) : [];
+    var npNote = npHits.length ? '<div class="note" style="margin:0 0 12px">Не проектные работы — во вкладке «Организационные»: ' + npHits.slice(0, 8).map(function (o) {
+      return '<button type="button" class="chip" data-open="' + o.id + '" style="margin:2px 4px">№' + E(o.number) + " · " + E(o.stage) + "</button>"; }).join("") + (npHits.length > 8 ? " и ещё " + (npHits.length - 8) : "") + "</div>" : "";
     var chips = '<div class="chips"><button class="chip ' + (!f.stage ? "on" : "") + '" data-ostage="">Все стадии</button>'
       + visStages.map(function (s) { return '<button class="chip ' + (f.stage === s ? "on" : "") + '" data-ostage="' + E(s) + '"><i class="dot" style="background:' + (STAGE_COLOR[s] || "#999") + '"></i>' + E(s) + "</button>"; }).join("") + "</div>";
     if (view === "l") body = '<div class="ovlist">' + (list.map(ovRow).join("") || '<div class="note">Ничего не найдено</div>') + "</div>";
@@ -585,7 +590,7 @@
       }).join("") + clCol + "</div>" + (!filled.length && !closed.length ? '<div class="note">Ничего не найдено</div>' : "")
         + (empty.length ? '<div class="empty-stages"><span>Пустые этапы:</span>' + empty.map(function (s) { return '<span class="pill muted" data-dropstage="' + E(s) + '"><i class="dot" style="background:' + (STAGE_COLOR[s] || "#999") + '"></i>' + E(s) + "</span>"; }).join("") + "</div>" : "");
     }
-    return '<div class="ds dspage">' + head + tiles(T.map(function (x) { return [x[0], x[1], x[2], cn[x[0]]]; })) + search + chips + body + "</div>";
+    return '<div class="ds dspage">' + head + tiles(T.map(function (x) { return [x[0], x[1], x[2], cn[x[0]]]; })) + search + chips + npNote + body + "</div>";
   }
 
   /* ---------- «Скрипты»: тексты для переписки, заводятся и правятся самостоятельно ---------- */
@@ -937,7 +942,8 @@
       "Сдано": { roles: ["acc"], text: "Акт подписан, оплата получена: закрыть задачу", btn: "Закрыто", to: "Закрыто" }
     };
     var n = map[st];
-    if (!n || !(ownerOk || n.roles.indexOf(p) >= 0)) return null;
+    // руководитель, продажи и опер. менеджер двигают задачу на любом этапе (FULL_CONTROL на мосту) — кнопка следующего шага есть и у них; оплату отмечает бухгалтер
+    if (!n || !(ownerOk || n.roles.indexOf(p) >= 0 || (fullCtl() && !n.pay))) return null;
     return n;
   }
   function stepper(o) {
@@ -1213,11 +1219,16 @@
       + '<div class="fld"><label>Объект</label><input id="nfObj" value="' + E(f.object) + '"></div>'
       + sysPick(f, "form")
       + '<div class="g2f"><div class="fld"><label>Срок по договору</label><input id="nfDue" type="date" value="' + E(f.due) + '"></div><div class="fld"><label>Сумма, ₽</label><input id="nfSum" type="number" min="0" value="' + E(f.amount) + '"></div></div>'
+      + '<div class="fld"><label>Куда поставить</label><div class="seg" style="display:flex">' + [["flow", "По конвейеру"], ["work", "Сразу в проектирование"]].map(function (x) {
+        return '<button type="button" data-nfstart="' + x[0] + '" class="' + ((f.work ? "work" : "flow") === x[0] ? "on" : "") + '" style="flex:1">' + x[1] + "</button>"; }).join("") + "</div></div>"
+      + (f.work ? '<div class="g2f"><div class="fld"><label>Исполнитель</label><select id="nfExec"><option value="0">— выберите —</option>' + (S.people || []).map(function (u) { return '<option value="' + u.id + '"' + (u.id === +f.exec ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div>"
+        + '<div class="fld"><label>Сдать исполнителю до</label><input id="nfPlanEnd" type="date" value="' + E(f.planEnd || "") + '" title="Пусто — срок по договору"></div></div>' : "")
       + '<div class="fld"><label><input type="checkbox" id="nfAdv" ' + (f.adv ? "checked" : "") + '> Предусмотрен аванс</label></div>'
       + '<div class="fld"><label title="Без галочки — определится по названию работы (риск, категории, план эвакуации, спецификация)"><input type="checkbox" id="nfNp" ' + (f.np ? "checked" : "") + '> Не проектная работа — в операционный отдел, не в проектный</label></div>'
       + '<div class="fld" ' + (f.adv ? "" : 'style="display:none"') + ' id="nfAdvBox"><label>Сумма аванса, ₽</label><input id="nfAdvSum" type="number" min="0" value="' + E(f.advSum) + '"></div>'
-      + '<div class="dbox"><small>Что произойдёт</small>' + (f.adv ? "Задача встанет на паузу «Ожидает аванс», бухгалтеру уйдёт «Выставить счёт на аванс»." : "Задача сразу попадёт на «Сбор данных» к операционному менеджеру.") + "</div>"
-      + '<div class="err" id="nfErr">' + E(f.err || "") + '</div><button class="btn primary block" data-create="1">Создать задачу</button></div></div></div>';
+      + '<div class="dbox"><small>Что произойдёт</small>' + (f.work ? "Задача минует аванс и сбор данных и сразу встанет «В проектирование» к исполнителю, ему и руководителю проектного отдела придёт уведомление; план — с сегодня до срока сдачи (пусто — до срока по договору)." + (f.adv ? " Бухгалтеру параллельно уйдёт «Выставить счёт на аванс»." : "")
+        : f.adv ? "Задача встанет на паузу «Ожидает аванс», бухгалтеру уйдёт «Выставить счёт на аванс»." : "Задача сразу попадёт на «Сбор данных» к операционному менеджеру.") + "</div>"
+      + '<div class="err" id="nfErr">' + E(f.err || "") + '</div><button class="btn primary block" data-create="1">' + (f.work ? "Создать и отдать в проектирование" : "Создать задачу") + "</button></div></div></div>";
   }
   /* задача сразу на «Корректировке»: замечания по уже сделанному проекту */
   function fixFormHtml(f) {
@@ -3076,7 +3087,7 @@
     var bg = e.target.getAttribute && e.target.getAttribute("data-bg");
     if (bg) return;                                    // щелчок мимо окна его не закрывает: набранное не теряется, закрыть — крестиком или «Отмена»
     if (e.target.closest("[data-trbox]") && !e.target.closest("[data-trsend]")) return;      // поле ответа в карточке задачи
-    var t = e.target.closest("[data-tack],[data-trep],[data-trsend],[data-who],[data-showclosed],[data-osel],[data-oselx],[data-oview],[data-gmore],[data-kpgo],[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-audload],[data-audlist],[data-audclose],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-cmdel],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
+    var t = e.target.closest("[data-tack],[data-nfstart],[data-trep],[data-trsend],[data-who],[data-showclosed],[data-osel],[data-oselx],[data-oview],[data-gmore],[data-kpgo],[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-audload],[data-audlist],[data-audclose],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-cmdel],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
     if (!t) return;
     var d = t.dataset;
     if (d.close) return closeAll();
@@ -3247,9 +3258,15 @@
     }
     if (d.tab) { S.tab = d.tab; if (d.tab === "tz") return loadTzItem(S.open).then(paint); return paint(); }
     if (d.kb) { S.kb = d.kb; return paint(); }
+    if (d.nfstart && S.form) {
+      S.form.work = d.nfstart === "work"; S.form.err = "";
+      if (S.form.work && S.people == null) api("/people").then(function (x) { S.people = x; paint(); }, function () {});
+      return paint();
+    }
     if (d.new) {
-      S.form = { number: "", customer: "", object: "", system: "", systems: [], systems_other: "", modern: 0, due: "", amount: "", adv: false, advSum: "", err: "", fix: d.new === "fix", exec: 0, fixDays: "", remarks: "" };
-      if (S.form.fix && S.people == null) api("/people").then(function (x) { S.people = x; paint(); }, function () {});
+      S.form = { number: "", customer: "", object: "", system: "", systems: [], systems_other: "", modern: 0, due: "", amount: "", adv: false, advSum: "", err: "", fix: d.new === "fix", work: d.new === "work", exec: 0, fixDays: "", remarks: "", planEnd: "" };
+      if (S.form.work && S.customers == null) api("/customers").then(function (x) { S.customers = x; paint(); }, function () {});
+      if ((S.form.fix || S.form.work) && S.people == null) api("/people").then(function (x) { S.people = x; paint(); }, function () {});
       return paint();
     }
     if (d.tdone) return act(api("/tasks/" + d.tdone + "/done", {}));
@@ -3329,7 +3346,7 @@
       return;
     }
     if (!S.form || !e.target.id) return;
-    var f = S.form, map = { nfNum: "number", nfCust: "customer", nfObj: "object", nfSys: "system", nfDue: "due", nfSum: "amount", nfAdvSum: "advSum", nfExec: "exec", nfFixDays: "fixDays", nfRemarks: "remarks" };
+    var f = S.form, map = { nfNum: "number", nfCust: "customer", nfObj: "object", nfSys: "system", nfDue: "due", nfSum: "amount", nfAdvSum: "advSum", nfExec: "exec", nfFixDays: "fixDays", nfRemarks: "remarks", nfPlanEnd: "planEnd" };
     if (map[e.target.id]) f[map[e.target.id]] = e.target.value;
   });
   document.addEventListener("change", function (e) {
@@ -3400,10 +3417,12 @@
         .then(function (r) { makeFolder({ number: f.number.trim(), object: f.object.trim(), customer: f.customer.trim(), systems: f.systems, systems_other: (f.systems_other || "").trim() });
           S.form = null; S.customers = null; S.orders = null; toast("Задача поставлена на корректировку"); S.open = r.id; S.tab = "rounds"; S.rd = null; S.history = []; return load().then(paint); }, function (er) { f.err = String(er); paint(); });
     }
+    if (f.work && !(+f.exec)) { f.err = "Выберите исполнителя — задача сразу уйдёт ему в работу"; return paint(); }
     api("/customers", { name: f.customer.trim() }).then(function (c) {
       return api("/orders", { number: f.number.trim(), customer_id: c.id, object: f.object.trim(), system: sysLabel(f), systems: f.systems || [], systems_other: (f.systems_other || "").trim(), modern: f.modern ? 1 : 0, due_date: f.due || "", amount: +f.amount || 0,
-        adv_mode: f.adv ? "advance" : "none", adv_sum: f.adv ? (+f.advSum || 0) : 0, contract_date: new Date().toISOString().slice(0, 10), nonproj: f.np ? 1 : -1 });
-    }).then(function () { makeFolder({ number: f.number.trim(), object: f.object.trim(), customer: f.customer.trim(), systems: f.systems, systems_other: (f.systems_other || "").trim() });
+        adv_mode: f.adv ? "advance" : "none", adv_sum: f.adv ? (+f.advSum || 0) : 0, contract_date: new Date().toISOString().slice(0, 10), nonproj: f.np ? 1 : -1,
+        stage: f.work ? "В проектировании" : "", executor_id: f.work ? +f.exec : 0, plan_end: f.work ? (f.planEnd || "") : "" });
+    }).then(function () { if (f.work) toast("Задача создана и отдана в проектирование"); makeFolder({ number: f.number.trim(), object: f.object.trim(), customer: f.customer.trim(), systems: f.systems, systems_other: (f.systems_other || "").trim() });
       S.form = null; S.customers = null; S.orders = null; DS.route(); }, function (er) { f.err = String(er); paint(); });
   }
   if (C) { C.on("logout", function () { BOOT = null; S.orders = S.meta = S.customers = S.people = S.tasks = null; S.cu.q = ""; S.kp = S.cm = null; S.open = null; var m = document.getElementById("ds-modal"); if (m) m.innerHTML = ""; }); }
