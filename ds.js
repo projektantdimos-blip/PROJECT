@@ -572,21 +572,23 @@
     var npHits = q ? (S.orders || []).filter(function (o) { return o.nonproj && (o.number + " " + (o.customer || "") + " " + o.object + " " + (o.system || "") + " " + sysText(o) + " " + (o.executor || "")).toLowerCase().indexOf(q) >= 0; }) : [];
     var npNote = npHits.length ? '<div class="note" style="margin:0 0 12px">Не проектные работы — во вкладке «Организационные»: ' + npHits.slice(0, 8).map(function (o) {
       return '<button type="button" class="chip" data-open="' + o.id + '" style="margin:2px 4px">№' + E(o.number) + " · " + E(o.stage) + "</button>"; }).join("") + (npHits.length > 8 ? " и ещё " + (npHits.length - 8) : "") + "</div>" : "";
+    var WAITK = "В проектировании · не начато", colOf = function (o) { return o.stage === "Готов к проектированию" && o.executor_id ? WAITK : o.stage; };      // исполнитель назначен, а в работу ещё не взяли
     var chips = '<div class="chips"><button class="chip ' + (!f.stage ? "on" : "") + '" data-ostage="">Все стадии</button>'
       + visStages.map(function (s) { return '<button class="chip ' + (f.stage === s ? "on" : "") + '" data-ostage="' + E(s) + '"><i class="dot" style="background:' + (STAGE_COLOR[s] || "#999") + '"></i>' + E(s) + "</button>"; }).join("") + "</div>";
     if (view === "l") body = '<div class="ovlist">' + (list.map(ovRow).join("") || '<div class="note">Ничего не найдено</div>') + "</div>";
     else {
-      var st = visStages.filter(function (s) { return s !== "Закрыто"; });
-      var filled = st.filter(function (s) { return list.some(function (o) { return o.stage === s; }); });
-      var empty = st.filter(function (s) { return filled.indexOf(s) < 0; });
+      var st = [];
+      visStages.forEach(function (s) { if (s !== "Закрыто") st.push(s); if (s === "Готов к проектированию") st.push(WAITK); });
+      var filled = st.filter(function (s) { return list.some(function (o) { return colOf(o) === s; }); });
+      var empty = st.filter(function (s) { return filled.indexOf(s) < 0 && s !== WAITK; });
       var closed = visStages.indexOf("Закрыто") >= 0 ? list.filter(function (o) { return o.stage === "Закрыто"; }) : [];
       var clOpen = S.showClosed || !!q || f.stage === "Закрыто";
       var clCol = closed.length ? '<div class="col' + (clOpen ? "" : " col-shut") + '" data-dropstage="Закрыто"><div class="col-h cl" style="--c:' + STAGE_COLOR["Закрыто"] + '"><b>Закрыто</b><span class="n">' + closed.length + "</span>"
         + (q || f.stage === "Закрыто" ? "" : '<button type="button" data-showclosed="1" style="border:1px solid rgba(255,255,255,.55);background:transparent;color:#fff;border-radius:8px;padding:2px 9px;font:inherit;font-size:.76rem;cursor:pointer">' + (clOpen ? "Скрыть" : "Показать") + "</button>") + "</div>"
         + (clOpen ? closed.map(function (o) { return card(o); }).join("") : '<div class="note" style="font-size:.8rem">Закрытые задачи свёрнуты</div>') + "</div>" : "";
       body = '<div class="board">' + filled.map(function (s) {
-        var items = list.filter(function (o) { return o.stage === s; });
-        return '<div class="col" data-dropstage="' + E(s) + '"><div class="col-h cl" style="--c:' + (STAGE_COLOR[s] || "#888") + '"><b>' + E(s) + '</b><span class="n">' + items.length + "</span></div>" + items.map(function (o) { return card(o); }).join("") + "</div>";
+        var items = list.filter(function (o) { return colOf(o) === s; }), wk = s === WAITK;
+        return '<div class="col" data-dropstage="' + E(wk ? "Готов к проектированию" : s) + '"><div class="col-h cl" style="--c:' + (wk ? "#6f9fd8" : STAGE_COLOR[s] || "#888") + '"' + (wk ? ' title="Исполнитель назначен, работу ещё не начали: кнопка «В проектирование» в окне задачи"' : "") + "><b>" + E(s) + '</b><span class="n">' + items.length + "</span></div>" + items.map(function (o) { return card(o); }).join("") + "</div>";
       }).join("") + clCol + "</div>" + (!filled.length && !closed.length ? '<div class="note">Ничего не найдено</div>' : "")
         + (empty.length ? '<div class="empty-stages"><span>Пустые этапы:</span>' + empty.map(function (s) { return '<span class="pill muted" data-dropstage="' + E(s) + '"><i class="dot" style="background:' + (STAGE_COLOR[s] || "#999") + '"></i>' + E(s) + "</span>"; }).join("") + "</div>" : "");
     }
@@ -1370,6 +1372,9 @@
       + (o.stage === "Корректировка" && (find(o.id) || {}).stage !== "Корректировка" ? '<div class="g2f">' + tmInp("Срок корректировки, рабочих дней", "fix_days", "number") + '<div class="fld"><label>Замечания заказчика</label><input data-oe="fix_remarks" value="' + E(o.fix_remarks || "") + '" ' + OE_FIELD + "></div></div>"
         + '<div class="fld"><label>Категория корректировки</label><select data-oe="fix_cat" ' + OE_FIELD + '><option value="">—</option>' + FIX_CAT.map(function (x) { return "<option" + (x === o.fix_cat ? " selected" : "") + ">" + E(x) + "</option>"; }).join("") + "</select></div>" : "")
       + '<div class="g2f">' + tmInp("№ задачи", "number", "", !full) + '<div class="fld"><label>Ответственный</label><select data-oe="executor_id" ' + OE_FIELD + '><option value="0">— не назначен —</option>' + people.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +o.executor_id ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div></div>"
+      + ((o.parts || []).filter(function (x) { return !x.delivered; }).length ? '<div class="g2f">' + o.parts.filter(function (x) { return !x.delivered; }).map(function (x) {
+        return '<div class="fld"><label>Исполнитель раздела ' + E(x.system) + (x.executor_id ? "" : ' <b style="color:var(--bad)">· не назначен</b>') + '</label><select data-oepart="' + x.id + '" ' + OE_FIELD + '><option value="0">— не назначен —</option>'
+          + people.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +x.executor_id ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div>"; }).join("") + "</div>" : "")
       + (full ? oeChk("<span><b>Не проектная работа</b> — расчёт риска, категорий, план эвакуации, спецификация: ведёт операционный отдел, исполнитель — любой сотрудник</span>", "nonproj") : "")
       + '<div class="fld"><label>Заказчик</label><input data-oe="customer" list="dsCust" value="' + E(o.customer || "") + '" ' + OE_FIELD + (full ? "" : " disabled") + "></div>"
       + '<datalist id="dsCust">' + (S.customers || []).map(function (c) { return '<option value="' + E(c.name) + '">'; }).join("") + "</datalist>"
@@ -1407,8 +1412,22 @@
     if (o.stage === "Корректировка") { pl.fix_days = +o.fix_days || 0; pl.fix_remarks = o.fix_remarks || ""; pl.fix_cat = o.fix_cat || ""; }
     if (can("money") && o.amount != null) Object.assign(pl, { amount: +o.amount || 0, adv_sum: +o.adv_sum || 0, adv_date: o.adv_date || "", post_date: o.post_date || "", adv_paid: o.adv_paid ? 1 : 0, post_paid: o.post_paid ? 1 : 0, act_sent: o.act_sent ? 1 : 0, act_signed: o.act_signed ? 1 : 0 });
     if (pos() === "design") { ["number", "customer", "amount", "adv_sum"].forEach(function (k) { delete pl[k]; }); }
-    api("/orders/" + o.id + "/edit", pl).then(function () { S.oe = null; S.tm = false; toast("Правки сохранены"); S.orders = null; S.tasks = null; return load().then(function () { return api("/orders/" + o.id + "/history").then(function (h) { S.history = h; }, function () {}); }).then(paint); },
-      function (e) { S.oeErr = String(e); tmRepaint(); });
+    var was = {}; ((find(o.id) || {}).parts || []).forEach(function (x) { was[x.id] = +x.executor_id || 0; });
+    var partReq = function () {
+      return (o.parts || []).filter(function (x) { return !x.delivered && +x.executor_id && +x.executor_id !== was[x.id]; }).reduce(function (ch, x) {
+        return ch.then(function () { return api("/orders/" + o.id + "/rounds/" + x.id + "/edit", { executor_id: +x.executor_id }); });
+      }, Promise.resolve());
+    };
+    var tmWas = S.tm;
+    api("/orders/" + o.id + "/edit", pl).then(partReq).then(function () {
+      S.oe = null; S.tm = false; S.orders = null; S.tasks = null; S.rd = null;
+      return load().then(function () { return api("/orders/" + o.id + "/history").then(function (h) { S.history = h; }, function () {}); }).then(function () {
+        var no = find(o.id), un = ((no && no.parts) || []).filter(function (x) { return !x.delivered && !x.executor_id; });
+        if (un.length) { toast("Сохранено. Назначьте исполнителя раздела " + un.map(function (x) { return x.system; }).join(", ")); if (tmWas) return tmOpen(o.id); }
+        else toast("Правки сохранены");
+        paint();
+      });
+    }, function (e) { S.oeErr = String(e); tmRepaint(); });
   }
   function oeDel() {
     var o = S.oe; if (!o || !confirm("Удалить задачу №" + o.number + " вместе со служебными задачами, ТЗ, историей и чатом? Это нельзя отменить.")) return;
@@ -3363,6 +3382,7 @@
       paint();
     }
     if (cdt.oe && S.oe) { S.oe[cdt.oe] = e.target.value; return; }
+    if (cdt.oepart && S.oe) { (S.oe.parts || []).forEach(function (x) { if (x.id === +cdt.oepart) x.executor_id = +e.target.value || 0; }); return; }
     if (cdt.oech && S.oe) {
       S.oe[cdt.oech] = e.target.checked ? 1 : 0;
       if (cdt.oech === "nonproj") tmRepaint();            // меняется список исполнителей
@@ -3422,8 +3442,14 @@
       return api("/orders", { number: f.number.trim(), customer_id: c.id, object: f.object.trim(), system: sysLabel(f), systems: f.systems || [], systems_other: (f.systems_other || "").trim(), modern: f.modern ? 1 : 0, due_date: f.due || "", amount: +f.amount || 0,
         adv_mode: f.adv ? "advance" : "none", adv_sum: f.adv ? (+f.advSum || 0) : 0, contract_date: new Date().toISOString().slice(0, 10), nonproj: f.np ? 1 : -1,
         stage: f.work ? "В проектировании" : "", executor_id: f.work ? +f.exec : 0, plan_end: f.work ? (f.planEnd || "") : "" });
-    }).then(function () { if (f.work) toast("Задача создана и отдана в проектирование"); makeFolder({ number: f.number.trim(), object: f.object.trim(), customer: f.customer.trim(), systems: f.systems, systems_other: (f.systems_other || "").trim() });
-      S.form = null; S.customers = null; S.orders = null; DS.route(); }, function (er) { f.err = String(er); paint(); });
+    }).then(function (r) { if (f.work) toast("Задача создана и отдана в проектирование"); makeFolder({ number: f.number.trim(), object: f.object.trim(), customer: f.customer.trim(), systems: f.systems, systems_other: (f.systems_other || "").trim() });
+      S.form = null; S.customers = null; S.orders = null;
+      return load().then(function () {
+        var no = r && find(r.id), un = ((no && no.parts) || []).filter(function (x) { return !x.executor_id; });
+        if (un.length) { S.open = r.id; S.tab = "info"; S.oe = null; toast("Назначьте исполнителя раздела " + un.map(function (x) { return x.system; }).join(", ")); return paint(); }
+        DS.route();
+      });
+    }, function (er) { f.err = String(er); paint(); });
   }
   if (C) { C.on("logout", function () { BOOT = null; S.orders = S.meta = S.customers = S.people = S.tasks = null; S.cu.q = ""; S.kp = S.cm = null; S.open = null; var m = document.getElementById("ds-modal"); if (m) m.innerHTML = ""; }); }
   bootStart();
