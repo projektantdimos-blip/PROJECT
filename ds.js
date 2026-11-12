@@ -325,13 +325,19 @@
   function orgItems() {
     var items = (S.tasks || []).filter(function (t) { return !(t.kind === "design" && /^(Проверить проект|Корректировка|Доработка)/.test(t.title || "")); })
       .map(function (t) { return { t: t, left: t.left_days, wait: t.state === "wait", text: (t.title || "") + " " + (t.assignee || "") + " " + (t.object || "") + " " + (t.note || "") }; });
-    (S.orders || []).filter(function (o) { return o.nonproj && DONE_ST.indexOf(o.stage) < 0; }).forEach(function (o) {      // риски, планы эвакуации … ведёт операционный отдел
-      items.push({ o: o, left: o.left_days, wait: o.stage === "На согласовании", text: o.number + " " + (o.customer || "") + " " + (o.object || "") + " " + (o.system || "") + " " + sysText(o) + " " + (o.executor || "") });
-    });
+    (S.orders || []).filter(function (o) { return o.nonproj && DONE_ST.indexOf(o.stage) < 0; }).forEach(function (o) { items.push(npItem(o)); });      // риски, планы эвакуации … ведёт операционный отдел
     (S.kp || []).filter(function (k) { return !kpDone(k) && !k.order_id; }).forEach(function (k) {
       items.push({ kp: k, left: k.last_days != null && k.last_days > 5 ? -1 : (k.last_days != null && k.last_days >= 3 ? 1 : 9), wait: k.status === "КП отправлено", text: k.number + " " + k.customer + " " + (k.object || "") });
     });
     return items;
+  }
+  function npItem(o) {
+    var done = DONE_ST.indexOf(o.stage) >= 0;
+    return { o: o, done: done, left: done ? null : o.left_days, wait: o.stage === "На согласовании", text: o.number + " " + (o.customer || "") + " " + (o.object || "") + " " + (o.system || "") + " " + sysText(o) + " " + (o.executor || "") };
+  }
+  function orgDone() {      // сданные и закрытые непроектные работы: иначе их не видно нигде
+    return (S.orders || []).filter(function (o) { return o.nonproj && DONE_ST.indexOf(o.stage) >= 0; }).map(npItem)
+      .sort(function (a, b) { return (Number(b.o.number) || 0) - (Number(a.o.number) || 0); });
   }
   function orgRow(it) {
     var u = it.t, tn;
@@ -389,6 +395,7 @@
   function olColOf(x) { var c = orgCol(x); return ORG_COLS.filter(function (z) { return z[0] === c; })[0] || ORG_COLS[ORG_COLS.length - 1]; }
   function olDue(x) {                                    // [текст, тон] срока строки
     if (x.kp) { var k = x.kp; return [k.last_days == null ? "нет общения" : k.last_days === 0 ? "сегодня" : "−" + k.last_days + " дн. без связи", kpTone(k)]; }
+    if (x.done) return [x.o.stage === "Закрыто" ? "закрыто" : "сдано", "ok"];
     var l = x.left, due = x.t ? x.t.due : x.o.due_date;
     if (l == null) return [due ? dmy(due).slice(0, 5) : "без срока", "muted"];
     if (l < 0) return ["−" + Math.abs(l) + " дн.", "bad"];
@@ -424,9 +431,11 @@
       + '<span class="oldue ' + du[1] + '">' + E(du[0]) + "</span></div>";
   }
   function olGroups(shown, f) {
-    var G = [["over", "Просрочено", function (x) { return x.left != null && x.left < 0; }], ["today", "Сегодня", function (x) { return x.left === 0; }],
-      ["week", "Ближайшие дни", function (x) { return x.left != null && x.left > 0 && x.left <= 7; }], ["later", "Позже и без срока", function () { return true; }]];
-    var left = shown.slice(), more = f.more || {}, out = "";
+    var G = [["over", "Просрочено", function (x) { return !x.done && x.left != null && x.left < 0; }], ["today", "Сегодня", function (x) { return !x.done && x.left === 0; }],
+      ["week", "Ближайшие дни", function (x) { return !x.done && x.left != null && x.left > 0 && x.left <= 7; }], ["later", "Позже и без срока", function (x) { return !x.done; }]];
+    var left = shown.filter(function (x) { return !x.done; }), dn = shown.filter(function (x) { return x.done; }), more = f.more || {}, out = "";
+    if (dn.length) G.push(["done", "Сданные и закрытые", function (x) { return x.done; }]);
+    left = left.concat(dn);
     G.forEach(function (g) {
       var arr = left.filter(g[2]); left = left.filter(function (x) { return arr.indexOf(x) < 0; });
       if (!arr.length) return;
@@ -496,7 +505,8 @@
       };
       var allRows = orgItems(), nMine = allRows.filter(mineIt).length;
       var names = {}; allRows.forEach(function (x) { var w = whoOf(x); if (w && w !== meName) names[w] = (names[w] || 0) + 1; });
-      var rows = allRows.filter(function (x) { return !f.who ? true : f.who === "me" ? mineIt(x) : whoOf(x) === f.who; });
+      var byWho = function (x) { return !f.who ? true : f.who === "me" ? mineIt(x) : whoOf(x) === f.who; };
+      var rows = allRows.filter(byWho), doneRows = orgDone().filter(byWho);
       olCss();
       var top = Object.keys(names).sort(function (a, b) { return names[b] - names[a] || a.localeCompare(b, "ru"); }), extra = top.slice(5);
       top = top.slice(0, 5); if (f.who && f.who !== "me" && top.indexOf(f.who) < 0 && names[f.who]) top.push(f.who);
@@ -508,9 +518,10 @@
       var isOver = function (x) { return x.left != null && x.left < 0; }, cnt = { all: rows.length, over: rows.filter(isOver).length, today: rows.filter(function (x) { return x.left === 0; }).length, wait: rows.filter(function (x) { return x.wait; }).length, np: rows.filter(function (x) { return !!x.o; }).length };
       var tl = [["all", "Все", cnt.all], ["over", "Просрочено", cnt.over], ["today", "Сегодня", cnt.today], ["wait", "Ждут ответа", cnt.wait]];
       if (cnt.np) tl.push(["np", "Не проектные", cnt.np]);
+      if (doneRows.length) tl.push(["done", "Сданные", doneRows.length]);
       var cur = f.tile && tl.some(function (z) { return z[0] === f.tile; }) ? f.tile : "all";
       var tabsO = '<div class="oltabs">' + tl.map(function (z) { return '<button type="button" class="' + (cur === z[0] ? "on" : "") + '" data-tile="' + z[0] + '">' + z[1] + '<i class="' + (z[0] === "over" && z[2] ? "bad" : "") + '">' + z[2] + "</i></button>"; }).join("") + "</div>";
-      var shown = rows.filter(function (x) {
+      var shown = (cur === "done" ? doneRows : cur === "all" && q ? rows.concat(doneRows) : rows).filter(function (x) {
         if (cur === "over" && !isOver(x)) return false;
         if (cur === "today" && x.left !== 0) return false;
         if (cur === "wait" && !x.wait) return false;
@@ -563,10 +574,15 @@
       var st = visStages.filter(function (s) { return s !== "Закрыто"; });
       var filled = st.filter(function (s) { return list.some(function (o) { return o.stage === s; }); });
       var empty = st.filter(function (s) { return filled.indexOf(s) < 0; });
+      var closed = visStages.indexOf("Закрыто") >= 0 ? list.filter(function (o) { return o.stage === "Закрыто"; }) : [];
+      var clOpen = S.showClosed || !!q || f.stage === "Закрыто";
+      var clCol = closed.length ? '<div class="col' + (clOpen ? "" : " col-shut") + '" data-dropstage="Закрыто"><div class="col-h cl" style="--c:' + STAGE_COLOR["Закрыто"] + '"><b>Закрыто</b><span class="n">' + closed.length + "</span>"
+        + (q || f.stage === "Закрыто" ? "" : '<button type="button" data-showclosed="1" style="border:1px solid rgba(255,255,255,.55);background:transparent;color:#fff;border-radius:8px;padding:2px 9px;font:inherit;font-size:.76rem;cursor:pointer">' + (clOpen ? "Скрыть" : "Показать") + "</button>") + "</div>"
+        + (clOpen ? closed.map(function (o) { return card(o); }).join("") : '<div class="note" style="font-size:.8rem">Закрытые задачи свёрнуты</div>') + "</div>" : "";
       body = '<div class="board">' + filled.map(function (s) {
         var items = list.filter(function (o) { return o.stage === s; });
         return '<div class="col" data-dropstage="' + E(s) + '"><div class="col-h cl" style="--c:' + (STAGE_COLOR[s] || "#888") + '"><b>' + E(s) + '</b><span class="n">' + items.length + "</span></div>" + items.map(function (o) { return card(o); }).join("") + "</div>";
-      }).join("") + "</div>" + (!filled.length ? '<div class="note">Ничего не найдено</div>' : "")
+      }).join("") + clCol + "</div>" + (!filled.length && !closed.length ? '<div class="note">Ничего не найдено</div>' : "")
         + (empty.length ? '<div class="empty-stages"><span>Пустые этапы:</span>' + empty.map(function (s) { return '<span class="pill muted" data-dropstage="' + E(s) + '"><i class="dot" style="background:' + (STAGE_COLOR[s] || "#999") + '"></i>' + E(s) + "</span>"; }).join("") + "</div>" : "");
     }
     return '<div class="ds dspage">' + head + tiles(T.map(function (x) { return [x[0], x[1], x[2], cn[x[0]]]; })) + search + chips + body + "</div>";
@@ -3059,7 +3075,7 @@
     var bg = e.target.getAttribute && e.target.getAttribute("data-bg");
     if (bg) return;                                    // щелчок мимо окна его не закрывает: набранное не теряется, закрыть — крестиком или «Отмена»
     if (e.target.closest("[data-trbox]") && !e.target.closest("[data-trsend]")) return;      // поле ответа в карточке задачи
-    var t = e.target.closest("[data-tack],[data-trep],[data-trsend],[data-who],[data-osel],[data-oselx],[data-oview],[data-gmore],[data-kpgo],[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-audload],[data-audlist],[data-audclose],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-cmdel],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
+    var t = e.target.closest("[data-tack],[data-trep],[data-trsend],[data-who],[data-showclosed],[data-osel],[data-oselx],[data-oview],[data-gmore],[data-kpgo],[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-audload],[data-audlist],[data-audclose],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-cmdel],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
     if (!t) return;
     var d = t.dataset;
     if (d.close) return closeAll();
@@ -3081,6 +3097,7 @@
     if (d.oselx) { S.ov.sel = ""; if (S.topen) { S.topen = 0; if (/^#\/t\//.test(location.hash)) history.replaceState(null, "", "#/"); } return paint(); }
     if (d.kpgo) { location.hash = "#/kpreg/"; return; }
     if (d.gmore) { S.ov.more = S.ov.more || {}; S.ov.more[d.gmore] = 1; return paint(); }
+    if (d.showclosed) { S.showClosed = !S.showClosed; return paint(); }
     if (d.scnew != null && t.hasAttribute("data-scnew")) { var nid = "s" + Date.now(); S.sc = (S.sc || []).concat([{ id: nid, title: "Новый скрипт", group: "", text: "" }]); S.scSel = nid; return paint(); }
     if (d.scsel) { S.scSel = d.scsel; return paint(); }
     if (d.scfpick) { var fi = document.getElementById("scFileIn"); if (fi) fi.click(); return; }
