@@ -1203,7 +1203,7 @@
     if (["owner", "ops", "sales", "design"].indexOf(p) >= 0) tabs.push(["tz", "Тех. задание"]);
     tabs.push(["rounds", ((o.parts || []).length ? "Разделы и корректировки" : "Корректировки") + (o.fix_total || (o.parts || []).length ? " (" + ((o.fix_total || 0) + (o.parts || []).length) + ")" : "")]);
     tabs.push(["log", "История"]);
-    if (menuOn && S.tab === "info" && (!S.oe || S.oe.id !== o.id)) { S.oe = JSON.parse(JSON.stringify(o)); S.oeErr = ""; }
+    if (menuOn && S.tab === "info") { if (!S.oe || S.oe.id !== o.id) oeSnap(o); else oeRebase(o); }
     var body = S.tab === "log" ? logTab() : S.tab === "tz" ? tzTab() : S.tab === "rounds" ? roundsTab(o) : (menuOn && S.tab === "info") ? tmHtml() : infoTab(o);
     var money_ = can("money") && o.amount != null;
     return '<div class="modal-bg" data-bg="1"><div class="modal"><div class="m-head"><div class="row"><h2>№' + E(o.number) + (o.customer ? " · " + E(o.customer) : "") + "</h2>"
@@ -1391,20 +1391,38 @@
       + (S.oeErr ? '<div class="err">' + E(S.oeErr) + "</div>" : "")
       + '<div class="tm-foot"><button class="btn ghost" data-close="1">Отмена</button>' + (full ? '<button class="btn ghost" data-oedel="1" style="color:var(--bad)">Удалить</button>' : "") + '<button class="btn primary" data-oesave="1">Сохранить</button></div></div>';
   }
+  /* Снимок формы «Меню задачи»: S.oe — то, что правит пользователь, S.oe0 — каким задача была на сервере, когда снимок взят.
+     После любой перезагрузки задач (кнопки шага, назначение, ТЗ, оплата, разделы) форма перестраивается от свежих данных:
+     несохранённая правка поля сохраняется, только если это поле на сервере за это время не менялось, иначе побеждает сервер.
+     «Сохранить» отправляет только то, что пользователь изменил относительно S.oe0, — устаревшие стадия и исполнитель не уходят. */
+  function oeClone(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
+  function oeSame(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+  function oeSnap(o) { S.oe = oeClone(o); S.oe0 = oeClone(o); S.oeErr = ""; }
+  function oeRebase(fresh) {
+    var cur = S.oe, b = S.oe0;
+    if (!cur || !fresh || cur.id !== fresh.id || !b || b.id !== fresh.id || oeSame(b, fresh)) return;
+    var nx = oeClone(fresh);
+    Object.keys(cur).forEach(function (k) {
+      if (k !== "parts" && !oeSame(cur[k], b[k]) && oeSame(b[k], fresh[k])) nx[k] = oeClone(cur[k]);
+    });
+    var bp = {}; (b.parts || []).forEach(function (x) { bp[x.id] = +x.executor_id || 0; });
+    var cp = {}; (cur.parts || []).forEach(function (x) { cp[x.id] = +x.executor_id || 0; });
+    (nx.parts || []).forEach(function (x) { if (x.id in cp && x.id in bp && cp[x.id] !== bp[x.id] && (+x.executor_id || 0) === bp[x.id]) x.executor_id = cp[x.id]; });
+    S.oe = nx; S.oe0 = oeClone(fresh);
+  }
   function tmRepaint() { if (S.tm) modalRoot().innerHTML = tmWrap(); else paint(); }
   function tmWrap() {
+    if (S.oe) oeRebase(find(S.oe.id));
     var o = S.oe; if (!o) return "";
     return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:12px"><div class="modal tm"><div class="m-head"><div class="row"><div><h2 style="font-size:1.25rem">№' + E(o.number) + " · " + E(o.customer || "") + '</h2>' + sysChips(find(o.id) || o) + tzLine(o) + '</div><button class="x" data-close="1">✕</button></div></div><div class="m-body tm-body">' + tmHtml() + "</div></div></div>";
   }
   function fixDates(o) { return !!o.fix_n && o.stage === "Корректировка" && (find(o.id) || {}).stage === "Корректировка"; }      // на корректировке правятся её сроки, а не основной работы
   function tmOpen(id) {
     var o = find(+id); if (!o) return;
-    S.oe = JSON.parse(JSON.stringify(o)); S.oeErr = ""; S.tm = true;
+    oeSnap(o); S.tm = true;
     modalRoot().innerHTML = tmWrap();
   }
-  function oeSave() {
-    var o = S.oe; if (!o) return;
-    S.oeErr = "";
+  function oePayload(o) {           // все поля формы в виде, в каком их принимает сервер
     var pl = { number: o.number, customer: o.customer, object: o.object, system: sysLabel(o), systems: o.systems || [], systems_other: o.systems_other || "", modern: o.modern ? 1 : 0, stage: o.stage, executor_id: +o.executor_id || 0, start_date: o.start_date || "", due_date: o.due_date || "",
       plan_start: o.plan_start || "", plan_end: o.plan_end || "", priority: o.priority, edits: +o.edits || 0, urgent: o.urgent ? 1 : 0 };
     if (fixDates(o)) { pl.plan_start = o.fix_start || ""; pl.plan_end = o.fix_end || ""; }
@@ -1412,19 +1430,27 @@
     if (o.stage === "Корректировка") { pl.fix_days = +o.fix_days || 0; pl.fix_remarks = o.fix_remarks || ""; pl.fix_cat = o.fix_cat || ""; }
     if (can("money") && o.amount != null) Object.assign(pl, { amount: +o.amount || 0, adv_sum: +o.adv_sum || 0, adv_date: o.adv_date || "", post_date: o.post_date || "", adv_paid: o.adv_paid ? 1 : 0, post_paid: o.post_paid ? 1 : 0, act_sent: o.act_sent ? 1 : 0, act_signed: o.act_signed ? 1 : 0 });
     if (pos() === "design") { ["number", "customer", "amount", "adv_sum"].forEach(function (k) { delete pl[k]; }); }
+    return pl;
+  }
+  function oeSave() {
+    var o = S.oe; if (!o) return;
+    S.oeErr = "";
+    var full = oePayload(o), b = S.oe0 && S.oe0.id === o.id ? oePayload(S.oe0) : null, pl = {};
+    Object.keys(full).forEach(function (k) { if (!b || !oeSame(full[k], b[k])) pl[k] = full[k]; });      // только изменённое пользователем
     var was = {}; ((find(o.id) || {}).parts || []).forEach(function (x) { was[x.id] = +x.executor_id || 0; });
+    var parts = (o.parts || []).filter(function (x) { return !x.delivered && +x.executor_id && +x.executor_id !== was[x.id]; });
     var partReq = function () {
-      return (o.parts || []).filter(function (x) { return !x.delivered && +x.executor_id && +x.executor_id !== was[x.id]; }).reduce(function (ch, x) {
+      return parts.reduce(function (ch, x) {
         return ch.then(function () { return api("/orders/" + o.id + "/rounds/" + x.id + "/edit", { executor_id: +x.executor_id }); });
       }, Promise.resolve());
     };
-    var tmWas = S.tm;
-    api("/orders/" + o.id + "/edit", pl).then(partReq).then(function () {
+    var tmWas = S.tm, nothing = !Object.keys(pl).length && !parts.length;
+    (Object.keys(pl).length ? api("/orders/" + o.id + "/edit", pl) : Promise.resolve()).then(partReq).then(function () {
       S.oe = null; S.tm = false; S.orders = null; S.tasks = null; S.rd = null;
       return load().then(function () { return api("/orders/" + o.id + "/history").then(function (h) { S.history = h; }, function () {}); }).then(function () {
         var no = find(o.id), un = ((no && no.parts) || []).filter(function (x) { return !x.delivered && !x.executor_id; });
         if (un.length) { toast("Сохранено. Назначьте исполнителя раздела " + un.map(function (x) { return x.system; }).join(", ")); if (tmWas) return tmOpen(o.id); }
-        else toast("Правки сохранены");
+        else toast(nothing ? "Изменений нет" : "Правки сохранены");
         paint();
       });
     }, function (e) { S.oeErr = String(e); tmRepaint(); });
@@ -1504,6 +1530,7 @@
     var days = [].slice.call(gp.querySelectorAll(".ghead .gday")), name = gp.querySelector(".ghead .gname");
     if (!days.length) return;
     var cw = days[1] ? days[1].getBoundingClientRect().left - days[0].getBoundingClientRect().left : days[0].offsetWidth;
+    if (!(cw > 0) || !gp.clientWidth) { ldWhenShown(gp); return; }      // экран ещё скрыт (ширина 0): прокрутим, когда его покажут
     var max = Math.max(0, gp.scrollWidth - gp.clientWidth);
     gp.scrollLeft = S.ldScroll != null ? S.ldScroll : Math.min(max, Math.round(60 * cw));
     rg.max = String(max); rg.value = String(gp.scrollLeft); rg.disabled = !max;
@@ -1513,9 +1540,21 @@
       var t = function (el) { return el.getAttribute("data-d") || ""; };
       if (lab) lab.textContent = dmy(t(days[a])).slice(0, 5) + " — " + dmy(t(days[Math.max(a, b)]));
     };
-    gp.onscroll = function () { S.ldScroll = gp.scrollLeft; rg.value = String(gp.scrollLeft); label(); };
+    gp.onscroll = function () { if (!gp.clientWidth) return; S.ldScroll = gp.scrollLeft; rg.value = String(gp.scrollLeft); label(); };      // скрытие экрана сбрасывает прокрутку в 0 — это не выбор пользователя
     rg.oninput = function () { gp.scrollLeft = +rg.value; };
     label();
+  }
+  /* «Занятость» отрисована в скрытом разделе: ждём, когда шкала получит ширину, и ставим её на выбранную дату */
+  function ldWhenShown(gp) {
+    if (gp._ldWait) return; gp._ldWait = 1;
+    var go = function () {
+      if (!gp.isConnected) { if (ro) ro.disconnect(); return true; }      // экран уже перерисован — эта шкала больше не нужна
+      if (!gp.clientWidth) return false;
+      if (ro) ro.disconnect(); fitLoadScroll(); return true;
+    };
+    var ro = window.ResizeObserver ? new ResizeObserver(function () { go(); }) : null;
+    if (ro) ro.observe(gp);
+    else (function poll() { if (gp.isConnected && !go()) requestAnimationFrame(poll); })();
   }
   /* разделы-подзадачи (ВПВ, АУП …) в «Занятости» — отдельные полосы у своих исполнителей; без исполнителя — серые в «Не назначено» */
   var PART_ST = ["Готов к проектированию", "В проектировании", "Проверка", "Корректировка"];
