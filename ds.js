@@ -7,6 +7,9 @@
   var S = { orders: null, meta: null, kb: "p", open: null, tab: "info", err: "", customers: null, people: null, history: null, tasks: null, form: null, busy: false, mount: null, ov: { type: "p", tile: "", stage: "", q: "" }, ld: "week", edit: null, cu: { sel: null, draft: null, err: "" }, wk: null, kp: null, kpf: null, ct: null, rp: null, st: null, price: null, pd: null, pdErr: "", comp: null, compErr: "", stg: null, stgD: null, stgErr: "", au: null, fl: null, flStep: null, flTab: "map", flOrder: 0, flHist: null, tzov: null, tz: null, tzNew: "" };
 
   var STAGE_COLOR = { "Ожидает аванс": "#b0883a", "Сбор данных": "#8794ab", "Готов к проектированию": "#2b8a9a", "В проектировании": "#3a86d6", "Проверка": "#8b6fe0", "На согласовании": "#e0a21c", "Корректировка": "#d9782f", "Сдано": "#1f9d63", "Закрыто": "#6a768c" };
+  /* Вкладка «Тех. задание» в карточке задачи спрятана у всех (решение владельца 15.11, вместе с разделом «Технические задания»).
+     Данные ds_tz и сервер не тронуты; «Сбор данных → Готов» — кнопкой операционного менеджера. Вернуть — true. */
+  var TZ_TAB = false;
   var STAGE_ORDER = ["Ожидает аванс", "Сбор данных", "Готов к проектированию", "В проектировании", "Проверка", "На согласовании", "Корректировка", "Сдано", "Закрыто"];
   var ROLE_NAME = { owner: "Руководитель", design: "Руководитель проектного отдела", sales: "Руководитель отдела продаж", ops: "Операционный менеджер", acc: "Бухгалтер", designer: "Проектировщик", norm: "Нормативный специалист" };
   var ROLE_NOTE = {
@@ -683,6 +686,12 @@
   }
   function keSave() {
     var e = S.ke;
+    // открытый статус без даты следующего контакта — сначала окно с датой (по умолчанию +3 раб. дня); сервер без даты такой перевод не пропускает
+    if (e.status !== e.status0 && ["Обращение", "КП отправлено", "Доки отправлены", "В предоплате"].indexOf(e.status) >= 0 && !e.next_contact && window.DSToday && DSToday.touch) {
+      DSToday.touch({ id: e.id, number: e.number, customer: (e.k || {}).customer, amount: +e.amount || 0, status: e.status0 }, null,
+        { status: e.status, save: function (nc) { e.next_contact = nc; keSave(); } });
+      return;
+    }
     var body = { customer_id: +e.customer_id || 0, customer_text: +e.customer_id ? "" : (e.customer_text || ""), object: e.object || "", amount: +e.amount || 0, adv_sum: +e.adv_sum || 0, comment: e.comment || "", lead_date: e.lead_date || "", status_date: e.status_date || "", manager_id: +e.manager_id || 0 };
     if (+e.order_id !== +e.order0) body.order_id = +e.order_id || 0;
     ["pay_prob", "pay_expect", "next_contact", "refuse_reason", "refuse_back", "refuse_note"].forEach(function (k) { body[k] = e[k] || ""; });
@@ -1200,7 +1209,8 @@
       nx = '<div class="next"><div style="flex:1"><b>Срочность</b></div><button class="btn ghost" data-urgent="' + (o.urgent ? 0 : 1) + '">⚡ ' + (o.urgent ? "Снять срочность" : "Срочная") + "</button></div>";
     }
     var menuOn = canMenu(), tabs = menuOn ? [["info", "Меню задачи"], ["inf2", "Информация"]] : [["info", "Информация"]];
-    if (["owner", "ops", "sales", "design"].indexOf(p) >= 0) tabs.push(["tz", "Тех. задание"]);
+    if (TZ_TAB && ["owner", "ops", "sales", "design"].indexOf(p) >= 0) tabs.push(["tz", "Тех. задание"]);
+    if (!TZ_TAB && S.tab === "tz") S.tab = "info";            // вкладка спрятана: на неё не попасть и по старым кнопкам «Открыть» из списка ТЗ
     tabs.push(["rounds", ((o.parts || []).length ? "Разделы и корректировки" : "Корректировки") + (o.fix_total || (o.parts || []).length ? " (" + ((o.fix_total || 0) + (o.parts || []).length) + ")" : "")]);
     tabs.push(["log", "История"]);
     if (menuOn && S.tab === "info") { if (!S.oe || S.oe.id !== o.id) oeSnap(o); else oeRebase(o); }
@@ -1980,7 +1990,7 @@
       var prom = !k.watch ? '<span class="kpnone">—</span>' : '<span class="kpprom' + (wlate ? " late" : k.pay_expect === tdy ? " today" : "") + '"' + (k.watch_note ? ' title="' + E(k.watch_note) + '"' : "") + ">"
         + (!k.pay_expect ? "дата не указана" : k.pay_expect === tdy ? "сегодня" : (wlate ? "к " + dmy(k.pay_expect).slice(0, 5) + " · просрочено " + plural(kpDays(k.pay_expect, tdy), ["день", "дня", "дней"]) : "к " + dmy(k.pay_expect).slice(0, 5) + " · через " + plural(kpDays(tdy, k.pay_expect), ["день", "дня", "дней"])))
         + (k.pay_prob ? "<small>вероятность: " + E(KP_PROB_RU[k.pay_prob] || k.pay_prob) + "</small>" : "") + "</span>";      // комментарий к обещанию — в графе «Объект / услуги / комментарий»
-      var acts = canEdit ? '<div class="kpacts">' + (arch ? "" : '<button class="btn ghost sm" data-kptouch="' + k.id + '" title="Был контакт с заказчиком — дата общения станет сегодняшней">Актуализировать</button>')
+      var acts = canEdit ? '<div class="kpacts">' + (arch ? "" : '<button class="btn ghost sm" data-kptouch="' + k.id + '" title="Записать касание: чем было и когда следующий контакт">Актуализировать</button>')
         + '<button class="btn primary sm" data-kpedit="' + k.id + '" title="Карточка КП: заказчик, объект, суммы, этап, документы">Править</button></div>' : kpDocs(k, false);
       var svc = k.services.map(function (s) { return s.name; }).join(", ");
       return head_ + '<tr class="' + (late ? "late" : "") + (k.watch ? " kpwatch" + (wlate ? " wlate" : "") : "") + (k.id === S.kpHot ? " hot" : "") + '" data-kprow="' + k.id + '"><td>'
@@ -3224,7 +3234,13 @@
     if (d.kpcontract) { S.ct = { kid: +d.kpcontract }; S.cmode = "kp"; if (location.hash === "#/contracts") return DS.reload(); location.hash = "#/contracts"; return; }
     if (d.cmode) { S.cmode = d.cmode; if (d.cmode === "kp") { var cEl = S.mount && S.mount.el; if (cEl) cEl.innerHTML = ""; } return paint(); }
     if (d.kpstatus != null && t.hasAttribute("data-kpstatus")) return;
-    if (d.kptouch) { S.kpHot = +d.kptouch; return act2(api("/kp/" + d.kptouch + "/touch", {}).then(loadKp).then(function () { toast("Отмечено: сегодня был контакт"); }), false); }
+    if (d.kptouch) {          // «Актуализировать» (шаг 12): окно касания из today.js — тип и следующий контакт обязательны, в журнал «Касание»
+      S.kpHot = +d.kptouch;
+      var kt_ = (S.kp || []).filter(function (x) { return x.id === +d.kptouch; })[0] || { id: +d.kptouch };
+      if (window.DSToday && DSToday.touch) DSToday.touch(kt_, function () { act2(loadKp(), false); });
+      else toast("Обновите страницу: окно касания не загрузилось");
+      return;
+    }
     if (d.kparch != null && t.hasAttribute("data-kparch")) { S.kpArch = !S.kpArch; return paint(); }
     if (d.kptab) { S.kpTab = d.kptab; return paint(); }
     if (d.ksv != null && t.hasAttribute("data-ksv")) { var it = S.kpf.items[+d.ksv]; it.on = !it.on; return paint(); }

@@ -7,6 +7,7 @@
   --ink:#15233b;--muted:#6a768c;--line:#e5e9f2;--bg:#f2f5fa;--card:#ffffff;
   --ok:#1f9d63;--ok-l:#e3f6ec;--bad:#d8453a;--bad-l:#fdeceb;--warn:#c98412;--warn-l:#fdf3dc;
   --surface-2:#f7f9fd;--brand-2:#3a86d6;--accent:#ee9264;--accent-soft:#fdf0e9;
+  --surface:#ffffff;--brand:#1f5c99;--brand-soft:#e8f1fb;--warn-soft:#fdf3dc;      /* как в .ds: их берут и окна вне разделов (чаты, звонилка, ИИ) */
   --side-1:#0d2746;--side-2:#14407a;
   --shadow-s:0 1px 2px rgba(21,35,59,.05),0 2px 8px rgba(21,35,59,.05);
   --shadow-m:0 6px 24px rgba(21,35,59,.08);--shadow-l:0 24px 60px rgba(13,39,70,.22);
@@ -17,6 +18,7 @@
   --ink:#e9effb;--muted:#8e9db9;--line:#223455;--bg:#0a1322;--card:#121f38;
   --ok:#4cc58a;--ok-l:#143327;--bad:#ff7a70;--bad-l:#3d1f22;--warn:#e6a93e;--warn-l:#3a2f16;
   --surface-2:#172746;--brand-2:#79b4f4;--accent:#f2a47c;--accent-soft:#3a2a26;
+  --surface:#121f38;--brand:#5aa2ee;--brand-soft:#16294a;--warn-soft:#3a2f16;
   --side-1:#071426;--side-2:#0e2c55;
   --shadow-s:0 1px 2px rgba(0,0,0,.3);--shadow-m:0 8px 28px rgba(0,0,0,.35);--shadow-l:0 24px 60px rgba(0,0,0,.55);
 }
@@ -210,7 +212,8 @@ input:focus,select:focus,textarea:focus,#kpreg-app input:focus,#kpreg-app select
   .wrap,#kpreg-app .wrap2{padding:14px 16px 120px}#chat-app{padding:12px 16px 120px}
   .kpc-scope .layout,.kpc-scope #tab-memo{padding:0 16px}
   .bottomnav{display:flex;position:fixed;left:10px;right:10px;bottom:max(10px,env(safe-area-inset-bottom));z-index:40;background:color-mix(in srgb,var(--side-1) 94%,transparent);backdrop-filter:blur(14px);border-radius:22px;padding:6px;justify-content:space-around;box-shadow:var(--shadow-l)}
-  .bottomnav button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 6px;border-radius:15px;color:#9fb7d6;background:none;border:0;font-size:.64rem;font-weight:700;position:relative;flex:1;cursor:pointer}
+  .bottomnav button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 6px;border-radius:15px;color:#9fb7d6;background:none;border:0;font-size:.64rem;font-weight:700;position:relative;flex:1 1 auto;cursor:pointer;min-width:0}
+  .bottomnav .bn-t{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}      /* длинная подпись — многоточием, «Ещё» всегда на экране */
   .bottomnav button.active{background:rgba(255,255,255,.14);color:#fff}
   .bottomnav .chat-badge{position:absolute;top:1px;right:6px;margin:0;background:var(--accent);color:#3a1a08;border-radius:20px;font-size:.58rem;padding:0 5px;line-height:1.5}
   body #apiGear{left:auto;right:12px;top:12px;bottom:auto;background:var(--card);color:var(--muted);border:1px solid var(--line);box-shadow:var(--shadow-s)}

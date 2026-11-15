@@ -273,10 +273,10 @@ textarea{resize:vertical;min-height:64px}
 <!-- шрифты подгружаются без блокировки страницы: если Google Fonts недоступен (в РФ бывает), CRM всё равно откроется -->
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Onest:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Onest:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="theme-v2.css?v=20261109a">
+<link rel="stylesheet" href="theme-v2.css?v=20261115a">
 <script>try{var __t=localStorage.getItem("ds_theme");if(__t)document.documentElement.setAttribute("data-theme",__t)}catch(e){}</script>
 <link rel="stylesheet" href="ds.css?v=20261111s">
-<link rel="stylesheet" href="today.css?v=20261104b">
+<link rel="stylesheet" href="today.css?v=20261115c">
 </head>
 <body>
 <div class="app">
@@ -387,9 +387,9 @@ function sectionForHash(h){
 /* Какие разделы видит каждая роль (позиция сотрудника в CRM). Это интерфейс; данные ограничиваются на сервере (этап 2). */
 var DS_ALLOWED = {
   owner:    ["today","flow","tasks","tz","cal","visits","risk","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","stats","log","auto","stages","onec","me"],
-  design:   ["today","tasks","cal","visits","risk","my","clients","chat","mail","team","report","me"],
+  design:   ["today","tasks","cal","visits","my","clients","chat","mail","team","report","me"],      /* «Просрочено и зависло» (risk) спрятан у ops и design — решение владельца 15.11; вернуть — дописать "risk" */
   sales:    ["today","flow","tasks","cal","visits","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","onec","me"],
-  ops:      ["today","flow","tasks","tz","cal","visits","risk","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","me"],
+  ops:      ["today","flow","tasks","tz","cal","visits","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","me"],
   acc:      ["today","tasks","kpreg","team","onec","me"],
   designer: ["today","tasks","cal","visits","my","team","me"],
   norm:     ["today","my","chat","mail","team","me"]          /* нормативный специалист: свои задачи и диалоги своих заказчиков */
@@ -398,7 +398,11 @@ var DS_HOME = { owner: "#/today", design: "#/today", sales: "#/today", ops: "#/t
 function dsPosition(){ return (window.MPBC && MPBC.me) ? (MPBC.me.position || (MPBC.me.role === "admin" ? "owner" : "")) : ""; }
 var DS_READY = false, DS_HAS_TOKEN = false;
 try { DS_HAS_TOKEN = !!localStorage.getItem("ds_session"); } catch (e) {}
+/* Разделы, спрятанные у всех (не удалены: код, данные и маршруты на месте). Вернуть — убрать из списка.
+   tz — «Технические задания», решение владельца 15.11; вкладка «Тех. задание» в карточке задачи и авто-переход по ТЗ остаются. */
+var DS_HIDDEN = ["tz"];
 function dsAllowed(sec){
+  if (DS_HIDDEN.indexOf(sec) >= 0) return false;
   var p = dsPosition();
   if (!p && DS_HAS_TOKEN && !DS_READY) return true;      /* вход ещё проверяется: не выкидываем со страницы */
   if (!p) return sec === "me";
@@ -420,10 +424,16 @@ function renderTopNav(){
     + lab("Заказчики и продажи", ["clients","kpreg","kpc","contracts"]) + b("#/clients","users",pos==="design"?"Кому звонить":"База заказчиков",pa==="clients","clients") + comm
     + lab("Общение", ["team","chat","mail","scripts","report"]) + b("#/team","team","Внутренние",pa==="team","team") + b("#/chat","chat","Мессенджеры",pa==="chat","chat") + b("#/mail","mail","Почта",pa==="mail","mail") + b("#/scripts","list","Скрипты",pa==="scripts","scripts") + b("#/report","list","Пятничный созвон",pa==="report","report")
     + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
-  var bn = function(go, ic, t, on){ return '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+t+'</button>'; };
+  var bn = function(go, ic, t, on){ return '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+'<span class="bn-t">'+t+'</span></button>'; };
+  /* Нижнее меню телефона: не больше 4 кнопок + «Ещё», чтобы помещалось в 320 px. Кнопка «Звонок» (calls.js) занимает одно из 4 мест.
+     Порядок важности; что не поместилось — в «Ещё» (там же «Сегодня» и «Скрипты»). «Внутренние» важнее «Чатов» (решение владельца 15.11):
+     у кого есть «Звонок», внизу остаются «Внутренние» со счётчиком, «Чаты» — в «Ещё». */
+  var bnAll = [["today","#/today","sun","Сегодня"], ["tasks","#/","tasks",pos==="designer"?"Проекты":pos==="acc"?"Закрытие":"Задачи"], ["team","#/team","team","Внутренние"],
+               ["chat","#/chat","chat","Чаты"], ["my","#/my","bell",pos==="designer"?"План":"Мои"], ["mail","#/mail","mail","Почта"]];
+  var bnSlots = (window.DSCalls && DSCalls.enabled && window.DSCallRoles && DSCallRoles[pos]) ? 3 : 4;
   document.getElementById("bottomnav").innerHTML =
-    (dsAllowed("tasks")?bn("#/","tasks",pos==="designer"?"Проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks"):"") + (dsAllowed("my")?bn("#/my","bell",pos==="designer"?"План":"Мои",pa==="my"):"") + (dsAllowed("team")?bn("#/team","team","Внутренние",pa==="team"):"") + (dsAllowed("chat")?bn("#/chat","chat","Мессенджеры",pa==="chat"):"") + (dsAllowed("mail")?bn("#/mail","mail","Почта",pa==="mail"):"")
-    + '<button data-more="1">'+icon("menu")+'Ещё</button>';
+    bnAll.filter(function(x){ return dsAllowed(x[0]); }).slice(0, bnSlots).map(function(x){ return bn(x[1], x[2], x[3], pa===x[0]); }).join("")
+    + '<button data-more="1">'+icon("menu")+'<span class="bn-t">Ещё</span></button>';
   document.getElementById("subnavM").innerHTML = pa==="commerce"
     ? [["#/kpreg/","Реестр КП","kpreg"],["#/kpc","Конструктор КП","kpc"],["#/price","Прайс","price"],["#/contracts","Договоры","contracts"]].map(function(x){ return '<button data-goto="'+x[0]+'" class="tab '+(cur===x[2]?"active":"")+'">'+x[1]+'</button>'; }).join("")
     : "";
@@ -439,6 +449,7 @@ function renderTopNav(){
   if (!location.hash || location.hash === "#") history.replaceState(null, "", location.pathname + location.search + "#/today");      // приложение открывается на «Сегодня»
   if (location.hash.indexOf("#/dash") === 0) { location.hash = "#/"; return; }       // старые ссылки на «Обзор» ведут в «Задачи»
   var sec0 = sectionForHash(location.hash);
+  if (DS_HIDDEN.indexOf(sec0) >= 0) { location.hash = "#/today"; return; }      // спрятанный раздел (старые ссылки, закладки) — на «Сегодня»
   if (!dsAllowed(sec0)) { var hm = dsPosition() ? (DS_HOME[dsPosition()] || '#/me') : '#/me'; if (location.hash !== hm) { location.hash = hm; return; } }
   renderTopNav();
   var sec = sectionForHash(location.hash);
@@ -581,17 +592,17 @@ globalRouter();
 </script>
 <script src="crm.js?v=20261031a"></script>
 <script src="download.js?v=20261109b"></script>
-<script src="extras.js?v=20261031b"></script>
+<script src="extras.js?v=20261115a"></script>
 <script src="team.js?v=20261105a"></script>
 <script src="teamsearch.js?v=20261031a"></script>
 <script src="ai.js?v=20261031d"></script>
 <script src="chatpanel.js?v=20261106a"></script>
-<script src="ds.js?v=20261114a"></script>
+<script src="ds.js?v=20261115c"></script>
 <script src="stats.js?v=20261102a"></script>
 <script src="visits.js?v=20261102b"></script>
-<script src="calls.js?v=20261106a"></script>
+<script src="calls.js?v=20261115a"></script>
 <script src="remind.js?v=20261110a"></script>
-<script src="today.js?v=20261111a"></script>
+<script src="today.js?v=20261115c"></script>
 <script>
 (function(){
   var KEY = "ds_theme", t = "light";

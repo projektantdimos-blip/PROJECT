@@ -68,7 +68,7 @@
   };
   /* большая кнопка «Позвонить заказчику» в окнах задачи, заказчика и переписки.
      contacts — [{fio, phone}]; без номера — неактивная «Номер отсутствует»; несколько номеров — выбор из списка */
-  var CALL_ROLES = { owner: 1, sales: 1, ops: 1, design: 1 };
+  var CALL_ROLES = window.DSCallRoles = { owner: 1, sales: 1, ops: 1, design: 1 };      // index.html: сколько мест нижнего меню оставить под «Звонок»
   T.bar = function (contacts, orderId, customerId) {
     var me = C.me || {}, p = me.position || (me.role === "admin" ? "owner" : "");
     if (!CALL_ROLES[p]) return "";
@@ -570,9 +570,11 @@
     } else if (!on && sb) sb.remove();
     var bn = $("bottomnav"), mb = bn && bn.querySelector("[data-dialer]");
     if (on && bn && !mb) {
-      mb = document.createElement("button"); mb.type = "button"; mb.setAttribute("data-dialer", "1"); mb.innerHTML = PH_SVG + "Звонок";
+      mb = document.createElement("button"); mb.type = "button"; mb.setAttribute("data-dialer", "1"); mb.innerHTML = PH_SVG + '<span class="bn-t">Звонок</span>';
       var more = bn.querySelector("[data-more]"); bn.insertBefore(mb, more || null);
-    } else if (!on && mb) mb.remove();
+      var nav = bn.querySelectorAll("button[data-goto]");                    // «Звонок» — одно из 4 мест нижнего меню (меню отрисовали до того, как телефония включилась)
+      for (var i = 3; i < nav.length; i++) nav[i].remove();
+    } else if (!on && mb) { mb.remove(); if (window.renderTopNav) window.renderTopNav(); }
   }
   setInterval(dialerButtons, 1500);            // нижнее меню перерисовывается при каждом переходе — возвращаем кнопку
   C.on("logout", function () { dialerClose(); dialerButtons(); });
