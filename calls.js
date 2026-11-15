@@ -569,6 +569,7 @@
       brand.appendChild(sb);
     } else if (!on && sb) sb.remove();
     var bn = $("bottomnav"), mb = bn && bn.querySelector("[data-dialer]");
+    if (on && window.DS_WORK && window.DS_WORK_NOCALL && DS_WORK_NOCALL[p]) on = false;      // Ч0: у руководителя «Звонка» в нижнем меню телефона нет (index.html); кнопка набора на ПК — выше, остаётся
     if (on && bn && !mb) {
       mb = document.createElement("button"); mb.type = "button"; mb.setAttribute("data-dialer", "1"); mb.innerHTML = PH_SVG + '<span class="bn-t">Звонок</span>';
       var more = bn.querySelector("[data-more]"); bn.insertBefore(mb, more || null);

@@ -198,7 +198,7 @@ def seed():
                 if s == "Готов к проектированию" and urgent:
                     ds_orders.set_urgent(own, oid, True)
             if upto in ("В проектировании", "На согласовании"):
-                ds_orders.plan(own, oid, 0, (date.today() - timedelta(days=2)).isoformat(), max(due, date.today().isoformat()))     # свежая база после срока демо-задач
+                ds_orders.order_edit(own, oid, {"plan_start": (date.today() - timedelta(days=2)).isoformat(), "plan_end": max(due, date.today().isoformat())})     # свежая база после срока демо-задач; начало в прошлом — мимо plan() (там прошлые даты запрещены)
         mk("407", "ИП Ядыкин", "Склады, АБК, СПС.СОУЭ", "2026-10-30", 310000, True, "Готов к проектированию", None, True)
         mk("402", "ООО «Спектр»", "Производственное здание, СПС.СОУЭ", "2026-10-22", 420000, False, "В проектировании", "Ольга")
         mk("380", "ООО «Спектр»", "ЛесныеДали, РазныеСистемы", "2026-10-21", 260000, True, "В проектировании", "Кристина")

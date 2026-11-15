@@ -306,6 +306,12 @@
       ["kpreg", "list", "Реестр КП", "#/kpreg/"], ["kpc", "calc", "Конструктор КП", "#/kpc"], ["price", "list", "Прайс", "#/price"], ["contracts", "file", "Договоры", "#/contracts"],
       ["team", "team", "Внутренние", "#/team"], ["chat", "chat", "Мессенджеры", "#/chat"], ["mail", "mail", "Почта", "#/mail"], ["scripts", "list", "Скрипты", "#/scripts"], ["report", "list", "Пятничный созвон", "#/report"], ["stats", "lock", "Статистика", "#/stats"],
       ["stages", "layers", "Этапы и сроки", "#/stages"], ["onec", "wallet", "Оплаты из 1С", "#/onec"], ["auto", "zap", "Автоматизация", "#/auto"], ["log", "history", "Журнал", "#/log"], ["me", "user", "Кабинет", "#/me"]];
+    if (window.DS_WORK && window.dsWorkSubs) {      /* Ч0 «Работа» (index.html): старые пункты заменяются подпунктами «Работы», «Мои задачи» у owner/ops/design — на «Сегодня» */
+      var own = window.DS_WORK_OWN && DS_WORK_OWN[ps], nomy = window.DS_WORK_NOMY && DS_WORK_NOMY[ps];
+      var head = ALL.filter(function (x) { return x[0] === "today" || (x[0] === "tasks" && own) || (x[0] === "my" && !nomy); });
+      var rest = ALL.filter(function (x) { return ["today", "tasks", "my", "flow", "cal", "visits"].indexOf(x[0]) < 0; });
+      ALL = head.concat(dsWorkSubs().map(function (x) { return [x[0], x[2], x[3], x[1]]; }), rest);
+    }
     var L = ALL.filter(function (x) { return window.dsAllowed ? window.dsAllowed(x[0]) : true; }).map(function (x) { return [x[3], x[1], x[2]]; });
     var v = document.createElement("div"); v.className = "x-veil on";
     v.innerHTML = '<div class="x-sheet"><h3>Все разделы</h3><div class="grid">' + L.map(function (x) { return '<button data-g="' + x[0] + '">' + ic(x[1]) + x[2] + "</button>"; }).join("") + "</div></div>";

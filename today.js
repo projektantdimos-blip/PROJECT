@@ -326,8 +326,8 @@
       return row(dot("org"), "№" + E(o.number) + " · " + E(o.object || ""), "сумма не указана — уточнить у Полины; закрыть нельзя", "", open(o));
     }), 2);
     if (m.adv.length) h += grp("Ожидает аванс", m.adv.length) + cap("m_adv", m.adv.map(function (o) {
-      var late = o.days >= 5;
-      return row(dot(late ? "bad" : "warn"), "№" + E(o.number) + " · " + E(o.object || ""), 'ожидает аванс <b class="' + (late ? "bad" : "") + '">' + dn(o.days) + "</b>", o.adv_sum ? "<b>" + money(o.adv_sum) + "</b>аванс" : "", open(o));
+      var late = o.late != null ? o.late : o.days >= 5;
+      return row(dot(late ? "bad" : "warn"), "№" + E(o.number) + " · " + E(o.object || ""), 'ожидает аванс <b class="' + (late ? "bad" : "") + '">' + o.days + " р.д.</b>", o.adv_sum ? "<b>" + money(o.adv_sum) + "</b>аванс" : "", open(o));
     }));
     if (m.onec.length) h += grp("Платежи 1С не разобраны", m.onec.length, "info") + cap("m_onec", m.onec.map(function (p) {
       return row(dot("info"), money(p.amount) + " · " + E(p.payer || ""), [dm(p.date), p.purpose ? "«" + p.purpose + "»" : ""].filter(Boolean).map(E).join(" · "), "", btn("Разобрать", 'data-tdhash="#/onec"', "primary"));
@@ -364,8 +364,8 @@
         btn("В продажи →", 'data-tdlead="' + t.id + '" data-act="next"', "primary") + btn("Не требуется", 'data-tdlead="' + t.id + '" data-act="skip"') + (t.thread_id ? btn("Диалог", 'data-tdchat="' + E(t.thread_id) + '"') : ""));
     })));
     if (b.collect && b.collect.length) h += panel("collect", "Сбор данных", b.collect.length, cap("collect", b.collect.map(function (o) {
-      var over = o.sla != null && o.days > o.sla;
-      return row(dot(over ? "bad" : "ok"), "№" + E(o.number) + " · " + E(o.customer || ""), E(o.object || ""), "<b" + (over ? ' class="bad"' : "") + ">" + dn(o.days) + "</b>" + (o.sla != null ? "срок этапа " + o.sla : ""), btn("Открыть", 'data-tdorder="' + o.id + '"'));
+      var over = o.over != null ? o.over : o.sla != null && o.days > o.sla;
+      return row(dot(over ? "bad" : "ok"), "№" + E(o.number) + " · " + E(o.customer || ""), E(o.object || ""), "<b" + (over ? ' class="bad"' : "") + ">" + o.days + " р.д.</b>" + (o.sla != null ? "срок этапа " + o.sla + " р.д." : ""), btn("Открыть", 'data-tdorder="' + o.id + '"'));
     })));
     if (b.kp_promise && b.kp_promise.length) {                // ⭐ «Следим» в реестре КП: заказчик обещал оплату
       var td = b.today_iso || "", psum = 0;
@@ -380,8 +380,8 @@
       var sum = b.kp_silent.reduce(function (a, k) { return a + (k.amount || 0); }, 0);
       h += panel("kp_silent", "КП без ответа", b.kp_silent.length, cap("kp_silent", b.kp_silent.map(function (k) {
         return row(dot(k.last_days >= 2 * b.kp_silent_days ? "bad" : "warn"), E(k.number) + " · " + E(k.customer || ""), [k.object, k.status, k.manager].filter(Boolean).map(E).join(" · "),
-          "<b>" + money(k.amount) + "</b>" + dn(k.last_days) + " без ответа", btn("Актуализировать", 'data-tdtouch="' + k.id + '"') + btn("Реестр", 'data-tdhash="#/kpreg/"'));
-      })), "", "Без ответа дольше " + dn(b.kp_silent_days) + " (порог правила «КП без ответа») · на сумму " + money(sum));
+          "<b>" + money(k.amount) + "</b>" + k.last_days + " р.д. без ответа", btn("Актуализировать", 'data-tdtouch="' + k.id + '"') + btn("Реестр", 'data-tdhash="#/kpreg/"'));
+      })), "", "Без ответа " + b.kp_silent_days + " р.д. и дольше (порог правила «КП без ответа») · на сумму " + money(sum));
     }
     if (b.wait_pay && b.wait_pay.length) {
       var tot = 0;
@@ -391,7 +391,7 @@
           return row(dot("warn"), E(x.number) + " · " + E(x.customer || ""), [x.status, x.object].filter(Boolean).map(E).join(" · "), "<b>" + money(s) + "</b>" + (x.adv_sum ? "аванс" : "сумма"), btn("Реестр", 'data-tdhash="#/kpreg/"'));
         }
         var a = x.adv_sum || 0; tot += a;
-        return row(dot(x.days >= 5 ? "bad" : "warn"), "№" + E(x.number) + " · " + E(x.customer || ""), "Ожидает аванс " + dn(x.days) + (x.object ? " · " + E(x.object) : ""), a ? "<b>" + money(a) + "</b>аванс" : "", btn("Открыть", 'data-tdorder="' + x.id + '"'));
+        return row(dot((x.late != null ? x.late : x.days >= 5) ? "bad" : "warn"), "№" + E(x.number) + " · " + E(x.customer || ""), "Ожидает аванс " + x.days + " р.д." + (x.object ? " · " + E(x.object) : ""), a ? "<b>" + money(a) + "</b>аванс" : "", btn("Открыть", 'data-tdorder="' + x.id + '"'));
       }));
       h += panel("wait_pay", "Ждём оплату", b.wait_pay.length, rows, "", "Ждём денег: " + money(tot));
     }

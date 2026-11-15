@@ -1270,7 +1270,7 @@
       if (!el.querySelector("#cgFrame")) el.innerHTML = '<div class="ds dspage">' + genScreen() + "</div>";
       return;
     }
-    el.innerHTML = k === "risk" ? '<div class="ds dspage">' + riskScreen() + "</div>" : k === "scripts" ? scriptsScreen() : k === "load" ? '<div class="ds dspage">' + loadScreen() + "</div>"
+    el.innerHTML = k === "risk" ? '<div class="ds dspage">' + riskScreen() + "</div>" : k === "scripts" ? scriptsScreen() : k === "load" ? '<div class="ds dspage">' + (workLoad() ? DSWorkLoad.html() : loadScreen()) + "</div>"
       : k === "flow" ? '<div class="ds dspage">' + flowScreen() + "</div>" : k === "tz" ? '<div class="ds dspage">' + tzScreen() + "</div>"
       : k === "stages" ? '<div class="ds dspage">' + stagesScreen() + "</div>" : k === "auto" ? '<div class="ds dspage">' + autoScreen() + "</div>" : k === "onec" ? '<div class="ds dspage">' + onecScreen() + "</div>"
       : k === "price" ? '<div class="ds dspage">' + priceScreen() + "</div>" : k === "report" ? '<div class="ds dspage">' + reportScreen() + "</div>" : k === "stats" ? '<div class="ds dspage">' + statsScreen() + "</div>"
@@ -1279,7 +1279,7 @@
     if (q) { var qe = document.getElementById("dsQ"); if (qe) { qe.focus(); qe.setSelectionRange(qe.value.length, qe.value.length); } }
     fitKpWrap();
     if (kpPos) { var nw = el.querySelector(".kpwrap"); if (nw) { nw.scrollTop = kpPos[0]; nw.scrollLeft = kpPos[1]; } if (scrollY !== kpPos[2]) scrollTo(scrollX, kpPos[2]); }
-    if (k === "load") fitLoadScroll();
+    if (k === "load") { if (workLoad()) DSWorkLoad.after(); else fitLoadScroll(); }
     if (k === "auto" && window.DSAI) DSAI.settings(document.getElementById("dsAiSettings"));
     var cn = k === "cust" && document.getElementById("cuNotes");
     if (cn && window.MPBD && MPBD.notes) MPBD.notes(cn, +cn.getAttribute("data-cid"));
@@ -1712,6 +1712,9 @@
     var bodyHtml = people.map(person).join("") + unBlock;
     return headBase + nav + '<div class="panel gpanel"><div style="zoom:' + z + '">' + header + (bodyHtml || '<div class="note" style="padding:16px;margin:0">Задач в плане нет</div>') + "</div></div>" + legend;
   }
+  /* «Работа → Занятость» по макету (Ч2) — web/work_load.js; при DS_WORK = false — прежний экран loadScreen() */
+  function workLoad() { return !!(window.DS_WORK && window.DSWorkLoad); }
+  DS.ldCtx = function () { return { S: S, api: api, load: load, paint: paint, find: find, span: span, staff: staff, staffAll: staffAll, toast: toast, ava: ava, pos: pos, sysText: sysText }; };
   function planHtml() {
     var o = find(S.edit); if (!o) return "";
     var sp = span(o), today = isoDay(new Date()), fx = fixDates(o);
@@ -2337,7 +2340,7 @@
       var detail = "";
       l.steps.forEach(function (s) {
         if (s.id === S.flStep) {
-          detail = '<div class="sdet"><div class="sh"><div><h3>Шаг ' + s.n + ". " + E(s.title) + "</h3><small>Ответственный: <b>" + E(s.who) + "</b>" + (s.days != null ? " · срок: " + s.days + " дн." : (s.label ? " · срок: " + E(s.label) : "")) + '</small></div><button class="x" data-flstep="' + s.id + '">✕</button></div>'
+          detail = '<div class="sdet"><div class="sh"><div><h3>Шаг ' + s.n + ". " + E(s.title) + "</h3><small>Ответственный: <b>" + E(s.who) + "</b>" + (s.days != null ? " · срок: " + s.days + " р.д." : (s.label ? " · срок: " + E(s.label) : "")) + '</small></div><button class="x" data-flstep="' + s.id + '">✕</button></div>'
             + '<div class="sg"><div class="dbox"><small>Что запускает шаг</small>' + E(s.trig || "") + '</div><div class="dbox"><small>Кто получает и когда</small>' + E(s.recv || "") + "</div>"
             + '<div class="dbox"><small>Что видит исполнитель</small>' + E(s.sees || "") + '</div><div class="dbox sys"><small>⚙ Что система делает сама</small><ul>' + (s.sys || []).map(function (x) { return "<li>" + E(x) + "</li>"; }).join("") + "</ul></div></div>"
             + '<div class="note" style="margin:0">Далее: <b>' + E(s.next || "") + "</b></div></div>";
@@ -2345,8 +2348,8 @@
       });
       return '<div class="lane ' + l.id + '"><div class="lane-h"><span>' + E(l.title) + "</span><small>" + E(l.sub) + "</small></div>"
         + '<div class="steps">' + l.steps.map(function (s, i) {
-          var cnt = r.show_counts && counts[s.id] != null ? '<span class="cn">' + counts[s.id] + "</span>" : "";
-          var term = s.days != null ? "срок " + s.days + " дн." : (s.label || "");
+          var cnt = !window.DS_WORK && r.show_counts && counts[s.id] != null ? '<span class="cn">' + counts[s.id] + "</span>" : "";
+          var term = s.days != null ? "срок " + s.days + " р.д." : (s.label || "");
           return '<div class="stepbox"><button class="node ' + (S.flStep === s.id ? "on" : "") + '" data-flstep="' + s.id + '"><span class="nh"><span class="no">' + s.n + "</span>" + cnt + "</span><b>" + E(s.title) + '</b><span class="ow">' + E(s.who) + "</span>"
             + (term ? '<span class="tm">' + E(term) + "</span>" : "") + "</button></div>";
         }).join("") + "</div>" + detail + "</div>";
@@ -2430,7 +2433,7 @@
     var r = S.stg, p = pos();
     if (!r) return '<div class="head"><div><h1>Этапы и сроки</h1></div></div><div class="note">' + (S.err ? E(S.err) : "Нет данных") + "</div>";
     var ed = r.can_edit;
-    var head = '<div class="head"><div><h1>Этапы и сроки</h1><p>Этапы конвейера, ответственные и сроки. ' + (ed ? "Можно менять название этапа, ответственного, срок в днях, подпись срока и описание: изменения видны на схеме «Конвейер», в напоминаниях и подсказках. Пустое значение возвращает стандартное." : "Правит руководитель.") + "</p></div>"
+    var head = '<div class="head"><div><h1>Этапы и сроки</h1><p>Этапы конвейера, ответственные и сроки. ' + (ed ? "Можно менять название этапа, ответственного, срок в рабочих днях, подпись срока и описание: изменения видны на схеме «Конвейер», в напоминаниях и подсказках. Пустое значение возвращает стандартное." : "Правит руководитель.") + "</p></div>"
       + (ed ? '<button class="btn primary" data-stsave="1">Сохранить</button>' : "") + "</div>"
       + "";
     var inp = 'style="width:100%;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink);font:inherit"';
@@ -2439,10 +2442,10 @@
         + '<table class="tbl"><tr><th style="width:36px">№</th><th style="min-width:180px">Этап</th><th style="min-width:190px">Ответственный</th><th style="width:210px">Срок</th><th style="min-width:260px">Что делает система</th></tr>'
         + l.steps.map(function (s) {
           var d = S.stgD[s.id] || {};
-          if (!ed) return "<tr><td>" + s.n + "</td><td><b>" + E(s.title) + "</b></td><td>" + E(s.who) + "</td><td>" + (s.days != null ? (s.days === 0 ? "в день" : s.days + " дн.") : E(s.label || "—")) + "</td><td><small>" + E(s.auto) + "</small></td></tr>";
+          if (!ed) return "<tr><td>" + s.n + "</td><td><b>" + E(s.title) + "</b></td><td>" + E(s.who) + "</td><td>" + (s.days != null ? (s.days === 0 ? "в день" : s.days + " р.д.") : E(s.label || "—")) + "</td><td><small>" + E(s.auto) + "</small></td></tr>";
           return "<tr><td>" + s.n + '</td><td><input data-sd="' + s.id + '.title" value="' + E(d.title) + '" ' + inp + '></td>'
             + '<td><input list="whoList" data-sd="' + s.id + '.who" value="' + E(d.who) + '" ' + inp + "></td>"
-            + '<td><div style="display:flex;gap:6px;align-items:center"><input type="number" min="0" max="90" data-sd="' + s.id + '.days" value="' + E(d.days) + '" placeholder="дн." style="width:70px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink)">'
+            + '<td><div style="display:flex;gap:6px;align-items:center"><input type="number" min="0" max="90" data-sd="' + s.id + '.days" value="' + E(d.days) + '" placeholder="р.д." style="width:70px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink)">'
             + '<input data-sd="' + s.id + '.label" value="' + E(d.label) + '" placeholder="подпись срока" ' + inp + "></div></td>"
             + '<td><textarea data-sd="' + s.id + '.auto" rows="2" ' + inp + ">" + E(d.auto) + "</textarea></td></tr>";
         }).join("") + "</table></div>";

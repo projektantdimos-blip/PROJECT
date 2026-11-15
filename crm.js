@@ -28,7 +28,8 @@
     if (opts.auth !== false && tok()) h["X-Session"] = tok();
     return fetch(c.url + "/api/crm" + path, {
       method: opts.method || (opts.body ? "POST" : "GET"), headers: h,      // без cache:"no-store" — иначе предзапрос OPTIONS перед каждым запросом; не кэшировать велит мост
-      body: opts.body ? JSON.stringify(opts.body) : undefined
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      keepalive: !!opts.keepalive      // запрос дойдёт, даже если страницу закрывают или перезагружают («Занятость»: отложенное сохранение)
     }).then(function (r) {
       if (r.status === 401 && opts.auth !== false && tok()) { C.me = null; setSession(""); emit("logout"); throw "Сессия истекла — войдите снова"; }
       if (!r.ok) {

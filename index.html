@@ -277,6 +277,7 @@ textarea{resize:vertical;min-height:64px}
 <script>try{var __t=localStorage.getItem("ds_theme");if(__t)document.documentElement.setAttribute("data-theme",__t)}catch(e){}</script>
 <link rel="stylesheet" href="ds.css?v=20261111s">
 <link rel="stylesheet" href="today.css?v=20261115c">
+<link rel="stylesheet" href="work_load.css?v=20261115b">
 </head>
 <body>
 <div class="app">
@@ -401,13 +402,37 @@ try { DS_HAS_TOKEN = !!localStorage.getItem("ds_session"); } catch (e) {}
 /* Разделы, спрятанные у всех (не удалены: код, данные и маршруты на месте). Вернуть — убрать из списка.
    tz — «Технические задания», решение владельца 15.11; вкладка «Тех. задание» в карточке задачи и авто-переход по ТЗ остаются. */
 var DS_HIDDEN = ["tz"];
+/* Ч0 «Работа» (ИИ-агенты/03_design/design_rabota_2026-11-15.md, раздел Е; решения владельца 15.11): отдельная кнопка «Сегодня» и группа «Работа»
+   у всех ролей с подпунктами Конвейер · Занятость · Выезды · Как работаем (подпункт — только если у роли есть раздел).
+   Пункты «Задачи», «Конвейер заказа», «Занятость», «Выезды», «Мои задачи» (owner, ops, design), «Просрочено и зависло» только не рисуются:
+   экраны и адреса (#/, #/task/N, #/t/N, #/flow, #/cal, #/visits, #/my, #/risk) работают как раньше. Пока нет Ч1 и Ч5, Конвейер — нынешние «Задачи»
+   (у проектировщика — его проекты, у бухгалтера — «Закрытие»), Как работаем — нынешний «Конвейер заказа».
+   Вернуть старое меню — DS_WORK = false. */
+var DS_WORK = true;
+var DS_WORK_OPEN = { design: ["flow"], designer: ["flow"], acc: ["flow","visits"], norm: ["flow","visits"] };      /* «Как работаем» и «Выезды» — всем ролям (только при DS_WORK) */
+var DS_WORK_OWN = { designer: 1, acc: 1 };      /* «Мои проекты» / «Закрытие» остаются отдельным пунктом (#/), «Работа → Конвейер» у них — #/conv (тот же экран) */
+var DS_WORK_NOMY = { owner: 1, ops: 1, design: 1 };
+var DS_WORK_NOCALL = { owner: 1 };      /* без «Звонка» в нижнем меню телефона (у руководителя нет телефонии; calls.js); набор номера на ПК не трогаем */      /* «Мои задачи» убраны из меню — они на «Сегодня»; у Ивана вместе с вкладкой «План на неделю» */
 function dsAllowed(sec){
   if (DS_HIDDEN.indexOf(sec) >= 0) return false;
   var p = dsPosition();
   if (!p && DS_HAS_TOKEN && !DS_READY) return true;      /* вход ещё проверяется: не выкидываем со страницы */
   if (!p) return sec === "me";
   if (p === "norm" && sec === "tasks" && MPBC.me.executor) return true;      /* нормативный специалист-исполнитель видит свои проекты */
+  if (DS_WORK && (DS_WORK_OPEN[p] || []).indexOf(sec) >= 0) return true;
   var a = DS_ALLOWED[p]; return !a || a.indexOf(sec) >= 0;
+}
+/* Подпункты «Работы» у текущей роли: [раздел, адрес, значок, название] */
+function dsWorkSubs(){
+  var own = DS_WORK_OWN[dsPosition()];
+  return [["tasks", own ? "#/conv" : "#/", "flow", "Конвейер"], ["cal", "#/cal", "cal", "Занятость"], ["visits", "#/visits", "pin", "Выезды"], ["flow", "#/flow", "layers", "Как работаем"]]
+    .filter(function(x){ return dsAllowed(x[0]); });
+}
+/* Какой подпункт «Работы» открыт сейчас ("" — открыт другой раздел) */
+function dsWorkSub(){
+  var cur = sectionForHash(location.hash);
+  if (cur === "tasks") return (!DS_WORK_OWN[dsPosition()] || location.hash.indexOf("#/conv") === 0) ? "tasks" : "";
+  return (cur === "cal" || cur === "visits" || cur === "flow") ? cur : "";
 }
 function renderTopNav(){
   var cur = sectionForHash(location.hash);
@@ -419,8 +444,17 @@ function renderTopNav(){
   var sub = '<div class="sub">'+b("#/kpreg/","list","Реестр КП",cur==="kpreg","kpreg")+b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc")+b("#/price","list","Прайс",cur==="price","price")+b("#/contracts","file","Договоры",cur==="contracts","contracts")+b("#/onec","wallet","Оплаты 1С",cur==="onec","onec")+'</div>';
   var comm = (ok("kpreg") || ok("kpc") || ok("contracts") || ok("onec")) ? '<button data-goto="#/kpreg/" class="'+(pa==="commerce"?"active":"")+'">'+icon("briefcase")+'<span>Коммерция</span></button>' + (pa==="commerce" ? sub : "") : "";
   var lab = function(t, secs){ return secs.some(ok) ? '<div class="nav-label">'+t+'</div>' : ""; };
+  var ws = DS_WORK ? dsWorkSubs() : [], wcur = DS_WORK ? dsWorkSub() : "";
+  if (wcur) pa = "work";
+  var workNav = !DS_WORK
+    ? lab("Работа", ["flow","tasks","tz","cal","visits","risk","my"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/visits","pin","Выезды",pa==="visits","visits") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
+    : lab("Работа", ["today"]) + b("#/today","sun","Сегодня",pa==="today","today")
+      + (DS_WORK_OWN[pos] ? b("#/","tasks",pos==="designer"?"Мои проекты":"Закрытие",pa==="tasks","tasks") : "")
+      + (DS_WORK_NOMY[pos] ? "" : b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my"))
+      + (ws.length ? '<button data-goto="'+ws[0][1]+'" class="'+(pa==="work"?"active":"")+'">'+icon("tasks")+'<span>Работа</span></button>'
+          + (pa==="work" && ws.length > 1 ? '<div class="sub">'+ws.map(function(x){ return '<button data-goto="'+x[1]+'" class="'+(wcur===x[0]?"active":"")+'">'+icon(x[2])+'<span>'+x[3]+'</span></button>'; }).join("")+'</div>' : "") : "");
   document.getElementById("topnav").innerHTML =
-    lab("Работа", ["flow","tasks","tz","cal","visits","risk","my"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/visits","pin","Выезды",pa==="visits","visits") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
+    workNav
     + lab("Заказчики и продажи", ["clients","kpreg","kpc","contracts"]) + b("#/clients","users",pos==="design"?"Кому звонить":"База заказчиков",pa==="clients","clients") + comm
     + lab("Общение", ["team","chat","mail","scripts","report"]) + b("#/team","team","Внутренние",pa==="team","team") + b("#/chat","chat","Мессенджеры",pa==="chat","chat") + b("#/mail","mail","Почта",pa==="mail","mail") + b("#/scripts","list","Скрипты",pa==="scripts","scripts") + b("#/report","list","Пятничный созвон",pa==="report","report")
     + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
@@ -430,12 +464,27 @@ function renderTopNav(){
      у кого есть «Звонок», внизу остаются «Внутренние» со счётчиком, «Чаты» — в «Ещё». */
   var bnAll = [["today","#/today","sun","Сегодня"], ["tasks","#/","tasks",pos==="designer"?"Проекты":pos==="acc"?"Закрытие":"Задачи"], ["team","#/team","team","Внутренние"],
                ["chat","#/chat","chat","Чаты"], ["my","#/my","bell",pos==="designer"?"План":"Мои"], ["mail","#/mail","mail","Почта"]];
-  var bnSlots = (window.DSCalls && DSCalls.enabled && window.DSCallRoles && DSCallRoles[pos]) ? 3 : 4;
+  if (DS_WORK) {
+    /* Ч0 (решения владельца 15.11): у руководителя — «Сегодня · Внутренние · Чаты» + «Ещё», без «Звонка» (у руководителя нет телефонии);
+       «Работа», «Заказчики», «Коммерция» — в «Ещё». У остальных — как выложено 15.11, только «Задачи» → «Работа» на том же месте;
+       у проектировщика и нормативного «Работа» — вместо «План»/«Мои» (они в «Ещё»); у бухгалтера «Закрытие» остаётся, «Работа» — в конце. */
+    var wB = ws.length ? ["work", ws[0][1], "tasks", "Работа"] : null;
+    var wAt2 = !DS_WORK_OWN[pos] && dsAllowed("tasks"), wForMy = pos === "designer" || pos === "norm";
+    bnAll = pos === "owner"
+      ? [["today","#/today","sun","Сегодня"], ["team","#/team","team","Внутренние"], ["chat","#/chat","chat","Чаты"]]
+      : [["today","#/today","sun","Сегодня"], DS_WORK_OWN[pos] ? bnAll[1] : (wAt2 ? wB : null), ["team","#/team","team","Внутренние"],
+         ["chat","#/chat","chat","Чаты"], wForMy ? (wAt2 ? null : wB) : (DS_WORK_NOMY[pos] ? null : bnAll[4]), ["mail","#/mail","mail","Почта"], (wAt2 || wForMy) ? null : wB];
+    bnAll = bnAll.filter(Boolean);
+  }
+  var bnOk = function(x){ return x[0] === "work" ? true : dsAllowed(x[0]); };
+  var bnSlots = (window.DSCalls && DSCalls.enabled && window.DSCallRoles && DSCallRoles[pos] && !(DS_WORK && DS_WORK_NOCALL[pos])) ? 3 : 4;
   document.getElementById("bottomnav").innerHTML =
-    bnAll.filter(function(x){ return dsAllowed(x[0]); }).slice(0, bnSlots).map(function(x){ return bn(x[1], x[2], x[3], pa===x[0]); }).join("")
+    bnAll.filter(bnOk).slice(0, bnSlots).map(function(x){ return bn(x[1], x[2], x[3], pa===x[0]); }).join("")
     + '<button data-more="1">'+icon("menu")+'<span class="bn-t">Ещё</span></button>';
   document.getElementById("subnavM").innerHTML = pa==="commerce"
     ? [["#/kpreg/","Реестр КП","kpreg"],["#/kpc","Конструктор КП","kpc"],["#/price","Прайс","price"],["#/contracts","Договоры","contracts"]].map(function(x){ return '<button data-goto="'+x[0]+'" class="tab '+(cur===x[2]?"active":"")+'">'+x[1]+'</button>'; }).join("")
+    : pa==="work" && ws.length > 1
+    ? ws.map(function(x){ return '<button data-goto="'+x[1]+'" class="tab '+(wcur===x[0]?"active":"")+'">'+x[3]+'</button>'; }).join("")
     : "";
   document.querySelectorAll("#topnav button[data-goto], #bottomnav button[data-goto], #subnavM button").forEach(function(btn){
     btn.onclick = function(){ location.hash = btn.dataset.goto; };
@@ -467,11 +516,11 @@ function renderTopNav(){
   if (sec === "kpc" && window.DS) DS.mount("kpc", document.getElementById("kpc-app"));
   document.getElementById("cal-app").style.display = (sec === "cal") ? "block" : "none";
   document.getElementById("my-app").style.display = (sec === "my") ? "block" : "none";
-  var myDs = ["designer","design","norm"].indexOf(dsPosition()) >= 0;      /* «Мои задачи» из ds.js с вкладкой «Мои напоминания» */
+  var myDs = ["designer","design","norm"].indexOf(dsPosition()) >= 0 && !(DS_WORK && dsPosition() === "design");      /* «Мои задачи» из ds.js с вкладкой «Мои напоминания»; у Ивана при DS_WORK «План на неделю» убран — только напоминания, как у руководителя */
   if (window.DSRemind) DSRemind.tabsVisible(sec === "my" && myDs);
   if (sec === "cal" && window.DS) DS.mount("load", document.getElementById("cal-app"));
   else if (sec === "my" && window.DS && myDs) { if (window.DSRemind) DSRemind.designerMy(); else DS.mount("week", document.getElementById("my-app")); }
-  else if (sec === "my" && window.MPBX && window.MPBX.render) window.MPBX.render(sec);
+  else if (sec === "my" && window.MPBX && window.MPBX.render) { if (DS_WORK && dsPosition() === "design") window.__myRem = true; window.MPBX.render(sec); }      /* у Ивана экран напоминаний: ds.js считает «Мои задачи» своими (DS.ownsMy), флаг — как у вкладки «Мои напоминания» */
   document.getElementById("team-app").style.display = (sec === "team") ? "block" : "none";
   document.getElementById("log-app").style.display = (sec === "log") ? "block" : "none";
   document.getElementById("me-app").style.display = (sec === "me") ? "block" : "none";
@@ -590,19 +639,20 @@ globalRouter();
   }, function(){});
 })();
 </script>
-<script src="crm.js?v=20261031a"></script>
+<script src="crm.js?v=20261115a"></script>
 <script src="download.js?v=20261109b"></script>
-<script src="extras.js?v=20261115a"></script>
+<script src="extras.js?v=20261116a"></script>
 <script src="team.js?v=20261105a"></script>
 <script src="teamsearch.js?v=20261031a"></script>
 <script src="ai.js?v=20261031d"></script>
 <script src="chatpanel.js?v=20261106a"></script>
-<script src="ds.js?v=20261115c"></script>
+<script src="ds.js?v=20261116b"></script>
+<script src="work_load.js?v=20261115c"></script>
 <script src="stats.js?v=20261102a"></script>
 <script src="visits.js?v=20261102b"></script>
-<script src="calls.js?v=20261115a"></script>
+<script src="calls.js?v=20261116a"></script>
 <script src="remind.js?v=20261110a"></script>
-<script src="today.js?v=20261115c"></script>
+<script src="today.js?v=20261116a"></script>
 <script>
 (function(){
   var KEY = "ds_theme", t = "light";
