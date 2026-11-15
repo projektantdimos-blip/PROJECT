@@ -193,7 +193,10 @@
     need.then(function () { return S.open ? api("/orders/" + S.open + "/history").then(function (h2) { S.history = h2; }, function () { S.history = []; }) : null; })
       .then(paint, function (e) { S.err = String(e); paint(); }).then(done, done);
   }
-  DS.route = function () { mount("tasks", root()); };
+  DS.route = function () {
+    if (!/^#\/t(ask)?\//.test(location.hash)) S.cvRoute = /^#\/conv/.test(location.hash);      // «Работа → Конвейер» у проектировщика и бухгалтера — #/conv (у них #/ — «Мои проекты» / «Закрытие»)
+    mount("tasks", root());
+  };
   DS.mount = mount;
   DS.reload = function () { S.orders = null; S.history = null; S.mounting = ""; if (S.mount) mount(S.mount.kind, S.mount.el); };
   /* ---------- экран «Задачи» ---------- */
@@ -481,10 +484,12 @@
       + (t.thread_id ? '<dt>Переписка</dt><dd><button class="lnk" data-chatopen="' + E(t.thread_id) + '">Открыть диалог →</button></dd>' : "")
       + "</dl>" + (t.note ? '<div class="olmemo">' + E(t.note) + "</div>" : "") + acts + "</div></aside>";
   }
-  function screen() {
+  /* emb — экран встроен в «Работа → Конвейер» (work_conv.js, вид «Список» или «Организационные»): без своей шапки и поля поиска (они в шапке Конвейера) */
+  function screen(emb) {
     var p = pos(), canAll = p === "owner" || p === "sales" || p === "ops", isAcc = p === "acc", orgOk = canAll || isAcc;
-    var type = orgOk && (S.kb === "o" || S.kb === "a" || S.kb === "s" || (isAcc && !S.kb)) ? "o" : "p";
+    var type = emb ? (emb.type === "o" && orgOk ? "o" : "p") : orgOk && (S.kb === "o" || S.kb === "a" || S.kb === "s" || (isAcc && !S.kb)) ? "o" : "p";
     var view = S.view; if (!view) { try { view = localStorage.getItem("ds_view") || "k"; } catch (e) { view = "k"; } }
+    if (emb && type === "p") view = "l";
     if (type === "o") { view = S.oview; if (!view) { try { view = localStorage.getItem("ds_oview") || "l"; } catch (e) { view = "l"; } } }      // «Организационные»: по умолчанию список
     var f = S.ov, q = (f.q || "").toLowerCase();
     var tabs = orgOk ? '<div class="seg">' + [["p", "Проектные"], ["o", "Организационные"]].map(function (x) { return '<button data-kb="' + x[0] + '" class="' + (type === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>" : "";
@@ -518,7 +523,7 @@
       search = '<div class="olbar">' + chip("me", "Мои", nMine, meName) + chip("", "Все", allRows.length)
         + top.map(function (n) { return chip(n, n, names[n], n); }).join("")
         + (extra.length ? '<select id="dsWho" class="olmore" title="Другие сотрудники"><option value="">Ещё ' + extra.length + "…</option>" + extra.map(function (n) { return '<option value="' + E(n) + '">' + E(n) + " · " + names[n] + "</option>"; }).join("") + "</select>" : "")
-        + '<label class="olq"><input id="dsQ" placeholder="Поиск: задача, №, заказчик…" value="' + E(f.q) + '"></label></div>';
+        + (emb ? "" : '<label class="olq"><input id="dsQ" placeholder="Поиск: задача, №, заказчик…" value="' + E(f.q) + '"></label>') + "</div>";
       var isOver = function (x) { return x.left != null && x.left < 0; }, cnt = { all: rows.length, over: rows.filter(isOver).length, today: rows.filter(function (x) { return x.left === 0; }).length, wait: rows.filter(function (x) { return x.wait; }).length, np: rows.filter(function (x) { return !!x.o; }).length };
       var tl = [["all", "Все", cnt.all], ["over", "Просрочено", cnt.over], ["today", "Сегодня", cnt.today], ["wait", "Ждут ответа", cnt.wait]];
       if (cnt.np) tl.push(["np", "Не проектные", cnt.np]);
@@ -542,6 +547,7 @@
           return '<div class="col"><div class="col-h cl" style="--c:' + c[2] + '"><b>' + c[1] + '</b><span class="n">' + arr.length + "</span></div>" + arr.map(function (x) { return x.kp ? kpCard(x.kp) : x.o ? card(x.o, true) : taskCard(x.t); }).join("") + "</div>";
         }).join("") + "</div>" : '<div class="note">Ничего не найдено</div>';
       }
+      if (emb) return '<div class="tb" style="margin:0 0 6px"><span class="grow"></span><span class="vlab">Вид</span>' + views + "</div>" + search + tabsO + body;
       return '<div class="ds dspage">' + head + search + tabsO + body + "</div>";
     }
     var all = (S.orders || []).filter(function (o) { return !o.nonproj; }), act_ = all.filter(function (o) { return DONE_ST.indexOf(o.stage) < 0; });
@@ -595,6 +601,7 @@
       }).join("") + clCol + "</div>" + (!filled.length && !closed.length ? '<div class="note">Ничего не найдено</div>' : "")
         + (empty.length ? '<div class="empty-stages"><span>Пустые этапы:</span>' + empty.map(function (s) { return '<span class="pill muted" data-dropstage="' + E(s) + '"><i class="dot" style="background:' + (STAGE_COLOR[s] || "#999") + '"></i>' + E(s) + "</span>"; }).join("") + "</div>" : "");
     }
+    if (emb) return tiles(T.map(function (x) { return [x[0], x[1], x[2], cn[x[0]]]; })) + chips + npNote + body;
     return '<div class="ds dspage">' + head + tiles(T.map(function (x) { return [x[0], x[1], x[2], cn[x[0]]]; })) + search + chips + npNote + body + "</div>";
   }
 
@@ -1271,15 +1278,17 @@
       return;
     }
     el.innerHTML = k === "risk" ? '<div class="ds dspage">' + riskScreen() + "</div>" : k === "scripts" ? scriptsScreen() : k === "load" ? '<div class="ds dspage">' + (workLoad() ? DSWorkLoad.html() : loadScreen()) + "</div>"
-      : k === "flow" ? '<div class="ds dspage">' + flowScreen() + "</div>" : k === "tz" ? '<div class="ds dspage">' + tzScreen() + "</div>"
+      : k === "flow" ? '<div class="ds dspage">' + (workHow() ? DSWorkHow.html() : flowScreen()) + "</div>" : k === "tz" ? '<div class="ds dspage">' + tzScreen() + "</div>"
       : k === "stages" ? '<div class="ds dspage">' + stagesScreen() + "</div>" : k === "auto" ? '<div class="ds dspage">' + autoScreen() + "</div>" : k === "onec" ? '<div class="ds dspage">' + onecScreen() + "</div>"
       : k === "price" ? '<div class="ds dspage">' + priceScreen() + "</div>" : k === "report" ? '<div class="ds dspage">' + reportScreen() + "</div>" : k === "stats" ? '<div class="ds dspage">' + statsScreen() + "</div>"
       : k === "kp" ? '<div class="ds dspage">' + kpScreen() + "</div>" : k === "kpc" ? '<div class="ds dspage">' + kpcScreen() + "</div>" : k === "contract" ? '<div class="ds dspage">' + contractScreen() + "</div>"
-      : k === "cust" ? '<div class="ds dspage">' + custScreen() + "</div>" : k === "week" ? '<div class="ds dspage">' + weekScreen() + "</div>" : screen();
+      : k === "cust" ? '<div class="ds dspage">' + custScreen() + "</div>" : k === "week" ? '<div class="ds dspage">' + weekScreen() + "</div>" : workConv() ? DSWorkConv.html() : screen();
     if (q) { var qe = document.getElementById("dsQ"); if (qe) { qe.focus(); qe.setSelectionRange(qe.value.length, qe.value.length); } }
     fitKpWrap();
     if (kpPos) { var nw = el.querySelector(".kpwrap"); if (nw) { nw.scrollTop = kpPos[0]; nw.scrollLeft = kpPos[1]; } if (scrollY !== kpPos[2]) scrollTo(scrollX, kpPos[2]); }
     if (k === "load") { if (workLoad()) DSWorkLoad.after(); else fitLoadScroll(); }
+    if (k === "tasks" && workConv()) DSWorkConv.after();
+    if (k === "flow" && workHow()) DSWorkHow.after();
     if (k === "auto" && window.DSAI) DSAI.settings(document.getElementById("dsAiSettings"));
     var cn = k === "cust" && document.getElementById("cuNotes");
     if (cn && window.MPBD && MPBD.notes) MPBD.notes(cn, +cn.getAttribute("data-cid"));
@@ -1714,6 +1723,12 @@
   }
   /* «Работа → Занятость» по макету (Ч2) — web/work_load.js; при DS_WORK = false — прежний экран loadScreen() */
   function workLoad() { return !!(window.DS_WORK && window.DSWorkLoad); }
+  /* «Работа → Конвейер» (Ч1) — web/work_conv.js, «Работа → Как работаем» (Ч5) — web/work_how.js; при DS_WORK = false — прежние «Задачи» и «Конвейер заказа».
+     У проектировщика и бухгалтера (DS_WORK_OWN) Конвейер — только по адресу #/conv: #/ у них остаётся «Мои проекты» / «Закрытие». */
+  function workConv() { return !!(window.DS_WORK && window.DSWorkConv && (!(window.DS_WORK_OWN || {})[pos()] || S.cvRoute)); }
+  function workHow() { return !!(window.DS_WORK && window.DSWorkHow); }
+  DS.cvCtx = function () { return { S: S, api: api, load: load, paint: paint, find: find, card: card, screen: screen, can: can, pos: pos, projPos: projPos, ava: ava, E: E, dmy: dmy, plural: plural, money: money,
+    leftText: leftText, sysText: sysText, toast: toast, kpNo: kpNo, kpTone: kpTone, fullCtl: fullCtl, taskCtl: taskCtl, ic: ic, STAGE_COLOR: STAGE_COLOR }; };
   DS.ldCtx = function () { return { S: S, api: api, load: load, paint: paint, find: find, span: span, staff: staff, staffAll: staffAll, toast: toast, ava: ava, pos: pos, sysText: sysText }; };
   function planHtml() {
     var o = find(S.edit); if (!o) return "";
