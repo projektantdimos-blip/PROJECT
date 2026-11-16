@@ -6,11 +6,17 @@
   var DS = window.DS = {};
   var S = { orders: null, meta: null, kb: "p", open: null, tab: "info", err: "", customers: null, people: null, history: null, tasks: null, form: null, busy: false, mount: null, ov: { type: "p", tile: "", stage: "", q: "" }, ld: "week", edit: null, cu: { sel: null, draft: null, err: "" }, wk: null, kp: null, kpf: null, ct: null, rp: null, st: null, price: null, pd: null, pdErr: "", comp: null, compErr: "", stg: null, stgD: null, stgErr: "", au: null, fl: null, flStep: null, flTab: "map", flOrder: 0, flHist: null, tzov: null, tz: null, tzNew: "" };
 
-  var STAGE_COLOR = { "Ожидает аванс": "#b0883a", "Сбор данных": "#8794ab", "Готов к проектированию": "#2b8a9a", "В проектировании": "#3a86d6", "Проверка": "#8b6fe0", "На согласовании": "#e0a21c", "Корректировка": "#d9782f", "Сдано": "#1f9d63", "Закрыто": "#6a768c" };
+  var STAGE_COLOR = { "Ожидает аванс": "#b0883a", "Сбор данных": "#8794ab", "Готов к проектированию": "#2b8a9a", "В проектировании": "#3a86d6", "Проверка": "#8b6fe0", "На согласовании": "#e0a21c", "Корректировка": "#d9782f", "Сдано": "#1f9d63", "Пауза": "#9aa3b2", "Закрыто": "#6a768c" };
   /* Вкладка «Тех. задание» в карточке задачи спрятана у всех (решение владельца 15.11, вместе с разделом «Технические задания»).
      Данные ds_tz и сервер не тронуты; «Сбор данных → Готов» — кнопкой операционного менеджера. Вернуть — true. */
   var TZ_TAB = false;
-  var STAGE_ORDER = ["Ожидает аванс", "Сбор данных", "Готов к проектированию", "В проектировании", "Проверка", "На согласовании", "Корректировка", "Сдано", "Закрыто"];
+  var STAGE_ORDER = ["Ожидает аванс", "Сбор данных", "Готов к проектированию", "В проектировании", "Проверка", "На согласовании", "Корректировка", "Сдано", "Пауза", "Закрыто"];
+  /* «Пауза» по заказчику (шаг 11, план 10): ставят и снимают owner, ops, design кнопками (POST /orders/{id}/pause, /resume) — обычным переводом нельзя.
+     На паузе срок не горит: вместо «Просрочено» — «⏸ на паузе N р.д.»; прежняя стадия — pause_from. */
+  var PAUSE = "Пауза", PAUSE_FROM = ["Сбор данных", "Готов к проектированию", "В проектировании", "Проверка", "На согласовании", "Корректировка", "Сдано"];
+  function paused(o) { return !!o && o.stage === PAUSE; }
+  function pauseLate(o) { return !paused(o) && o.left_days != null && o.left_days < 0; }       // просрочено, если не на паузе
+  function pauseText(o) { return "⏸ на паузе " + (o.pause_days || 0) + " р.д."; }
   var ROLE_NAME = { owner: "Руководитель", design: "Руководитель проектного отдела", sales: "Руководитель отдела продаж", ops: "Операционный менеджер", acc: "Бухгалтер", designer: "Проектировщик", norm: "Нормативный специалист" };
   var ROLE_NOTE = {
     owner: "Вы видите всё, включая закрытый кабинет «Статистика».",
@@ -256,17 +262,17 @@
   });
 
   function card(o, withStage) {
-    var stage = o.stage, money_ = can("money") && o.amount != null;
-    return '<button class="task ' + (o.urgent ? "urgent" : "") + '" data-open="' + o.id + '"' + (taskCtl() ? ' draggable="true" data-dragid="' + o.id + '"' : "") + '><span class="stripe" style="--c:' + (o.urgent || (o.left_days != null && o.left_days < 0) ? "var(--bad)" : (STAGE_COLOR[stage] || "var(--brand)")) + '"></span><span class="body">'
+    var stage = o.stage, money_ = can("money") && o.amount != null, pz = paused(o), late = pauseLate(o);
+    return '<button class="task ' + (o.urgent ? "urgent" : "") + '" data-open="' + o.id + '"' + (taskCtl() ? ' draggable="true" data-dragid="' + o.id + '"' : "") + '><span class="stripe" style="--c:' + (o.urgent || late ? "var(--bad)" : (STAGE_COLOR[stage] || "var(--brand)")) + '"></span><span class="body">'
       + '<span class="r1"><span class="num">№' + E(o.number) + "</span><span>" + E(o.customer || "") + '</span><span class="fl">' + (o.urgent ? '<span class="pill urg">⚡ Срочно</span>' : "") + "</span></span>"
       + '<span class="ttl" style="display:block">' + E(o.object) + "</span>"
       + sysChips(o, true)
-      + '<span class="con ' + (o.left_days != null && o.left_days < 0 ? "bad" : "") + '" style="display:block">Договор до ' + dmy(o.due_date) + "</span>"
+      + '<span class="con ' + (late ? "bad" : "") + '" style="display:block">Договор до ' + dmy(o.due_date) + "</span>"
       + '<span class="meta">' + (o.executor ? ava(o.executor, "sm") + '<span style="font-size:.84rem;margin-right:auto">' + E(o.executor) + "</span>" : '<span class="pill muted" style="margin-right:auto">не назначен</span>')
       + (needPhone(o) ? '<span class="pill bad" title="В карточке заказчика не указан сотовый телефон">Нет телефона</span>' : "")
       + (withStage ? '<span class="pill muted"><i class="dot" style="background:' + (STAGE_COLOR[stage] || "#999") + '"></i>' + E(stage) + "</span>" : "")
       + (money_ ? payPill(o) : "")
-      + '<span class="pill ' + tone(o) + '">' + E(leftText(o.left_days)) + "</span></span></span></button>";
+      + (pz ? '<span class="pill muted" title="' + E("до " + dmy(o.pause_until) + " · " + (o.pause_reason || "")) + '">' + E(pauseText(o)) + "</span>" : '<span class="pill ' + tone(o) + '">' + E(leftText(o.left_days)) + "</span>") + "</span></span></button>";
   }
   /* ---------- операционные задачи и продажи: сроки, ответственные, состояния ---------- */
   function taskTone(t) { return t.left_days == null ? "muted" : t.left_days < 0 ? "bad" : t.left_days <= 2 ? "warn" : "info"; }
@@ -339,7 +345,7 @@
   }
   function npItem(o) {
     var done = DONE_ST.indexOf(o.stage) >= 0;
-    return { o: o, done: done, left: done ? null : o.left_days, wait: o.stage === "На согласовании", text: o.number + " " + (o.customer || "") + " " + (o.object || "") + " " + (o.system || "") + " " + sysText(o) + " " + (o.executor || "") };
+    return { o: o, done: done, left: done || paused(o) ? null : o.left_days, wait: o.stage === "На согласовании", text: o.number + " " + (o.customer || "") + " " + (o.object || "") + " " + (o.system || "") + " " + sysText(o) + " " + (o.executor || "") };
   }
   function orgDone() {      // сданные и закрытые непроектные работы: иначе их не видно нигде
     return (S.orders || []).filter(function (o) { return o.nonproj && DONE_ST.indexOf(o.stage) >= 0; }).map(npItem)
@@ -349,9 +355,9 @@
     var u = it.t, tn;
     if (it.o) {
       var o = it.o;
-      tn = o.left_days != null && o.left_days < 0 ? "bad" : o.left_days != null && o.left_days <= 2 ? "warn" : "ok";
+      tn = paused(o) ? "muted" : o.left_days != null && o.left_days < 0 ? "bad" : o.left_days != null && o.left_days <= 2 ? "warn" : "ok";
       return '<div class="ovr"><div class="ovl"><span class="num">№' + E(o.number) + '</span><span class="cu" title="' + E(sysText(o) || o.object) + '">' + E(sysText(o) || "Не проектная работа") + '</span><span class="ob">' + E((o.customer ? o.customer + " · " : "") + (o.object || "")) + "</span>"
-        + '<span class="pill info">' + E(o.stage) + '</span><span class="ex">' + E(o.executor || "не назначен") + '</span><span class="pill ' + tn + '">' + (o.due_date ? "до " + dmy(o.due_date).slice(0, 5) + " · " : "") + E(leftText(o.left_days)) + '</span><span class="lc"></span><button class="cmb" data-open="' + o.id + '">Открыть</button></div></div>';
+        + '<span class="pill info">' + E(o.stage) + '</span><span class="ex">' + E(o.executor || "не назначен") + '</span><span class="pill ' + tn + '">' + (paused(o) ? E(pauseText(o)) : (o.due_date ? "до " + dmy(o.due_date).slice(0, 5) + " · " : "") + E(leftText(o.left_days))) + '</span><span class="lc"></span><button class="cmb" data-open="' + o.id + '">Открыть</button></div></div>';
     }
     if (it.kp) {
       var k = it.kp;
@@ -550,7 +556,7 @@
       if (emb) return '<div class="tb" style="margin:0 0 6px"><span class="grow"></span><span class="vlab">Вид</span>' + views + "</div>" + search + tabsO + body;
       return '<div class="ds dspage">' + head + search + tabsO + body + "</div>";
     }
-    var all = (S.orders || []).filter(function (o) { return !o.nonproj; }), act_ = all.filter(function (o) { return DONE_ST.indexOf(o.stage) < 0; });
+    var all = (S.orders || []).filter(function (o) { return !o.nonproj; }), act_ = all.filter(function (o) { return DONE_ST.indexOf(o.stage) < 0 && !paused(o); });      // пауза — не «в работе» и не горит
     var hasMoney = can("money");
     var cn = {
       active: act_.length,
@@ -566,7 +572,7 @@
     T.push(["edits", "Правок от заказчиков", "#8b6fe0"]);
     if (hasMoney) T.push(["unpaid", "Не оплачено", "var(--ok)"]);
     var list = all.filter(function (o) {
-      var isAct = DONE_ST.indexOf(o.stage) < 0, l = o.left_days;
+      var isAct = DONE_ST.indexOf(o.stage) < 0 && !paused(o), l = o.left_days;
       if (f.tile === "active" && !isAct) return false;
       if (f.tile === "over" && !(isAct && l != null && l < 0)) return false;
       if (f.tile === "hot" && !(isAct && l != null && l >= 0 && l <= 2)) return false;
@@ -589,7 +595,7 @@
       var st = [];
       visStages.forEach(function (s) { if (s !== "Закрыто") st.push(s); if (s === "Готов к проектированию") st.push(WAITK); });
       var filled = st.filter(function (s) { return list.some(function (o) { return colOf(o) === s; }); });
-      var empty = st.filter(function (s) { return filled.indexOf(s) < 0 && s !== WAITK; });
+      var empty = st.filter(function (s) { return filled.indexOf(s) < 0 && s !== WAITK && s !== PAUSE; });
       var closed = visStages.indexOf("Закрыто") >= 0 ? list.filter(function (o) { return o.stage === "Закрыто"; }) : [];
       var clOpen = S.showClosed || !!q || f.stage === "Закрыто";
       var clCol = closed.length ? '<div class="col' + (clOpen ? "" : " col-shut") + '" data-dropstage="Закрыто"><div class="col-h cl" style="--c:' + STAGE_COLOR["Закрыто"] + '"><b>Закрыто</b><span class="n">' + closed.length + "</span>"
@@ -597,7 +603,7 @@
         + (clOpen ? closed.map(function (o) { return card(o); }).join("") : '<div class="note" style="font-size:.8rem">Закрытые задачи свёрнуты</div>') + "</div>" : "";
       body = '<div class="board">' + filled.map(function (s) {
         var items = list.filter(function (o) { return colOf(o) === s; }), wk = s === WAITK;
-        return '<div class="col" data-dropstage="' + E(wk ? "Готов к проектированию" : s) + '"><div class="col-h cl" style="--c:' + (wk ? "#6f9fd8" : STAGE_COLOR[s] || "#888") + '"' + (wk ? ' title="Исполнитель назначен, работу ещё не начали: кнопка «В проектирование» в окне задачи"' : "") + "><b>" + E(s) + '</b><span class="n">' + items.length + "</span></div>" + items.map(function (o) { return card(o); }).join("") + "</div>";
+        return '<div class="col"' + (s === PAUSE ? "" : ' data-dropstage="' + E(wk ? "Готов к проектированию" : s) + '"') + '><div class="col-h cl" style="--c:' + (wk ? "#6f9fd8" : STAGE_COLOR[s] || "#888") + '"' + (wk ? ' title="Исполнитель назначен, работу ещё не начали: кнопка «В проектирование» в окне задачи"' : "") + "><b>" + E(s) + '</b><span class="n">' + items.length + "</span></div>" + items.map(function (o) { return card(o); }).join("") + "</div>";
       }).join("") + clCol + "</div>" + (!filled.length && !closed.length ? '<div class="note">Ничего не найдено</div>' : "")
         + (empty.length ? '<div class="empty-stages"><span>Пустые этапы:</span>' + empty.map(function (s) { return '<span class="pill muted" data-dropstage="' + E(s) + '"><i class="dot" style="background:' + (STAGE_COLOR[s] || "#999") + '"></i>' + E(s) + "</span>"; }).join("") + "</div>" : "");
     }
@@ -965,9 +971,52 @@
     return n;
   }
   function stepper(o) {
-    var st = (S.meta.stages || []);
-    var cur = st.indexOf(o.stage);
-    return '<div class="stepper">' + st.map(function (s, i) { return '<div class="stp ' + (i < cur ? "done" : i === cur ? "cur" : "") + '">' + E(s).replace(/^([А-ЯЁ]) /, "$1&nbsp;") + "</div>"; }).join("") + "</div>";      // «В проектировании» не рвётся после «В»
+    var st = (S.meta.stages || []).filter(function (s) { return s !== PAUSE; }), pz = paused(o);      // на паузе текущий шаг — тот, с которого ушли, с меткой ⏸
+    var cur = st.indexOf(pz ? o.pause_from : o.stage);
+    return '<div class="stepper">' + st.map(function (s, i) { return '<div class="stp ' + (i < cur ? "done" : i === cur ? "cur" : "") + '"' + (pz && i === cur ? ' title="На паузе"' : "") + ">" + (pz && i === cur ? "⏸ " : "") + E(s).replace(/^([А-ЯЁ]) /, "$1&nbsp;") + "</div>"; }).join("") + "</div>";      // «В проектировании» не рвётся после «В»
+  }
+  /* ---------- «Пауза»: блок в окне задачи и строка в «Меню задачи» ---------- */
+  function pauseCan() { var p = pos(); return p === "owner" || p === "ops" || p === "design"; }
+  function pauseable(o) { return PAUSE_FROM.indexOf(o.stage) >= 0 && !(o.stage === "Сдано" && o.act_sent); }      // «Сдано» с отправленным актом — уже шаг 9
+  function pzDay(n) { var d = new Date(); d.setDate(d.getDate() + n); return isoDay(d); }      // дата через n дней (ГГГГ-ММ-ДД)
+  function pzForm(z, btn) {
+    return '<div style="flex-basis:100%;width:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-top:10px">'
+      + '<div class="fld" style="margin:0"><label>Причина</label><input data-pz="reason" maxlength="300" placeholder="например: заказчик заморозил работы" value="' + E(z.reason) + '" ' + OE_FIELD + "></div>"
+      + '<div class="fld" style="margin:0"><label>Дата возврата</label><input type="date" data-pz="until" min="' + pzDay(1) + '" max="' + pzDay(365) + '" value="' + E(z.until) + '" ' + OE_FIELD + "></div></div>"
+      + (z.err ? '<div class="err" style="flex-basis:100%;width:100%;margin:6px 0 0">' + E(z.err) + "</div>" : "")
+      + '<div style="flex-basis:100%;width:100%;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn ghost sm" data-pzx="1">Отмена</button><button type="button" class="btn primary sm" data-pzsave="' + z.id + '">' + E(btn) + "</button></div>";
+  }
+  function pauseBox(o) {
+    var z = S.pz && S.pz.id === o.id ? S.pz : null, can = pauseCan();
+    return '<div class="next" style="background:var(--surface-2);border-color:var(--line)"><div style="flex:1;min-width:200px"><small style="color:var(--muted);font-weight:700;text-transform:uppercase;font-size:.7rem">⏸ На паузе по заказчику · ' + (o.pause_days || 0) + " р.д.</small><br><b>до " + dmy(o.pause_until) + " · " + E(o.pause_reason || "") + "</b>"
+      + '<div style="font-size:.84rem;color:var(--muted)">Ушла с шага «' + E(o.pause_from || "") + "». Сроки и напоминания не идут, срок договора не меняется, заказчику ничего не уходит</div></div>"
+      + (can && !z ? '<button type="button" class="btn primary" data-pzback="' + o.id + '">Вернуть «' + E(o.pause_from || "") + '»</button><button type="button" class="btn ghost" data-pzopen="' + o.id + '">Продлить</button>' : "")
+      + (z ? pzForm(z, "Продлить паузу") : "") + "</div>";
+  }
+  function pauseRow(o) {             // «Меню задачи»: поставить на паузу (как в макете — строка рядом со «Срочной работой»)
+    var z = S.pz && S.pz.id === o.id ? S.pz : null;
+    return '<div class="tm-urg" style="flex-wrap:wrap"><span class="ico">⏸</span><div><b>Пауза по заказчику</b><small>Причина и дата возврата — сроки не идут, задача не просрочена</small></div>'
+      + (z ? pzForm(z, "Поставить на паузу") : '<button type="button" class="btn ghost sm" data-pzopen="' + o.id + '">Поставить</button>') + "</div>";
+  }
+  function pzDo(p, ok) {
+    if (busyNow()) return toast("Подождите: предыдущее действие ещё выполняется");
+    S.busy = Date.now();
+    return p.then(function () {
+      S.busy = false; S.pz = null; S.actErr = ""; S.orders = null; S.tasks = null; BOOT = null; toast(ok);
+      return load().then(function () { return S.open ? api("/orders/" + S.open + "/history").then(function (h) { S.history = h; }, function () {}) : null; });
+    }).then(function () { tmRepaint(); }, function (e) {
+      S.busy = false; var msg = String(e && e.message || e);
+      if (S.pz) S.pz.err = msg; else toast(msg);
+      tmRepaint();
+    });
+  }
+  function pzSave(id) {
+    var z = S.pz; if (!z || z.id !== id) return;
+    z.reason = String(z.reason || "").trim();
+    if (!z.reason) { z.err = "Укажите причину паузы"; return tmRepaint(); }
+    if (!z.until) { z.err = "Укажите дату возврата"; return tmRepaint(); }
+    var was = paused(find(id));
+    pzDo(api("/orders/" + id + "/pause", { reason: z.reason, until: z.until }), (was ? "Пауза продлена до " : "Задача на паузе до ") + dmy(z.until));
   }
   function customerOf(o) {
     return (S.customers || []).filter(function (c) { return c.id === o.customer_id; })[0];
@@ -975,7 +1024,7 @@
   function docRow(done, title, sub) { return '<div class="doc ' + (done ? "done" : "wait") + '"><span>' + (done ? "✅" : "⏳") + "</span><div><b>" + E(title) + "</b><small>" + E(sub) + "</small></div></div>"; }
   function infoTab(o) {
     var p = projPos(), cu = customerOf(o), designerView = p === "designer";
-    var dl = '<div class="dl ' + (o.left_days != null && o.left_days < 0 ? "bad" : "") + '"><div><small style="color:var(--muted);font-weight:700;text-transform:uppercase;font-size:.68rem">Дедлайн</small><br><b>' + dmy(o.due_date) + "</b></div><b style=\"font-size:.95rem\">" + E(leftText(o.left_days)) + "</b></div>";
+    var dl = '<div class="dl ' + (pauseLate(o) ? "bad" : "") + '"><div><small style="color:var(--muted);font-weight:700;text-transform:uppercase;font-size:.68rem">Дедлайн</small><br><b>' + dmy(o.due_date) + "</b></div><b style=\"font-size:.95rem\">" + E(paused(o) ? pauseText(o) : leftText(o.left_days)) + "</b></div>";
     var work = '<div class="panel pad"><h3>Работа</h3>' + dl + '<div class="kv">' + (sysText(o) ? "<span>Системы</span><span><b>" + E(sysText(o)) + "</b>"
       + (o.parts || []).map(function (p) { return '<br><small>Раздел ' + E(p.system) + ": " + E(p.delivered ? "сдан " + dmy(p.delivered) : (p.executor || "исполнитель не назначен") + (p.plan_end ? ", срок " + dmy(p.plan_end) : "")) + "</small>"; }).join("") + "</span>" : "") + '<span>Исполнитель</span><span><b>' + E(o.executor || "не назначен") + "</b></span><span>Стадия</span><span>" + E(o.stage) + "</span>"
       + (o.contract_date ? "<span>Договор от</span><span>" + dmy(o.contract_date) + "</span>" : "") + "<span>Приоритет</span><span>" + E(o.priority) + "</span>"
@@ -1199,7 +1248,8 @@
   function windowHtml(o) {
     var p = pos(), n = nextStep(o), showUrgent = o.stage === "Готов к проектированию" && (p === "owner" || p === "design" || p === "ops" || p === "sales");
     var nx = "";
-    if (n) {
+    if (paused(o)) nx = pauseBox(o);
+    else if (n) {
       var sel = "";
       if (n.needExec && S.people) {
         sel = '<select id="dsExec" style="padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:var(--surface)"><option value="">— исполнитель —</option>'
@@ -1382,12 +1432,16 @@
     var p = pos(), full = fullCtl(), stages = (S.meta && S.meta.stages) || [], people = (o.nonproj && S.staff) || S.people || [], money_ = can("money") && o.amount != null && full;
     if (o.nonproj && S.staff == null && full && !S.staffReq) { S.staffReq = 1; api("/people?any=1").then(function (x) { S.staff = x; if (S.oe) tmRepaint(); }, function () { S.staffReq = 0; }); }      // не проектная работа: исполнитель — любой сотрудник
     if (+o.executor_id && !people.some(function (u) { return u.id === +o.executor_id; })) people = people.concat([{ id: +o.executor_id, name: o.executor || "…" }]);
-    var banner = o.left_days == null ? "" : (o.left_days < 0 ? '<div class="tm-ban bad">Просрочено ' + plural(o.left_days, ["день", "дня", "дней"]) + "</div>" : '<div class="tm-ban">Осталось ' + plural(o.left_days, ["день", "дня", "дней"]) + "</div>");
+    var srv = find(o.id) || o, pz = paused(srv);         // стадия на сервере: на паузе стадию меняет только «Вернуть»
+    var banner = pz ? '<div class="tm-ban">' + E(pauseText(srv)) + " · до " + dmy(srv.pause_until) + "</div>" : o.left_days == null ? "" : (o.left_days < 0 ? '<div class="tm-ban bad">Просрочено ' + plural(o.left_days, ["день", "дня", "дней"]) + "</div>" : '<div class="tm-ban">Осталось ' + plural(o.left_days, ["день", "дня", "дней"]) + "</div>");
+    var pzRow = pz ? (S.tm ? pauseBox(srv) : "") : pauseCan() && pauseable(srv) ? pauseRow(srv) : "";
     return '<div class="tm-inner">' + banner
       + '<div class="tm-btns" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"><a class="btn primary" href="' + E(folderUrl(o, false)) + '">Перейти в папку на сервере</a>'
       + (S.tm ? "" : '<button class="btn ghost" data-taskchat="' + o.id + '">💬 Чат задачи</button>') + '<button class="btn ghost" data-tmcopy="1">Копировать имя</button></div>'
       + '<div class="tm-urg"><span class="ico">⚡</span><div><b>Срочная работа</b><small>Поднимается наверх списка и подсвечивается красным</small></div><button type="button" class="tm-sw ' + (o.urgent ? "on" : "") + '" data-tmurg="1" aria-label="Срочная работа"><i></i></button></div>'
-      + '<label class="tm-l">Стадия</label><div class="tm-chips">' + stages.map(function (s) { return '<button type="button" class="tmchip ' + (s === o.stage ? "on" : "") + '" data-tmstage="' + E(s) + '"><i style="background:' + (STAGE_COLOR[s] || "#999") + '"></i>' + E(s) + "</button>"; }).join("") + "</div>"
+      + pzRow
+      + '<label class="tm-l">Стадия' + (pz ? ' <small style="font-weight:400;color:var(--muted)">· задача на паузе: сначала «Вернуть»</small>' : "") + '</label><div class="tm-chips">' + stages.filter(function (s) { return s !== PAUSE; }).map(function (s) {
+        return '<button type="button" class="tmchip ' + (s === (pz ? srv.pause_from : o.stage) ? "on" : "") + '" data-tmstage="' + E(s) + '"' + (pz ? ' disabled title="Сначала «Вернуть»" style="opacity:.55;cursor:not-allowed"' : "") + '><i style="background:' + (STAGE_COLOR[s] || "#999") + '"></i>' + E(s) + "</button>"; }).join("") + "</div>"
       + (o.stage === "Корректировка" && (find(o.id) || {}).stage !== "Корректировка" ? '<div class="g2f">' + tmInp("Срок корректировки, рабочих дней", "fix_days", "number") + '<div class="fld"><label>Замечания заказчика</label><input data-oe="fix_remarks" value="' + E(o.fix_remarks || "") + '" ' + OE_FIELD + "></div></div>"
         + '<div class="fld"><label>Категория корректировки</label><select data-oe="fix_cat" ' + OE_FIELD + '><option value="">—</option>' + FIX_CAT.map(function (x) { return "<option" + (x === o.fix_cat ? " selected" : "") + ">" + E(x) + "</option>"; }).join("") + "</select></div>" : "")
       + '<div class="g2f">' + tmInp("№ задачи", "number", "", !full) + '<div class="fld"><label>Ответственный</label><select data-oe="executor_id" ' + OE_FIELD + '><option value="0">— не назначен —</option>' + people.map(function (u) { return '<option value="' + u.id + '"' + (u.id === +o.executor_id ? " selected" : "") + ">" + E(u.name) + "</option>"; }).join("") + "</select></div></div>"
@@ -1513,12 +1567,12 @@
   /* ---------- «Обзор»: одна задача — одна строка, комментарии прямо в строке ---------- */
   function ovRow(o) {
     var cm = (S.cm || {})[o.id] || [], opened = S.cmOpen && S.cmOpen[o.id], last = cm[cm.length - 1];
-    var tn = o.left_days == null ? "muted" : o.left_days < 0 ? "bad" : o.left_days <= 2 ? "warn" : "info";
+    var tn = o.left_days == null || paused(o) ? "muted" : o.left_days < 0 ? "bad" : o.left_days <= 2 ? "warn" : "info";
     var head = '<div class="ovl' + (o.urgent ? " urg" : "") + '"><button class="num" data-open="' + o.id + '" title="Открыть окно задачи">№' + E(o.number) + "</button>"
       + '<span class="cu" title="' + E(o.customer || "") + '">' + E(o.customer || "—") + '</span><span class="ob" title="' + E((o.object || "") + (sysText(o) ? " · " + sysText(o) : "")) + '">' + E(o.object || "") + (sysText(o) ? " · <b>" + E(sysText(o)) + "</b>" : "") + "</span>"
       + '<span class="pill muted"><i class="dot" style="background:' + (STAGE_COLOR[o.stage] || "#999") + '"></i>' + E(o.stage) + "</span>"
       + '<span class="ex">' + E(o.executor || "не назначен") + "</span>"
-      + '<span class="pill ' + tn + '">' + E(o.left_days == null ? "Без срока" : leftText(o.left_days)) + "</span>"
+      + '<span class="pill ' + tn + '">' + E(paused(o) ? pauseText(o) : o.left_days == null ? "Без срока" : leftText(o.left_days)) + "</span>"
       + '<span class="lc" title="' + E(last ? last.user + ": " + last.text : "") + '">' + (last ? "<b>" + E(last.user) + ":</b> " + E(last.text) : "") + "</span>"
       + '<button class="cmb' + (opened ? " on" : "") + '" data-cmtoggle="' + o.id + '" title="Комментарии">💬 ' + cm.length + "</button></div>";
     if (!opened) return '<div class="ovr">' + head + "</div>";
@@ -3148,9 +3202,9 @@
       });
   }
   function closeAll() {
-    S.form = null; S.edit = null; S.nt = null; S.te = null; S.tm = false; S.oe = null; S.ke = null; S.actErr = "";
+    S.form = null; S.edit = null; S.nt = null; S.te = null; S.tm = false; S.oe = null; S.ke = null; S.actErr = ""; S.pz = null;
     var mr0 = document.getElementById("ds-modal"); if (mr0) mr0.innerHTML = "";
-    if (S.open) { S.open = null; S.tab = "info"; if (/^#\/task\//.test(location.hash)) history.replaceState(null, "", "#/"); }
+    if (S.open) { S.open = null; S.tab = "info"; if (/^#\/task\//.test(location.hash)) history.replaceState(null, "", S.cvRoute ? "#/conv" : "#/"); }      // B3: пришли с Конвейера — на него и вернулись (#/conv)
     paint();
   }
 
@@ -3173,12 +3227,16 @@
     var bg = e.target.getAttribute && e.target.getAttribute("data-bg");
     if (bg) return;                                    // щелчок мимо окна его не закрывает: набранное не теряется, закрыть — крестиком или «Отмена»
     if (e.target.closest("[data-trbox]") && !e.target.closest("[data-trsend]")) return;      // поле ответа в карточке задачи
-    var t = e.target.closest("[data-tack],[data-nfstart],[data-trep],[data-trsend],[data-who],[data-showclosed],[data-osel],[data-oselx],[data-oview],[data-gmore],[data-kpgo],[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-audload],[data-audlist],[data-audclose],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-cmdel],[data-tmopen],[data-tmstage],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
+    var t = e.target.closest("[data-tack],[data-nfstart],[data-trep],[data-trsend],[data-who],[data-showclosed],[data-osel],[data-oselx],[data-oview],[data-gmore],[data-kpgo],[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-audload],[data-audlist],[data-audclose],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-cmdel],[data-tmopen],[data-tmstage],[data-pzopen],[data-pzx],[data-pzsave],[data-pzback],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
     if (!t) return;
     var d = t.dataset;
     if (d.close) return closeAll();
     if (d.tmopen) return tmOpen(d.tmopen);
     if (d.tmstage) { if (S.oe) { S.oe.stage = d.tmstage; tmRepaint(); } return; }
+    if (d.pzopen) { var po = find(+d.pzopen); S.pz = { id: +d.pzopen, reason: paused(po) ? po.pause_reason || "" : "", until: "", err: "" }; return tmRepaint(); }
+    if (d.pzx != null && t.hasAttribute("data-pzx")) { S.pz = null; return tmRepaint(); }
+    if (d.pzsave) return pzSave(+d.pzsave);
+    if (d.pzback) { var pb = find(+d.pzback); return pzDo(api("/orders/" + d.pzback + "/resume", {}), "Пауза снята: задача на шаге «" + ((pb && pb.pause_from) || "") + "»"); }
     if (d.tmprio) { if (S.oe) { S.oe.priority = d.tmprio; tmRepaint(); } return; }
     if (d.tmurg != null && t.hasAttribute("data-tmurg")) { if (S.oe) { S.oe.urgent = S.oe.urgent ? 0 : 1; tmRepaint(); } return; }
     if (d.tmcopy != null && t.hasAttribute("data-tmcopy")) { if (S.oe) { try { navigator.clipboard.writeText("№" + S.oe.number + " " + (S.oe.customer || "")); toast("Имя скопировано"); } catch (e) { toast("Не удалось скопировать"); } } return; }
@@ -3382,6 +3440,7 @@
   document.addEventListener("input", function (e) {
     if (e.target.dataset && e.target.dataset.nt && S.nt && e.target.tagName !== "SELECT") { ntField(e.target); return; }
     if (e.target.dataset && e.target.dataset.oe && S.oe && e.target.tagName !== "SELECT") { S.oe[e.target.dataset.oe] = e.target.value; return; }
+    if (e.target.dataset && e.target.dataset.pz && S.pz) { S.pz[e.target.dataset.pz] = e.target.value; return; }
     if (e.target.dataset && e.target.dataset.te && S.te && e.target.tagName !== "SELECT") { S.te[e.target.dataset.te] = e.target.value; return; }
     if (e.target.dataset && e.target.dataset.scf) { var cs_ = (S.sc || []).filter(function (x) { return x.id === S.scSel; })[0]; if (cs_) cs_[e.target.dataset.scf] = e.target.value; return; }
     if (e.target.dataset && e.target.dataset.cmd != null) { (S.cmDraft = S.cmDraft || {})[e.target.dataset.cmd] = e.target.value; return; }

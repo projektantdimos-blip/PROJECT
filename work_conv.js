@@ -12,19 +12,20 @@
 
   /* ---------- шаги конвейера (номера и названия — как в макете и «Как работаем») ---------- */
   var LANES = [["sales", "Продажи", "var(--org)", [1, 2, 3, 4]], ["proj", "Проект", "var(--brand)", [5, 6, 7, 8]], ["norm", "Нормо-тех", "var(--sys)", ["n1", "n2", "n3", "n4"]], ["money", "Деньги и закрытие", "var(--ok)", [9, 10]]];
-  var SUBOF = { 5: "s51", 6: "s61" };
+  var SUBOF = { 5: "s51", 6: "s61", 10: "pause" };       // подшаги: 5.1 «Выезд», 6.1 «Корректировки», 11 «⏸ Пауза» (план 10; как SUBOF2 в макете)
   var NAME = { 1: "Обращение", 2: "КП отправлено", 3: "Договор и счёт", 4: "Ждём аванс", 5: "Сбор данных", s51: "Выезд", 6: "В работе", s61: "Корректировки", 7: "На согласовании", 8: "Сдано · акт",
-    9: "Ждём оплату", 10: "Закрыто", n1: "Исходные данные", n2: "Расчёт", n3: "Проверка", n4: "Выдано" };
+    9: "Ждём оплату", 10: "Закрыто", pause: "⏸ Пауза", n1: "Исходные данные", n2: "Расчёт", n3: "Проверка", n4: "Выдано" };
   /* кто ведёт шаг — как в CRM сейчас (акт, счёт и «Закрыто» — бухгалтер; проверку непроектных работ ставит операционному отделу) */
   var WHO = { 1: "РОП / опер. менеджер", 2: "РОП", 3: "РОП + бухгалтер", 4: "бухгалтер · 1С", 5: "опер. менеджер", s51: "опер. менеджер", 6: "Иван · проектировщик", s61: "Иван · проектировщик",
-    7: "опер. менеджер", 8: "бухгалтер", 9: "бухгалтер · 1С", 10: "за 30 дней", n1: "опер. менеджер", n2: "нормо-тех спец.", n3: "опер. менеджер", n4: "опер. менеджер" };
+    7: "опер. менеджер", 8: "бухгалтер", 9: "бухгалтер · 1С", 10: "за 30 дней", pause: "опер. менеджер · Иван", n1: "опер. менеджер", n2: "нормо-тех спец.", n3: "опер. менеджер", n4: "опер. менеджер" };
   /* свои шаги роли (яркие), по таблице Е.1 плана design_rabota_2026-11-15.md */
-  var MINE = { sales: [1, 2, 3, 4, 9, 10], ops: [5, "s51", 6, "s61", 7, "n1", "n2", "n3", "n4"], design: [5, 6, "s61", 7, 8], designer: [6, "s61", "n2", "n3", "n4"], acc: [3, 4, 8, 9, "n4"] };
+  var MINE = { sales: [1, 2, 3, 4, 9, 10], ops: [5, "s51", 6, "s61", 7, "n1", "n2", "n3", "n4", "pause"], design: [5, 6, "s61", 7, 8, "pause"], designer: [6, "s61", "n2", "n3", "n4"], acc: [3, 4, 8, 9, "n4"] };
   var LANEDEF = { sales: "sales", acc: "mine" };            // какой этап открыт при входе; остальным — «Проект»
   var KP_ROLES = { owner: 1, sales: 1, ops: 1, acc: 1 };    // кому сервер отдаёт реестр КП (kp_list)
   var KP_EDIT = { owner: 1, sales: 1, ops: 1 };             // кто правит КП (окно КП); бухгалтеру — переход в реестр
   var ACTIVE = ["Сбор данных", "Готов к проектированию", "В проектировании", "Проверка", "На согласовании", "Корректировка"];
   var CARDS_MAX = 60;
+  var VIS_TTL = 60000;                                       // выезды старше минуты перечитываются при перерисовке Конвейера
 
   function pos() { return X().projPos(); }                  // нормативный специалист-исполнитель — как проектировщик (только свои задачи)
   function money() { return !!X().can("money"); }
@@ -32,7 +33,7 @@
   function mineList() { return MINE[pos()] || allKeys(); }
   function isMine(k) { return mineList().indexOf(k) >= 0; }
   function laneKeys(l) { var a = []; l[3].forEach(function (k) { a.push(k); if (SUBOF[k]) a.push(SUBOF[k]); }); return a; }
-  function stepNo(k) { return k === "s51" ? "5.1" : k === "s61" ? "6.1" : typeof k === "string" ? "Н" + k.slice(1) : String(k); }
+  function stepNo(k) { return k === "s51" ? "5.1" : k === "s61" ? "6.1" : k === "pause" ? "11" : typeof k === "string" ? "Н" + k.slice(1) : String(k); }
   function keyOf(v) { return /^\d+$/.test(v) ? +v : v; }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
@@ -53,6 +54,7 @@
   /* ---------- стадия задачи / статус КП → шаг ---------- */
   function orderStep(o) {
     var s = o.stage, np = !!o.nonproj;
+    if (s === "Пауза") return "pause";                                              // шаг 11: и проект, и нормо-тех; срок не горит (ACTIVE без «Паузы»)
     if (s === "Ожидает аванс") return 4;
     if (s === "Закрыто") return 10;
     if (s === "Сдано") return o.act_sent ? 9 : np ? "n4" : 8;
@@ -73,10 +75,9 @@
     if (s === "Закрыто") return (k.status_date || "") >= since30() ? 10 : 0;
     return 0;                                                                       // «В работе» (задача уже идёт), «Отказ»
   }
-  function closedRecent(o) {                                                        // «Закрыто» за 30 дней: по дате последней оплаты (у ролей без денег дат нет — все)
-    if (!money()) return true;
-    var d = [o.post_date || "", o.adv_date || ""].sort().pop();
-    return d >= since30();
+  function closedRecent(o) {                                                        // «Закрыто» за 30 дней: по дате закрытия с моста (B1 плана 10; без денег — тоже)
+    var d = o.closed_date != null ? o.closed_date : [o.post_date || "", o.adv_date || ""].sort().pop();      // старый мост без closed_date — по последней оплате
+    return (d || "") >= since30();
   }
   function orderSum(o, k) { var a = +o.amount || 0; return k === 9 ? Math.max(0, a - (o.adv_paid ? +o.adv_sum || 0 : 0)) : a; }
   function kpSum(kp, k) { return k === 9 ? (+kp.post_sum || 0) : (+kp.amount || 0); }
@@ -90,7 +91,7 @@
       var dv = dirOn() ? w.dir : "all"; if (dv === "p" && o.nonproj || dv === "n" && !o.nonproj) return;
       var k = orderStep(o);
       if (k === 10 && !closedRecent(o)) return;
-      out.push({ k: k, o: o, visit: o.stage !== "Закрыто" && o.stage !== "Сдано" ? vis[o.id] || null : null });
+      out.push({ k: k, o: o, visit: o.stage !== "Закрыто" && o.stage !== "Сдано" && o.stage !== "Пауза" ? vis[o.id] || null : null });      // на паузе выезд 5.1 не показываем
     });
     if (KP_ROLES[x.pos()]) (S.kp || []).forEach(function (kp) {
       if (kp.order_id && ids[kp.order_id]) return;                                 // по КП есть задача — показываем задачу
@@ -154,7 +155,7 @@
       + (money() && !sub && z.s[k] ? "<em>" + fmtK(z.s[k]) + "</em>" : "") + "<small>" + WHO[k] + "</small></button>";
   }
   function ribbon(keys, ol, z) {
-    var main = keys.filter(function (k) { return k !== "s51" && k !== "s61"; });
+    var main = keys.filter(function (k) { return k !== "s51" && k !== "s61" && k !== "pause"; });
     return '<div class="cv-open" style="--lc:' + (ol ? ol[2] : "var(--brand)") + '">' + main.map(function (k) {
       return chip(k, z, 0) + (SUBOF[k] && keys.indexOf(SUBOF[k]) >= 0 ? chip(SUBOF[k], z, 1) : "");
     }).join('<span class="cv-ar">›</span>') + "</div>";
@@ -168,6 +169,7 @@
     if (o.stage === "Корректировка" && o.fix_n) add += '<span class="pill warn cv-mix">6.1 · корректировка, круг ' + o.fix_n + "</span>";
     if (it.visit) add += '<span class="pill info cv-mix">5.1 · выезд ' + E(dm(it.visit.day)) + (it.visit.executor ? " — " + E(it.visit.executor) : "") + "</span>";
     if (it.k === 4 && o.stage !== "Ожидает аванс") add += '<span class="pill warn cv-mix">ждём аванс · ' + E(o.stage) + "</span>";
+    if (it.k === "pause") add += '<span class="pill muted cv-mix" title="Ушла с шага «' + E(o.pause_from || "") + '»">⏸ пауза до ' + E(dm(o.pause_until)) + (o.pause_reason ? " · " + E(o.pause_reason) : "") + "</span>";
     if (it.k === 9) add += '<span class="pill ' + (o.post_paid ? "ok" : "warn") + ' cv-mix">акт отправлен' + (money() && !o.post_paid ? " · ждём " + E(x.money(orderSum(o, 9))) : "") + "</span>";
     var c = x.card(o, true);
     if (o.stage === "Закрыто") c = c.replace(/<span class="pill (bad|warn|info|muted)">[^<]*<\/span><\/span><\/span><\/button>$/, '<span class="pill ok">закрыто</span></span></span></button>');      // срок договора у закрытой не горит
@@ -229,7 +231,8 @@
     if (w.whof) shown = shown.filter(function (it) { return whoOf(it) === w.whof; });
     shown.sort(sortIt);
     var lt = shown.filter(late).length, lim = w.more ? shown.length : CARDS_MAX;
-    var back = w.step && !q ? '<button type="button" class="cv-link" data-cvs="0"><span class="cv-lk-l">' + (ol ? "весь этап «" + ol[1] + "»" : "все мои шаги") + '</span><span class="cv-lk-s">✕ шаг</span></button>' : "";
+    var back = w.step && !q ? '<button type="button" class="cv-link" data-cvs="0"><span class="cv-lk-l">' + (ol ? "весь этап «" + ol[1] + "»" : "все мои шаги") + '</span><span class="cv-lk-s">✕ шаг</span></button>'
+      : ol && !q && LANEDEF[pos()] === "mine" ? '<button type="button" class="cv-link" data-cvl="mine"><span class="cv-lk-l">все мои шаги</span><span class="cv-lk-s">✕ этап</span></button>' : "";      // B5: назад к своим шагам
     var who = '<select class="cv-sel" data-cvw="1" title="По исполнителю"><option value="">по исполнителю ▾</option>' + Object.keys(names).sort(function (a, b) { return a.localeCompare(b, "ru"); })
       .concat(w.whof && !names[w.whof] ? [w.whof] : []).map(function (n) { return '<option value="' + E(n) + '"' + (w.whof === n ? " selected" : "") + ">" + E(n) + "</option>"; }).join("") + "</select>";
     var cards = shown.slice(0, lim).map(function (it) { return it.kp ? kpCard(it) : orderCard(it); }).join("");
@@ -242,10 +245,10 @@
   function ensure() {
     var x = X(), S = x.S;
     if (KP_ROLES[x.pos()] && S.kp == null && !S.cvKpL) { S.cvKpL = 1; x.api("/kp").then(function (k) { S.kp = k; }, function () { S.kp = []; }).then(function () { S.cvKpL = 0; x.paint(); }); }
-    if (S.cvVis == null && !S.cvVisL) {
+    if ((S.cvVis == null || Date.now() - (S.cvVisAt || 0) > VIS_TTL) && !S.cvVisL) {      // B4: выезды, поставленные после входа, — без перезагрузки страницы
       S.cvVisL = 1;
-      x.api("/visits").then(function (r) { S.cvVis = ((r && r.items) || []).filter(function (v) { return v.status === "plan"; }); }, function () { S.cvVis = []; })
-        .then(function () { S.cvVisL = 0; x.paint(); });
+      x.api("/visits").then(function (r) { S.cvVis = ((r && r.items) || []).filter(function (v) { return v.status === "plan"; }); }, function () { if (S.cvVis == null) S.cvVis = []; })
+        .then(function () { S.cvVisAt = Date.now(); S.cvVisL = 0; x.paint(); });
     }
   }
   function html() {
