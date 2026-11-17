@@ -2835,9 +2835,10 @@
     a.href = URL.createObjectURL(new Blob(["\ufeff" + text], { type: (mime || "text/plain") + ";charset=utf-8" }));
     a.download = name; document.body.appendChild(a); a.click(); a.remove();
   }
+  function rpLeads(p) { return p === "owner" || p === "sales" || p === "ops" || p === "design"; }      /* руководители видят отчёты всех отделов (17.11, п.10) */
   function loadReport() {
     if (!S.rp) S.rp = { kind: reportKind(), start: isoDay(monday()), data: null };
-    if (pos() !== "owner") S.rp.kind = reportKind();
+    if (!rpLeads(pos())) S.rp.kind = reportKind();
     return api("/reports/" + S.rp.kind + "?start=" + S.rp.start).then(function (d) { S.rp.data = d; S.err = ""; }, function (e) { S.rp.data = null; S.err = String(e); });
   }
   /* ---------- пятничный созвон: отчёты отделов по вопросам таблицы «Созвоны» ---------- */
@@ -3127,7 +3128,7 @@
   function rpView() { if (!S.rpView) { try { S.rpView = localStorage.getItem("ds_rp_view") || "x"; } catch (e) { S.rpView = "x"; } } return S.rpView; }
   function reportScreen() {
     var p = pos(), r = S.rp && S.rp.data;
-    var tabs = p === "owner" ? '<div class="seg">' + RP_KINDS.map(function (x) { return '<button data-rpkind="' + x[0] + '" class="' + (S.rp && S.rp.kind === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>" : "";
+    var tabs = rpLeads(p) ? '<div class="seg">' + RP_KINDS.map(function (x) { return '<button data-rpkind="' + x[0] + '" class="' + (S.rp && S.rp.kind === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>" : "";
     if (!r) return '<div class="head"><div><h1>Пятничный созвон</h1></div></div>' + tabs + '<div class="note">' + (S.err ? E(S.err) : "Нет данных") + "</div>";
     var ro = !r.can_edit, tone = { ok: "var(--ok)", bad: "var(--bad)", brand: "var(--brand)", warn: "var(--warn)" };
     var done = r.items.filter(rpDone).length, auto = r.items.filter(function (it) { return it.mode !== "manual"; }).length;
