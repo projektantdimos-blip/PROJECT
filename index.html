@@ -466,7 +466,7 @@ function renderTopNav(){
           + (docsOn ? '<div class="sub">' + b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc") + b("#/contracts","file","Конструктор договоров",cur==="contracts","contracts") + b("#/price","list","Прайс",cur==="price","price") + "</div>" : "") : "")
       + '<div class="nav-label">Общение</div>'
       + b("#/team","team","Чаты команды",pa==="team","team") + b("#/chat","chat","Мессенджеры",cur==="chat","chat") + b("#/mail","mail","Почта",cur==="mail","mail") + b("#/scripts","list","Скрипты",cur==="scripts","scripts")
-      + '<div class="nav-label">Неделя</div>' + b("#/report","list","Пятница и цифры",cur==="report","report")
+      + '<div class="nav-label">Неделя</div>' + b("#/cal","cal","Занятость",cur==="cal","cal") + b("#/report","list","Пятница и цифры",cur==="report","report")
       + '<div class="nav-label">Справка</div>'
       + (ws.length ? '<button data-goto="' + ws[0][1] + '" class="' + (pa === "work" ? "active" : "") + '">' + icon("layers") + "<span>Регламент</span></button>"
           + (pa === "work" && ws.length > 1 ? '<div class="sub">' + ws.map(function (x) { return '<button data-goto="' + x[1] + '" class="' + (wcur === x[0] ? "active" : "") + '">' + icon(x[2]) + "<span>" + x[3] + "</span></button>"; }).join("") + "</div>" : "") : "")
@@ -587,7 +587,7 @@ globalRouter();
 </style>
 <script src="noautofill.js?v=20261031a"></script>
 <script src="sound.js?v=20261031a"></script>
-<script src="chat.js?v=20261112a"></script>
+<script src="chat.js?v=20261112b"></script>
 <button id="apiGear" title="Настройки подключения" aria-label="Настройки">⚙</button>
 <div id="apiModal"><div class="box">
   <h2>Подключение к серверу CRM</h2>
@@ -667,7 +667,7 @@ globalRouter();
 <script src="work_how.js?v=20261117a"></script>
 <script src="stats.js?v=20261102a"></script>
 <script src="visits.js?v=20261102b"></script>
-<script src="calls.js?v=20261116a"></script>
+<script src="calls.js?v=20261116b"></script>
 <script src="remind.js?v=20261110a"></script>
 <script src="today.js?v=20261116a"></script>
 <script>
