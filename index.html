@@ -275,7 +275,7 @@ textarea{resize:vertical;min-height:64px}
 <noscript><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Onest:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="theme-v2.css?v=20261115a">
 <script>try{var __t=localStorage.getItem("ds_theme");if(__t)document.documentElement.setAttribute("data-theme",__t)}catch(e){}</script>
-<link rel="stylesheet" href="ds.css?v=20261116c">
+<link rel="stylesheet" href="ds.css?v=20261117a">
 <link rel="stylesheet" href="today.css?v=20261115c">
 <link rel="stylesheet" href="work_load.css?v=20261115b">
 </head>
@@ -447,32 +447,32 @@ function renderTopNav(){
   var ws = DS_WORK ? dsWorkSubs() : [], wcur = DS_WORK ? dsWorkSub() : "";
   if (wcur) pa = "work";
   var workNav = !DS_WORK
-    ? lab("Работа", ["flow","tasks","tz","cal","visits","risk","my"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/visits","pin","Выезды",pa==="visits","visits") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my")
-    : lab("Работа", ["today"]) + b("#/today","sun","Сегодня",pa==="today","today")
+    ? lab("Работа", ["flow","tasks","tz","cal","visits","risk","my","report"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/visits","pin","Выезды",pa==="visits","visits") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my") + b("#/report","list","Пятничный созвон",pa==="report","report")
+    : lab("Работа", ["today","report"]) + b("#/today","sun","Сегодня",pa==="today","today")
       + (DS_WORK_OWN[pos] ? b("#/","tasks",pos==="designer"?"Мои проекты":"Закрытие",pa==="tasks","tasks") : "")
       + (DS_WORK_NOMY[pos] ? "" : b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my"))
       + (ws.length ? '<button data-goto="'+ws[0][1]+'" class="'+(pa==="work"?"active":"")+'">'+icon("tasks")+'<span>Работа</span></button>'
-          + (pa==="work" && ws.length > 1 ? '<div class="sub">'+ws.map(function(x){ return '<button data-goto="'+x[1]+'" class="'+(wcur===x[0]?"active":"")+'">'+icon(x[2])+'<span>'+x[3]+'</span></button>'; }).join("")+'</div>' : "") : "");
+          + (pa==="work" && ws.length > 1 ? '<div class="sub">'+ws.map(function(x){ return '<button data-goto="'+x[1]+'" class="'+(wcur===x[0]?"active":"")+'">'+icon(x[2])+'<span>'+x[3]+'</span></button>'; }).join("")+'</div>' : "") : "") + b("#/report","list","Пятничный созвон",pa==="report","report");
   document.getElementById("topnav").innerHTML =
     workNav
     + lab("Заказчики и продажи", ["clients","kpreg","kpc","contracts"]) + b("#/clients","users",pos==="design"?"Кому звонить":"База заказчиков",pa==="clients","clients") + comm
-    + lab("Общение", ["team","chat","mail","scripts","report"]) + b("#/team","team","Внутренние",pa==="team","team") + b("#/chat","chat","Мессенджеры",pa==="chat","chat") + b("#/mail","mail","Почта",pa==="mail","mail") + b("#/scripts","list","Скрипты",pa==="scripts","scripts") + b("#/report","list","Пятничный созвон",pa==="report","report")
+    + lab("Общение", ["team","chat","mail","scripts"]) + b("#/team","team","Чаты команды",pa==="team","team") + b("#/chat","chat","Мессенджеры",pa==="chat","chat") + b("#/mail","mail","Почта",pa==="mail","mail") + b("#/scripts","list","Скрипты",pa==="scripts","scripts")
     + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
   var bn = function(go, ic, t, on){ return '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+'<span class="bn-t">'+t+'</span></button>'; };
   /* Нижнее меню телефона: не больше 4 кнопок + «Ещё», чтобы помещалось в 320 px. Кнопка «Звонок» (calls.js) занимает одно из 4 мест.
-     Порядок важности; что не поместилось — в «Ещё» (там же «Сегодня» и «Скрипты»). «Внутренние» важнее «Чатов» (решение владельца 15.11):
-     у кого есть «Звонок», внизу остаются «Внутренние» со счётчиком, «Чаты» — в «Ещё». */
-  var bnAll = [["today","#/today","sun","Сегодня"], ["tasks","#/","tasks",pos==="designer"?"Проекты":pos==="acc"?"Закрытие":"Задачи"], ["team","#/team","team","Внутренние"],
+     Порядок важности; что не поместилось — в «Ещё» (там же «Сегодня» и «Скрипты»). «Чаты команды» важнее «Чатов» (решение владельца 15.11):
+     у кого есть «Звонок», внизу остаются «Чаты команды» со счётчиком, «Чаты» — в «Ещё». */
+  var bnAll = [["today","#/today","sun","Сегодня"], ["tasks","#/","tasks",pos==="designer"?"Проекты":pos==="acc"?"Закрытие":"Задачи"], ["team","#/team","team","Чаты команды"],
                ["chat","#/chat","chat","Чаты"], ["my","#/my","bell",pos==="designer"?"План":"Мои"], ["mail","#/mail","mail","Почта"]];
   if (DS_WORK) {
-    /* Ч0 (решения владельца 15.11): у руководителя — «Сегодня · Внутренние · Чаты» + «Ещё», без «Звонка» (у руководителя нет телефонии);
+    /* Ч0 (решения владельца 15.11): у руководителя — «Сегодня · Чаты команды · Чаты» + «Ещё», без «Звонка» (у руководителя нет телефонии);
        «Работа», «Заказчики», «Коммерция» — в «Ещё». У остальных — как выложено 15.11, только «Задачи» → «Работа» на том же месте;
        у проектировщика и нормативного «Работа» — вместо «План»/«Мои» (они в «Ещё»); у бухгалтера «Закрытие» остаётся, «Работа» — в конце. */
     var wB = ws.length ? ["work", ws[0][1], "tasks", "Работа"] : null;
     var wAt2 = !DS_WORK_OWN[pos] && dsAllowed("tasks"), wForMy = pos === "designer" || pos === "norm";
     bnAll = pos === "owner"
-      ? [["today","#/today","sun","Сегодня"], ["team","#/team","team","Внутренние"], ["chat","#/chat","chat","Чаты"]]
-      : [["today","#/today","sun","Сегодня"], DS_WORK_OWN[pos] ? bnAll[1] : (wAt2 ? wB : null), ["team","#/team","team","Внутренние"],
+      ? [["today","#/today","sun","Сегодня"], ["team","#/team","team","Чаты команды"], ["chat","#/chat","chat","Чаты"]]
+      : [["today","#/today","sun","Сегодня"], DS_WORK_OWN[pos] ? bnAll[1] : (wAt2 ? wB : null), ["team","#/team","team","Чаты команды"],
          ["chat","#/chat","chat","Чаты"], wForMy ? (wAt2 ? null : wB) : (DS_WORK_NOMY[pos] ? null : bnAll[4]), ["mail","#/mail","mail","Почта"], (wAt2 || wForMy) ? null : wB];
     bnAll = bnAll.filter(Boolean);
   }
@@ -641,9 +641,9 @@ globalRouter();
 </script>
 <script src="crm.js?v=20261115a"></script>
 <script src="download.js?v=20261109b"></script>
-<script src="extras.js?v=20261116a"></script>
+<script src="extras.js?v=20261117a"></script>
 <script src="team.js?v=20261105a"></script>
-<script src="teamsearch.js?v=20261031a"></script>
+<script src="teamsearch.js?v=20261117a"></script>
 <script src="ai.js?v=20261031d"></script>
 <script src="chatpanel.js?v=20261106a"></script>
 <script src="ds.js?v=20261116e"></script>
