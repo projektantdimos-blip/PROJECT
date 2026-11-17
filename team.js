@@ -845,12 +845,48 @@
   function renderMe() {
     var el = $("me-app"), sub = "Настройки уведомлений, профиль и доступ сотрудников";
     if (!gate(el, "Личный кабинет", sub, renderMe)) return;
-    var u = C.me, tabs = [["notif", "bell", "Уведомления"], ["colors", "chat", "Цвета в чатах"], ["info", "user", "Профиль"]].concat(window.DSCalls && (DSCalls.enabled || u.role === "admin") ? [["tel", "phone", "Телефония"]] : []).concat(u.role === "admin" ? [["staff", "users", "Сотрудники"]] : []).concat((u.role === "admin" || u.position === "owner") && window.DS && DS.botSettings ? [["maxbot", "chat", "MAX-бот"]] : []);
+    var u = C.me, tabs = [["notif", "bell", "Уведомления"], ["colors", "chat", "Цвета в чатах"], ["info", "user", "Профиль"], ["vac", "cal", "Отпуска"]].concat(window.DSCalls && (DSCalls.enabled || u.role === "admin") ? [["tel", "phone", "Телефония"]] : []).concat(u.role === "admin" ? [["staff", "users", "Сотрудники"]] : []).concat((u.role === "admin" || u.position === "owner") && window.DS && DS.botSettings ? [["maxbot", "chat", "MAX-бот"]] : []);
     el.innerHTML = head("Личный кабинет", sub) + '<div class="wrap"><div class="prof2">' + ava(u.name, "xl") + "<div><h2>" + E(u.name) + "</h2><p>" + (u.title ? E(u.title) + " · " : "") + (POS_TITLE[u.position] || (u.role === "admin" ? "Руководитель" : "Сотрудник")) + '</p><div class="pf-pills"><span>' + (u.tg ? "Telegram подключён" : "Telegram не подключён") + '</span><span>' + (u.max ? "MAX подключён" : "MAX не подключён") + '</span><span>' + (C.pushOn && C.pushOn() ? "Push включён" : "Push выключен") + '</span></div></div>' + '<div class="pf-stats"><div><b>' + ((C.sync || {}).notif_unread || 0) + '</b><small>новых уведомлений</small></div><div><b>' + ((C.sync || {}).team_unread || 0) + '</b><small>непрочитано в «Команде»</small></div><div><b>' + (((C.sync || {}).urgent || []).length) + '</b><small>срочных</small></div></div><button class="x-btn ghost" id="meOut">Выйти</button></div>'
       + '<div class="x-bar"><div class="x-seg" id="meTabs">' + tabs.map(function (t) { return '<button data-t="' + t[0] + '" class="' + (P.tab === t[0] ? "on" : "") + '">' + ic(t[1]) + t[2] + "</button>"; }).join("") + '</div></div><div id="meBody"></div></div>';
     $("meOut").onclick = function () { C.logout().then(renderMe); };
     $("meTabs").querySelectorAll("button").forEach(function (b) { b.onclick = function () { P.tab = b.dataset.t; renderMe(); }; });
-    if (P.tab === "notif") paintNotif(); else if (P.tab === "colors") paintColors(); else if (P.tab === "info") paintInfo2(); else if (P.tab === "tel" && window.DSCalls) DSCalls.paintMe($("meBody")); else if (P.tab === "maxbot" && window.DS && DS.botSettings) DS.botSettings($("meBody")); else paintStaff();
+    if (P.tab === "notif") paintNotif(); else if (P.tab === "colors") paintColors(); else if (P.tab === "info") paintInfo2(); else if (P.tab === "vac") paintVac(); else if (P.tab === "tel" && window.DSCalls) DSCalls.paintMe($("meBody")); else if (P.tab === "maxbot" && window.DS && DS.botSettings) DS.botSettings($("meBody")); else paintStaff();
+  }
+  /* «Отпуска» (В4, заявка 17.11 п.9): заявка сотрудника (даты, тип) → уведомление руководителю; руководитель видит всех */
+  function paintVac() {
+    var body = $("meBody");
+    body.innerHTML = '<div class="x-empty">Загрузка…</div>';
+    C.call("/../ds/vacations", {}).then(function (d) {
+      body.innerHTML = '<div class="x-two"><div>'
+        + '<div class="x-panel pad" style="margin-bottom:16px"><h3>Заявка на отпуск</h3><p class="x-sub">После отправки руководитель получит уведомление</p>'
+        + '<div class="x-field"><label>С</label><input type="date" id="vacFrom"></div>'
+        + '<div class="x-field"><label>По</label><input type="date" id="vacTo"></div>'
+        + '<div class="x-field"><label>Тип</label><select id="vacType" style="width:100%">' + (d.types || []).map(function (t) { return '<option value="' + t[0] + '">' + E(t[1]) + "</option>"; }).join("") + "</select></div>"
+        + '<div class="x-field"><label>Комментарий — по необходимости</label><input type="text" id="vacNote" maxlength="300" placeholder="Например: билеты уже куплены"></div>'
+        + '<div class="x-err" id="vacErr"></div><button class="x-btn primary" id="vacGo" style="width:100%;justify-content:center">' + ic("check") + 'Отправить заявку</button></div>'
+        + '</div><div class="x-sticky"><div class="x-panel pad"><h3>' + (d.all ? "Отпуска сотрудников" : "Мои заявки") + '</h3><p class="x-sub">'
+        + (d.all ? "Все заявки компании, новые сверху" : "Ваши отпуска, больничные и заявки без сохранения") + '</p><div id="vacList"></div></div></div></div>';
+      $("vacGo").onclick = function () {
+        var b = this; b.disabled = true; $("vacErr").textContent = "";
+        C.call("/../ds/vacations", { body: { start: $("vacFrom").value, end: $("vacTo").value, type: $("vacType").value, note: $("vacNote").value } })
+          .then(function () { toast("Заявка отправлена — руководитель уведомлён"); paintVac(); })
+          .catch(function (e) { $("vacErr").textContent = String(e); b.disabled = false; });
+      };
+      drawVacList(d.items || [], !!d.all);
+    }).catch(function (e) { body.innerHTML = '<div class="x-panel pad"><div class="x-err">' + E(e) + "</div></div>"; });
+    function dmyIso(iso) { return iso ? iso.slice(8, 10) + "." + iso.slice(5, 7) + "." + iso.slice(0, 4) : ""; }
+    function drawVacList(items, all) {
+      var el = $("vacList"); if (!el) return;
+      if (!items.length) { el.innerHTML = '<div class="x-empty" style="padding:10px 0">Заявок пока нет</div>'; return; }
+      var tdIso = new Date().toISOString().slice(0, 10);
+      items.sort(function (a, b) { return a.start < b.start ? 1 : a.start > b.start ? -1 : 0; });      // новые сверху
+      el.innerHTML = items.map(function (v) {
+        var cur = v.start <= tdIso && tdIso <= v.end;
+        return '<div class="x-chc" style="margin-bottom:8px"><div class="t"><span class="x-rm">' + ic("cal") + '</span><div><b>' + dmyIso(v.start) + " — " + dmyIso(v.end) + "</b>"
+          + (all || !v.mine ? "<small>" + E(v.user_name) + "</small>" : "") + (v.note ? "<small>" + E(v.note) + "</small>" : "")
+          + '</div></div><span class="x-pill ' + (cur ? "ok" : "") + '">' + (cur ? "сейчас" : E(v.type_label)) + "</span></div>";
+      }).join("");
+    }
   }
   function savePrefs(patch) { return C.call("/me/prefs", { body: patch }).then(function (p) { C.prefs = p; return p; }); }
   function paintNotif() {

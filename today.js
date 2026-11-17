@@ -395,6 +395,15 @@
       }));
       h += panel("wait_pay", "Ждём оплату", b.wait_pay.length, rows, "", "Ждём денег: " + money(tot));
     }
+    if (b.debtors && b.debtors.length) {                /* «💰 Должники» (В3): срок оплаты по договору прошёл, деньги не пришли */
+      var dsum = 0;
+      h += panel("debtors", "💰 Должники", b.debtors.length, cap("debtors", b.debtors.map(function (x) {
+        dsum += x.debt;
+        var call = window.DSCalls && String(x.phone || "").replace(/\D/g, "").length >= 10 ? '<button type="button" class="btn ghost sm" data-dial="' + E(x.phone) + '" data-dcid="' + (x.customer_id || 0) + '" data-dwho="' + E(x.fio || "") + '">Позвонить</button>' : "";
+        return row(dot("bad"), "Договор №" + E(x.contract_number) + " · " + E(x.customer || ""), [x.object, x.status].filter(Boolean).map(E).join(" · "),
+          "<b>" + money(x.debt) + "</b>просрочка " + x.over_wd + " р.д.", call + btn("Реестр", 'data-tdhash="#/kpreg/"'));
+      })), "", "Просрочено по договорам: " + money(dsum) + " · срок — обещанная дата или дата договора + срок оплаты");
+    }
     // Д4: распределённым — пометка «распределено ДД.ММ — переведите» и «→ В проектирование»; плановое начало прошло — красным (правило ready_thu, Г-11)
     var canStart = d.pos === "design" || d.pos === "owner", anyAs = false;
     if (b.ready && b.ready.length) h += panel("ready", "Готово к проектированию", b.ready.length, cap("ready", b.ready.map(function (o) {
