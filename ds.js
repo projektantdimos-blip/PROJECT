@@ -2026,6 +2026,11 @@
   function kpScreen() {
     kpCss();
     var p = pos(), canEdit = p === "owner" || p === "sales" || p === "ops", all = S.kp || [], f = kpFlt();
+    var onecTab = p === "owner" || p === "sales" || p === "ops" || p === "acc";      // вкладка «Оплаты 1С» — у ролей с разделом onec (макет меню РОПа, 17.11)
+    var kptabs = onecTab ? '<div class="seg" title="Реестр КП и оплаты из 1С"><button data-kptab="kp" class="' + (S.kpTab !== "onec" ? "on" : "") + '">Реестр КП</button><button data-kptab="onec" class="' + (S.kpTab === "onec" ? "on" : "") + '">Оплаты 1С</button></div>' : "";
+    if (S.kpTab === "onec" && onecTab)      // то же содержимое, что у раздела «Оплаты 1С»
+      return '<div class="head kphead"><h1>Реестр КП</h1>' + kptabs + '<span style="flex:1"></span>' + onecRunBtn(S.on) + "</div>"
+        + (S.on ? "" : '<div class="note">Загрузка оплат из 1С…</div>') + onecBody();
     var dOf = function (k) { return f.by === "s" ? k.status_date || "" : k.lead_date || k.issued_date || ""; };
     var per = all.filter(function (k) { var d = dOf(k); return (!f.from || d >= f.from) && (!f.to || (d && d <= f.to)); });
     var list = per.filter(function (k) { return f.st === "watch" ? k.watch && !kpArchived(k) : f.st ? k.status === f.st : !kpArchived(k); });      // «Все» — в работе, без закрытых и отказов
@@ -2046,8 +2051,8 @@
         var ks = per.filter(function (k) { return k.status === s; }), sum = ks.reduce(function (a, k) { return a + (k.amount || 0); }, 0);
         return '<button class="pill ' + KP_TONE[s] + " kpst" + (f.st === s ? " on" : "") + '" data-kpst="' + E(s) + '" title="' + E(s) + ": " + ks.length + " КП на " + E(money(sum)) + '">' + E(s) + " · " + ks.length + "</button>";
       }).join("") + "</div>";
-    // шапка в одну строку: заголовок · воронка · шрифт и «Составить КП» — таблице остаётся больше места по высоте
-    var head = '<div class="head kphead"><h1 title="Нажмите на этап — в таблице останутся только его КП. «В работе» создаёт проектную задачу и чат; дальше этапы идут сами: аванс из 1С → «В работе», проект «Сдано» → «В постоплате», оплата по акту → «Закрыто». Красным — КП без общения больше 5 дней">Реестр КП</h1>' + pills
+    // шапка в одну строку: заголовок · воронка · вкладка «Оплаты 1С» · шрифт и «Составить КП» — таблице остаётся больше места по высоте
+    var head = '<div class="head kphead"><h1 title="Нажмите на этап — в таблице останутся только его КП. «В работе» создаёт проектную задачу и чат; дальше этапы идут сами: аванс из 1С → «В работе», проект «Сдано» → «В постоплате», оплата по акту → «Закрыто». Красным — КП без общения больше 5 дней">Реестр КП</h1>' + pills + kptabs
       + '<div style="display:flex;gap:10px;align-items:center;flex:none"><div class="seg" title="Размер шрифта таблицы"><button data-kpz="-1">A−</button><button data-kpz="0">' + kpz + ' px</button><button data-kpz="1">A+</button></div>'
       + (canEdit ? '<a class="btn accent" href="#/kpc" style="text-decoration:none">' + ic("plus") + "Составить КП</a>" : "") + "</div></div>";
     var funnel = '<div class="kpbar">'
@@ -2280,7 +2285,7 @@
     return '<div class="seg" style="margin-bottom:12px"><button data-cmode="gen" class="' + (S.cmode !== "kp" ? "on" : "") + '">Генератор договоров</button><button data-cmode="kp" class="' + (S.cmode === "kp" ? "on" : "") + '">Договор по КП</button></div>';
   }
   function genScreen() {
-    return '<div class="head"><div><h1>Договоры</h1><p>Генератор договоров ИП: Word и PDF, база клиентов и история. Данные хранятся в CRM, документы собираются в браузере.</p></div></div>' + cmodeSeg()
+    return '<div class="head"><div><h1>Конструктор договоров</h1><p>Генератор договоров ИП: Word и PDF, база клиентов и история. Данные хранятся в CRM, документы собираются в браузере.</p></div></div>' + cmodeSeg()
       + '<iframe id="cgFrame" src="contracts/index.html" title="Генератор договоров" style="width:100%;height:calc(100vh - 230px);min-height:640px;border:1px solid var(--line);border-radius:12px;background:#fff"></iframe>';
   }
   function innOk(s) {
@@ -3128,15 +3133,13 @@
     var done = r.items.filter(rpDone).length, auto = r.items.filter(function (it) { return it.mode !== "manual"; }).length;
     var head = '<div class="head"><div><h1>Пятничный созвон · ' + E(r.title) + "</h1><p>Неделя " + dmy(r.week_start).slice(0, 5) + " — " + dmy(r.week_end).slice(0, 5) + ". Цифры и списки CRM считает сама; допишите комментарии и ответы на ручные вопросы — в пятницу в 17:00 отчёт уйдёт руководителю.</p></div>"
       + '<div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg"><button data-rpnav="-1">← Пред.</button><button data-rpnav="0" class="on">Эта</button><button data-rpnav="1">След. →</button></div>'
-      + '<div class="seg" title="Вид отчёта"><button data-rpview="x" class="' + (rpView() === "x" ? "on" : "") + '">Таблица</button><button data-rpview="c" class="' + (rpView() === "c" ? "on" : "") + '">Карточки</button></div>'
-      + '<button class="btn ghost" data-rpref="1" title="Пересчитать отчёт по данным CRM на сейчас">⟳ Обновить</button><button class="btn ghost" data-rpdl="1" title="Скачать таблицу: вопрос — ответ (откроется в Excel)">Скачать для Excel</button>' + (p !== "owner" ? '<button class="btn primary" data-rppub="1">Отправить руководителю</button>' : "") + "</div></div>"
+      + '<button class="btn ghost" data-rpref="1" title="Пересчитать отчёт по данным CRM на сейчас">⟳ Обновить</button></div></div>'
       + (tabs ? '<div style="margin-bottom:14px">' + tabs + "</div>" : "");
     var who = '<div class="panel pad" style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">' + (r.person ? ava(r.person, "lg") : "") + "<div><b>" + E(r.person || r.title) + '</b><br><small style="color:var(--muted)">' + E(r.title) + " · " + r.items.length + " вопросов · CRM отвечает на " + auto + "</small></div>"
       + '<div style="margin-left:auto;min-width:200px;font-size:.82rem;color:var(--muted)">Заполнено ' + done + " из " + r.items.length + '<div style="height:7px;background:var(--line);border-radius:9px;margin-top:5px;overflow:hidden"><i style="display:block;height:100%;width:' + Math.round(done / r.items.length * 100) + '%;background:var(--ok)"></i></div></div></div>';
     var legend = '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.8rem;color:var(--muted);margin-bottom:12px"><span>' + rpTag("auto") + " считает CRM</span><span>" + rpTag("semi") + " список из CRM, вы дописываете «что сделал · следующий шаг»</span><span>" + rpTag("manual") + " отвечаете вы</span></div>";
     var tiles = '<div class="tiles" style="margin-bottom:16px">' + r.tiles.map(function (x) { return '<div class="tile" style="--c:' + (tone[x[0]] || "var(--brand)") + '"><div class="n">' + E(x[1]) + '</div><div class="l">' + E(x[2]) + "</div></div>"; }).join("") + "</div>";
-    if (rpView() === "x") return head + who + tiles + '<div class="note" style="margin:0 0 10px">То, что посчитала CRM, не правится — при необходимости допишите комментарий под ответом. Ответы на свои вопросы и поля в таблицах сохраняются сами. Номер задачи открывает её карточку; в плане оплат лишние КП убираются крестиком ×.</div>' + rpExcel(r, ro);
-    return head + who + tiles + legend + rpBlocks(r, ro, function (it) { return rpItem(it, ro); });
+    return head + who + tiles + '<div class="note" style="margin:0 0 10px">То, что посчитала CRM, не правится — при необходимости допишите комментарий под ответом. Ответы на свои вопросы и поля в таблицах сохраняются сами. Номер задачи открывает её карточку; в плане оплат лишние КП убираются крестиком ×.</div>' + rpExcel(r, ro);
   }
   document.addEventListener("click", function (e) {
     var t = e.target.closest ? e.target.closest("[data-rpchip]") : null; if (!t || !S.rp || !S.rp.data) return;
@@ -3320,7 +3323,7 @@
       return;
     }
     if (d.kparch != null && t.hasAttribute("data-kparch")) { S.kpArch = !S.kpArch; return paint(); }
-    if (d.kptab) { S.kpTab = d.kptab; return paint(); }
+    if (d.kptab) { S.kpTab = d.kptab; if (d.kptab === "onec" && !S.on) return loadOnec().then(function () { paint(); }, function () { paint(); }); return paint(); }
     if (d.ksv != null && t.hasAttribute("data-ksv")) { var it = S.kpf.items[+d.ksv]; it.on = !it.on; return paint(); }
     if (d.kadd != null && t.hasAttribute("data-kadd")) { S.kpf.items.push({ name: "", price: 0, on: true, custom: true }); return paint(); }
     if (d.kdel != null && t.hasAttribute("data-kdel")) { S.kpf.items.splice(+d.kdel, 1); return paint(); }

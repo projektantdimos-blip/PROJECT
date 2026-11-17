@@ -108,18 +108,19 @@
   }
   function html() {
     var x = X(), w = st();
-    if (!x.S.fl) return '<div class="head"><div><h1>Как работаем</h1></div></div><div class="note">' + E(x.S.err || "Нет данных") + "</div>";
-    var head = '<div class="head hw-head"><div><h1>Как работаем</h1><p>Кто что делает на каждом шаге, сроки и что CRM делает сама. Нажмите на шаг — подробности.</p></div>'
+    if (!x.S.fl) return '<div class="head"><div><h1>Регламент</h1></div></div><div class="note">' + E(x.S.err || "Нет данных") + "</div>";
+    var head = '<div class="head hw-head"><div><h1>Регламент</h1><p>Кто что делает на каждом шаге, сроки и что CRM делает сама. Нажмите на шаг — подробности.</p></div>'
       + '<div class="hw-btns"><button type="button" class="btn ghost" data-hwp="1" title="Распечатать схему">🖨 Печать</button><button type="button" class="btn ghost" data-hwl="1" title="Скопировать ссылку для сотрудника">🔗 Ссылка</button></div></div>';
-    var chips = '<div class="hw-roles"><span class="vlab">Чья роль:</span><button type="button" class="hw-r' + (!w.rg ? " on" : "") + '" data-hwr="">Все</button>'
-      + Object.keys(RROLE).map(function (k) { return '<button type="button" class="hw-r' + (w.rg === k ? " on" : "") + '" data-hwr="' + k + '" style="--rc:' + RROLE[k][1] + '"><i></i>' + RROLE[k][0] + "</button>"; }).join("") + "</div>";
-    var flow = '<div class="hw-flow">'
+    var own = x.pos() === "owner";      /* персональный цикл (заявка владельца 17.11): не-руководитель видит только свой регламент, общую схему — руководитель */
+    var chips = own ? '<div class="hw-roles"><span class="vlab">Чья роль:</span><button type="button" class="hw-r' + (!w.rg ? " on" : "") + '" data-hwr="">Все</button>'
+      + Object.keys(RROLE).map(function (k) { return '<button type="button" class="hw-r' + (w.rg === k ? " on" : "") + '" data-hwr="' + k + '" style="--rc:' + RROLE[k][1] + '"><i></i>' + RROLE[k][0] + "</button>"; }).join("") + "</div>" : "";
+    var flow = own ? '<div class="hw-flow">'
       + '<div class="hw-lane sales"><div class="hw-lh">Продажи · общие</div>' + row(["1", "2", "3", "4"]) + "</div>"
       + '<div class="hw-split">⬇ Договор подписан и аванс получен — заказ идёт по направлению: проект или нормо-тех (по системам и услугам КП; сменить вручную — «Меню задачи»: руководитель, РОП, опер. менеджер)</div>'
       + '<div class="hw-lane proj"><div class="hw-lh">Проект</div>' + row(["5", "6", "7", "8"]) + "</div>"
       + '<div class="hw-lane norm"><div class="hw-lh">Нормо-техническая · расчёты и категории</div>' + row(["n1", "n2", "n3", "n4"]) + "</div>"
       + '<div class="hw-split">⬇ Акт и счёт отправлены</div>'
-      + '<div class="hw-lane money"><div class="hw-lh">Деньги · общие</div>' + row(["9", "10"]).replace(/<\/div>$/, '<span class="hw-ar" style="opacity:0">→</span>' + col("11") + "</div>") + "</div></div>";      // шаг 11 «Пауза» — рядом с 9–10, как в макете
+      + '<div class="hw-lane money"><div class="hw-lh">Деньги · общие</div>' + row(["9", "10"]).replace(/<\/div>$/, '<span class="hw-ar" style="opacity:0">→</span>' + col("11") + "</div>") + "</div></div>" : "";      // шаг 11 «Пауза» — рядом с 9–10, как в макете
     var todo = "";
     if (w.rg) {
       var list = ORDER.filter(function (k) { return REG[k].act[w.rg]; });

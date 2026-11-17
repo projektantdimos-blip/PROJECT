@@ -277,7 +277,7 @@ textarea{resize:vertical;min-height:64px}
 <script>try{var __t=localStorage.getItem("ds_theme");if(__t)document.documentElement.setAttribute("data-theme",__t)}catch(e){}</script>
 <link rel="stylesheet" href="ds.css?v=20261117a">
 <link rel="stylesheet" href="today.css?v=20261115c">
-<link rel="stylesheet" href="work_load.css?v=20261115b">
+<link rel="stylesheet" href="work_load.css?v=20261117c">
 </head>
 <body>
 <div class="app">
@@ -425,7 +425,7 @@ function dsAllowed(sec){
 /* Подпункты «Работы» у текущей роли: [раздел, адрес, значок, название] */
 function dsWorkSubs(){
   var own = DS_WORK_OWN[dsPosition()];
-  return [["tasks", own ? "#/conv" : "#/", "flow", "Конвейер"], ["cal", "#/cal", "cal", "Занятость"], ["visits", "#/visits", "pin", "Выезды"], ["flow", "#/flow", "layers", "Как работаем"]]
+  return [["tasks", own ? "#/conv" : "#/", "flow", "Конвейер"], ["cal", "#/cal", "cal", "Занятость"], ["visits", "#/visits", "pin", "Выезды"], ["flow", "#/flow", "layers", "Регламент"]]
     .filter(function(x){ return dsAllowed(x[0]); });
 }
 /* Какой подпункт «Работы» открыт сейчас ("" — открыт другой раздел) */
@@ -441,7 +441,7 @@ function renderTopNav(){
   var ok = dsAllowed;
   var b = function(go, ic, t, on, sec){ return ok(sec) ? '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+'<span>'+t+'</span></button>' : ""; };
   var pos = dsPosition();
-  var sub = '<div class="sub">'+b("#/kpreg/","list","Реестр КП",cur==="kpreg","kpreg")+b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc")+b("#/price","list","Прайс",cur==="price","price")+b("#/contracts","file","Договоры",cur==="contracts","contracts")+b("#/onec","wallet","Оплаты 1С",cur==="onec","onec")+'</div>';
+  var sub = '<div class="sub">'+b("#/kpreg/","list","Реестр КП",cur==="kpreg","kpreg")+b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc")+b("#/price","list","Прайс",cur==="price","price")+b("#/contracts","file","Конструктор договоров",cur==="contracts","contracts")+b("#/onec","wallet","Оплаты 1С",cur==="onec","onec")+'</div>';
   var comm = (ok("kpreg") || ok("kpc") || ok("contracts") || ok("onec")) ? '<button data-goto="#/kpreg/" class="'+(pa==="commerce"?"active":"")+'">'+icon("briefcase")+'<span>Коммерция</span></button>' + (pa==="commerce" ? sub : "") : "";
   var lab = function(t, secs){ return secs.some(ok) ? '<div class="nav-label">'+t+'</div>' : ""; };
   var ws = DS_WORK ? dsWorkSubs() : [], wcur = DS_WORK ? dsWorkSub() : "";
@@ -453,11 +453,26 @@ function renderTopNav(){
       + (DS_WORK_NOMY[pos] ? "" : b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my"))
       + (ws.length ? '<button data-goto="'+ws[0][1]+'" class="'+(pa==="work"?"active":"")+'">'+icon("tasks")+'<span>Заказы</span></button>'
           + (pa==="work" && ws.length > 1 ? '<div class="sub">'+ws.map(function(x){ return '<button data-goto="'+x[1]+'" class="'+(wcur===x[0]?"active":"")+'">'+icon(x[2])+'<span>'+x[3]+'</span></button>'; }).join("")+'</div>' : "") : "") + b("#/report","list","Пятничный созвон",pa==="report","report");
-  document.getElementById("topnav").innerHTML =
+  var navHtml =
     workNav
     + lab("Заказчики и продажи", ["clients","kpreg","kpc","contracts"]) + b("#/clients","users",pos==="design"?"Кому звонить":"База заказчиков",pa==="clients","clients") + comm
     + lab("Общение", ["team","chat","mail","scripts"]) + b("#/team","team","Чаты команды",pa==="team","team") + b("#/chat","chat","Мессенджеры",pa==="chat","chat") + b("#/mail","mail","Почта",pa==="mail","mail") + b("#/scripts","list","Скрипты",pa==="scripts","scripts")
     + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
+  if (DS_WORK && pos === "sales") {      /* меню РОПа по утверждённому макету (17.11): 11 кнопок в 4 группах; «Оплаты 1С» — вкладка внутри «Реестр КП» */
+    var docsOn = cur === "kpc" || cur === "contracts" || cur === "price";
+    navHtml = '<div class="nav-label">Работа</div>'
+      + b("#/today","sun","Сегодня",pa==="today","today") + b("#/kpreg/","list","Реестр КП",cur==="kpreg","kpreg") + b("#/clients","users","Заказчики",cur==="clients","clients")
+      + ((ok("kpc") || ok("contracts") || ok("price")) ? '<button data-goto="#/kpc" class="' + (docsOn ? "active" : "") + '">' + icon("file") + "<span>Документы</span></button>"
+          + (docsOn ? '<div class="sub">' + b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc") + b("#/contracts","file","Конструктор договоров",cur==="contracts","contracts") + b("#/price","list","Прайс",cur==="price","price") + "</div>" : "") : "")
+      + '<div class="nav-label">Общение</div>'
+      + b("#/team","team","Чаты команды",pa==="team","team") + b("#/chat","chat","Мессенджеры",cur==="chat","chat") + b("#/mail","mail","Почта",cur==="mail","mail") + b("#/scripts","list","Скрипты",cur==="scripts","scripts")
+      + '<div class="nav-label">Неделя</div>' + b("#/report","list","Пятница и цифры",cur==="report","report")
+      + '<div class="nav-label">Справка</div>'
+      + (ws.length ? '<button data-goto="' + ws[0][1] + '" class="' + (pa === "work" ? "active" : "") + '">' + icon("layers") + "<span>Регламент</span></button>"
+          + (pa === "work" && ws.length > 1 ? '<div class="sub">' + ws.map(function (x) { return '<button data-goto="' + x[1] + '" class="' + (wcur === x[0] ? "active" : "") + '">' + icon(x[2]) + "<span>" + x[3] + "</span></button>"; }).join("") + "</div>" : "") : "")
+      + b("#/me","user","Личный кабинет",cur==="me","me");
+  }
+  document.getElementById("topnav").innerHTML = navHtml;
   var bn = function(go, ic, t, on){ return '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+'<span class="bn-t">'+t+'</span></button>'; };
   /* Нижнее меню телефона: не больше 4 кнопок + «Ещё», чтобы помещалось в 320 px. Кнопка «Звонок» (calls.js) занимает одно из 4 мест.
      Порядок важности; что не поместилось — в «Ещё» (там же «Сегодня» и «Скрипты»). «Чаты команды» важнее «Чатов» (решение владельца 15.11):
@@ -646,10 +661,10 @@ globalRouter();
 <script src="teamsearch.js?v=20261117a"></script>
 <script src="ai.js?v=20261031d"></script>
 <script src="chatpanel.js?v=20261106a"></script>
-<script src="ds.js?v=20261117b"></script>
-<script src="work_load.js?v=20261117b"></script>
+<script src="ds.js?v=20261117d"></script>
+<script src="work_load.js?v=20261117c"></script>
 <script src="work_conv.js?v=20261116e"></script>
-<script src="work_how.js?v=20261116e"></script>
+<script src="work_how.js?v=20261117a"></script>
 <script src="stats.js?v=20261102a"></script>
 <script src="visits.js?v=20261102b"></script>
 <script src="calls.js?v=20261116a"></script>
