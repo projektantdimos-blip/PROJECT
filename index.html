@@ -447,11 +447,11 @@ function renderTopNav(){
   var ws = DS_WORK ? dsWorkSubs() : [], wcur = DS_WORK ? dsWorkSub() : "";
   if (wcur) pa = "work";
   var workNav = !DS_WORK
-    ? lab("Работа", ["flow","tasks","tz","cal","visits","risk","my","report"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/visits","pin","Выезды",pa==="visits","visits") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my") + b("#/report","list","Пятничный созвон",pa==="report","report")
-    : lab("Работа", ["today","report"]) + b("#/today","sun","Сегодня",pa==="today","today")
+    ? lab("Заказы", ["flow","tasks","tz","cal","visits","risk","my","report"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/visits","pin","Выезды",pa==="visits","visits") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my") + b("#/report","list","Пятничный созвон",pa==="report","report")
+    : lab("Заказы", ["today","report"]) + b("#/today","sun","Сегодня",pa==="today","today")
       + (DS_WORK_OWN[pos] ? b("#/","tasks",pos==="designer"?"Мои проекты":"Закрытие",pa==="tasks","tasks") : "")
       + (DS_WORK_NOMY[pos] ? "" : b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my"))
-      + (ws.length ? '<button data-goto="'+ws[0][1]+'" class="'+(pa==="work"?"active":"")+'">'+icon("tasks")+'<span>Работа</span></button>'
+      + (ws.length ? '<button data-goto="'+ws[0][1]+'" class="'+(pa==="work"?"active":"")+'">'+icon("tasks")+'<span>Заказы</span></button>'
           + (pa==="work" && ws.length > 1 ? '<div class="sub">'+ws.map(function(x){ return '<button data-goto="'+x[1]+'" class="'+(wcur===x[0]?"active":"")+'">'+icon(x[2])+'<span>'+x[3]+'</span></button>'; }).join("")+'</div>' : "") : "") + b("#/report","list","Пятничный созвон",pa==="report","report");
   document.getElementById("topnav").innerHTML =
     workNav
@@ -466,9 +466,9 @@ function renderTopNav(){
                ["chat","#/chat","chat","Чаты"], ["my","#/my","bell",pos==="designer"?"План":"Мои"], ["mail","#/mail","mail","Почта"]];
   if (DS_WORK) {
     /* Ч0 (решения владельца 15.11): у руководителя — «Сегодня · Чаты команды · Чаты» + «Ещё», без «Звонка» (у руководителя нет телефонии);
-       «Работа», «Заказчики», «Коммерция» — в «Ещё». У остальных — как выложено 15.11, только «Задачи» → «Работа» на том же месте;
-       у проектировщика и нормативного «Работа» — вместо «План»/«Мои» (они в «Ещё»); у бухгалтера «Закрытие» остаётся, «Работа» — в конце. */
-    var wB = ws.length ? ["work", ws[0][1], "tasks", "Работа"] : null;
+       «Заказы», «Заказчики», «Коммерция» — в «Ещё». У остальных — как выложено 15.11, только «Задачи» → «Работа» на том же месте;
+       у проектировщика и нормативного «Заказы» — вместо «План»/«Мои» (они в «Ещё»); у бухгалтера «Закрытие» остаётся, «Работа» — в конце. */
+    var wB = ws.length ? ["work", ws[0][1], "tasks", "Заказы"] : null;
     var wAt2 = !DS_WORK_OWN[pos] && dsAllowed("tasks"), wForMy = pos === "designer" || pos === "norm";
     bnAll = pos === "owner"
       ? [["today","#/today","sun","Сегодня"], ["team","#/team","team","Чаты команды"], ["chat","#/chat","chat","Чаты"]]
@@ -646,8 +646,8 @@ globalRouter();
 <script src="teamsearch.js?v=20261117a"></script>
 <script src="ai.js?v=20261031d"></script>
 <script src="chatpanel.js?v=20261106a"></script>
-<script src="ds.js?v=20261116e"></script>
-<script src="work_load.js?v=20261115c"></script>
+<script src="ds.js?v=20261117b"></script>
+<script src="work_load.js?v=20261117b"></script>
 <script src="work_conv.js?v=20261116e"></script>
 <script src="work_how.js?v=20261116e"></script>
 <script src="stats.js?v=20261102a"></script>

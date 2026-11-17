@@ -154,6 +154,8 @@
     if (!m) { m = document.createElement("div"); m.id = "ds-modal"; m.className = "ds"; document.body.appendChild(m); }
     return m;
   }
+  var __modalHtml = null;                    // фикс двойного открытия (план 17.11): идентичную разметку не переписываем — карточка не моргает, ввод и прокрутка не теряются
+  function setModal(html) { var m = modalRoot(); if (html === __modalHtml) return; __modalHtml = html; m.innerHTML = html; }
 
   var TITLES = { risk: "Просрочено и зависло", tasks: "Задачи", scripts: "Скрипты", onec: "Оплаты из 1С", load: "Занятость", cust: "База заказчиков", week: "План на неделю", kp: "Реестр КП", kpc: "Конструктор КП", contract: "Конструктор договора", report: "Пятничный созвон", stats: "Статистика", price: "Прайс", stages: "Этапы и сроки", auto: "Автоматизация", flow: "Конвейер заказа", tz: "Технические задания" };
   function mount(kind, el) {
@@ -167,7 +169,7 @@
       if (BOOT) { el.innerHTML = '<div class="ds dspage"><div class="loading">Загружаю…</div></div>'; return; }      // сессия есть, вход ещё проверяется — данные уже идут
       el.innerHTML ='<div class="ds dspage"><div class="head"><div><h1>' + TITLES[kind] + '</h1><p>Войдите, чтобы увидеть данные вашей роли</p></div><button class="btn primary" id="dsLogin">Войти по PIN</button></div></div>';
       var b = document.getElementById("dsLogin"); if (b) b.onclick = function () { C.requireLogin().then(function () { mount(kind, el); }); };
-      modalRoot().innerHTML = "";
+      setModal("");
       return;
     }
     var key = kind + "|" + (el.id || "");
@@ -711,36 +713,36 @@
     // этап, выбранный вручную, сохраняется и когда КП в этот же раз привязали к задаче (например, сразу «В постоплате»)
     api("/kp/" + e.id + "/edit", body).then(function () { return e.status !== e.status0 && (KP_ORDER_MANUAL.indexOf(e.status) >= 0 || (!+e.order_id && body.order_id == null)) ? api("/kp/" + e.id + "/status", { status: e.status, day: e.status_date || "" }) : null; })
       .then(function () { S.ke = null; S.orders = null; S.tasks = null; return Promise.all([loadKp(), load()]); })
-      .then(function () { toast("КП сохранено"); paint(); }, function (er) { e.err = String(er); modalRoot().innerHTML = keHtml(); });
+      .then(function () { toast("КП сохранено"); paint(); }, function (er) { e.err = String(er); setModal(keHtml()); });
   }
   document.addEventListener("click", function (e) {
     var t = e.target.closest ? e.target.closest("[data-kpedit],[data-kpz],[data-kesave],[data-kectr],[data-kcopen],[data-kcsave],[data-kcclose],[data-kpcancel],[data-keadv],[data-kpstar],[data-kwp],[data-kwsave],[data-kwoff],[data-kwclose]") : null; if (!t) return;
     var d = t.dataset;
     if (d.kpstar) {
       var kw = (S.kp || []).filter(function (x) { return x.id === +d.kpstar; })[0]; if (!kw) return;
-      S.kw = { id: kw.id, date: kw.pay_expect || "", prob: kw.pay_prob || "", note: kw.watch_note || "", err: "" }; modalRoot().innerHTML = kwHtml(); return;
+      S.kw = { id: kw.id, date: kw.pay_expect || "", prob: kw.pay_prob || "", note: kw.watch_note || "", err: "" }; setModal(kwHtml()); return;
     }
-    if (d.kwp && S.kw) { S.kw.date = (document.getElementById("kwDate") || {}).value || ""; S.kw.note = (document.getElementById("kwNote") || {}).value || ""; S.kw.prob = S.kw.prob === d.kwp ? "" : d.kwp; modalRoot().innerHTML = kwHtml(); return; }
+    if (d.kwp && S.kw) { S.kw.date = (document.getElementById("kwDate") || {}).value || ""; S.kw.note = (document.getElementById("kwNote") || {}).value || ""; S.kw.prob = S.kw.prob === d.kwp ? "" : d.kwp; setModal(kwHtml()); return; }
     if (d.kwsave != null && S.kw) return kwSave(false);
     if (d.kwoff != null && S.kw) return kwSave(true);
-    if (d.kwclose != null) { S.kw = null; modalRoot().innerHTML = ""; return; }
+    if (d.kwclose != null) { S.kw = null; setModal(""); return; }
     if (d.keadv != null && S.ke) {                     // быстрый выбор аванса: без аванса, 30%, 50%, 100%
       var am = document.querySelector('[data-ke="amount"]'); if (am) S.ke.amount = +am.value || 0;
-      S.ke.adv_sum = Math.round((+S.ke.amount || 0) * +d.keadv); modalRoot().innerHTML = keHtml(); return;
+      S.ke.adv_sum = Math.round((+S.ke.amount || 0) * +d.keadv); setModal(keHtml()); return;
     }
     if (d.kpedit) {
       var k = (S.kp || []).filter(function (x) { return x.id === +d.kpedit; })[0]; if (!k) return;
       S.kpHot = k.id;
       S.ke = { id: k.id, k: k, number: k.number, customer_id: k.customer_id || 0, customer_text: k.customer_text || "", object: k.object || "", services: k.services || [], comment: k.comment || "", amount: k.amount, adv_sum: k.adv_sum, lead_date: k.lead_date || k.issued_date || "", status_date: k.status_date || "", status_date0: k.status_date || "", manager_id: k.manager_id || 0, status: k.status, status0: k.status,
         pay_prob: k.pay_prob || "", pay_expect: k.pay_expect || "", next_contact: k.next_contact || "", refuse_reason: k.refuse_reason || "", refuse_back: k.refuse_back || "", refuse_note: k.refuse_note || "", order_id: k.order_id, order0: k.order_id, adv_date: k.adv_paid ? k.adv_date : "", adv_date0: k.adv_paid ? k.adv_date : "", err: "" };
-      modalRoot().innerHTML = keHtml();
-      if (!S.orders) load().then(function () { if (S.ke) modalRoot().innerHTML = keHtml(); });
-      if (S.assignable == null) api("/users/assignable").then(function (u) { S.assignable = u; if (S.ke) modalRoot().innerHTML = keHtml(); }, function () { S.assignable = []; });
+      setModal(keHtml());
+      if (!S.orders) load().then(function () { if (S.ke) setModal(keHtml()); });
+      if (S.assignable == null) api("/users/assignable").then(function (u) { S.assignable = u; if (S.ke) setModal(keHtml()); }, function () { S.assignable = []; });
       return;
     }
     if (d.kpz != null && t.hasAttribute("data-kpz")) { var z = kpFont(); z = d.kpz === "0" ? 13 : Math.max(10, Math.min(17, z + (+d.kpz))); S.kpz = z; try { localStorage.setItem("ds_kpz", String(z)); } catch (er) {} return paint(); }
     if (d.kesave) return keSave();
-    if (d.kectr) { var kk = (S.kp || []).filter(function (x) { return x.id === S.ke.id; })[0]; if (kk) { kpToForm(kk); S.ke = null; modalRoot().innerHTML = ""; location.hash = "#/kpc"; } return; }
+    if (d.kectr) { var kk = (S.kp || []).filter(function (x) { return x.id === S.ke.id; })[0]; if (kk) { kpToForm(kk); S.ke = null; setModal(""); location.hash = "#/kpc"; } return; }
     if (d.kpcancel != null && t.hasAttribute("data-kpcancel")) { S.kpf = null; location.hash = "#/kpreg/"; return; }
     if (d.kcopen != null && t.hasAttribute("data-kcopen")) { kpcInit(); S.kpf.nc = { mode: d.kcopen, name: "", fio: "", phone: "", email: "", err: "" }; return paint(); }
     if (d.kcclose != null && t.hasAttribute("data-kcclose")) { if (S.kpf) S.kpf.nc = null; return paint(); }
@@ -756,7 +758,7 @@
       S.ke[t.dataset.ke] = t.value;
       if (t.dataset.ke === "order_id") { var o = (S.orders || []).filter(function (x) { return x.id === +t.value; })[0]; if (o) { S.ke.amount = o.amount || 0; S.ke.adv_sum = o.adv_mode === "advance" ? o.adv_sum || 0 : 0; S.ke.object = o.object || S.ke.object; if (o.customer_id) S.ke.customer_id = o.customer_id; S.ke.adv_date = o.adv_paid ? o.adv_date : ""; S.ke.adv_date0 = S.ke.adv_date; } }
       if (t.dataset.ke === "status") { var td_ = new Date(); S.ke.status_date = t.value === S.ke.status0 ? S.ke.status_date0 : td_.getFullYear() + "-" + ("0" + (td_.getMonth() + 1)).slice(-2) + "-" + ("0" + td_.getDate()).slice(-2); }
-      if (t.dataset.ke === "customer_id" || t.dataset.ke === "order_id" || t.dataset.ke === "adv_sum" || t.dataset.ke === "status") modalRoot().innerHTML = keHtml();
+      if (t.dataset.ke === "customer_id" || t.dataset.ke === "order_id" || t.dataset.ke === "adv_sum" || t.dataset.ke === "status") setModal(keHtml());
     }
   });
   /* контакт заказчика и новый заказчик прямо в конструкторе КП */
@@ -1345,22 +1347,22 @@
     var ca = k === "cust" && document.getElementById("cuAi");
     if (ca && window.DSAI) DSAI.customer(ca, +ca.getAttribute("data-cid"));
     var m = modalRoot();
-    if (S.ke) { m.innerHTML = keHtml(); return; }
-    if (S.tm) { m.innerHTML = tmWrap(); return; }
-    if (S.nt) { m.innerHTML = ntHtml(); return; }
-    if (S.te) { m.innerHTML = teHtml(); return; }
-    if (S.form) { m.innerHTML = formHtml(); return; }
-    if (S.edit) { m.innerHTML = planHtml(); return; }
+    if (S.ke) { setModal(keHtml()); return; }
+    if (S.tm) { setModal(tmWrap()); return; }
+    if (S.nt) { setModal(ntHtml()); return; }
+    if (S.te) { setModal(teHtml()); return; }
+    if (S.form) { setModal(formHtml()); return; }
+    if (S.edit) { setModal(planHtml()); return; }
     if (S.topen) {
       var tk = (S.tasks || []).filter(function (x) { return x.id === S.topen; })[0];
       olCss();
-      m.innerHTML = '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center"><div class="modal oltm" style="width:min(460px,100%);height:auto;max-height:92vh;overflow:auto;border-radius:20px;padding:0">'
-        + (tk ? olDrawer(tk) : '<div class="m-body"><h3>Задача не найдена</h3><p class="note">Её уже закрыли или она поставлена не вам.</p><button class="btn ghost" data-oselx="1">Закрыть</button></div>') + "</div></div>";
+      setModal('<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center"><div class="modal oltm" style="width:min(460px,100%);height:auto;max-height:92vh;overflow:auto;border-radius:20px;padding:0">'
+        + (tk ? olDrawer(tk) : '<div class="m-body"><h3>Задача не найдена</h3><p class="note">Её уже закрыли или она поставлена не вам.</p><button class="btn ghost" data-oselx="1">Закрыть</button></div>') + "</div></div>");
       return;
     }
     var o = S.open ? find(S.open) : null;
-    if (S.open && !o) { m.innerHTML = '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center"><div class="modal" style="width:min(420px,100%);height:auto;border-radius:20px"><div class="m-body"><h3>Задача не найдена</h3><p class="note">Её нет или она вам недоступна.</p><button class="btn ghost" data-close="1">Закрыть</button></div></div></div>'; return; }
-    m.innerHTML = o ? windowHtml(o) : "";
+    if (S.open && !o) { setModal('<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center"><div class="modal" style="width:min(420px,100%);height:auto;border-radius:20px"><div class="m-body"><h3>Задача не найдена</h3><p class="note">Её нет или она вам недоступна.</p><button class="btn ghost" data-close="1">Закрыть</button></div></div></div>'); return; }
+    setModal(o ? windowHtml(o) : "");
     var sp = m.querySelector('.stepper'), cu = m.querySelector('.stp.cur'); if (sp && cu) sp.scrollLeft = Math.max(0, cu.offsetLeft - sp.clientWidth / 2 + cu.offsetWidth / 2);
   }
 
@@ -1394,16 +1396,16 @@
     if (S.orders == null) need.push(load().then(null, function () {}));
     return Promise.all(need).then(function () {
       S.nt = { step: opts.step || "", assignee: 0, title: opts.title || "", due: "", order: opts.order || 0, thread: opts.thread_id || "", thread_title: opts.thread_title || "", note: opts.note || "", err: "" };
-      modalRoot().innerHTML = ntHtml();
+      setModal(ntHtml());
     });
   }
   function ntSave() {
     var n = S.nt; if (!n) return;
-    if (!n.title.trim() && !n.step) { n.err = "Опишите, что нужно сделать"; modalRoot().innerHTML = ntHtml(); return; }
+    if (!n.title.trim() && !n.step) { n.err = "Опишите, что нужно сделать"; setModal(ntHtml()); return; }
     api("/tasks", { title: n.title, assignee_id: +n.assignee || 0, due: n.due, step: n.step, order_id: +n.order || 0, thread_id: n.thread, note: n.note }).then(function (r) {
-      S.nt = null; modalRoot().innerHTML = ""; toast("Задача поставлена: " + r.assignee); S.tasks = null;
+      S.nt = null; setModal(""); toast("Задача поставлена: " + r.assignee); S.tasks = null;
       if (S.mount) return load().then(paint);
-    }, function (e) { n.err = String(e); modalRoot().innerHTML = ntHtml(); });
+    }, function (e) { n.err = String(e); setModal(ntHtml()); });
   }
   DS.newTask = ntOpen;
   DS.orders = function () { return (S.orders || []).map(function (o) { return { id: o.id, label: "№" + o.number + " · " + (o.customer || "") + " · " + (o.object || ""), number: o.number, object: o.object || "", system: o.system || "" }; }); };
@@ -1483,7 +1485,7 @@
     (nx.parts || []).forEach(function (x) { if (x.id in cp && x.id in bp && cp[x.id] !== bp[x.id] && (+x.executor_id || 0) === bp[x.id]) x.executor_id = cp[x.id]; });
     S.oe = nx; S.oe0 = oeClone(fresh);
   }
-  function tmRepaint() { if (S.tm) modalRoot().innerHTML = tmWrap(); else paint(); }
+  function tmRepaint() { if (S.tm) setModal(tmWrap()); else paint(); }
   function tmWrap() {
     if (S.oe) oeRebase(find(S.oe.id));
     var o = S.oe; if (!o) return "";
@@ -1493,7 +1495,7 @@
   function tmOpen(id) {
     var o = find(+id); if (!o) return;
     oeSnap(o); S.tm = true;
-    modalRoot().innerHTML = tmWrap();
+    setModal(tmWrap());
   }
   function oePayload(o) {           // все поля формы в виде, в каком их принимает сервер
     var pl = { number: o.number, customer: o.customer, object: o.object, system: sysLabel(o), systems: o.systems || [], systems_other: o.systems_other || "", modern: o.modern ? 1 : 0, stage: o.stage, executor_id: +o.executor_id || 0, start_date: o.start_date || "", due_date: o.due_date || "",
@@ -1550,18 +1552,18 @@
   function teOpen(id) {
     var t = (S.tasks || []).filter(function (x) { return x.id === +id; })[0]; if (!t) return;
     var go = function () { S.te = { id: t.id, title: t.title, assignee_id: t.assignee_id || 0, due: t.due || "", note: t.note || "", state: t.state === "done" ? "new" : (t.state || "new"), err: "",
-      canAssign: taskCtl() || taskAuthor(t), canDel: taskCtl() || taskAuthor(t) }; modalRoot().innerHTML = teHtml(); };
+      canAssign: taskCtl() || taskAuthor(t), canDel: taskCtl() || taskAuthor(t) }; setModal(teHtml()); };
     if (S.assignable == null) api("/users/assignable").then(function (u) { S.assignable = u; go(); }, function () { S.assignable = []; go(); }); else go();
   }
   function teSave() {
     var n = S.te; if (!n) return;
     api("/tasks/" + n.id + "/edit", { title: n.title, assignee_id: +n.assignee_id || 0, due: n.due, note: n.note, state: n.state }).then(function () {
-      S.te = null; modalRoot().innerHTML = ""; toast("Задача обновлена"); S.tasks = null; return load().then(paint);
-    }, function (e) { n.err = String(e); modalRoot().innerHTML = teHtml(); });
+      S.te = null; setModal(""); toast("Задача обновлена"); S.tasks = null; return load().then(paint);
+    }, function (e) { n.err = String(e); setModal(teHtml()); });
   }
   function tDel(id) {
     if (!confirm("Удалить эту задачу? Это нельзя отменить.")) return;
-    api("/tasks/" + id + "/delete", {}).then(function () { S.te = null; modalRoot().innerHTML = ""; toast("Задача удалена"); S.tasks = null; return load().then(paint); }, function (e) { toast(String(e)); });
+    api("/tasks/" + id + "/delete", {}).then(function () { S.te = null; setModal(""); toast("Задача удалена"); S.tasks = null; return load().then(paint); }, function (e) { toast(String(e)); });
   }
 
   /* ---------- «Обзор»: одна задача — одна строка, комментарии прямо в строке ---------- */
@@ -1987,8 +1989,8 @@
   function kwSave(off) {
     var w = S.kw; w.date = (document.getElementById("kwDate") || {}).value || ""; w.note = (document.getElementById("kwNote") || {}).value || "";
     var body = off ? { watch: 0 } : { watch: 1, pay_expect: w.date, pay_prob: w.prob || "", watch_note: w.note };
-    api("/kp/" + w.id + "/edit", body).then(function () { S.kw = null; modalRoot().innerHTML = ""; return loadKp(); })
-      .then(function () { toast(off ? "Больше не следим" : "⭐ Следим: напомним в день обещанной оплаты"); paint(); }, function (e) { if (S.kw) { S.kw.err = String(e); modalRoot().innerHTML = kwHtml(); } });
+    api("/kp/" + w.id + "/edit", body).then(function () { S.kw = null; setModal(""); return loadKp(); })
+      .then(function () { toast(off ? "Больше не следим" : "⭐ Следим: напомним в день обещанной оплаты"); paint(); }, function (e) { if (S.kw) { S.kw.err = String(e); setModal(kwHtml()); } });
   }
   function kpIsLate(k) { return k.last_days != null && k.last_days > 5 && !kpDone(k); }
   function kpArchived(k) { return k.status === "Закрыто" || k.status === "Отказ"; }      // закрытые и отказы — в архиве
@@ -3203,7 +3205,7 @@
   }
   function closeAll() {
     S.form = null; S.edit = null; S.nt = null; S.te = null; S.tm = false; S.oe = null; S.ke = null; S.actErr = ""; S.pz = null;
-    var mr0 = document.getElementById("ds-modal"); if (mr0) mr0.innerHTML = "";
+    setModal("");
     if (S.open) { S.open = null; S.tab = "info"; if (/^#\/task\//.test(location.hash)) history.replaceState(null, "", S.cvRoute ? "#/conv" : "#/"); }      // B3: пришли с Конвейера — на него и вернулись (#/conv)
     paint();
   }
@@ -3240,7 +3242,7 @@
     if (d.tmprio) { if (S.oe) { S.oe.priority = d.tmprio; tmRepaint(); } return; }
     if (d.tmurg != null && t.hasAttribute("data-tmurg")) { if (S.oe) { S.oe.urgent = S.oe.urgent ? 0 : 1; tmRepaint(); } return; }
     if (d.tmcopy != null && t.hasAttribute("data-tmcopy")) { if (S.oe) { try { navigator.clipboard.writeText("№" + S.oe.number + " " + (S.oe.customer || "")); toast("Имя скопировано"); } catch (e) { toast("Не удалось скопировать"); } } return; }
-    if (d.tmclose != null && t.hasAttribute("data-tmclose")) { S.tm = false; S.oe = null; S.open = null; modalRoot().innerHTML = ""; return; }
+    if (d.tmclose != null && t.hasAttribute("data-tmclose")) { S.tm = false; S.oe = null; S.open = null; setModal(""); return; }
     if (d.tedit) return teOpen(d.tedit);
     if (d.tdel) return tDel(d.tdel);
     if (d.tesave != null && t.hasAttribute("data-tesave")) return teSave();
@@ -3363,7 +3365,7 @@
     if (d.kt) { S.kt = d.kt; return paint(); }
     if (d.mt) { S.mt = d.mt; return paint(); }
     if (d.chatopen) { location.hash = "#/chat?t=" + encodeURIComponent(d.chatopen); return; }
-    if (d.kpdel) { var kpr = (S.kp || []).filter(function (x) { return x.id === +d.kpdel; })[0]; if (!confirm("Удалить КП " + (kpr ? kpr.number + " · " + kpr.customer : "") + " из реестра? Это нельзя отменить.")) return; S.ke = null; modalRoot().innerHTML = ""; return act2(api("/kp/" + d.kpdel + "/delete", {}).then(loadKp), false); }
+    if (d.kpdel) { var kpr = (S.kp || []).filter(function (x) { return x.id === +d.kpdel; })[0]; if (!confirm("Удалить КП " + (kpr ? kpr.number + " · " + kpr.customer : "") + " из реестра? Это нельзя отменить.")) return; S.ke = null; setModal(""); return act2(api("/kp/" + d.kpdel + "/delete", {}).then(loadKp), false); }
     if (d.kpadd != null && t.hasAttribute("data-kpadd")) { var pit = S.price.items.filter(function (i) { return i.active; })[+d.kpadd]; if (pit) { kpAddLine(pit.name, pit.price); return paint(); } return; }
     if (d.pcadd != null && t.hasAttribute("data-pcadd")) return pcAddToKp();
     if (d.pcreset != null && t.hasAttribute("data-pcreset")) { S.pc = null; return paint(); }

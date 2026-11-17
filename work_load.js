@@ -33,7 +33,7 @@
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
   function st() {
     var S = X().S;
-    if (!S.wl) S.wl = { off: 0, z: +lsGet("ds_wlz") || 8, pend: null, rs: null, edit: null, scroll: null, full: false };
+    if (!S.wl) S.wl = { off: 0, z: +lsGet("ds_wlz") || 8, pend: null, rs: null, edit: null, scroll: null, full: lsGet("ds_wlfull") !== "0" };
     return S.wl;
   }
   function col(n) { var h = 0; String(n).split("").forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return HPAL[h % HPAL.length]; }
@@ -84,7 +84,7 @@
   }
   function wkName(w) { var k = Math.round((new Date(w + "T12:00:00") - new Date(mon(today()) + "T12:00:00")) / 864e5 / 7); return k === 0 ? "эта неделя" : k === -1 ? "прошлая" : k === 1 ? "следующая" : k < 0 ? (-k) + " нед. назад" : "через " + k + " нед."; }
   function wkLbl(w) { var e = addD(w, 4); return +w.slice(8) + (w.slice(5, 7) === e.slice(5, 7) ? "" : " " + MONG[+w.slice(5, 7) - 1].slice(0, 3)) + "–" + +e.slice(8) + " " + MONG[+e.slice(5, 7) - 1].slice(0, 3); }
-  function geom() { var w = st(), ph = phone(); return { nw: ph ? 96 : 190, fw: ph ? 58 : 92, cw: w.z === 13 ? 13 : w.z === 8 ? 22 : 38, rh: ph ? 40 : 44 }; }
+  function geom() { var w = st(), ph = phone(); return { nw: ph ? 96 : 190, fw: ph ? 58 : 92, cw: w.z === 13 ? 13 : w.z === 8 ? 22 : 38, rh: ph ? 48 : 56 }; }
 
   /* ---------- экран ---------- */
   function html() { return '<div class="wl-root">' + inner() + "</div>"; }
@@ -382,7 +382,7 @@
     if (d.wlundo) return undo();
     if (d.wlnav != null) { w.off = d.wlnav === "0" ? 0 : w.off + (+d.wlnav); resetView(); return rerender(), after(); }
     if (d.wlz) { w.z = +d.wlz; lsSet("ds_wlz", d.wlz); resetView(); return rerender(), after(); }
-    if (d.wlfull) { w.full = !w.full; return rerender(), after(); }
+    if (d.wlfull) { w.full = !w.full; lsSet("ds_wlfull", w.full ? "1" : "0"); return rerender(), after(); }
     if (d.wlx) { w.edit = null; w.editErr = ""; w.editDraft = null; return rerender(); }
     if (d.wlopen) { w.edit = null; w.editErr = ""; rerender(); var a = document.createElement("button"); a.setAttribute("data-open", d.wlopen); a.style.display = "none"; document.getElementById("cal-app").appendChild(a); a.click(); a.remove(); return; }
     if (d.wledit) { if (!canMove()) return; e.stopPropagation(); w.edit = d.wledit; w.editErr = ""; w.editDraft = null; return rerender(); }
