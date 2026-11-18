@@ -441,6 +441,8 @@ function renderTopNav(){
   var ok = dsAllowed;
   var b = function(go, ic, t, on, sec){ return ok(sec) ? '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+'<span>'+t+'</span></button>' : ""; };
   var pos = dsPosition();
+  var dialNav = window.DSCalls && window.DSCallRoles && DSCallRoles[pos]
+    ? '<button type="button" data-dialopen="1" title="Позвонить через Sipuni">'+icon("phone")+'<span>Позвонить</span></button>' : "";
   var sub = '<div class="sub">'+b("#/kpreg/","list","Реестр КП",cur==="kpreg","kpreg")+b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc")+b("#/price","list","Прайс",cur==="price","price")+b("#/contracts","file","Конструктор договоров",cur==="contracts","contracts")+b("#/onec","wallet","Оплаты 1С",cur==="onec","onec")+'</div>';
   var comm = (ok("kpreg") || ok("kpc") || ok("contracts") || ok("onec")) ? '<button data-goto="#/kpreg/" class="'+(pa==="commerce"?"active":"")+'">'+icon("briefcase")+'<span>Коммерция</span></button>' + (pa==="commerce" ? sub : "") : "";
   var lab = function(t, secs){ return secs.some(ok) ? '<div class="nav-label">'+t+'</div>' : ""; };
@@ -456,16 +458,16 @@ function renderTopNav(){
   var navHtml =
     workNav
     + lab("Заказчики и продажи", ["clients","kpreg","kpc","contracts"]) + b("#/clients","users",pos==="design"?"Кому звонить":"База заказчиков",pa==="clients","clients") + comm
-    + lab("Общение", ["team","chat","mail","scripts"]) + b("#/team","team","Чаты команды",pa==="team","team") + b("#/chat","chat","Мессенджеры",pa==="chat","chat") + b("#/mail","mail","Почта",pa==="mail","mail") + b("#/scripts","list","Скрипты",pa==="scripts","scripts")
+    + lab("Общение", ["team","chat","mail","scripts"]) + b("#/team","team","Чаты команды",pa==="team","team") + b("#/chat","chat","Мессенджеры",pa==="chat","chat") + dialNav + b("#/mail","mail","Почта",pa==="mail","mail") + b("#/scripts","list","Скрипты",pa==="scripts","scripts")
     + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
-  if (DS_WORK && pos === "sales") {      /* меню РОПа по утверждённому макету (17.11): 11 кнопок в 4 группах; «Оплаты 1С» — вкладка внутри «Реестр КП» */
+  if (DS_WORK && pos === "sales") {      /* меню РОПа по утверждённому макету (17.11) + кнопка звонка (18.11): 12 кнопок в 4 группах; «Оплаты 1С» — вкладка внутри «Реестр КП» */
     var docsOn = cur === "kpc" || cur === "contracts" || cur === "price";
     navHtml = '<div class="nav-label">Работа</div>'
       + b("#/today","sun","Сегодня",pa==="today","today") + b("#/kpreg/","list","Реестр КП",cur==="kpreg","kpreg") + b("#/clients","users","Заказчики",cur==="clients","clients")
       + ((ok("kpc") || ok("contracts") || ok("price")) ? '<button data-goto="#/kpc" class="' + (docsOn ? "active" : "") + '">' + icon("file") + "<span>Документы</span></button>"
           + (docsOn ? '<div class="sub">' + b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc") + b("#/contracts","file","Конструктор договоров",cur==="contracts","contracts") + b("#/price","list","Прайс",cur==="price","price") + "</div>" : "") : "")
       + '<div class="nav-label">Общение</div>'
-      + b("#/team","team","Чаты команды",pa==="team","team") + b("#/chat","chat","Мессенджеры",cur==="chat","chat") + b("#/mail","mail","Почта",cur==="mail","mail") + b("#/scripts","list","Скрипты",cur==="scripts","scripts")
+      + b("#/team","team","Чаты команды",pa==="team","team") + b("#/chat","chat","Мессенджеры",cur==="chat","chat") + dialNav + b("#/mail","mail","Почта",cur==="mail","mail") + b("#/scripts","list","Скрипты",cur==="scripts","scripts")
       + '<div class="nav-label">Неделя</div>' + b("#/cal","cal","Занятость",cur==="cal","cal") + b("#/report","list","Пятница и цифры",cur==="report","report")
       + '<div class="nav-label">Справка</div>'
       + (ws.length ? '<button data-goto="' + ws[0][1] + '" class="' + (pa === "work" ? "active" : "") + '">' + icon("layers") + "<span>Регламент</span></button>"
