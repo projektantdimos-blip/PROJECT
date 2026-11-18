@@ -442,7 +442,7 @@ function renderTopNav(){
   var b = function(go, ic, t, on, sec){ return ok(sec) ? '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+'<span>'+t+'</span></button>' : ""; };
   var pos = dsPosition();
   var dialNav = window.DSCalls && window.DSCallRoles && DSCallRoles[pos]
-    ? '<button type="button" data-dialopen="1" title="Позвонить через Sipuni">'+icon("phone")+'<span>Позвонить</span></button>' : "";
+    ? '<button type="button" data-dialer="1" title="Позвонить через Sipuni">'+icon("phone")+'<span>Позвонить</span></button>' : "";
   var sub = '<div class="sub">'+b("#/kpreg/","list","Реестр КП",cur==="kpreg","kpreg")+b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc")+b("#/price","list","Прайс",cur==="price","price")+b("#/contracts","file","Конструктор договоров",cur==="contracts","contracts")+b("#/onec","wallet","Оплаты 1С",cur==="onec","onec")+'</div>';
   var comm = (ok("kpreg") || ok("kpc") || ok("contracts") || ok("onec")) ? '<button data-goto="#/kpreg/" class="'+(pa==="commerce"?"active":"")+'">'+icon("briefcase")+'<span>Коммерция</span></button>' + (pa==="commerce" ? sub : "") : "";
   var lab = function(t, secs){ return secs.some(ok) ? '<div class="nav-label">'+t+'</div>' : ""; };
