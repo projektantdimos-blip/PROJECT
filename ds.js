@@ -2061,7 +2061,7 @@
       + '<label>с</label><input type="date" id="kpFrom" value="' + E(f.from) + '"><label>по</label><input type="date" id="kpTo" value="' + E(f.to) + '">'
       + '<button class="btn ghost sm" data-kpper="month">Этот месяц</button><button class="btn ghost sm" data-kpper="all">Весь период</button></div>'
       + '<div class="kptot cmp">' + tot.map(function (x) { return "<div><small>" + x[0] + "</small><b>" + x[1] + "</b></div>"; }).join("") + "</div></div>";
-    var nW = list.filter(function (k) { return k.watch; }).length, sep = function (t) { return '<tr class="kpsep"><td colspan="10">' + t + "</td></tr>"; };
+    var nW = list.filter(function (k) { return k.watch; }).length, sep = function (t) { return '<tr class="kpsep"><td colspan="11">' + t + "</td></tr>"; };
     var rows = list.map(function (k, i) {
       var late = kpIsLate(k), arch = kpArchived(k), wlate = k.watch && k.pay_expect && k.pay_expect < tdy;
       var head_ = nW && nW < list.length ? (i === 0 ? sep("⭐ Следим · " + nW + " — сначала просроченные обещания, потом ближайшие") : i === nW ? sep("Остальные · " + (list.length - nW)) : "") : "";
@@ -2077,10 +2077,10 @@
         + (canEdit && !arch ? '<button class="kpstar' + (k.watch ? " on" : "") + '" data-kpstar="' + k.id + '" title="' + (k.watch ? "Следим: изменить или снять" : "Следить: заказчик обещал оплату") + '">' + (k.watch ? "★" : "☆") + "</button>" : "") + "<b>" + E(kpNo(k.number)) + "</b>" + (k.order_id && k.order_number ? '<small><button class="kplink" data-open="' + k.order_id + '" title="Открыть задачу">задача №' + E(k.order_number) + "</button></small>" : "") + '</td><td class="cu">' + E(k.customer) + '</td><td class="ell" title="' + E(k.object + " — " + svc + (k.comment ? " — " + k.comment : "") + (k.watch && k.watch_note ? " — по оплате: " + k.watch_note : "")) + '">' + E(k.object) + "<small>" + E(svc) + "</small>" + (k.comment ? '<small class="kpcm">💬 ' + E(k.comment) + "</small>" : "")
         + (k.watch && k.watch_note ? '<small class="kpcm">⭐ По оплате: ' + E(k.watch_note) + "</small>" : "") + "</td>"
         + "<td>" + (k.lead_date || k.issued_date ? dmy(k.lead_date || k.issued_date) : "—") + "</td><td><b>" + money(k.amount) + '</b><small class="kpw">' + pay + "</small></td><td>" + st + '</td><td class="kpa">' + prom + "</td>"
-        + '<td class="lastc ' + (late ? "late" : "") + '">' + (k.last_days == null ? "—" : k.last_days === 0 ? "сегодня" : plural(k.last_days, ["день", "дня", "дней"]) + " назад") + (late ? " ⚠" : "") + '</td><td class="mg">' + E(k.manager) + '</td><td class="nw">' + acts + "</td></tr>";
+        + '<td class="lastc ' + (late ? "late" : "") + '">' + (k.last_days == null ? "—" : k.last_days === 0 ? "сегодня" : plural(k.last_days, ["день", "дня", "дней"]) + " назад") + (late ? " ⚠" : "") + '</td><td class="lastc' + (k.next_contact && k.next_contact < tdy ? " late" : "") + '" title="Следующее обращение">' + (k.next_contact ? dmy(k.next_contact).slice(0, 5) : "—") + '</td><td class="mg">' + E(k.manager) + '</td><td class="nw">' + acts + "</td></tr>";
     }).join("");
-    return head + funnel + '<div class="panel kpwrap" data-arch="' + !!S.kpArch + '"><table class="tbl grid-c kpt" style="font-size:' + kpz + 'px"><thead><tr><th>№ КП</th><th>Заказчик</th><th>Объект / услуги / комментарий</th><th>Дата обращения</th><th>Сумма</th><th>Статус</th><th>Обещали оплату</th><th>Последнее общение</th><th>Менеджер</th><th>Действия</th></tr></thead><tbody>'
-      + (rows || '<tr><td colspan="10">' + (f.st || f.from || f.to ? "По этому фильтру КП нет" : "КП пока нет") + "</td></tr>") + "</tbody></table></div>";
+    return head + funnel + '<div class="panel kpwrap" data-arch="' + !!S.kpArch + '"><table class="tbl grid-c kpt" style="font-size:' + kpz + 'px"><thead><tr><th>№ КП</th><th>Заказчик</th><th>Объект / услуги / комментарий</th><th>Дата обращения</th><th>Сумма</th><th>Статус</th><th>Обещали оплату</th><th>Последнее общение</th><th>Следующее обращение</th><th>Менеджер</th><th>Действия</th></tr></thead><tbody>'
+      + (rows || '<tr><td colspan="11">' + (f.st || f.from || f.to ? "По этому фильтру КП нет" : "КП пока нет") + "</td></tr>") + "</tbody></table></div>";
   }
   document.addEventListener("click", function (e) {
     var t = e.target.closest ? e.target.closest("[data-kpst],[data-kpper]") : null; if (!t) return;

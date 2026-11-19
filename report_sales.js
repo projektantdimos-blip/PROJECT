@@ -137,13 +137,23 @@
     var el = document.querySelector('.sr .nq[data-nk="' + kpId + '"]');
     if (el) el.innerHTML = nin(kpId, open);
   }
+  function pselQ(kpId) {                                     // вероятность оплаты — копия поля из карточки КП, правится здесь же
+    var v = KV[kpId + "|pay_prob"] || "";
+    return '<select class="in pbs" data-akp="' + kpId + '|pay_prob" aria-label="Вероятность оплаты"' + dis() + '><option value="">—</option>'
+      + [["low", "низкая"], ["mid", "средняя"], ["high", "высокая"]].map(function (o) {
+        return '<option value="' + o[0] + '"' + (o[0] === v ? " selected" : "") + ">" + o[1] + "</option>";
+      }).join("") + "</select>";
+  }
   function rowQ(r) {
     var kpId = r.kp;
-    var sv = (r.sv || "").split(/[;,]/).map(function (x) { return x.trim(); }).filter(function (x) { return SYSTEMS.indexOf(x) >= 0; });
+    var skey = kpId + "|systems";
+    if (KV[skey] === undefined) KV[skey] = JSON.stringify(r.systems && r.systems.length ? r.systems
+      : (r.sv || "").split(/[;,]/).map(function (x) { return x.trim(); }).filter(function (x) { return SYSTEMS.indexOf(x) >= 0; }));
+    var sv = list(KV[skey]);
     var lc = r.last_bd == null ? 99 : r.last_bd;
     var lq = lc >= 99 ? '<span class="lq r">—</span>' : '<span class="lq' + (lc >= 3 ? " r" : "") + '">' + (lc === 0 ? "сегодня" : lc + " р.д.") + "</span>";
-    return '<div class="i r6"><span>' + E(r.cells[1]) + "</span>" + sysDots(sv, "")
-      + '<div class="rt"><span class="pq ' + TEMP_C[r.temp || "m"] + '" title="' + E(TEMP_T[r.temp || "m"]) + '">' + TEMP_L[r.temp || "m"] + "</span>" + lq + ncell(kpId) + "<b>" + fmt(num(r.amt)) + "</b></div>"
+    return '<div class="i r6"><span class="nm1"><span class="nm2" title="' + E(r.cells[1]) + '">' + E(r.cells[1]) + '</span><span class="pq ' + TEMP_C[r.temp || "m"] + '" title="' + E(TEMP_T[r.temp || "m"]) + '">' + TEMP_L[r.temp || "m"] + "</span></span>" + sysDots(sv, "kp:" + kpId + "|systems")
+      + '<div class="rt">' + pselQ(kpId) + lq + ncell(kpId) + "<b>" + fmt(num(r.amt)) + "</b></div>"
       + '<input class="cmq" data-ak="s1:kp' + kpId + ':note" type="text" placeholder="Комментарий" aria-label="Комментарий к запросу" value="' + E(AV["s1:kp" + kpId + ":note"]) + '"' + dis() + "></div>";
   }
   function laneRows(items, body, total) {
@@ -708,7 +718,17 @@
       }
       var sys = t.closest("[data-sys]");
       if (sys && !RO) {
-        var pr = sys.dataset.sys.split("|"), key0 = pr[0], val0 = pr[1];
+        var pr = sys.dataset.sys.split("|");
+        if (pr[0].indexOf("kp:") === 0) {                    // «шарики» систем в блоке «Запросы» — поле карточки КП
+          var kpS = pr[0].slice(3), skeyS = kpS + "|" + pr[1], valS = pr.slice(2).join("|");
+          var valsS = list(KV[skeyS]), atS = valsS.indexOf(valS), onS = atS < 0;
+          if (onS) valsS.push(valS); else valsS.splice(atS, 1);
+          sys.classList.toggle("on", onS);
+          iiClass(sys.querySelector("i"), onS, valS);
+          saveKp(kpS, pr[1], valsS);
+          return;
+        }
+        var key0 = pr[0], val0 = pr[1];
         var vals0 = list(AV[key0]), at0 = vals0.indexOf(val0), on = at0 < 0;
         if (on) vals0.push(val0); else vals0.splice(at0, 1);
         AV[key0] = vals0;
