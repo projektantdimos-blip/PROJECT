@@ -2012,14 +2012,14 @@
     api("/kp/" + w.id + "/edit", body).then(function () { S.kw = null; setModal(""); return loadKp(); })
       .then(function () { toast(off ? "Больше не следим" : "⭐ Следим: напомним в день обещанной оплаты"); paint(); }, function (e) { if (S.kw) { S.kw.err = String(e); setModal(kwHtml()); } });
   }
-  /* быстрое окно «Следующее обращение» из реестра КП (✎ у колонки) */
+  /* быстрое окно «Следующий контакт» из реестра КП (✎ у колонки) */
   function kncBD(n) { var d = new Date(); d.setHours(0, 0, 0, 0); while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) n--; } return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
   function kncHtml() {
     var w = S.knc, k = (S.kp || []).filter(function (x) { return x.id === w.id; })[0]; if (!k) return "";
     return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:16px"><div class="modal" style="width:min(420px,100%);height:auto;max-height:92vh;border-radius:18px">'
-      + '<div class="m-head"><div class="row"><div><h2 style="font-size:1.1rem">Следующее обращение · ' + E(kpNo(k.number)) + "</h2><div style=\"color:var(--muted);font-size:.86rem\">" + E(k.customer || "") + '</div></div><button class="x" data-kncclose="1" aria-label="Закрыть">✕</button></div></div>'
+      + '<div class="m-head"><div class="row"><div><h2 style="font-size:1.1rem">Следующий контакт · ' + E(kpNo(k.number)) + "</h2><div style=\"color:var(--muted);font-size:.86rem\">" + E(k.customer || "") + '</div></div><button class="x" data-kncclose="1" aria-label="Закрыть">✕</button></div></div>'
       + '<div class="m-body" style="padding:16px 20px">'
-      + '<div class="fld"><label>Дата следующего обращения</label><input type="date" id="kncDate" value="' + E(w.date) + '"></div>'
+      + '<div class="fld"><label>Дата следующего контакта</label><input type="date" id="kncDate" value="' + E(w.date) + '"></div>'
       + '<div class="fld"><label>Быстро: через</label><div class="kwseg">' + [["Завтра", 1], ["3 р.д.", 3], ["5 р.д.", 5], ["2 недели", 10], ["Месяц", 21]].map(function (x) {
           return '<button type="button" class="btn sm ghost" data-kncd="' + x[1] + '">' + x[0] + "</button>"; }).join("") + "</div></div>"
       + (w.err ? '<div class="note" style="color:var(--bad)">' + E(w.err) + "</div>" : "")
@@ -2029,7 +2029,7 @@
     var w = S.knc; w.date = (document.getElementById("kncDate") || {}).value || "";
     if (!w.date) { w.err = "Выберите дату"; setModal(kncHtml()); return; }
     api("/kp/" + w.id + "/edit", { next_contact: w.date }).then(function () { S.knc = null; setModal(""); return loadKp(); })
-      .then(function () { toast("Следующее обращение: " + dmy(w.date)); paint(); }, function (e) { if (S.knc) { S.knc.err = String(e); setModal(kncHtml()); } });
+      .then(function () { toast("Следующий контакт: " + dmy(w.date)); paint(); }, function (e) { if (S.knc) { S.knc.err = String(e); setModal(kncHtml()); } });
   }
   function kpIsLate(k) { return k.last_days != null && k.last_days > 5 && !kpDone(k); }
   function kpArchived(k) { return k.status === "Закрыто" || k.status === "Отказ"; }      // закрытые и отказы — в архиве
@@ -2116,10 +2116,10 @@
       return head_ + '<tr class="' + (late ? "late" : "") + (k.watch ? " kpwatch" + (wlate ? " wlate" : "") : "") + (k.id === S.kpHot ? " hot" : "") + '" data-kprow="' + k.id + '"><td>'
         + (canEdit && !arch ? '<button class="kpstar' + (k.watch ? " on" : "") + '" data-kpstar="' + k.id + '" title="' + (k.watch ? "Следим: изменить или снять" : "Следить: заказчик обещал оплату") + '">' + (k.watch ? "★" : "☆") + "</button>" : "") + "<b>" + E(kpNo(k.number)) + "</b>" + (k.order_id && k.order_number ? '<small><button class="kplink" data-open="' + k.order_id + '" title="Открыть задачу">задача №' + E(k.order_number) + "</button></small>" : "") + '</td><td class="cu">' + E(k.customer) + '</td><td class="ell" title="' + E(k.object + " — " + svc + (k.comment ? " — " + k.comment : "") + (k.watch && k.watch_note ? " — по оплате: " + k.watch_note : "")) + '">' + E(k.object) + "<small>" + E(svc) + "</small>" + (k.comment ? '<small class="kpcm">💬 ' + E(k.comment) + "</small>" : "")
         + (k.watch && k.watch_note ? '<small class="kpcm">⭐ По оплате: ' + E(k.watch_note) + "</small>" : "") + "</td>"
-        + "<td>" + (k.lead_date || k.issued_date ? dmy(k.lead_date || k.issued_date) : "—") + "</td><td><b>" + money(k.amount) + '</b><small class="kpw">' + pay + "</small></td><td>" + st + '</td><td class="kpa">' + prom + "</td>"
-        + '<td class="lastc ' + (late ? "late" : "") + '">' + (k.last_days == null ? "—" : k.last_days === 0 ? "сегодня" : plural(k.last_days, ["день", "дня", "дней"]) + " назад") + (late ? " ⚠" : "") + '</td><td class="lastc' + (k.next_contact && k.next_contact < tdy ? " late" : "") + '" title="Следующее обращение">' + (k.next_contact ? dmy(k.next_contact).slice(0, 5) : "—") + (canEdit && !arch ? ' <button class="kpdte" data-knc="' + k.id + '" title="Назначить следующее обращение">✎</button>' : "") + '</td><td class="mg">' + E(k.manager) + '</td><td class="nw">' + acts + "</td></tr>";
+        + "<td>" + (k.lead_date || k.issued_date ? dmy(k.lead_date || k.issued_date) : "—") + '</td><td class="lastc' + (k.next_contact && k.next_contact < tdy ? " late" : "") + '" title="Следующий контакт">' + (k.next_contact ? dmy(k.next_contact).slice(0, 5) : "—") + (canEdit && !arch ? ' <button class="kpdte" data-knc="' + k.id + '" title="Назначить следующий контакт">✎</button>' : "") + '</td><td><b>' + money(k.amount) + '</b><small class="kpw">' + pay + "</small></td><td>" + st + '</td><td class="kpa">' + prom + "</td>"
+        + '<td class="lastc ' + (late ? "late" : "") + '">' + (k.last_days == null ? "—" : k.last_days === 0 ? "сегодня" : plural(k.last_days, ["день", "дня", "дней"]) + " назад") + (late ? " ⚠" : "") + '</td><td class="mg">' + E(k.manager) + '</td><td class="nw">' + acts + "</td></tr>";
     }).join("");
-    return head + funnel + '<div class="panel kpwrap" data-arch="' + !!S.kpArch + '"><table class="tbl grid-c kpt" style="font-size:' + kpz + 'px"><thead><tr><th>№ КП</th><th>Заказчик</th><th>Объект / услуги / комментарий</th><th>Дата обращения</th><th>Сумма</th><th>Статус</th><th>Обещали оплату</th><th>Последнее общение</th><th>Следующее обращение</th><th>Менеджер</th><th>Действия</th></tr></thead><tbody>'
+    return head + funnel + '<div class="panel kpwrap" data-arch="' + !!S.kpArch + '"><table class="tbl grid-c kpt" style="font-size:' + kpz + 'px"><thead><tr><th>№ КП</th><th>Заказчик</th><th>Объект / услуги / комментарий</th><th>Дата обращения</th><th>Следующий контакт</th><th>Сумма</th><th>Статус</th><th>Обещали оплату</th><th>Последнее общение</th><th>Менеджер</th><th>Действия</th></tr></thead><tbody>'
       + (rows || '<tr><td colspan="11">' + (f.st || f.from || f.to ? "По этому фильтру КП нет" : "КП пока нет") + "</td></tr>") + "</tbody></table></div>";
   }
   document.addEventListener("click", function (e) {
