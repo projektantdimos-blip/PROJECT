@@ -13,5 +13,4 @@
 .ds .sr .lane.wide .i.r6 .ptx.mid{color:#b07800}
 .ds .sr .lane.wide .i.r6 .ptx.high{color:#2f8f5b}
 .ds .sr .lane.wide .cl .m{cursor:default}
-.ds .sr .lane.wide .m i:not(.o){outline:2px solid #fff;outline-offset:1px}
 .ds .sr .lane.wide .m i.o{background:#fff}

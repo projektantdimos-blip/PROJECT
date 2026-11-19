@@ -657,7 +657,7 @@
   function keHtml() {
     var e = S.ke, cs = S.customers || [], mg = S.assignable || [], locked = !!e.order_id;
     var inp = function (label, k, type, extra) { return '<div class="fld"><label>' + label + '</label><input ' + (type ? 'type="' + type + '" ' : "") + 'data-ke="' + k + '" value="' + E(e[k] == null ? "" : e[k]) + '" ' + (extra || "") + "></div>"; };
-    return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:12px"><div class="modal" style="width:min(560px,100%);height:auto;max-height:94vh;border-radius:20px">'
+    return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:12px"><div class="modal" style="width:calc(100% - 24px);max-width:none;height:auto;max-height:94vh;border-radius:20px">'
       + '<div class="m-head"><div class="row"><div><h2 style="font-size:1.2rem">Правка ' + E(kpNo(e.number)) + '</h2>' + (locked ? '<div class="sub">КП привязано к проектной задаче: суммы и объект изменятся и в ней</div>' : "") + '</div><button class="x" data-close="1">✕</button></div></div><div class="m-body">'
       + keOrderSel(e)
       + '<div class="fld"><label>Заказчик</label><select data-ke="customer_id"><option value="0">— без привязки —</option>' + cs.map(function (c) { return '<option value="' + c.id + '"' + (c.id === +e.customer_id ? " selected" : "") + ">" + E(c.name) + "</option>"; }).join("") + "</select></div>"
@@ -723,8 +723,15 @@
       .then(function () { toast("КП сохранено"); paint(); }, function (er) { e.err = String(er); setModal(keHtml()); });
   }
   document.addEventListener("click", function (e) {
-    var t = e.target.closest ? e.target.closest("[data-kpedit],[data-kpz],[data-kesave],[data-kectr],[data-kcopen],[data-kcsave],[data-kcclose],[data-kpcancel],[data-keadv],[data-kpstar],[data-kwp],[data-kwsave],[data-kwoff],[data-kwclose],[data-kesys]") : null; if (!t) return;
+    var t = e.target.closest ? e.target.closest("[data-kpedit],[data-kpz],[data-kesave],[data-kectr],[data-kcopen],[data-kcsave],[data-kcclose],[data-kpcancel],[data-keadv],[data-kpstar],[data-kwp],[data-kwsave],[data-kwoff],[data-kwclose],[data-kesys],[data-knc],[data-kncd],[data-kncsave],[data-kncclose]") : null; if (!t) return;
     var d = t.dataset;
+    if (d.knc != null && t.hasAttribute("data-knc")) {
+      var kn = (S.kp || []).filter(function (x) { return x.id === +d.knc; })[0]; if (!kn) return;
+      S.knc = { id: kn.id, date: kn.next_contact || "", err: "" }; setModal(kncHtml()); return;
+    }
+    if (d.kncd != null && S.knc) { S.knc.date = kncBD(+d.kncd); setModal(kncHtml()); return; }
+    if (d.kncsave != null) return kncSave();
+    if (d.kncclose != null) { S.knc = null; setModal(""); return; }
     if (d.kpstar) {
       var kw = (S.kp || []).filter(function (x) { return x.id === +d.kpstar; })[0]; if (!kw) return;
       S.kw = { id: kw.id, date: kw.pay_expect || "", prob: kw.pay_prob || "", note: kw.watch_note || "", err: "" }; setModal(kwHtml()); return;
@@ -2005,6 +2012,25 @@
     api("/kp/" + w.id + "/edit", body).then(function () { S.kw = null; setModal(""); return loadKp(); })
       .then(function () { toast(off ? "Больше не следим" : "⭐ Следим: напомним в день обещанной оплаты"); paint(); }, function (e) { if (S.kw) { S.kw.err = String(e); setModal(kwHtml()); } });
   }
+  /* быстрое окно «Следующее обращение» из реестра КП (✎ у колонки) */
+  function kncBD(n) { var d = new Date(); d.setHours(0, 0, 0, 0); while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) n--; } return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  function kncHtml() {
+    var w = S.knc, k = (S.kp || []).filter(function (x) { return x.id === w.id; })[0]; if (!k) return "";
+    return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:16px"><div class="modal" style="width:min(420px,100%);height:auto;max-height:92vh;border-radius:18px">'
+      + '<div class="m-head"><div class="row"><div><h2 style="font-size:1.1rem">Следующее обращение · ' + E(kpNo(k.number)) + "</h2><div style=\"color:var(--muted);font-size:.86rem\">" + E(k.customer || "") + '</div></div><button class="x" data-kncclose="1" aria-label="Закрыть">✕</button></div></div>'
+      + '<div class="m-body" style="padding:16px 20px">'
+      + '<div class="fld"><label>Дата следующего обращения</label><input type="date" id="kncDate" value="' + E(w.date) + '"></div>'
+      + '<div class="fld"><label>Быстро: через</label><div class="kwseg">' + [["Завтра", 1], ["3 р.д.", 3], ["5 р.д.", 5], ["2 недели", 10], ["Месяц", 21]].map(function (x) {
+          return '<button type="button" class="btn sm ghost" data-kncd="' + x[1] + '">' + x[0] + "</button>"; }).join("") + "</div></div>"
+      + (w.err ? '<div class="note" style="color:var(--bad)">' + E(w.err) + "</div>" : "")
+      + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px"><button class="btn ghost" data-kncclose="1">Отмена</button><button class="btn primary" data-kncsave="1">Сохранить</button></div></div></div></div>';
+  }
+  function kncSave() {
+    var w = S.knc; w.date = (document.getElementById("kncDate") || {}).value || "";
+    if (!w.date) { w.err = "Выберите дату"; setModal(kncHtml()); return; }
+    api("/kp/" + w.id + "/edit", { next_contact: w.date }).then(function () { S.knc = null; setModal(""); return loadKp(); })
+      .then(function () { toast("Следующее обращение: " + dmy(w.date)); paint(); }, function (e) { if (S.knc) { S.knc.err = String(e); setModal(kncHtml()); } });
+  }
   function kpIsLate(k) { return k.last_days != null && k.last_days > 5 && !kpDone(k); }
   function kpArchived(k) { return k.status === "Закрыто" || k.status === "Отказ"; }      // закрытые и отказы — в архиве
   var KP_CSS = ".ds .kpstar{border:0;background:none;color:var(--muted);font-size:1.05rem;line-height:1;padding:0 5px 0 0;cursor:pointer;vertical-align:-1px}.ds .kpstar.on{color:#e0a800}"
@@ -2014,6 +2040,7 @@
     + ".ds .kpprom.today{background:var(--ok-soft);color:var(--ok)}.ds .kpprom.late{background:var(--bad-soft);color:var(--bad)}.ds .kpprom small{font-weight:600;opacity:.85}.ds .kpnone{color:var(--muted)}"
     + ".ds .kpstar-chip{background:color-mix(in srgb,#f5c542 18%,transparent);color:#b88600;border-color:#e0a800!important}"
     + ".ds .kwseg{display:flex;gap:6px}.ds .kwseg button{flex:1}"
+    + ".ds .kpdte{border:0;background:none;color:var(--muted);font-size:.85rem;cursor:pointer;padding:0 2px;vertical-align:-1px}.ds .kpdte:hover{color:var(--blue)}"
     + ".ds .kphead{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.ds .kphead h1{flex:none;margin:0;cursor:help}"
     + ".ds .kpfun.cmp{flex:1 1 380px;min-width:0;justify-content:center;gap:5px}.ds .kpfun.cmp .pill{min-height:0;height:auto;padding:4px 10px;flex-direction:row;font-size:.76rem;line-height:1.25}"
     + ".ds .kpbar{display:flex;align-items:center;justify-content:space-between;gap:10px 18px;flex-wrap:wrap;margin:0 0 10px}.ds .kpbar .kpflt{margin:0}"
@@ -2090,7 +2117,7 @@
         + (canEdit && !arch ? '<button class="kpstar' + (k.watch ? " on" : "") + '" data-kpstar="' + k.id + '" title="' + (k.watch ? "Следим: изменить или снять" : "Следить: заказчик обещал оплату") + '">' + (k.watch ? "★" : "☆") + "</button>" : "") + "<b>" + E(kpNo(k.number)) + "</b>" + (k.order_id && k.order_number ? '<small><button class="kplink" data-open="' + k.order_id + '" title="Открыть задачу">задача №' + E(k.order_number) + "</button></small>" : "") + '</td><td class="cu">' + E(k.customer) + '</td><td class="ell" title="' + E(k.object + " — " + svc + (k.comment ? " — " + k.comment : "") + (k.watch && k.watch_note ? " — по оплате: " + k.watch_note : "")) + '">' + E(k.object) + "<small>" + E(svc) + "</small>" + (k.comment ? '<small class="kpcm">💬 ' + E(k.comment) + "</small>" : "")
         + (k.watch && k.watch_note ? '<small class="kpcm">⭐ По оплате: ' + E(k.watch_note) + "</small>" : "") + "</td>"
         + "<td>" + (k.lead_date || k.issued_date ? dmy(k.lead_date || k.issued_date) : "—") + "</td><td><b>" + money(k.amount) + '</b><small class="kpw">' + pay + "</small></td><td>" + st + '</td><td class="kpa">' + prom + "</td>"
-        + '<td class="lastc ' + (late ? "late" : "") + '">' + (k.last_days == null ? "—" : k.last_days === 0 ? "сегодня" : plural(k.last_days, ["день", "дня", "дней"]) + " назад") + (late ? " ⚠" : "") + '</td><td class="lastc' + (k.next_contact && k.next_contact < tdy ? " late" : "") + '" title="Следующее обращение">' + (k.next_contact ? dmy(k.next_contact).slice(0, 5) : "—") + '</td><td class="mg">' + E(k.manager) + '</td><td class="nw">' + acts + "</td></tr>";
+        + '<td class="lastc ' + (late ? "late" : "") + '">' + (k.last_days == null ? "—" : k.last_days === 0 ? "сегодня" : plural(k.last_days, ["день", "дня", "дней"]) + " назад") + (late ? " ⚠" : "") + '</td><td class="lastc' + (k.next_contact && k.next_contact < tdy ? " late" : "") + '" title="Следующее обращение">' + (k.next_contact ? dmy(k.next_contact).slice(0, 5) : "—") + (canEdit && !arch ? ' <button class="kpdte" data-knc="' + k.id + '" title="Назначить следующее обращение">✎</button>' : "") + '</td><td class="mg">' + E(k.manager) + '</td><td class="nw">' + acts + "</td></tr>";
     }).join("");
     return head + funnel + '<div class="panel kpwrap" data-arch="' + !!S.kpArch + '"><table class="tbl grid-c kpt" style="font-size:' + kpz + 'px"><thead><tr><th>№ КП</th><th>Заказчик</th><th>Объект / услуги / комментарий</th><th>Дата обращения</th><th>Сумма</th><th>Статус</th><th>Обещали оплату</th><th>Последнее общение</th><th>Следующее обращение</th><th>Менеджер</th><th>Действия</th></tr></thead><tbody>'
       + (rows || '<tr><td colspan="11">' + (f.st || f.from || f.to ? "По этому фильтру КП нет" : "КП пока нет") + "</td></tr>") + "</tbody></table></div>";

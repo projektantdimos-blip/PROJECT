@@ -106,7 +106,7 @@
   function sysDots(active, clickableKey) {
     return '<span class="cl' + (clickableKey ? " rq" : "") + '">' + SYSTEMS.map(function (k) {
       var on = active.indexOf(k) >= 0;
-      return '<span class="m' + (clickableKey && on ? " on" : "") + '"' + (clickableKey ? ' data-sys="' + E(clickableKey) + "|" + E(k) + '" title="' + E(k) + '"' : "") + '><i class="' + (on ? "" : "o") + '"' + (on ? ' style="background:' + KC[k] + ";box-shadow:0 0 0 3px " + KC[k] + "55,0 0 14px 3px " + KC[k] + "88" + '"' : "") + "></i></span>";
+      return '<span class="m' + (clickableKey && on ? " on" : "") + '"' + (clickableKey ? ' data-sys="' + E(clickableKey) + "|" + E(k) + '" title="' + E(k) + '"' : "") + '><i class="' + (on ? "" : "o") + '"' + (on ? ' style="background:' + KC[k] + ";box-shadow:0 0 0 2px #fff,0 0 0 4px " + KC[k] + ",0 3px 10px 2px " + KC[k] + "77" + '"' : "") + "></i></span>";
     }).join("") + "</span>";
   }
   function cmpSpan(cmp, cur, pl) {                           // сравнение с прошлой неделей: ▲/▼ по количеству и сумме
@@ -145,7 +145,7 @@
     var kpId = r.kp;
     var skey = kpId + "|systems";
     if (KV[skey] === undefined) KV[skey] = JSON.stringify(r.systems && r.systems.length ? r.systems
-      : (r.sv || "").split(/[;,]/).map(function (x) { return x.trim(); }).filter(function (x) { return SYSTEMS.indexOf(x) >= 0; }));
+      : SYSTEMS.filter(function (k) { return (r.sv || "").indexOf(k) >= 0; }));      // код может быть в тексте как «СПС.СОУЭ»
     var sv = list(KV[skey]);
     var lc = r.last_bd == null ? 99 : r.last_bd;
     var lq = lc >= 99 ? '<span class="lq r">—</span>' : '<span class="lq' + (lc >= 3 ? " r" : "") + '">' + (lc === 0 ? "сегодня" : lc + " р.д.") + "</span>";
