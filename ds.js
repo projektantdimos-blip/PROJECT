@@ -657,7 +657,7 @@
   function keHtml() {
     var e = S.ke, cs = S.customers || [], mg = S.assignable || [], locked = !!e.order_id;
     var inp = function (label, k, type, extra) { return '<div class="fld"><label>' + label + '</label><input ' + (type ? 'type="' + type + '" ' : "") + 'data-ke="' + k + '" value="' + E(e[k] == null ? "" : e[k]) + '" ' + (extra || "") + "></div>"; };
-    return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:12px"><div class="modal" style="width:calc(100% - 24px);max-width:none;height:auto;max-height:94vh;border-radius:20px">'
+    return '<div class="modal-bg" data-bg="1" style="align-items:center;justify-content:center;padding:12px"><div class="modal" style="width:min(560px,100%);height:auto;max-height:90vh;border-radius:20px">'
       + '<div class="m-head"><div class="row"><div><h2 style="font-size:1.2rem">Правка ' + E(kpNo(e.number)) + '</h2>' + (locked ? '<div class="sub">КП привязано к проектной задаче: суммы и объект изменятся и в ней</div>' : "") + '</div><button class="x" data-close="1">✕</button></div></div><div class="m-body">'
       + keOrderSel(e)
       + '<div class="fld"><label>Заказчик</label><select data-ke="customer_id"><option value="0">— без привязки —</option>' + cs.map(function (c) { return '<option value="' + c.id + '"' + (c.id === +e.customer_id ? " selected" : "") + ">" + E(c.name) + "</option>"; }).join("") + "</select></div>"

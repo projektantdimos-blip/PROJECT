@@ -106,7 +106,7 @@
   function sysDots(active, clickableKey) {
     return '<span class="cl' + (clickableKey ? " rq" : "") + '">' + SYSTEMS.map(function (k) {
       var on = active.indexOf(k) >= 0;
-      return '<span class="m' + (clickableKey && on ? " on" : "") + '"' + (clickableKey ? ' data-sys="' + E(clickableKey) + "|" + E(k) + '" title="' + E(k) + '"' : "") + '><i class="' + (on ? "" : "o") + '"' + (on ? ' style="background:' + KC[k] + ";box-shadow:0 0 0 2px #fff,0 0 0 4px " + KC[k] + ",0 3px 10px 2px " + KC[k] + "77" + '"' : "") + "></i></span>";
+      return '<span class="m' + (clickableKey && on ? " on" : "") + '"' + (clickableKey ? ' data-sys="' + E(clickableKey) + "|" + E(k) + '" title="' + E(k) + '"' : "") + '><i class="' + (on ? "" : "o") + '"' + (on ? ' style="background:' + KC[k] + ";box-shadow:0 0 0 2px #fff,0 0 0 4px " + KC[k] + '"' : "") + "></i></span>";
     }).join("") + "</span>";
   }
   function cmpSpan(cmp, cur, pl) {                           // сравнение с прошлой неделей: ▲/▼ по количеству и сумме
@@ -149,7 +149,7 @@
     var sv = list(KV[skey]);
     var lc = r.last_bd == null ? 99 : r.last_bd;
     var lq = lc >= 99 ? '<span class="lq r">—</span>' : '<span class="lq' + (lc >= 3 ? " r" : "") + '">' + (lc === 0 ? "сегодня" : lc + " р.д.") + "</span>";
-    return '<div class="i r6"><span class="nm1"><span class="nm2" title="' + E(r.cells[1]) + '">' + E(r.cells[1]) + '</span><span class="pq ' + TEMP_C[r.temp || "m"] + '" title="' + E(TEMP_T[r.temp || "m"]) + '">' + TEMP_L[r.temp || "m"] + "</span></span>" + sysDots(sv, "")
+    return '<div class="i r6"><span class="nm1"><span class="nm2" title="' + E(r.cells[1]) + '">' + E(r.cells[1]) + '</span></span>' + sysDots(sv, "")
       + '<div class="rt">' + ptxtQ(kpId) + lq + ncell(kpId) + "<b>" + fmt(num(r.amt)) + "</b></div>"
       + '<input class="cmq" data-ak="s1:kp' + kpId + ':note" type="text" placeholder="Комментарий" aria-label="Комментарий к запросу" value="' + E(AV["s1:kp" + kpId + ":note"]) + '"' + dis() + "></div>";
   }
