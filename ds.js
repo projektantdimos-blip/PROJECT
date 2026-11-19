@@ -2916,7 +2916,7 @@
     return '<div class="panel pad" style="margin-bottom:12px"><div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px"><span style="flex:none;width:26px;height:26px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-weight:700;font-size:.8rem;color:var(--muted)">' + it.n + '</span><b style="flex:1;line-height:1.35">' + E(it.q) + "</b>" + rpTag(it.auto_text ? "semi" : it.mode) + "</div>"
       + '<div style="padding-left:36px">' + body + "</div></div>";
   }
-  function reportKind() { var p = pos(); return p === "ops" ? "ops" : p === "sales" ? "sales" : (p === "owner" ? (S.rp && S.rp.kind) || "sales" : "design"); }
+  function reportKind() { var p = pos(); return p === "ops" ? "ops" : p === "design" ? "design" : (p === "owner" ? (S.rp && S.rp.kind) || "sales" : "sales"); }
   function rpFind(key) { var f = null; ((S.rp && S.rp.data && S.rp.data.items) || []).forEach(function (it) { it.inputs.concat.apply(it.inputs, it.rows.map(function (r) { return r.inputs || []; })).forEach(function (i) { if (i.key === key) f = i; }); }); return f; }
   function rpSave(key, text) {
     var i = rpFind(key); if (i) i.v = text;
@@ -3130,6 +3130,7 @@
     var p = pos(), r = S.rp && S.rp.data;
     var tabs = rpLeads(p) ? '<div class="seg">' + RP_KINDS.map(function (x) { return '<button data-rpkind="' + x[0] + '" class="' + (S.rp && S.rp.kind === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>" : "";
     if (!r) return '<div class="head"><div><h1>Пятничный созвон</h1></div></div>' + tabs + '<div class="note">' + (S.err ? E(S.err) : "Нет данных") + "</div>";
+    if (r.kind === "sales" && window.DSSalesReport) return DSSalesReport.html(r, !r.can_edit, p, tabs);
     var ro = !r.can_edit, tone = { ok: "var(--ok)", bad: "var(--bad)", brand: "var(--brand)", warn: "var(--warn)" };
     var done = r.items.filter(rpDone).length, auto = r.items.filter(function (it) { return it.mode !== "manual"; }).length;
     var head = '<div class="head"><div><h1>Пятничный созвон · ' + E(r.title) + "</h1><p>Неделя " + dmy(r.week_start).slice(0, 5) + " — " + dmy(r.week_end).slice(0, 5) + ". Цифры и списки CRM считает сама; допишите комментарии и ответы на ручные вопросы — в пятницу в 17:00 отчёт уйдёт руководителю.</p></div>"

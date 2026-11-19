@@ -278,6 +278,7 @@ textarea{resize:vertical;min-height:64px}
 <link rel="stylesheet" href="ds.css?v=20261117a">
 <link rel="stylesheet" href="today.css?v=20261115c">
 <link rel="stylesheet" href="work_load.css?v=20261117c">
+<link rel="stylesheet" href="report_sales.css?v=20261119a">
 </head>
 <body>
 <div class="app">
@@ -391,9 +392,9 @@ var DS_ALLOWED = {
   design:   ["today","tasks","cal","visits","my","clients","chat","mail","team","report","me"],      /* «Просрочено и зависло» (risk) спрятан у ops и design — решение владельца 15.11; вернуть — дописать "risk" */
   sales:    ["today","flow","tasks","cal","visits","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","onec","me"],
   ops:      ["today","flow","tasks","tz","cal","visits","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","me"],
-  acc:      ["today","tasks","kpreg","team","onec","me"],
-  designer: ["today","tasks","cal","visits","my","team","me"],
-  norm:     ["today","my","chat","mail","team","me"]          /* нормативный специалист: свои задачи и диалоги своих заказчиков */
+  acc:      ["today","tasks","kpreg","team","report","onec","me"],
+  designer: ["today","tasks","cal","visits","my","team","report","me"],
+  norm:     ["today","my","chat","mail","team","report","me"]          /* нормативный специалист: свои задачи и диалоги своих заказчиков */
 };
 var DS_HOME = { owner: "#/today", design: "#/today", sales: "#/today", ops: "#/today", acc: "#/today", designer: "#/today", norm: "#/today" };      /* главный экран — «Сегодня» */
 function dsPosition(){ return (window.MPBC && MPBC.me) ? (MPBC.me.position || (MPBC.me.role === "admin" ? "owner" : "")) : ""; }
@@ -663,7 +664,8 @@ globalRouter();
 <script src="teamsearch.js?v=20261117a"></script>
 <script src="ai.js?v=20261031d"></script>
 <script src="chatpanel.js?v=20261106a"></script>
-<script src="ds.js?v=20261117e"></script>
+<script src="ds.js?v=20261119a"></script>
+<script src="report_sales.js?v=20261119a"></script>
 <script src="work_load.js?v=20261117c"></script>
 <script src="work_conv.js?v=20261116e"></script>
 <script src="work_how.js?v=20261117a"></script>
