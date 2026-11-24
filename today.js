@@ -45,6 +45,7 @@
       el.innerHTML = '<div class="ds dspage td"><div class="head"><div><h1>Сегодня</h1><p>Войдите, чтобы увидеть свои задачи</p></div><button class="btn primary" data-tdlogin="1">Войти по PIN</button></div></div>';
       return;
     }
+    if ((C.me.position === "sales" || C.me.position === "owner") && window.DSTodayRop) { window.DSTodayRop.mount(el); return; }   // «Сегодня» РОПа по макету 24.11
     if (S.uid !== C.me.id) { S.d = null; S.edit = {}; S.more = {}; S.at = 0; S.tab = 0; S.uid = C.me.id; }      // сменился сотрудник — чужие данные не показываем
     if (!S.d) el.innerHTML = '<div class="ds dspage td"><div class="loading">Загружаю…</div></div>';
     else paint();

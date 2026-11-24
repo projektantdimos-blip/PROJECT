@@ -1,0 +1,45 @@
+/* «Сегодня» РОПа (ds_today_rop.js) по макету 24.11 */
+.ds .tr .head{margin-bottom:14px}
+.ds .tr-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:0 0 14px}
+.ds .tr-tile{background:var(--surface);border:1px solid #d5dde0;border-radius:10px;padding:10px 14px;line-height:1.25}
+.ds .tr-tile.hot{border-color:#d24b3f}
+.ds .tr-tnum{font-size:1.25rem;font-weight:800;color:var(--ink)}
+.ds .tr-tile.hot .tr-tnum{color:var(--bad)}
+.ds .tr-tlab{font-size:.78rem;font-weight:700;color:#3a4657;margin-top:2px}
+.ds .tr-tsub{font-size:.7rem;color:var(--muted);margin-top:2px}
+.ds .tr-tiles.sm .tr-tile{padding:8px 12px}
+.ds .tr-tiles.sm .tr-tnum{font-size:1.05rem}
+.ds .tr-sec{margin:18px 0 8px}
+.ds .tr-sec h2{font-size:1.02rem;margin:0 0 2px}
+.ds .tr-sec small{color:var(--muted);font-size:.74rem}
+.ds .tr-cards{display:flex;flex-direction:column;gap:8px}
+.ds .tr-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.ds .tr-mh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ds .tr-mh b{font-size:.92rem}
+.ds .tr-amt{margin-left:auto;font-weight:800;font-size:.95rem;white-space:nowrap}
+.ds .tr-step{flex:none;font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:8px;background:#dfe5ee;color:#3a4657}
+.ds .tr-step.s2{background:#f2c24f;color:#5a3d05}
+.ds .tr-step.s3{background:#d24b3f;color:#fff}
+.ds .tr-mstat{font-size:.8rem;color:var(--muted);margin-top:4px}
+.ds .tr-script{margin-top:6px;font-size:.8rem;background:var(--blue-bg,#eef3fb);border-left:3px solid #2f6bd0;border-radius:6px;padding:6px 10px;color:#1b3a5e}
+.ds .tr-mbtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.ds .tr-dlg{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;background:var(--surface-2,#f4f6f8);border:1px dashed var(--line);border-radius:10px;padding:8px 10px}
+.ds .tr-dlg label{font-size:.74rem;font-weight:700;color:var(--muted)}
+.ds .tr-dlg input,.ds .tr-dlg select{border:1px solid var(--line);border-radius:8px;padding:6px 9px;background:var(--surface);color:var(--ink);font:inherit}
+.ds .tr-missed{margin:0 0 14px}
+.ds .tr-missed>b{display:block;margin-bottom:6px}
+.ds .tr-mrow{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line)}
+.ds .tr-mrow:first-of-type{border-top:0}
+.ds .tr-mrow small{display:block;color:var(--muted);font-size:.72rem}
+.ds .tr-sum .tr-hint{display:block;color:var(--muted);font-size:.72rem;margin:2px 0 8px}
+.ds .tr-tasks .tr-mrow b{font-weight:600}
+.ds .tr-debtors{margin-top:14px}
+.ds .tr-debtors>b{display:block;margin-bottom:4px}
+.ds .tr-gap{height:4px}
+.ds .tr-cfg{margin-top:14px;font-size:.8rem}
+.ds .tr-cfg summary{cursor:pointer;color:var(--muted)}
+.ds .tr-cfg .tr-dlg{margin-top:8px}
+@media(max-width:760px){
+  .ds .tr-tiles{grid-template-columns:repeat(2,1fr)}
+  .ds .tr-amt{font-size:.85rem}
+}
