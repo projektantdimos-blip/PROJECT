@@ -38,14 +38,20 @@
       function (e) { toast(String(e && e.message || e)); });
   }
 
+  var TILE_HEAD = ["#5b84c4", "#2f8f5b", "#b0722f", "#8a5fd0", "#c0568f", "#c0392b"];
+  function tile(i, hot, head, num, lab, sub) {
+    return '<div class="tr-tile' + (hot ? " hot" : "") + '"><div class="tr-th" style="background:' + (hot ? "#c0392b" : TILE_HEAD[i]) + '">' + head + '</div><div class="tr-tb"><div class="tr-tnum">' + num + '</div><div class="tr-tlab">' + lab + '</div>' + (sub ? '<div class="tr-tsub">' + sub + "</div>" : "") + "</div></div>";
+  }
   function tiles(d) {
-    var callsLeft = d.calls.left;
+    var b = d.calls.breakdown || { missed: 0, money: 0, kp: 0 };
+    var leftTxt = "осталось: " + d.calls.left + " · пропущенные " + b.missed + " · деньги " + b.money + " · КП " + b.kp;
     return '<div class="tr-tiles">'
-      + '<div class="tr-tile"><div class="tr-tnum">' + d.calls.done + " из " + d.calls.goal + '</div><div class="tr-tlab">Звонки сегодня</div><div class="tr-tsub">Осталось позвонить: ' + callsLeft + '</div></div>'
-      + '<div class="tr-tile"><div class="tr-tnum">' + money(d.week.got) + '</div><div class="tr-tlab">Оплаты ' + d.week.from + "–" + d.week.to + '</div><div class="tr-tsub">Не хватает до порога ' + money(d.week.goal) + ': ' + money(d.week.missing) + "</div></div>"
-      + '<div class="tr-tile' + (d.due.count ? " hot" : "") + '"><div class="tr-tnum">' + money(d.due.sum) + '</div><div class="tr-tlab">Клиенты должны оплатить</div><div class="tr-tsub">в списке «Деньги сегодня»: ' + d.due.count + "</div></div>"
-      + '<div class="tr-tile' + (d.kp_nodate ? " hot" : "") + '"><div class="tr-tnum">' + d.kp_nodate + '</div><div class="tr-tlab">КП без даты звонка</div><div class="tr-tsub">цель к пятнице ' + d.friday + ' — 0</div></div>'
-      + '<div class="tr-tile' + (d.missed.length ? " hot" : "") + '"><div class="tr-tnum">' + d.missed.length + '</div><div class="tr-tlab">Пропущенные входящие</div><div class="tr-tsub">перезвонить в течение 30 минут</div></div></div>';
+      + tile(0, false, "Звонки сегодня", d.calls.done + " из " + d.calls.goal, "Осталось позвонить", leftTxt)
+      + tile(1, false, "Оплаты " + d.week.from + "–" + d.week.to, money(d.week.got), "Не хватает до порога " + money(d.week.goal), money(d.week.missing))
+      + tile(2, d.due.count > 0, "Клиенты должны оплатить", money(d.due.sum), "в списке «Деньги сегодня»", d.due.count + " клиентов")
+      + tile(3, d.kp_nodate > 0, "КП без даты звонка", d.kp_nodate, "КП в очереди «без даты»", "")
+      + tile(4, d.kp_nodate > 0, "Цель к пятнице " + d.friday, d.kp_nodate, "цель — «без даты» = 0", "")
+      + tile(5, d.missed.length > 0, "Пропущенные входящие", d.missed.length, "перезвонить в течение 30 минут", "") + "</div>";
   }
 
   function missedHtml(d) {
@@ -64,7 +70,7 @@
       + '<button class="btn ghost sm" data-tract="money_noanswer|' + m.ref + '">Не дозвонился</button>';
     return '<div class="tr-card tr-money"><div class="tr-mh"><span class="tr-step s' + m.step + '">шаг ' + m.step + '</span><b>№' + E(m.number) + " · " + E(m.customer) + '</b><span class="tr-amt">' + money(m.amount) + "</span></div>"
       + '<div class="tr-mstat">' + E(m.status) + '</div>'
-      + '<div class="tr-script">Что сказать: «' + E(m.script) + '»</div>'
+      + '<div class="tr-script"><b>Что сказать:</b> «' + E(m.script) + '»</div>'
       + '<div class="tr-mbtns">' + btns + (isDlg ? dlgHtml() : "") + "</div></div>";
   }
 
@@ -135,7 +141,7 @@
       + (d.money.length ? '<div class="tr-mbtns" style="margin:0 0 14px"><button class="btn ghost sm" data-trhelp="1"' + (d.help.used >= d.help.limit ? " disabled" : "") + '>Нужна помощь Дмитрия · в этом месяце: ' + d.help.used + " из " + d.help.limit + "</button></div>" : "")
       + '<div class="tr-sec"><h2>Звонки по КП · ' + d.kp.length + '</h2><small>Подобраны на сегодня: сумма × давность контакта · норма 10–15 в день</small></div>'
       + '<div class="tr-cards">' + d.kp.slice(0, d.calls.goal).map(kpCard).join("") + "</div>"
-      + (d.kp.length > d.calls.goal ? '<div class="note">Ещё ' + (d.kp.length - d.calls.goal) + ' звонков в очереди — появятся, когда закроешь эти. Цель — «без даты» = 0 к пятнице.</div>' : "")
+      + (d.kp.length > d.calls.goal ? '<div class="note">Ещё ' + (d.kp.length - d.calls.goal) + ' звонков добавятся из очереди «без даты» (' + d.kp_nodate + ' КП), когда закроешь эти. Цель — «без даты» = 0 к пятнице.</div>' : "")
       + refuseHtml(d)
       + tasksHtml(d)
       + '<div class="tr-gap"></div>'
