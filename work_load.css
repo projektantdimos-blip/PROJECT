@@ -38,9 +38,8 @@
 .ds .wlb small{font-size:.67rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.92}.ds .wlb small em{font-style:normal;font-weight:800}
 .ds .wlb.done{background:#c3cad6;color:#46536a}
 .ds .wlb.plan{background:#9dbff1;color:#14345e}
-.ds .wlb.rdy{outline:2px dashed #2559b3;outline-offset:-3px}
 .ds .wlb.late{box-shadow:inset 0 0 0 2px var(--bad)}.ds .wlb.hot{box-shadow:inset 0 0 0 2px #f0924d}.ds .wlb.urg:not(.done){box-shadow:inset 4px 0 0 var(--bad)}
-.ds .wlb.pend{opacity:.85;outline:2px dashed var(--ok);outline-offset:-2px}
+.ds .wlb.pend{opacity:.85;outline:2px solid var(--ok);outline-offset:-2px}
 .ds .wl-ready{color:#9a3b00}.ds .wlb.plan .wl-bad{color:#b0261c}.ds .wlb .wl-hot{color:#fff3e6}.ds .wlb.plan .wl-hot{color:#b4530a}
 .ds .wlb.over{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--bad) 88%,transparent) 0 6px,color-mix(in srgb,var(--bad) 58%,transparent) 6px 12px)!important;color:#fff!important;cursor:default;box-shadow:none!important;outline:0!important}
 .ds .wl-hd{position:relative;z-index:5;width:12px;cursor:ew-resize;align-self:stretch;margin:6px 0;touch-action:none}
@@ -49,9 +48,7 @@
 .ds .wl-hd.l::after{left:4px}.ds .wl-hd.r::after{right:4px}
 .ds .wl-hd:hover::after,.ds .wl-hd.act::after{background:#fff;width:6px;box-shadow:0 0 0 2px var(--ok)}
 body.wl-rsz,body.wl-rsz *{cursor:ew-resize!important;user-select:none}
-.ds .wl-flag{z-index:4;justify-self:end;align-self:end;margin:0 -8px -9px 0;font-size:.58rem;font-weight:800;padding:1px 5px;border-radius:6px;background:var(--brand);color:#fff;pointer-events:none;white-space:nowrap;line-height:1.3}.ds .wl-flag.bad{background:var(--bad)}
-.ds .wl-leg .wl-flag.sm{margin:0;display:inline-block}
-.ds .wl-ghost{z-index:6;margin:0 2px;border-radius:10px;border:2px dashed var(--ok);background:color-mix(in srgb,var(--ok) 14%,var(--surface));pointer-events:none;position:relative;box-shadow:0 8px 20px rgba(20,40,80,.18)}
+.ds .wl-ghost{z-index:6;margin:0 2px;border-radius:10px;border:2px solid var(--ok);background:color-mix(in srgb,var(--ok) 14%,var(--surface));pointer-events:none;position:relative;box-shadow:0 8px 20px rgba(20,40,80,.18)}
 .ds .wl-gl{position:absolute;left:-2px;bottom:calc(100% + 6px);display:flex;flex-direction:column;padding:5px 10px;border-radius:9px;background:var(--surface);border:1.5px solid var(--ok);box-shadow:var(--shadow-m);white-space:nowrap;color:var(--ink)}
 .ds .wl-ghost b{font-size:.8rem}.ds .wl-ghost small{font-size:.7rem;color:var(--ok);font-weight:700}
 .ds .wl-ghost.bad{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,var(--surface))}.ds .wl-ghost.bad .wl-gl{border-color:var(--bad)}.ds .wl-ghost.bad small{color:var(--bad)}
@@ -148,7 +145,7 @@ body.wl-drg .ds .ldpop{opacity:.15;pointer-events:none}
 }
 .ds .wl-cin.work { background: var(--wl-blue) }
 .ds .wl-cin.fix { background: var(--wl-orange) }
-.ds .wl-cin.plan { border: 2px dashed var(--wl-blue); background: #d3e2fa; color: #163a75 }
+.ds .wl-cin.plan { border: 1px solid #6c9bd7; background: #d3e2fa; color: #163a75 }
 .ds .wl-cin.pause { background: #6f7c8d }
 .ds .wl-cin.late { background: #d24b3f }
 .ds .wl-cit { color: var(--ink); font-size: .79rem; font-weight: 650; line-height: 1.25 }
@@ -273,7 +270,7 @@ body.wl-drg .ds .ldpop{opacity:.15;pointer-events:none}
 .ds .wlb { align-self: start; height: 44px; margin: 3px 1px; padding: 0 6px; border-radius: 8px; gap: 2px }
 .ds .wlb.work { background: var(--wl-blue) }
 .ds .wlb.fix { background: var(--wl-orange); color: #201408 }
-.ds .wlb.plan { border: 2px dashed var(--wl-blue); outline: none; background: #d3e2fa; color: #163a75 }
+.ds .wlb.plan { border: 1px solid #6c9bd7; background: #d3e2fa; color: #163a75 }
 .ds .wlb.plan .wl-ready { color: #205186 }
 .ds .wlb.done { align-self: start; margin-top: 12px; height: 26px; background: #d5dbe3; color: #3f4a59 }
 .ds .wlb > b { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: .77rem }
@@ -293,17 +290,14 @@ body.wl-drg .ds .ldpop{opacity:.15;pointer-events:none}
 .ds .wlb.ns .wl-ns { color: #fff0eb }
 .ds .wlb.fix.ns .wl-ns,.ds .wlb.plan.ns .wl-ns { color: #8b2119 }
 .ds .wlb.ns:focus-within .wl-start { opacity: 1 }
-.ds .wl-flag { margin: 0 1px 0 0 }
 .ds .wl-hd { align-self: start; height: 44px; margin: 3px 0; opacity: 0 }
 .ds .wl-r:hover .wl-hd,.ds .wl-hd.act { opacity: 1 }
-.ds .wl-plan-dot { border: 1px dashed var(--wl-blue); background: #d3e2fa }
-.ds .wl-buf,.ds .wl-overlap { pointer-events: none; align-self: start; height: 44px; margin: 3px 1px }
-.ds .wl-buf,.ds .wl-buf-key { border: 1px dashed #6c9bd7; border-radius: 7px; background: color-mix(in srgb,#d3e2fa 30%,transparent) }
+.ds .wl-plan-dot { border: 1px solid #6c9bd7; background: #d3e2fa }
+.ds .wl-overlap { pointer-events: none; align-self: start; height: 44px; margin: 3px 1px }
 .ds .wl-overlap,.ds .wl-overlap-key { background: repeating-linear-gradient(135deg,#ffffff65 0 3px,#3b245045 3px 6px) }
 .ds .wl-overlap { z-index: 4; border-block: 1px solid #532982a0 }
 .ds .wlb:hover,.ds .wlb:focus-within { z-index: 3 }
-.ds .wl-flag { z-index: 5 }
-.ds .wl-buf-key,.ds .wl-overlap-key { display: inline-block; flex: none; width: 16px; height: 9px }
+.ds .wl-overlap-key { display: inline-block; flex: none; width: 16px; height: 9px }
 .ds .wl-dot.urg { background: #d3e2fa; border-left: 3px solid #ce342b }
 .ds .wl-options { margin: 0 2px 16px; color: var(--muted); font-size: .78rem }
 .ds .wl-options summary { width: max-content; cursor: pointer }

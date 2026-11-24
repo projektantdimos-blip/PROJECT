@@ -218,13 +218,11 @@
         return !my.some(function (i) { return i.oid === h.order_id && i.kind !== "part" && h.end >= i.s; });      // не дублируем текущий план той же задачи
       }).map(function (h) { return { hist: h.kind, key: "h", oid: h.order_id, number: h.number, object: h.object || "", s: h.start, e: h.end, fixN: h.fix_n }; });
       var list = hist.concat(my).filter(function (i) { var e = effEnd(i); return e >= days[0] && i.s <= days[N - 1]; }).sort(function (a, b) { return a.s < b.s ? -1 : a.s > b.s ? 1 : 0; });
-      var ends = [], laneTasks = [], segs = "";
+      var ends = [], segs = "";
       var absences = days.map(function (d) { return offKind(u, d); });
       list.forEach(function (i) {
         var e = effEnd(i), a = idx(i.s, false), b = idx(e, true); if (b < a) a = b = Math.max(0, b);      // целиком в выходные — на пятницу перед ними
         var l = 0; while (l < ends.length && ends[l] >= a) l++; ends[l] = b;
-        if (!laneTasks[l]) laneTasks[l] = [];
-        laneTasks[l].push({ start: a, end: b, date: e, item: i });
         var stt = i.paused ? "ps" : i.hist ? "done" : i.kind === "fix" ? "fix" : i.ready || i.s > td ? "plan" : "work";
         var ns = notStarted(i, u);
         var late = !i.hist && !i.paused && i.due && e > i.due && wdBetween(addD(i.due, 1), e) > 0, dI = i.due ? idx(i.due, true) : -1, me = late && dI >= a && dI < b ? dI : b;
@@ -240,7 +238,7 @@
         var drag = mv && !i.hist && !i.paused ? ' draggable="true" data-wld="' + i.key + '"' : "";
         var open = i.hist ? openAttr(i.oid) : ph && canMove() ? 'data-wledit="' + i.key + '"' : openAttr(i.oid);
         var startBtn = ns ? '<button type="button" class="wl-start" data-wlstart="' + i.oid + ":" + (i.rid || 0) + '" title="Взять в работу — снять красную метку">✓ Начато</button>' : "";
-        segs += '<div class="wlb ' + stt + (hot ? " hot" : "") + (i.ready ? " rdy" : "") + (late && me === b ? " late" : "") + (i.pending ? " pend" : "") + (i.urgent && !i.hist ? " urg" : "") + (i.shifted ? " shf" : "") + (ns ? " ns" : "") + '"' + drag + " " + open
+        segs += '<div class="wlb ' + stt + (hot ? " hot" : "") + (late && me === b ? " late" : "") + (i.pending ? " pend" : "") + (i.urgent && !i.hist ? " urg" : "") + (i.shifted ? " shf" : "") + (ns ? " ns" : "") + '"' + drag + " " + open
           + ' style="grid-column:' + (a + 2) + "/" + (me + 3) + ";grid-row:" + (l + 1) + '" data-wlcard="' + card + '"><b><span class="wlb-num">' + E(ttl) + '</span>' + (i.hist ? "" : '<span class="wlb-object">' + E(i.object) + '</span>') + "</b>" + (i.hist ? "" : "<small>" + l2 + "</small>") + infoButton() + startBtn + "</div>";
         var lateDays = me < b ? wdBetween(addD(i.due, 1), e) : 0;
         if (me < b) segs += '<div class="wlb over" style="grid-column:' + (me + 3) + "/" + (b + 3) + ";grid-row:" + (l + 1) + '" title="Работа после срока договора: ' + lateDays + ' р.д."><b>+' + lateDays + (lateDays > 1 ? " р.д.</b><small>после срока</small>" : "</b>") + "</div>";
@@ -251,16 +249,6 @@
             if (absences[col]) segs += '<span class="wl-overlap ' + absences[col] + '" aria-hidden="true" style="grid-column:' + (col + 2) + ";grid-row:" + (l + 1) + '"></span>';
           }
         }
-      });
-      laneTasks.forEach(function (tasks, lane) {
-        tasks.forEach(function (t, j) {
-          var i = t.item, next = tasks[j + 1], due = days.indexOf(i.due);
-          if (i.hist || !i.due) return;
-          var limit = due < 0 && i.due > days[N - 1] ? N - 1 : due;
-          var end = next ? Math.min(limit, next.start - 1) : limit, row = lane + 1;
-          if (!i.paused && i.due > t.date && t.end < end) segs += '<span class="wl-buf" aria-hidden="true" style="grid-column:' + (t.end + 3) + "/" + (end + 3) + ";grid-row:" + row + '"></span>';
-          if (due >= 0 && (i.paused || due <= t.end || due === end)) segs += '<span class="wl-flag' + (!i.paused && t.date > i.due && wdBetween(addD(i.due, 1), t.date) > 0 ? " bad" : "") + '" style="grid-column:' + (due + 2) + ";grid-row:" + row + '">⚑ ' + dm(i.due) + "</span>";
-        });
       });
       var lanes = Math.max(1, ends.length), act = mine(u, all), lt = act.filter(function (i) { return (i.due && effEnd(i) > i.due) || (i.left != null && i.left < 0 && i.kind !== "fix"); }).length, fr = freeFrom(u, all);
       var bg = days.map(function (d, i) {
@@ -307,8 +295,8 @@
       + (p === "owner" || p === "ops" || p === "design" ? '<span class="ldwho wl-who"><button class="btn ghost sm" data-ldmenu="1">👥 Кого показывать (' + ppl.length + ")</button>"
         + (S.ldMenu ? '<span class="ldpop"><b>Показывать в «Занятости»</b>' + x.staffAll().filter(realStaff).map(function (u) { var on = ppl.some(function (y) { return y.name === u.name; }); return '<button type="button" class="ldchk ' + (on ? "on" : "") + '" data-ldp="' + E(u.name) + '"><i>' + (on ? "✓" : "") + "</i>" + E(u.name) + "</button>"; }).join("") + '<button class="btn ghost sm" data-ldmenu="0" style="margin-top:8px">Готово</button></span>' : "") + "</span>" : "")
       + "</div></details>" : "";
-    var leg = '<div class="wl-leg"><span><i class="wl-dot" style="background:#c3cad6"></i>сделано (по истории задачи)</span><span><i class="wl-dot" style="background:#3b7ddd"></i>в работе</span><span><i class="wl-dot wl-plan-dot"></i>запланировано</span><span><i class="wl-dot" style="background:#e0873a"></i>корректировка</span><span><i class="wl-dot ov"></i>после срока договора</span><span><b class="wl-flag sm">⚑</b> срок по договору</span><span><i class="wl-dot hot"></i>≤ 2 дн. до срока</span><span><i class="wl-dot ps"></i>пауза (ждём заказчика)</span><span><i class="wl-corner shf"></i>сдвинут после утверждения плана</span><span><i class="wl-corner ns"></i>не взято в работу в день старта</span><span class="wl-ld-leg"><i class="wl-ld-c l1"></i><i class="wl-ld-c l2"></i><i class="wl-ld-c l3"></i>нагрузка: 1 / 2 / 3+</span>'
-      + '<span><i class="wl-dot urg"></i>срочная задача</span><span><i class="wl-buf-key"></i>запас до срока договора</span><span><i class="wl-overlap-key"></i>работа в отпуск или выходной сотрудника</span>'
+    var leg = '<div class="wl-leg"><span><i class="wl-dot" style="background:#c3cad6"></i>сделано (по истории задачи)</span><span><i class="wl-dot" style="background:#3b7ddd"></i>в работе</span><span><i class="wl-dot wl-plan-dot"></i>запланировано</span><span><i class="wl-dot" style="background:#e0873a"></i>корректировка</span><span><i class="wl-dot ov"></i>после срока договора</span><span><i class="wl-dot hot"></i>≤ 2 дн. до срока</span><span><i class="wl-dot ps"></i>пауза (ждём заказчика)</span><span><i class="wl-corner shf"></i>сдвинут после утверждения плана</span><span><i class="wl-corner ns"></i>не взято в работу в день старта</span><span class="wl-ld-leg"><i class="wl-ld-c l1"></i><i class="wl-ld-c l2"></i><i class="wl-ld-c l3"></i>нагрузка: 1 / 2 / 3+</span>'
+      + '<span><i class="wl-dot urg"></i>срочная задача</span><span><i class="wl-overlap-key"></i>работа в отпуск или выходной сотрудника</span>'
       + (mv ? "<span>⋮⋮ перетащить задачу на сотрудника · ⟷ тяните за край полосы — меняются даты · в прошлое нельзя</span>" : canMove() ? "<span>нажмите на задачу — «Назначить сроки»</span>" : "<span>только просмотр: исполнителя и сроки назначают руководитель и руководитель проектного отдела</span>") + "</div>";
     var nodata = !ppl.length ? '<div class="note" style="padding:16px;margin:0">Сотрудников с задачами в работе нет</div>' : "";
     return '<div class="head"><div><h1>Занятость</h1></div></div>' + offHtml() + cntHtml + trayHtml

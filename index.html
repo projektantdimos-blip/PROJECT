@@ -278,7 +278,7 @@ textarea{resize:vertical;min-height:64px}
 <link rel="stylesheet" href="ds.css?v=20261117a">
 <link rel="stylesheet" href="today.css?v=20261115c">
 <link rel="stylesheet" href="today_rop.css?v=20261124k">
-<link rel="stylesheet" href="work_load.css?v=20261124k">
+<link rel="stylesheet" href="work_load.css?v=20261124l">
 <link rel="stylesheet" href="report_sales.css?v=20261124n">
 </head>
 <body>
@@ -391,9 +391,9 @@ function sectionForHash(h){
 }
 /* Какие разделы видит каждая роль (позиция сотрудника в CRM). Это интерфейс; данные ограничиваются на сервере (этап 2). */
 var DS_ALLOWED = {
-  owner:    ["today","flow","tasks","tz","cal","visits","risk","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","stats","log","auto","stages","onec","me"],
+  owner:    ["today","flow","tasks","tz","cal","visits","risk","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","stats","log","auto","stages","onec","orders","me"],
   design:   ["today","tasks","cal","visits","my","clients","chat","mail","team","report","me"],      /* «Просрочено и зависло» (risk) спрятан у ops и design — решение владельца 15.11; вернуть — дописать "risk" */
-  sales:    ["today","flow","tasks","cal","visits","clients","kpreg","orders","kpc","price","contracts","chat","mail","scripts","team","report","onec","me"],
+  sales:    ["today","flow","tasks","tz","cal","visits","risk","my","clients","kpreg","orders","kpc","price","contracts","chat","mail","scripts","team","report","stats","log","auto","stages","onec","me"],
   ops:      ["today","flow","tasks","tz","cal","visits","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","me"],
   acc:      ["today","tasks","kpreg","team","report","onec","me"],
   designer: ["today","tasks","cal","visits","my","team","report","me"],
@@ -447,8 +447,8 @@ function renderTopNav(){
   var pos = dsPosition();
   var dialNav = window.DSCalls && window.DSCallRoles && DSCallRoles[pos]
     ? '<button type="button" data-dialer="1" title="Позвонить через Sipuni">'+icon("phone")+'<span>Позвонить</span></button>' : "";
-  var sub = '<div class="sub">'+b("#/kpreg/","list","Реестр КП",cur==="kpreg","kpreg")+b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc")+b("#/price","list","Прайс",cur==="price","price")+b("#/contracts","file","Конструктор договоров",cur==="contracts","contracts")+b("#/onec","wallet","Оплаты 1С",cur==="onec","onec")+'</div>';
-  var comm = (ok("kpreg") || ok("kpc") || ok("contracts") || ok("onec")) ? '<button data-goto="#/kpreg/" class="'+(pa==="commerce"?"active":"")+'">'+icon("briefcase")+'<span>Коммерция</span></button>' + (pa==="commerce" ? sub : "") : "";
+  var sub = '<div class="sub">'+b("#/kpreg/","list","Реестр КП",cur==="kpreg","kpreg")+b("#/orders","list","Заказы",cur==="orders","orders")+b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc")+b("#/price","list","Прайс",cur==="price","price")+b("#/contracts","file","Конструктор договоров",cur==="contracts","contracts")+b("#/onec","wallet","Оплаты 1С",cur==="onec","onec")+'</div>';
+  var comm = (ok("kpreg") || ok("orders") || ok("kpc") || ok("contracts") || ok("onec")) ? '<button data-goto="#/kpreg/" class="'+(pa==="commerce"?"active":"")+'">'+icon("briefcase")+'<span>Коммерция</span></button>' + (pa==="commerce" ? sub : "") : "";
   var lab = function(t, secs){ return secs.some(ok) ? '<div class="nav-label">'+t+'</div>' : ""; };
   var ws = DS_WORK ? dsWorkSubs() : [], wcur = DS_WORK ? dsWorkSub() : "";
   if (wcur) pa = "work";
@@ -464,7 +464,7 @@ function renderTopNav(){
     + lab("Заказчики и продажи", ["clients","kpreg","kpc","contracts"]) + b("#/clients","users",pos==="design"?"Кому звонить":"База заказчиков",pa==="clients","clients") + comm
     + lab("Общение", ["team","chat","mail","scripts"]) + b("#/team","team","Чаты команды",pa==="team","team") + b("#/chat","chat","Мессенджеры",pa==="chat","chat") + dialNav + b("#/mail","mail","Почта",pa==="mail","mail") + b("#/scripts","list","Скрипты",pa==="scripts","scripts")
     + (ok("stats") ? '<div class="nav-label">Только для вас</div>' + b("#/stats","lock","Статистика",pa==="stats","stats") : "") + lab("Система", ["auto","stages","log","me"]) + b("#/auto","zap","Автоматизация",pa==="auto","auto") + b("#/stages","layers","Этапы и сроки",pa==="stages","stages") + b("#/log","history","Журнал изменений",pa==="log","log") + b("#/me","user","Личный кабинет",pa==="me","me");
-  if (DS_WORK && pos === "sales") {      /* меню РОПа по утверждённому макету (17.11) + кнопка звонка (18.11): 12 кнопок в 4 группах; «Оплаты 1С» — вкладка внутри «Реестр КП» */
+  if (false && DS_WORK && pos === "sales") {      /* спец-меню РОПа отключено (решение владельца 24.11): полное меню как у руководителя; ветку сохранили для отката. Было: меню РОПа по утверждённому макету (17.11) + кнопка звонка (18.11): 12 кнопок в 4 группах; «Оплаты 1С» — вкладка внутри «Реестр КП» */
     var docsOn = cur === "kpc" || cur === "contracts" || cur === "price";
     navHtml = '<div class="nav-label">Работа</div>'
       + b("#/today","sun","Сегодня",pa==="today","today") + b("#/kpreg/","list","Реестр КП",cur==="kpreg","kpreg") + b("#/orders","list","Заказы",cur==="orders","orders") + b("#/clients","users","Заказчики",cur==="clients","clients")
@@ -678,7 +678,7 @@ globalRouter();
 <script src="ds_orders_reg.js?v=20261124l"></script>
 <script src="ds_contract.js?v=20261124a"></script>
 <script src="report_sales.js?v=20261124m"></script>
-<script src="work_load.js?v=20261124k"></script>
+<script src="work_load.js?v=20261124l"></script>
 <script src="work_conv.js?v=20261116e"></script>
 <script src="work_how.js?v=20261117a"></script>
 <script src="stats.js?v=20261102a"></script>
