@@ -94,7 +94,7 @@
   }
   function probSeg(key, val) {
     var PM = [["low", "l", "низкая"], ["mid", "m", "средняя"], ["high", "h", "высокая"]];
-    return '<div class="sg s" data-aks="' + E(key) + '">' + PM.map(function (o) {
+    return '<div class="sg s rq" data-aks="' + E(key) + '">' + PM.map(function (o) {
       return '<button type="button" data-p="' + o[1] + '" data-val="' + o[0] + '"' + (o[0] === val ? ' class="on"' : "") + dis() + '>' + o[2] + "</button>";
     }).join("") + "</div>";
   }
@@ -121,8 +121,11 @@
     return '<div class="ac3 ' + cls + (open ? " open" : "") + '"><button class="acb" type="button" data-ac="1"><span>' + E(t) + " · " + cnt + "</span><span>" + (right || "") + " ▾</span></button>" + '<div class="bdy">' + body + "</div></div>";
   }
   function emptyNote() { return '<div class="sr-empty">Нет данных за выбранную неделю</div>'; }
-  function workCell(text) {
-    return '<span class="vw">' + E(text || "—") + "</span>";
+  function workCell(text, codes, cls) {
+    var full = String(text || "").trim();
+    var compact = Array.isArray(codes) && codes.length ? codes.join(".")
+      : full.replace(/([А-ЯЁ]{2,6})\s*[,;|.]\s*(?=[А-ЯЁ]{2,6}(?![А-Яа-яЁё]))/g, "$1.");
+    return '<span class="' + (cls || "vw") + '"' + (full ? ' title="' + E(full) + '"' : "") + ">" + E(compact || "—") + "</span>";
   }
 
   function cmpSpan(cmp, cur, pl) {                           // сравнение с прошлой неделей: ▲/▼ по количеству и сумме
@@ -161,7 +164,7 @@
     var kpId = r.kp;
     var lc = r.last_bd == null ? 99 : r.last_bd;
     var lq = lc >= 99 ? '<span class="lq r">—</span>' : '<span class="lq' + (lc >= 3 ? " r" : "") + '">' + (lc === 0 ? "сегодня" : lc + " р.д.") + "</span>";
-    return '<div class="i r6"><span class="nm1"><span class="nm2" title="' + E(r.cells[1]) + '">' + E(r.cells[1]) + '</span></span>' + workCell(r.work || (Array.isArray(r.systems) && r.systems.join(", ")) || r.sv)
+    return '<div class="i r6"><span class="nm1"><span class="nm2" title="' + E(r.cells[1]) + '">' + E(r.cells[1]) + '</span></span>' + workCell(r.sv || r.work, r.systems)
       + '<div class="rt">' + ptxtQ(kpId) + lq + ncell(kpId) + "<b>" + fmt(num(r.amt)) + "</b></div>"
       + '<input class="cmq" data-ak="s1:kp' + kpId + ':note" type="text" placeholder="Комментарий" aria-label="Комментарий к запросу" value="' + E(AV["s1:kp" + kpId + ":note"]) + '"' + dis() + "></div>";
   }
@@ -187,8 +190,8 @@
     var lane = '<div class="lane wide" style="border:0;border-radius:0;background:transparent">' + cap + rows.map(rowQ).join("") + (rows.length ? '<div class="i tt r6"><span>Итого</span><span></span><div class="rt"><span></span><span></span><span></span><b>' + fmt(openSum) + "</b></div><span></span></div>" : '<div class="sr-empty">Нет запросов в решении</div>') + "</div>";
 
     function r1(list2) {
-      return '<div class="r1 cap1"><span>Заказчик</span><span></span><b>Сумма</b></div>' + list2.map(function (r) {
-        return '<div class="r1"><span>' + E(r.customer || r.cells[1]) + '</span><span class="vt">' + E((r.sv || "").split(";").join(", ")) + "</span><b>" + fmt(num(r.amt != null ? r.amt : r.cells[2])) + "</b></div>";
+      return '<div class="r1 cap1"><span>Заказчик</span><span>Вид работ</span><b>Сумма</b></div>' + list2.map(function (r) {
+        return '<div class="r1"><span>' + E(r.customer || r.cells[1]) + "</span>" + workCell(r.sv, r.systems, "vt") + "<b>" + fmt(num(r.amt != null ? r.amt : r.cells[2])) + "</b></div>";
       }).join("") + '<div class="tt1"><span>Итого</span><span>' + fmt(list2.reduce(function (s, r) { return s + num(r.amt != null ? r.amt : r.cells[2]); }, 0)) + "</span></div>";
     }
     var dicts = R.dicts || {};
@@ -210,7 +213,7 @@
 
     var body = ac3("", "Запросы", rows.length, cmpSpan(s1.cmp, totalS, plr), lane, true)
       + '<div class="pair">' + ac3("ok", "Продано", sold.length, fmt(soldSum) + " ₽", sold.length ? r1(sold) : '<div class="sr-empty">Нет продаж</div>', false)
-      + ac3("red", "Отказ", refs.length, fmt(refSum) + " ₽", refs.length ? r1(refs.map(function (r) { return { customer: r.cells[1], sv: r.cells[3], amt: r.cells[2] }; })) : '<div class="sr-empty">Нет отказов</div>', false) + "</div>" + fin;
+      + ac3("red", "Отказ", refs.length, fmt(refSum) + " ₽", refs.length ? r1(refs.map(function (r) { return { customer: r.cells[1], sv: r.cells[3], systems: r.systems, amt: r.cells[2] }; })) : '<div class="sr-empty">Нет отказов</div>', false) + "</div>" + fin;
     var chips = '<span><strong>' + totalN + "</strong> " + plr(totalN) + "</span><span><strong>" + fmt(totalS) + "</strong></span>"
       + (sold.length ? '<span class="g">продано <strong>' + sold.length + " · " + fmt(soldSum) + "</strong></span>" : "")
       + (refs.length ? '<span class="r">отказ <strong>' + refs.length + "</strong></span>" : "");
@@ -227,7 +230,7 @@
       var kindI = inputs.find(function (i) { return /:kind$/.test(i.key); }) || {};
       var noteI = inputs.find(function (i) { return /:note$/.test(i.key); }) || {};
       var kind = AV[kindI.key] !== undefined ? AV[kindI.key] : (kindI.v || "");
-      return '<div class="i r6"><span>' + E(r.cells[1]) + "</span>" + workCell(r.work || r.cells[3])
+      return '<div class="i r6"><span>' + E(r.cells[1]) + "</span>" + workCell(r.work || r.cells[3], r.systems)
         + '<span class="tc"><select class="tsel rq ' + (PTC[kind] || "") + '" data-ak="' + E(kindI.key) + '" aria-label="Тип оплаты"' + dis() + '><option value="">Выбрать тип</option>'
         + ["Предоплата", "Доплата", "Постоплата"].map(function (t) { return "<option" + (t === kind ? " selected" : "") + ">" + t + "</option>"; }).join("") + "</select></span>"
         + "<b>" + E(r.cells[0]) + '</b><input class="cmq" data-ak="' + E(noteI.key) + '" type="text" placeholder="Комментарий" aria-label="Комментарий к оплате" value="' + E(AV[noteI.key]) + '"' + dis() + "></div>";
@@ -291,9 +294,9 @@
   }
 
   // --------------------------------------------------------------- блок 4: Деньги, которые не пришли
-  function debtInput(attr, label, value, type, placeholder) {
-    return '<input class="cmq" ' + attr + ' type="' + type + '" aria-label="' + E(label) + '" value="' + E(value)
-      + '"' + (type === "text" ? ' maxlength="180" placeholder="' + E(placeholder || label) + '"' : "") + dis() + ">";
+  function debtInput(attr, label, value, type, required) {
+    return '<input class="cmq' + (required ? " rq" : "") + '" ' + attr + ' type="' + type + '" aria-label="' + E(label) + '" value="' + E(value)
+      + '"' + (type === "text" ? ' maxlength="180" placeholder="' + E(label) + '"' : "") + dis() + ">";
   }
   var DEBT_TONES = {
     "Дозвонился": "ok", "Отправлено": "ok", "Отправлена": "ok", "Работы и выдача документов остановлены": "ok",
@@ -303,7 +306,7 @@
   };
   function debtSelect(attr, label, value, options, colored) {
     var tone = colored ? ' data-debt-tone="' + (DEBT_TONES[value] || "") + '" title="' + E(value || label) + '"' : "";
-    return '<select class="cmq" ' + attr + tone + ' aria-label="' + E(label) + '"' + dis() + ">"
+    return '<select class="cmq rq" ' + attr + tone + ' aria-label="' + E(label) + '"' + dis() + ">"
       + selOpts(value, options) + "</select>";
   }
   function debtActions(pre) {
@@ -320,10 +323,10 @@
   function debtTail(attr, get, type, expected, nextDate, prevStep, legacy) {
     var pre = type === "pre", why = get("why") || "";
     var actions = debtActions(pre);
-    return '<span class="debt-fields"><span class="rsn ' + (RC4[why] || "c0") + '"><i class="rd"></i><select class="rsel" '
+    return '<span class="debt-fields"><span class="rsn ' + (RC4[why] || "c0") + '"><i class="rd"></i><select class="rsel cmq rq" '
       + attr("why") + ' aria-label="Почему не платят" title="' + E(why || "Почему не платят") + '"' + dis() + ">" + selOpts(why, WHY4) + "</select></span>"
       + '<span class="debt-other"' + (why === "Свой вариант" ? "" : " hidden") + ">"
-      + debtInput(attr("whytext"), "Своя причина", get("whytext"), "text") + "</span></span>"
+      + debtInput(attr("whytext"), "Своя причина", get("whytext"), "text", true) + "</span></span>"
       + '<span class="debt-fields">' + expected + "</span>"
       + '<span class="debt-fields" data-past4>' + debtPast(attr, get, pre, prevStep) + "</span>"
       + "<span>" + (type === "debt" ? debtSelect(attr("claim"), "Претензия", CLAIM_STATUS.includes(get("claim")) ? get("claim") : "", CLAIM_STATUS, true) : "—") + "</span>"
@@ -364,8 +367,8 @@
     var get = function (field) { return AV[key + ":" + field]; };
     var kp = r.expect_kp || (pre ? r.kp : 0);
     var dt = pre && r.kp
-      ? debtInput('data-akp="' + r.kp + '|next_contact"', "Дата следующего контакта", KV[r.kp + "|next_contact"], "date")
-      : debtInput(attr("date"), "Дата следующего контакта", get("date"), "date");
+      ? debtInput('data-akp="' + r.kp + '|next_contact"', "Дата следующего контакта", KV[r.kp + "|next_contact"], "date", true)
+      : debtInput(attr("date"), "Дата следующего контакта", get("date"), "date", true);
     var expected = kp
       ? debtInput('data-akp="' + kp + '|pay_expect"', "Клиент обещал оплатить до", KV[kp + "|pay_expect"], "date")
       : debtInput(attr("expect"), "Клиент обещал оплатить до", get("expect"), "date");
@@ -383,20 +386,20 @@
     var base = isoToD(row.base), days = base ? bdN(base, todayD()) : 0;
     var event = row.event || "";
     var limit = event === "Акт подписан авто" ? 10 : event ? 5 : undefined;
-    var typeOptions = '<option value="">Выбрать</option><option value="pre"' + (row.type === "pre" ? " selected" : "") + '>Предоплата</option>'
+    var typeOptions = '<option value="">выбрать</option><option value="pre"' + (row.type === "pre" ? " selected" : "") + '>Предоплата</option>'
       + '<option value="debt"' + (row.type === "debt" ? " selected" : "") + ">Долг</option>";
     return '<div class="i r6 drow" data-manual="' + E(key) + '" data-rsn="' + E(row.why) + '" data-type="' + E(row.type)
       + '" data-days="' + days + '" data-sum="' + Math.max(0, num(row.sum)) + '">'
       + '<span class="dnm debt-fields"><i class="n4"></i>' + debtInput(attr("name"), "Заказчик", row.name, "text")
       + debtInput(attr("ref"), "№ счёта или акта", row.ref, "text")
       + (RO ? "" : '<button type="button" class="add" data-del4>Убрать строку</button>') + "</span>"
-      + '<span><select class="cmq" data-md="type" aria-label="Тип"' + dis() + ">" + typeOptions + "</select></span>"
+      + '<span><select class="cmq rq" data-md="type" aria-label="Тип"' + dis() + ">" + typeOptions + "</select></span>"
       + '<span><input class="cmq" data-md="sum" type="number" min="0" max="99999999999" step="1" aria-label="Сумма" value="' + E(row.sum) + '"' + dis() + "></span>"
       + '<span class="debt-fields">' + debtSelect(attr("event"), "От чего считаем", event, DEBT_BASES)
       + debtInput(attr("base"), "Дата отсчёта", row.base, "date") + (base ? overdueBadge(days, limit, true) : "") + "</span>"
       + debtTail(attr, get, row.type, debtInput(attr("contact"), "Последний контакт", row.contact, "date")
         + debtInput(attr("expect"), "Клиент обещал оплатить до", row.expect, "date"),
-        debtInput(attr("date"), "Дата следующего контакта", row.date, "date")) + "</div>";
+        debtInput(attr("date"), "Дата следующего контакта", row.date, "date", true)) + "</div>";
   }
   function manualDebt(key) {
     try { return JSON.parse(AV[key]) || {}; } catch (e) { return {}; }
@@ -790,8 +793,9 @@
   var OPTRE = /Необязательно|Комментар/i, pend = false;
   function isReq(el) {
     if (el.type === "hidden" || el.disabled) return false;
-    if (el.matches(".dth,.ndt") || el.closest("#srb4")) return false;
-    if (el.closest(".rsn,.stw")) return false;
+    if (el.matches(".dth,.ndt") || el.closest("[hidden]")) return false;
+    if (el.closest("#srb4")) return el.classList.contains("rq");
+    if (el.closest(".stw")) return false;
     var ph = el.getAttribute("placeholder") || "";
     if (el.hasAttribute("data-opt")) return false;
     if (OPTRE.test(ph)) return false;
@@ -805,7 +809,7 @@
       el.classList.toggle("miss", isReq(el) && String(el.value).trim() === "");
     });
     document.querySelectorAll(".sr .sg.rq,.sr .mcs.rq").forEach(function (g) {
-      g.classList.toggle("miss", !g.querySelector(".on"));
+      g.classList.toggle("miss", !g.closest("[hidden]") && !!g.querySelector("button:not(:disabled)") && !g.querySelector(".on"));
     });
   }
   function later() { if (pend) return; pend = true; setTimeout(mark, 0); }
@@ -1122,7 +1126,7 @@
         refCState();
         sortG1(true);
         sortG2(true);
-        later();
+        mark();
       }, 0);
       return '<div class="sr">' + head + body + "</div>";
     }
