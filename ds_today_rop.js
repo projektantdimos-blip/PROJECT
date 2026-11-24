@@ -135,7 +135,7 @@
     S.el.innerHTML = '<div class="ds dspage tr">'
       + '<div class="tr-head"><div><h1 class="tr-h1">Сегодня, ' + headDate() + '</h1><div class="tr-sub">' + E(d.greet) + '</div></div>'
       + '<div class="tr-headbtns"><button class="btn ghost sm" data-trtasks="1">Мои задачи · ' + (d.tasks || []).length + '</button><button class="btn primary sm" data-trnewtask="1">+ Задача</button></div></div>'
-      + tiles(d) + missedSec(d) + moneySec(d) + '<div class="tr-duo">' + tasksSec(d) + summarySec(d) + "</div>" + kpSec(d) + refuseHtml(d) + cfgHtml(d)
+      + tiles(d) + '<div class="tr-duo">' + tasksSec(d) + summarySec(d) + "</div>" + missedSec(d) + moneySec(d) + kpSec(d) + refuseHtml(d) + cfgHtml(d)
       + "</div>";
   }
 
@@ -146,7 +146,7 @@
     var d = t.dataset;
     if (d.trreload) { reload(); return; }
     if (d.trnewtask) { if (window.DS && DS.newTask) DS.newTask({}); return; }
-    if (d.trtasks) { var secs = S.el.querySelectorAll(".tr-sec"), ts = secs[2]; if (ts) ts.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    if (d.trtasks) { var secs = S.el.querySelectorAll(".tr-sec"), ts = secs[0]; if (ts) ts.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
     if (d.trmiss) { var p = d.trmiss.split(":"); act(p[1] === "done" ? "missed_done" : "missed_fail", p[0]); return; }
     if (d.trpromise) { S.dlg = { kind: "promise", ref: d.trpromise, title: "Оплатит (дата)", amount: +d.amount || 0 }; paint(); return; }
     if (d.trkp) { var q = d.trkp.split("|"); S.dlg = { kind: q[0], ref: q[1], title: q[0] === "agree" ? "Договорились — следующий шаг (дата)" : "Перезвонить (дата)", min: new Date().toISOString().slice(0, 10) }; paint(); return; }
