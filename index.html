@@ -294,6 +294,7 @@ textarea{resize:vertical;min-height:64px}
 <div id="today-app" style="display:none"></div>
 <div id="tasks-app"><div class="loading">Загрузка…</div></div>
 <div id="kpreg-app" style="display:none"></div>
+<div id="orders-app" style="display:none"></div>
 <div id="kpc-app" class="kpc-scope" style="display:none"></div>
 <div id="chat-app" style="display:none"></div>
 <div id="cal-app" style="display:none"></div>
@@ -370,6 +371,7 @@ function sectionForHash(h){
   if (h.indexOf("#/price") === 0) return "price";
   if (h.indexOf("#/scripts") === 0) return "scripts";
   if (h.indexOf("#/kpreg") === 0) return "kpreg";
+  if (h.indexOf("#/orders") === 0) return "orders";
   if (h.indexOf("#/kpc") === 0) return "kpc";
   if (h.indexOf("#/contracts") === 0) return "contracts";
   if (h.indexOf("#/chat") === 0) return "chat";
@@ -391,7 +393,7 @@ function sectionForHash(h){
 var DS_ALLOWED = {
   owner:    ["today","flow","tasks","tz","cal","visits","risk","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","stats","log","auto","stages","onec","me"],
   design:   ["today","tasks","cal","visits","my","clients","chat","mail","team","report","me"],      /* «Просрочено и зависло» (risk) спрятан у ops и design — решение владельца 15.11; вернуть — дописать "risk" */
-  sales:    ["today","flow","tasks","cal","visits","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","onec","me"],
+  sales:    ["today","flow","tasks","cal","visits","clients","kpreg","orders","kpc","price","contracts","chat","mail","scripts","team","report","onec","me"],
   ops:      ["today","flow","tasks","tz","cal","visits","my","clients","kpreg","kpc","price","contracts","chat","mail","scripts","team","report","me"],
   acc:      ["today","tasks","kpreg","team","report","onec","me"],
   designer: ["today","tasks","cal","visits","my","team","report","me"],
@@ -465,7 +467,7 @@ function renderTopNav(){
   if (DS_WORK && pos === "sales") {      /* меню РОПа по утверждённому макету (17.11) + кнопка звонка (18.11): 12 кнопок в 4 группах; «Оплаты 1С» — вкладка внутри «Реестр КП» */
     var docsOn = cur === "kpc" || cur === "contracts" || cur === "price";
     navHtml = '<div class="nav-label">Работа</div>'
-      + b("#/today","sun","Сегодня",pa==="today","today") + b("#/kpreg/","list","Реестр КП",cur==="kpreg","kpreg") + b("#/clients","users","Заказчики",cur==="clients","clients")
+      + b("#/today","sun","Сегодня",pa==="today","today") + b("#/kpreg/","list","Реестр КП",cur==="kpreg","kpreg") + b("#/orders","list","Заказы",cur==="orders","orders") + b("#/clients","users","Заказчики",cur==="clients","clients")
       + ((ok("kpc") || ok("contracts") || ok("price")) ? '<button data-goto="#/kpc" class="' + (docsOn ? "active" : "") + '">' + icon("file") + "<span>Документы</span></button>"
           + (docsOn ? '<div class="sub">' + b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc") + b("#/contracts","file","Конструктор договоров",cur==="contracts","contracts") + b("#/price","list","Прайс",cur==="price","price") + "</div>" : "") : "")
       + '<div class="nav-label">Общение</div>'
@@ -528,6 +530,8 @@ function renderTopNav(){
   if (sec === "today" && window.DSToday) DSToday.mount(document.getElementById("today-app"));
   document.getElementById("tasks-app").style.display = (sec === "tasks") ? "block" : "none";
   document.getElementById("kpreg-app").style.display = (sec === "kpreg") ? "block" : "none";
+  document.getElementById("orders-app").style.display = (sec === "orders") ? "block" : "none";
+  if (sec === "orders" && window.DS) DS.mount("orders", document.getElementById("orders-app"));
   document.getElementById("kpc-app").style.display = (sec === "kpc") ? "block" : "none";
   document.getElementById("chat-app").style.display = (sec === "chat" || sec === "mail") ? "block" : "none";      /* мессенджеры и почта — одно окно, разный список */
   document.getElementById("contracts-app").style.display = (sec === "contracts") ? "block" : "none";
@@ -671,6 +675,7 @@ globalRouter();
 <script src="ds_risk.js?v=20261124c"></script>
 <script src="ds_cust.js?v=20261124d"></script>
 <script src="ds_price.js?v=20261124a"></script>
+<script src="ds_orders_reg.js?v=20261124l"></script>
 <script src="ds_contract.js?v=20261124a"></script>
 <script src="report_sales.js?v=20261124l"></script>
 <script src="work_load.js?v=20261124k"></script>
@@ -680,7 +685,7 @@ globalRouter();
 <script src="visits.js?v=20261102b"></script>
 <script src="calls.js?v=20261116b"></script>
 <script src="remind.js?v=20261110a"></script>
-<script src="ds_today_rop.js?v=20261124k"></script>
+<script src="ds_today_rop.js?v=20261124l"></script>
 <script src="today.js?v=20261116b"></script>
 <script>
 (function(){
