@@ -72,9 +72,20 @@ body.wl-rsz,body.wl-rsz *{cursor:ew-resize!important;user-select:none}
 .wl-snack i{position:absolute;left:0;bottom:0;height:3px;width:100%;background:#4fd18b;transform-origin:left}
 .wl-snack.on i{animation:wlbar linear forwards}
 @keyframes wlbar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
-/* во весь экран */
-#cal-app.wl-full{position:fixed;inset:0;z-index:200;overflow:auto;background:var(--bg)}
+/* во весь экран: занимает рабочую область, боковое меню остаётся (заявка 17.11) */
+#cal-app.wl-full{position:fixed;top:0;bottom:0;right:0;left:260px;z-index:200;overflow:auto;background:var(--bg)}
+@media(max-width:900px){#cal-app.wl-full{left:0}}
 #cal-app.wl-full .ds.dspage{max-width:none}
+.wl-offv{margin:0 0 12px;padding:12px 14px}
+.wl-offv-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+.wl-offv-h .seg button{padding:6px 10px}
+.wl-offv-r{display:grid;grid-template-columns:minmax(140px,1.2fr) 84px 76px 76px minmax(180px,2fr);gap:8px;align-items:center;padding:8px 4px;border-top:1px solid var(--line);font-size:.86rem}
+.wl-offv-r.hd{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;border-top:0;padding-bottom:2px}
+.wl-offv-r.bad .wl-offv-n{color:var(--bad)}
+.wl-offv-n{font-weight:700}
+.wl-offv-m{display:flex;flex-wrap:wrap;gap:4px 10px;color:var(--muted);min-width:0}
+.wl-offv-c{overflow-wrap:anywhere}
+@media(max-width:760px){.wl-offv{padding:10px}.wl-offv-r{grid-template-columns:minmax(110px,1fr) 58px 52px 52px;gap:4px 8px;font-size:.8rem}.wl-offv-r.hd span:nth-child(4){display:none}.wl-offv-m{grid-column:1/-1}}
 body.wl-drg .ds .ldpop{opacity:.15;pointer-events:none}
 @media(max-width:760px){
   .ds .wl-top{gap:6px}.ds .wl-top .seg button{padding:7px 10px}.ds .wl-vlab{display:none}
@@ -85,4 +96,39 @@ body.wl-drg .ds .ldpop{opacity:.15;pointer-events:none}
   .ds .wlb{padding:0 6px}.ds .wlb b{font-size:.72rem}.ds .wlb small{font-size:.62rem}
   .ds .wl-leg{font-size:.7rem;gap:4px 12px}
   .wl-snack{left:10px;right:10px;bottom:84px;max-width:none;transform:translate(0,30px);padding:9px 10px 11px 12px;gap:8px;font-size:.78rem;line-height:1.3}.wl-snack.on{transform:translate(0,0)}.wl-snack button{padding:6px 10px}
+}
+
+/* ---------- «Занятость» 24.11: счётчики, пауза/сдвинут/не-взято, выходные/отпуск, нагрузка ---------- */
+.ds .wl-cnt{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.ds .wl-ci{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 14px;font-size:.76rem;color:var(--muted);line-height:1.25}
+.ds .wl-ci b{display:block;font-size:1.3rem;color:var(--ink);font-weight:800}
+.ds .wl-ci.bad{border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
+.ds .wl-ci.bad b{color:var(--bad)}
+.ds .wlb{position:relative}
+.ds .wlb.shf::after{content:"";position:absolute;right:0;top:0;border-style:solid;border-width:0 12px 12px 0;border-color:transparent #5c6675 transparent transparent}
+.ds .wlb.ns::after{content:"";position:absolute;right:0;top:0;border-style:solid;border-width:0 12px 12px 0;border-color:transparent var(--bad) transparent transparent}
+.ds .wlb.shf.ns::after{border-width:0 12px 12px 0;border-color:transparent var(--bad) transparent transparent;box-shadow:-12px 0 0 0 #5c6675}
+.ds .wlb.ps{background:repeating-linear-gradient(45deg,#a6aebc,#a6aebc 5px,#b7bfcc 5px,#b7bfcc 10px);border-color:#8b94a3}
+.ds .wlb.ps b,.ds .wlb.ps small{color:#232b38}
+.ds .wl-pause{font-style:normal;font-weight:700;color:#232b38}
+.ds .wl-ns{font-style:normal;font-weight:700;color:var(--bad)}
+.ds .wl-start{position:absolute;right:4px;bottom:4px;opacity:0;transition:opacity .15s;border:1px solid var(--brand);background:var(--surface);color:var(--brand);border-radius:8px;padding:3px 8px;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap}
+.ds .wlb.ns:hover .wl-start{opacity:1}
+@media(hover:none){.ds .wl-start{opacity:.95}}
+.ds .wl-c.off{background:color-mix(in srgb,var(--muted) 14%,transparent)}
+.ds .wl-c.vac{background:color-mix(in srgb,#8a5fd0 16%,transparent)}
+.ds .wl-nm .wl-offl{display:block;color:var(--muted);font-size:.66rem;margin-top:2px}
+.ds .wl-ld{display:grid;gap:2px;margin:-4px 0 10px;align-items:center}
+.ds .wl-ld-l{font-size:.64rem;color:var(--muted);text-align:right;padding-right:6px;line-height:6px}
+.ds .wl-ld-c{height:6px;border-radius:3px;background:color-mix(in srgb,var(--muted) 12%,transparent)}
+.ds .wl-ld-c.l1{background:#4f8ef0}
+.ds .wl-ld-c.l2{background:#e0a03a}
+.ds .wl-ld-c.l3{background:#d05555}
+.ds .wl-corner{display:inline-block;width:0;height:0;border-style:solid;border-width:0 10px 10px 0;border-color:transparent #5c6675 transparent transparent}
+.ds .wl-corner.ns{border-color:transparent var(--bad) transparent transparent}
+.ds .wl-ld-leg{display:inline-flex;align-items:center;gap:3px}
+.ds .wl-ld-leg .wl-ld-c{width:14px}
+@media(max-width:760px){
+  .ds .wl-ci{padding:6px 10px;font-size:.68rem}.ds .wl-ci b{font-size:1.05rem}
+  .ds .wl-ld-l{display:none}
 }
