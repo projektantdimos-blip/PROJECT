@@ -173,7 +173,7 @@
   function rpRows(text) { return Math.min(40, Math.max(1, String(text || "").split("\n").length)); }
   function rpFit() { document.querySelectorAll(".rpx textarea, .rpxc textarea").forEach(function (t) { t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; }); }      // высота ячейки — по тексту, как «Перенос текста» в Excel
   addEventListener("resize", function () { if (document.querySelector(".rpx")) rpFit(); });
-  /* отчёт по смысловым блокам: шапка блока — итоги, «заполнить N» / «готово»; готовый блок у сотрудника свёрнут.
+  /* отчёт по смысловым блокам: шапка блока — итоги, «заполнить N» / «готово»; блоки открыты при первом просмотре.
      k — итоги блока: [вопрос, подпись в kv | "#rows" (строк) | "#total", своя подпись] */
   var RP_BLOCKS = {
     sales: [
@@ -209,7 +209,7 @@
       return '<button type="button" class="' + (ro ? "" : l ? "wa" : "ok") + '" data-rpblk="' + i + '"><b>' + (i + 1) + " · " + E(b.t) + "</b>" + (ro ? "" : l ? " " + (n - l) + " из " + n : " ✓") + "</button>";
     }).join("") + "</div>";
     return nav + defs.map(function (b, i) {
-      var l = left(b), key = r.kind + ":" + r.week_start + ":" + i, col = key in S.rpCol ? S.rpCol[key] : !ro && !l;
+      var l = left(b), key = r.kind + ":" + r.week_start + ":" + i, col = S.rpCol[key] === true;
       var kpi = (b.k || []).map(function (k) {
         var it = by[k[0]]; if (!it) return "";
         var v = k[1] === "#rows" ? String(it.rows.length) : k[1] === "#total" ? it.total : (it.kv.filter(function (x) { return x[0] === k[1]; })[0] || [])[1];
@@ -222,7 +222,7 @@
         + (kpi ? '<div class="rpbk">' + kpi + "</div>" : "") + '<div class="rpbq">' + b.items.map(one).join("") + "</div></section>";
     }).join("");
   }
-  function rpExcel(r, ro) {
+  function rpCardReport(r, ro) {
     rpxCss();
     setTimeout(rpFit, 0);
     var MODE = { auto: "считает CRM", semi: "CRM + ваш комментарий", manual: "отвечаете вы", fill: "заполнила CRM · можно дописать комментарий" };
@@ -278,7 +278,7 @@
     }
   });
   document.addEventListener("click", function (e) {
-    var t = e.target.closest ? e.target.closest("[data-rpview],[data-rpsug],[data-rphide],[data-rpunhide],[data-rpref],[data-rpblk],[data-rpbcol]") : null; if (!t || !S.rp || !S.rp.data) return;
+    var t = e.target.closest ? e.target.closest("[data-rpsug],[data-rphide],[data-rpunhide],[data-rpref],[data-rpblk],[data-rpbcol]") : null; if (!t || !S.rp || !S.rp.data) return;
     if (t.dataset.rpbcol) { S.rpCol = S.rpCol || {}; S.rpCol[t.dataset.rpbcol] = !t.closest(".rpb").classList.contains("col"); return paint(); }
     if (t.dataset.rpblk) {                                                     // к блоку: развернуть и прокрутить
       var sec = document.getElementById("rpb" + t.dataset.rpblk); if (!sec) return;
@@ -298,9 +298,7 @@
       var fill = si.suggest.fill || {};
       return Promise.all(Object.keys(fill).map(function (k) { return rpSave(k, fill[k]); })).then(loadReport).then(function () { toast("Подставлено — можно дописать"); paint(); });
     }
-    if (t.dataset.rpview) { S.rpView = t.dataset.rpview; try { localStorage.setItem("ds_rp_view", S.rpView); } catch (er) {} return loadReport().then(paint); }
   });
-  function rpView() { if (!S.rpView) { try { S.rpView = localStorage.getItem("ds_rp_view") || "x"; } catch (e) { S.rpView = "x"; } } return S.rpView; }
   function reportScreen() {
     var p = pos(), r = S.rp && S.rp.data;
     var tabs = rpLeads(p) ? '<div class="seg">' + RP_KINDS.map(function (x) { return '<button data-rpkind="' + x[0] + '" class="' + (S.rp && S.rp.kind === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>" : "";
@@ -316,7 +314,7 @@
       + '<div style="margin-left:auto;min-width:200px;font-size:.82rem;color:var(--muted)">Заполнено ' + done + " из " + r.items.length + '<div style="height:7px;background:var(--line);border-radius:9px;margin-top:5px;overflow:hidden"><i style="display:block;height:100%;width:' + Math.round(done / r.items.length * 100) + '%;background:var(--ok)"></i></div></div></div>';
     var legend = '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.8rem;color:var(--muted);margin-bottom:12px"><span>' + rpTag("auto") + " считает CRM</span><span>" + rpTag("semi") + " список из CRM, вы дописываете «что сделал · следующий шаг»</span><span>" + rpTag("manual") + " отвечаете вы</span></div>";
     var tiles = '<div class="tiles" style="margin-bottom:16px">' + r.tiles.map(function (x) { return '<div class="tile" style="--c:' + (tone[x[0]] || "var(--brand)") + '"><div class="n">' + E(x[1]) + '</div><div class="l">' + E(x[2]) + "</div></div>"; }).join("") + "</div>";
-    return head + who + tiles + '<div class="note" style="margin:0 0 10px">То, что посчитала CRM, не правится — при необходимости допишите комментарий под ответом. Ответы на свои вопросы и поля в таблицах сохраняются сами. Номер задачи открывает её карточку; в плане оплат лишние КП убираются крестиком ×.</div>' + rpExcel(r, ro);
+    return head + who + tiles + '<div class="note" style="margin:0 0 10px">То, что посчитала CRM, не правится — при необходимости допишите комментарий под ответом. Ответы на свои вопросы и поля в таблицах сохраняются сами. Номер задачи открывает её карточку; в плане оплат лишние КП убираются крестиком ×.</div>' + rpCardReport(r, ro);
   }
   document.addEventListener("click", function (e) {
     var t = e.target.closest ? e.target.closest("[data-rpchip]") : null; if (!t || !S.rp || !S.rp.data) return;

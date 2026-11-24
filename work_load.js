@@ -12,7 +12,6 @@
   var PART_ST = ["Готов к проектированию", "В проектировании", "Проверка", "Корректировка"];
   var MONG = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
   var MONN = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
-  var HPAL = ["#4f8ef0", "#8b6fe0", "#2fa66a", "#e0734a", "#c9a227", "#1fb3b3", "#c0568f", "#8c9a2a", "#3c9bd1"];
 
   function X() { return DS.ldCtx(); }
   function E(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -33,10 +32,9 @@
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
   function st() {
     var S = X().S;
-    if (!S.wl) S.wl = { off: 0, z: +lsGet("ds_wlz") || 8, pend: null, rs: null, edit: null, scroll: null, full: lsGet("ds_wlfull") !== "0", offv: null, days: null, daysKey: "", daysLoading: "" };
+    if (!S.wl) S.wl = { off: 0, z: +lsGet("ds_wlz") || 4, pend: null, rs: null, edit: null, scroll: null, full: lsGet("ds_wlfull") !== "0", offv: null, days: null, daysKey: "", daysLoading: "" };
     return S.wl;
   }
-  function col(n) { var h = 0; String(n).split("").forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return HPAL[h % HPAL.length]; }
 
   /* ---------- модель: задачи, разделы и корректировки → элементы ленты ---------- */
   function items() {
@@ -88,7 +86,8 @@
   }
   function notStarted(i, u) {                                       // «не взято в работу в день старта»: план начался, а «Начато» не нажато
     if (i.hist || i.paused || i.ready || !i.s || i.s > today() || i.startedMan) return false;
-    if (offKind(u, i.s)) return false;                              // выходной/отпуск в день старта — не нарушение
+    if ((!i.ex || i.ex !== u.id) && (!i.exName || i.exName !== u.name)) return false;
+    if (!isWd(i.s) || offKind(u, i.s)) return false;                              // выходной/отпуск в день старта — не нарушение
     return true;
   }
   function offRanges(u, days) {                                     // «Выходной 27.11», «Выходные 28.11–29.11», «Отпуск …» для строки сотрудника
@@ -117,27 +116,45 @@
     return i.due && i.due >= s ? i.due : s;
   }
 
-  /* ---------- окно ленты: только рабочие дни, неделями ---------- */
+  /* ---------- календарная сетка: выходные видны, планирование идёт по рабочим дням ---------- */
   function win() {
     var w = st(), back = w.z === 4 ? 1 : w.z === 13 ? 6 : 3, w0 = addD(mon(today()), 7 * (w.off - back)), d = [];
-    for (var k = 0; k < w.z; k++) for (var j = 0; j < 5; j++) d.push(addD(w0, k * 7 + j));
+    for (var k = 0; k < w.z; k++) for (var j = 0; j < 7; j++) d.push(addD(w0, k * 7 + j));
     return d;
   }
   function wkName(w) { var k = Math.round((new Date(w + "T12:00:00") - new Date(mon(today()) + "T12:00:00")) / 864e5 / 7); return k === 0 ? "эта неделя" : k === -1 ? "прошлая" : k === 1 ? "следующая" : k < 0 ? (-k) + " нед. назад" : "через " + k + " нед."; }
-  function wkLbl(w) { var e = addD(w, 4); return +w.slice(8) + (w.slice(5, 7) === e.slice(5, 7) ? "" : " " + MONG[+w.slice(5, 7) - 1].slice(0, 3)) + "–" + +e.slice(8) + " " + MONG[+e.slice(5, 7) - 1].slice(0, 3); }
-  function geom() { var w = st(), ph = phone(); return { nw: ph ? 96 : 190, fw: ph ? 58 : 92, cw: w.z === 13 ? 13 : w.z === 8 ? 22 : 38, rh: ph ? 48 : 56 }; }
+  function wkLbl(w) { var e = addD(w, 6); return +w.slice(8) + " " + MONG[+w.slice(5, 7) - 1] + " – " + +e.slice(8) + " " + MONG[+e.slice(5, 7) - 1]; }
+  function geom() { var w = st(), ph = phone(); return { nw: ph ? 130 : 230, cw: w.z === 13 ? 13 : w.z === 8 ? 23 : 34, rh: 50 }; }
+
+  function calendarMonth(w, td) { return w.month || addD(td, 7 * w.off).slice(0, 7); }
+  function miniCalendar(month, td, days) {
+    var first = month + "-01", start = mon(first);
+    var next = new Date(first + "T12:00:00"), prev = new Date(next);
+    prev.setMonth(prev.getMonth() - 1); next.setMonth(next.getMonth() + 1);
+    var last = addD(iso(next), -1), end = addD(mon(last), 6), cells = [];
+    for (var d = start; d <= end; d = addD(d, 1)) {
+      var cls = (d.slice(0, 7) !== month ? " other" : "") + (days.includes(d) ? " shown" : "") + (d === td ? " today" : "");
+      cells.push('<button type="button" data-wlday="' + d + '" class="wl-miniday' + cls + '" aria-label="' + dm(d) + '"' + (d === td ? ' aria-current="date"' : "") + ">" + Number(d.slice(8)) + "</button>");
+    }
+    return '<div class="wl-mini-wrap"><div class="wl-mini"><div class="wl-mini-nav">'
+      + '<button type="button" data-wlmonthpick="' + iso(prev).slice(0, 7) + '" aria-label="Предыдущий месяц">‹</button>'
+      + '<b>' + MONN[+month.slice(5, 7) - 1] + " " + month.slice(0, 4) + '</b>'
+      + '<button type="button" data-wlmonthpick="' + iso(next).slice(0, 7) + '" aria-label="Следующий месяц">›</button></div>'
+      + '<div class="wl-mini-days">' + ["пн", "вт", "ср", "чт", "пт", "сб", "вс"].map(function (label) { return "<span>" + label + "</span>"; }).join("")
+      + cells.join("") + "</div></div></div>";
+  }
 
   /* ---------- экран ---------- */
   function html() { return '<div class="wl-root">' + inner() + "</div>"; }
   function inner() {
     var x = X(), S = x.S, w = st(), p = x.pos(), mv = canMove() && !phone(), ph = phone();
     wasPhone = ph;                                                        // режим, в котором отрисовано (для перерисовки при смене ширины)
-    var days = win(), N = days.length, td = today(), ti = idxOf(days, td, false), G = geom();
-    var cols = G.nw + "px repeat(" + N + ",minmax(" + G.cw + "px,1fr)) " + G.fw + "px", minw = G.nw + G.fw + N * G.cw;
+    var days = win(), N = days.length, td = today(), G = geom();
+    var cols = G.nw + "px repeat(" + N + ",minmax(" + G.cw + "px,1fr))", minw = G.nw + N * G.cw;
     function idx(d, end) { return idxOf(days, d, end); }
     var all = items(), ppl = people();
     ensureDays(days);
-    var td0 = today(), wk0 = mon(td0), wk1 = addD(wk0, 4);
+    var td0 = td, wk0 = mon(td), wk1 = addD(wk0, 6), month = calendarMonth(w, td);
     var tray = all.filter(function (i) { return !i.ex || !i.s || !i.e; }).sort(function (a, b) { return (a.cdue || "9") < (b.cdue || "9") ? -1 : 1; });
     var uOID = {};
     var cntProj = all.filter(function (i) { return i.kind === "main" && !i.ready && !i.paused && i.s && !uOID[i.oid] && (uOID[i.oid] = 1); }).length;
@@ -145,18 +162,19 @@
     var cntPlan = all.filter(function (i) { return !i.paused && (i.ready || (i.s && i.s > td0)); }).length;
     var cntPause = all.filter(function (i) { return i.paused && !uOID["p" + i.oid] && (uOID["p" + i.oid] = 1); }).length;
     var cntNs = all.filter(function (i) { return ppl.some(function (u) { return notStarted(i, u); }); }).length;
-    var CNTC = ["#2F6BD0", "#E07B16", "#5B7EF0", "#7D8899", "#D24B3F", "#7D8899"];
-    var cntItems = [["Проекты в работе", cntProj, false], ["Корректировки в работе", cntFix, false], ["Запланировано", cntPlan, false],
-      ["На паузе (ждём заказчика)", cntPause, cntPause > 0], ["Не взяты в работу в день старта", cntNs, cntNs > 0], ["Ждут распределения", tray.length, tray.length > 0]];
-    var cntHtml = '<div class="wl-cnt">' + cntItems.map(function (x, i) {
-      return '<div class="wl-ci' + (x[2] ? " bad" : "") + '"><span class="wl-cin" style="background:' + (x[2] ? "#D24B3F" : CNTC[i]) + '">' + x[1] + '</span><span class="wl-cit">' + x[0] + "</span></div>";
+    var cntItems = [["Проекты в работе", cntProj, "work"], ["Корректировки в работе", cntFix, "fix"], ["Запланировано", cntPlan, "plan"],
+      ["На паузе (ждём заказчика)", cntPause, "pause"], ["Не взяты в работу в день старта", cntNs, "late"]];
+    var cntHtml = '<div class="wl-cnt">' + cntItems.map(function (x) {
+      return '<div class="wl-ci"><span class="wl-cin ' + x[2] + '">' + x[1] + '</span><span class="wl-cit">' + x[0] + "</span></div>";
     }).join("") + "</div>";
-    var weeks = []; for (var k = 0; k < w.z; k++) weeks.push(days[k * 5]);
-    var mh = '<div class="wl-h" style="grid-template-columns:' + cols + ";min-width:" + minw + 'px"><div class="wl-fp"><span>← что делали</span><span>план →</span></div>'
-      + weeks.map(function (wk) { return '<div class="wl-w' + (wk === mon(td) ? " cur" : "") + '" style="grid-column:span 5"><b>' + wkLbl(wk) + "</b><small>" + wkName(wk) + "</small></div>"; }).join("")
-      + '<div class="wl-free">Свободен с</div></div>';
-    var dh = '<div class="wl-d" style="grid-template-columns:' + cols + ";min-width:" + minw + 'px"><div></div>'
-      + days.map(function (d, i) { return '<div class="' + (d === td ? "td" : "") + (i === ti ? " tn" : "") + (i % 5 === 0 ? " ws" : "") + '">' + (w.z === 13 && i % 5 && d !== td ? "" : +d.slice(8)) + "</div>"; }).join("") + "<div></div></div>";
+    var weeks = days.filter(function (_, i) { return i % 7 === 0; });
+    var mh = '<div class="wl-h" style="grid-template-columns:' + cols + ";min-width:" + minw + 'px">'
+      + miniCalendar(month, td, days)
+      + weeks.map(function (wk, i) { return '<div class="wl-w' + (wk === wk0 ? " cur" : "") + '" style="grid-column:' + (i * 7 + 2) + '/span 7"><b>' + wkLbl(wk) + "</b><small>" + wkName(wk) + "</small></div>"; }).join("")
+      + days.map(function (d, i) {
+        return '<div class="wl-day' + (d === td ? " td" : "") + (d === (w.focus || td) ? " tn" : "") + (i % 7 === 0 ? " ws" : "") + (!isWd(d) ? " weekend" : "")
+          + '" style="grid-column:' + (i + 2) + '"><b>' + Number(d.slice(8)) + "</b><small>" + dow(d) + "</small></div>";
+      }).join("") + "</div>";
     var rows = ppl.map(function (u) {
       var my = mine(u, all), hist = (S.lh || []).filter(function (h) { return h.user_id === u.id || h.who === u.name; }).filter(function (h) {
         return !my.some(function (i) { return i.oid === h.order_id && i.kind !== "part" && h.end >= i.s; });      // не дублируем текущий план той же задачи
@@ -168,62 +186,71 @@
         var l = 0; while (l < ends.length && ends[l] >= a) l++; ends[l] = b;
         var stt = i.paused ? "ps" : i.hist ? "done" : i.kind === "fix" ? "fix" : i.ready || i.s > td ? "plan" : "work";
         var ns = notStarted(i, u);
-        var late = !i.hist && !i.paused && i.due && e > i.due, dI = i.due ? idx(i.due, true) : -1, me = late && dI >= a && dI < b ? dI : b;
-        var pct = stt === "work" || stt === "fix" ? Math.max(0, Math.min(100, Math.round((ti - a) / (me - a + 1) * 100))) : 0;
+        var late = !i.hist && !i.paused && i.due && e > i.due && wdBetween(addD(i.due, 1), e) > 0, dI = i.due ? idx(i.due, true) : -1, me = late && dI >= a && dI < b ? dI : b;
         var lead = i.hist ? null : Math.min(i.e ? calLeft(i.e) : 99, i.left != null ? i.left : 99), hot = lead != null && lead >= 0 && lead <= 2, past = !i.hist && i.e && i.e < td;
-        var tip, l2, ttl;
+        var tip, l2, ttl = "№" + i.number;
         if (i.hist) {
           var HN = { work: "проектирование", fix: "корректировка" + (i.fixN ? " К" + i.fixN : ""), review: "проверка" };
-          ttl = (i.hist === "fix" ? "↻ " : i.hist === "review" ? "👁 " : "✓ ") + "№" + i.number;
-          l2 = "сделано · " + HN[i.hist] + " · " + Math.max(1, wdBetween(i.s, i.e)) + " р.д.";
           tip = "№" + i.number + " · " + i.object + " · " + HN[i.hist] + " · " + dm(i.s) + "–" + dm(i.e) + " · сделано";
         } else {
-          ttl = label(i);
           l2 = i.paused ? '<em class="wl-pause">⏸ ждём заказчика' + (i.pauseDay ? " · " + i.pauseDay + "-й день" : "") + "</em>"
             : ns ? '<em class="wl-ns">не взято в работу</em>'
-            : i.ready ? '<em class="wl-ready">распределено — переведите</em>' : past ? '<em class="wl-bad">план до ' + dm(i.e) + " прошёл</em>"
-            : (hot ? '<em class="wl-hot">≤ 2 дн.</em> · ' : "") + E(i.kind === "part" ? "раздел " + i.sys : i.sys || i.stage) + (i.due ? " · срок " + dm(i.due) : i.kind === "fix" ? " · до " + dm(i.e) : "");
+            : stt === "plan" ? '<em class="wl-ready">Запланировано</em>' : past ? '<em class="wl-bad">план до ' + dm(i.e) + " прошёл</em>"
+            : (i.shifted ? "Сдвинут · " : "") + (hot ? '<em class="wl-hot">≤ 2 дн.</em> · ' : "") + E(i.kind === "part" ? "раздел " + i.sys : i.sys || i.stage) + (i.due ? " · срок " + dm(i.due) : i.kind === "fix" ? " · до " + dm(i.e) : "");
           tip = label(i) + " · " + i.object + " · " + i.stage + " · план " + dm(i.s) + "–" + dm(i.e) + (i.cdue ? ", срок договора " + dm(i.cdue) : "") + (i.ready ? " · распределено, стадия не переведена" : "") + (i.pending ? " · ещё не сохранено" : "");
         }
         var drag = mv && !i.hist && !i.paused ? ' draggable="true" data-wld="' + i.key + '"' : "";
         var open = i.hist ? openAttr(i.oid) : ph && canMove() ? 'data-wledit="' + i.key + '"' : openAttr(i.oid);
         var startBtn = ns ? '<button type="button" class="wl-start" data-wlstart="' + i.oid + ":" + (i.rid || 0) + '" title="Взять в работу — снять красную метку">✓ Начато</button>' : "";
         segs += '<div class="wlb ' + stt + (hot ? " hot" : "") + (i.ready ? " rdy" : "") + (late && me === b ? " late" : "") + (i.pending ? " pend" : "") + (i.urgent && !i.hist ? " urg" : "") + (i.shifted ? " shf" : "") + (ns ? " ns" : "") + '"' + drag + " " + open
-          + ' style="grid-column:' + (a + 2) + "/" + (me + 3) + ";grid-row:" + (l + 1) + ";--c:" + col(i.number) + ";--p:" + pct + '%" title="' + E(tip) + '"><b>' + E(ttl) + " <span>" + E(i.object) + "</span></b><small>" + (i.hist ? E(l2) : l2) + "</small>" + startBtn + "</div>";
-        if (me < b) segs += '<div class="wlb over" style="grid-column:' + (me + 3) + "/" + (b + 3) + ";grid-row:" + (l + 1) + '" title="Работа после срока договора: ' + (b - me) + ' р.д."><b>+' + (b - me) + (b - me > 1 ? " р.д.</b><small>после срока</small>" : "</b>") + "</div>";
+          + ' style="grid-column:' + (a + 2) + "/" + (me + 3) + ";grid-row:" + (l + 1) + '" title="' + E(tip) + '"><b><span class="wlb-num">' + E(ttl) + '</span>' + (i.hist ? "" : '<span class="wlb-object">' + E(i.object) + '</span>') + "</b>" + (i.hist ? "" : "<small>" + l2 + "</small>") + startBtn + "</div>";
+        var lateDays = me < b ? wdBetween(addD(i.due, 1), e) : 0;
+        if (me < b) segs += '<div class="wlb over" style="grid-column:' + (me + 3) + "/" + (b + 3) + ";grid-row:" + (l + 1) + '" title="Работа после срока договора: ' + lateDays + ' р.д."><b>+' + lateDays + (lateDays > 1 ? " р.д.</b><small>после срока</small>" : "</b>") + "</div>";
         if (mv && !i.hist && i.s >= td && i.s >= days[0]) segs += '<span class="wl-hd l" data-wlrs="' + i.key + ':l" style="grid-column:' + (a + 2) + ";grid-row:" + (l + 1) + '" title="Тяните — сдвинуть начало"></span>';
         if (mv && !i.hist && e >= td && e <= days[N - 1]) segs += '<span class="wl-hd r" data-wlrs="' + i.key + ':r" style="grid-column:' + (b + 2) + ";grid-row:" + (l + 1) + '" title="Тяните — сдвинуть окончание"></span>';
         if (!i.hist && i.due && dI >= 0 && dI < N && i.due >= days[0] && i.due <= days[N - 1]) segs += '<span class="wl-flag' + (late ? " bad" : "") + '" style="grid-column:' + (dI + 2) + ";grid-row:" + (l + 1) + '">⚑ ' + dm(i.due) + "</span>";
       });
       var lanes = Math.max(1, ends.length), act = mine(u, all), lt = act.filter(function (i) { return (i.due && effEnd(i) > i.due) || (i.left != null && i.left < 0 && i.kind !== "fix"); }).length, fr = freeFrom(u, all);
-      var bg = days.map(function (d, i) { var offk = offKind(u, d); return '<span class="wl-c' + (d === td ? " td" : "") + (i % 5 === 0 ? " ws" : "") + (i < ti ? " pa" : "") + (offk ? " " + offk : "") + '" style="grid-column:' + (i + 2) + ";grid-row:1/span " + lanes + '"></span>'; }).join("");
-      return '<div class="wl-r" data-wlrow="' + (u.id || "") + '" data-wlname="' + E(u.name) + '" style="grid-template-columns:' + cols + ";grid-template-rows:repeat(" + lanes + "," + G.rh + "px);min-width:" + minw + 'px">'
-        + '<div class="wl-nm" style="grid-row:1/span ' + lanes + '">' + x.ava(u.name, "sm") + "<span><b>" + E(u.name) + "</b><small>" + act.length + " в работе · на этой неделе " + act.filter(function (i) { return i.s <= wk1 && effEnd(i) >= wk0; }).length + (lt ? ' · <em class="wl-bad">' + lt + " не успевает</em>" : "") + "</small>"
-        + (offRanges(u, days).length ? '<small class="wl-offl">' + offRanges(u, days).map(E).join(" · ") + "</small>" : "") + "</span></div>"
-        + bg + segs + '<div class="wl-fr" style="grid-row:1/span ' + lanes + ";grid-column:" + (N + 2) + '">' + (fr > td ? dm(fr) + " (" + dow(fr) + ")" : "сейчас") + "</div></div>"
+      var bg = days.map(function (d, i) {
+        var offk = offKind(u, d);
+        return '<span class="wl-c' + (d === td ? " td" : "") + (i % 7 === 0 ? " ws" : "") + (!isWd(d) ? " weekend" : "") + (offk ? " " + offk : "")
+          + '" style="grid-column:' + (i + 2) + ";grid-row:1/span " + lanes + '">' + (offk ? '<small>' + (offk === "vac" ? "отпуск" : "выходной") + '</small>' : "") + '</span>';
+      }).join("");
+      var role = {design: "Руководитель отдела", designer: "Проектировщик", ops: "Операционный менеджер", owner: "Руководитель", norm: "Нормоконтроль"}[u.pos] || "";
+      var weekly = act.filter(function (i) { return i.s <= wk1 && effEnd(i) >= wk0; }).length;
+      var absence = offRanges(u, days);
+      return '<div class="wl-r" data-wlrow="' + (u.id || "") + '" data-wlname="' + E(u.name) + '" style="grid-template-columns:' + cols + ";grid-template-rows:repeat(" + lanes + ",minmax(" + G.rh + "px,auto));min-width:" + minw + 'px">'
+        + '<div class="wl-nm" style="grid-row:1/span ' + lanes + '"><div class="wl-person">' + x.ava(u.name, "sm") + "<div><b>" + E(u.name) + "</b>"
+        + (role ? "<small>" + role + "</small>" : "") + '</div></div><div class="wl-person-status"><span class="wl-status free">'
+        + (fr > td ? "Свободен с <b>" + dm(fr) + "</b> (" + dow(fr) + ")" : "Свободен сейчас") + '</span><span class="wl-status week">В работе на этой неделе <b>' + weekly + "</b></span>"
+        + (lt ? '<span class="wl-status overdue">' + lt + ' не успевает</span>' : "")
+        + absence.map(function (text) { return '<span class="wl-status absence">' + E(text) + "</span>"; }).join("")
+        + "</div></div>" + bg + segs + "</div>"
         + (function () {
           var seen = {}, load = days.map(function (d) {
+            if (!isWd(d) || offKind(u, d)) return 0;
             var n = 0;
             list.forEach(function (i) {
               if (i.hist) return;
-              var k = i.kind === "part" ? "m" + i.oid : i.key;             // разделы вместе с проектом — одна единица; корректировка отдельно
+              var k = i.kind === "fix" ? "f" + i.oid : "m" + i.oid;             // разделы вместе с проектом — одна единица; корректировка отдельно
               if (!seen[d + k] && i.s <= d && effEnd(i) >= d) { seen[d + k] = 1; n++; }
             });
             return n;
           });
-          return '<div class="wl-ld" style="grid-template-columns:' + cols + ";min-width:" + minw + 'px"><div class="wl-ld-l" title="Нагрузка по дням: сколько задач в плане на день">нагрузка</div>' + load.map(function (n) { return '<span class="wl-ld-c l' + Math.min(3, n) + '" title="' + n + '"></span>'; }).join("") + "<div></div></div>";
+          return '<div class="wl-ld" style="grid-template-columns:' + cols + ";min-width:" + minw + 'px"><div class="wl-ld-l" title="Нагрузка по дням: сколько задач в плане на день">нагрузка</div>' + load.map(function (n) { return '<span class="wl-ld-c l' + Math.min(3, n) + '" title="' + n + '"></span>'; }).join("") + "</div>";
         })();
     }).join("");
     // «Ждут распределения» — tray посчитан выше (для счётчиков)
     var best = function (i) { var b = null; ppl.forEach(function (u) { if (!u.id) return; var f = freeFrom(u, all); if (!b || f < b[1]) b = [u.name, f]; }); return b; };
-    var trayHtml = '<div class="panel wl-tray"><b>Ждут распределения · ' + tray.length + "</b>" + (tray.length && mv ? '<span class="wl-trh">тяните на строку сотрудника →</span>' : "")
+    var trayHtml = '<div class="panel wl-tray' + (tray.length ? " waiting" : " clear") + '"><b>Ждут распределения · ' + tray.length + "</b>" + (tray.length && mv ? '<span class="wl-trh">тяните на строку сотрудника →</span>' : "")
       + tray.map(function (i) {
         var b = best(i), sub = (i.kind === "part" ? "раздел " + i.sys + " · " : "") + (i.ex ? E(i.exName) + ", без дат" : i.cdue ? "до " + dm(i.cdue) : "без срока");
         var tip = label(i) + " · " + i.object + " · " + i.stage + (i.cdue ? " · срок договора " + dm(i.cdue) : "") + (i.ex ? " · назначено: " + i.exName + ", дат плана нет" : "") + (b ? " · раньше всех свободен: " + b[0] + " с " + dm(b[1]) : "");
         var act2 = mv ? ' draggable="true" data-wld="' + i.key + '" data-wledit="' + i.key + '"' : canMove() ? ' data-wledit="' + i.key + '"' : " " + openAttr(i.oid);
         return '<div class="wl-chip' + (i.kind === "fix" ? " fix" : i.kind === "part" ? " part" : "") + (i.urgent ? " urg" : "") + '"' + act2 + ' title="' + E(tip) + '">' + (mv ? '<span class="wl-grip">⋮⋮</span>' : "") + "<b>" + E(label(i)) + "</b><small>" + sub + "</small></div>";
       }).join("") + (tray.length ? "" : '<span class="wl-empty">всё распределено ✓</span>') + "</div>";
-    var months = monthList(), curM = "";
+    var months = monthList(), curM = month;
+    if (!months.includes(curM)) { months.push(curM); months.sort(); }
     var top = '<div class="wl-top"><div class="seg"><button data-wlnav="-1" title="На неделю назад">←</button><button data-wlnav="0"' + (w.off ? "" : ' class="on"') + ' title="К сегодняшнему дню">Сегодня</button><button data-wlnav="1" title="На неделю вперёд">→</button></div>'
       + '<select class="wl-sel" data-wlmonth="1"><option value="">Перейти к месяцу…</option>' + months.map(function (m) { return '<option value="' + m + '"' + (m === curM ? " selected" : "") + ">" + MONN[+m.slice(5, 7) - 1] + " " + m.slice(0, 4) + "</option>"; }).join("") + "</select>"
       + '<span class="wl-vlab">Масштаб</span><div class="seg">' + [["4", "Месяц"], ["8", "2 месяца"], ["13", "Квартал"]].map(function (z) { return '<button data-wlz="' + z[0] + '"' + (String(w.z) === z[0] ? ' class="on"' : "") + ">" + z[1] + "</button>"; }).join("") + "</div>"
@@ -232,11 +259,11 @@
       + (p === "owner" || p === "ops" || p === "design" ? '<span class="ldwho wl-who"><button class="btn ghost sm" data-ldmenu="1">👥 Кого показывать (' + ppl.length + ")</button>"
         + (S.ldMenu ? '<span class="ldpop"><b>Показывать в «Занятости»</b>' + x.staffAll().map(function (u) { var on = ppl.some(function (y) { return y.name === u.name; }); return '<button type="button" class="ldchk ' + (on ? "on" : "") + '" data-ldp="' + E(u.name) + '"><i>' + (on ? "✓" : "") + "</i>" + E(u.name) + "</button>"; }).join("") + '<button class="btn ghost sm" data-ldmenu="0" style="margin-top:8px">Готово</button></span>' : "") + "</span>" : "")
       + "</div>";
-    var leg = '<div class="wl-leg"><span><i class="wl-dot" style="background:#c3cad6"></i>сделано (по истории задачи)</span><span><i class="wl-dot" style="background:#3b7ddd"></i>в работе (тёмная часть — уже прошло)</span><span><i class="wl-dot" style="background:#9dbff1"></i>в плане</span><span><i class="wl-dot" style="background:#e0873a"></i>корректировка</span><span><i class="wl-dot ov"></i>после срока договора</span><span><b class="wl-flag sm">⚑</b> срок по договору</span><span><i class="wl-dot hot"></i>≤ 2 дн. до срока</span><span><i class="wl-dot ps"></i>пауза (ждём заказчика)</span><span><i class="wl-corner shf"></i>сдвинут после утверждения плана</span><span><i class="wl-corner ns"></i>не взято в работу в день старта</span><span class="wl-ld-leg"><i class="wl-ld-c l1"></i><i class="wl-ld-c l2"></i><i class="wl-ld-c l3"></i>нагрузка: 1 / 2 / 3+</span>'
+    var leg = '<div class="wl-leg"><span><i class="wl-dot" style="background:#c3cad6"></i>сделано (по истории задачи)</span><span><i class="wl-dot" style="background:#3b7ddd"></i>в работе</span><span><i class="wl-dot wl-plan-dot"></i>запланировано</span><span><i class="wl-dot" style="background:#e0873a"></i>корректировка</span><span><i class="wl-dot ov"></i>после срока договора</span><span><b class="wl-flag sm">⚑</b> срок по договору</span><span><i class="wl-dot hot"></i>≤ 2 дн. до срока</span><span><i class="wl-dot ps"></i>пауза (ждём заказчика)</span><span><i class="wl-corner shf"></i>сдвинут после утверждения плана</span><span><i class="wl-corner ns"></i>не взято в работу в день старта</span><span class="wl-ld-leg"><i class="wl-ld-c l1"></i><i class="wl-ld-c l2"></i><i class="wl-ld-c l3"></i>нагрузка: 1 / 2 / 3+</span>'
       + (mv ? "<span>⋮⋮ перетащить задачу на сотрудника · ⟷ тяните за край полосы — меняются даты · в прошлое нельзя</span>" : canMove() ? "<span>нажмите на задачу — «Назначить сроки»</span>" : "<span>только просмотр: исполнителя и сроки назначают руководитель и руководитель проектного отдела</span>") + "</div>";
     var nodata = !ppl.length ? '<div class="note" style="padding:16px;margin:0">Сотрудников с задачами в работе нет</div>' : "";
     return '<div class="head"><div><h1>Занятость</h1></div></div>' + top + offHtml() + cntHtml + trayHtml
-      + '<div class="panel wl-ll" id="wlLL">' + mh + dh + rows + nodata + "</div>" + leg + editHtml();
+      + '<div class="panel wl-ll" id="wlLL">' + mh + rows + nodata + "</div>" + leg + editHtml();
   }
   function idxOf(days, d, end) {
     var N = days.length, i = days.indexOf(d); if (i >= 0) return i;
@@ -250,8 +277,9 @@
   function monthList() {
     var td = today(), a = addD(td, -180), out = [];
     (X().S.lh || []).forEach(function (h) { if (h.start && h.start < a) a = h.start; });
-    var y = +a.slice(0, 4), m = +a.slice(5, 7), y2 = +td.slice(0, 4), m2 = +td.slice(5, 7) + 3;
-    while (y < y2 || (y === y2 && m <= m2)) { out.push(y + "-" + ("0" + m).slice(-2)); m++; if (m > 12) { m = 1; y++; } }
+    var cursor = new Date(a.slice(0, 7) + "-01T12:00:00"), end = new Date(td.slice(0, 7) + "-01T12:00:00");
+    end.setMonth(end.getMonth() + 3);
+    while (cursor <= end) { out.push(iso(cursor).slice(0, 7)); cursor.setMonth(cursor.getMonth() + 1); }
     return out;
   }
 
@@ -397,7 +425,7 @@
       if (!ll.clientWidth) return false;
       var w = st();
       if (w.scroll != null) { ll.scrollLeft = w.scroll; return true; }
-      var tdc = ll.querySelector(".wl-d .tn"), G = geom();      // сегодня или ближайший рабочий день (в выходной)
+      var tdc = ll.querySelector(".wl-day.tn"), G = geom();      // сегодня или ближайший рабочий день (в выходной)
       if (tdc) ll.scrollLeft = Math.max(0, tdc.offsetLeft - G.nw - Math.min(5 * tdc.offsetWidth, ll.clientWidth / 3));
       return true;
     };
@@ -411,13 +439,15 @@
   var DRG = null;
   function rowAt(t) { var r = t && t.closest ? t.closest("#cal-app [data-wlrow]") : null; return r; }
   function colAt(row, x) {
-    var r = row.getBoundingClientRect(), G = geom(), n = win().length, w = (r.width - G.nw - G.fw) / n;
+    var r = row.getBoundingClientRect(), G = geom(), n = win().length, w = (r.width - G.nw) / n;
     return Math.max(0, Math.min(n - 1, Math.floor((x - r.left - G.nw) / w)));
   }
   function ghostOff() { var g = document.getElementById("wlGhost"); if (g) g.remove(); var o = document.querySelector(".wl-r.hov"); if (o) o.classList.remove("hov"); }
   function dropPlan(row, x) {
     var i = find(DRG); if (!i) return null;
-    var days = win(), c = colAt(row, x), s = days[c], e = placed(i, s), G = geom();
+    var days = win(), s = wdOn(days[colAt(row, x)]), c = days.indexOf(s);
+    if (c < 0) return null;
+    var e = placed(i, s), G = geom();
     return { i: i, c: c, s: s, e: e, end: Math.min(days.length - 1, idxOf(days, e, true)), uid: +row.getAttribute("data-wlrow") || 0, name: row.getAttribute("data-wlname") || "", G: G };
   }
   function ghost(row, x) {
@@ -465,7 +495,8 @@
   document.addEventListener("pointermove", function (e) {
     if (!RSZ) return;
     var w = st(), row = document.querySelector('#cal-app .wl-r [data-wlrs^="' + RSZ.key + ':"]'); row = row && row.closest(".wl-r"); if (!row) return;
-    var d = win()[colAt(row, e.clientX)], td = today(), r = w.rs, ch = false;
+    var d = win()[colAt(row, e.clientX)], td = wdOn(today()), r = w.rs, ch = false;
+    while (!isWd(d)) d = addD(d, RSZ.side === "r" ? -1 : 1);
     if (RSZ.side === "r") { var ne = d < r.s ? r.s : d; if (ne < td) ne = td; if (ne !== r.e) { r.e = ne; ch = true; } }
     else { var ns = d > r.e ? r.e : d; if (ns < td) ns = td; if (ns !== r.s) { r.s = ns; ch = true; } }
     if (ch) { rerender(); var hh = document.querySelector('#cal-app [data-wlrs="' + RSZ.key + ":" + RSZ.side + '"]'); if (hh) hh.classList.add("act"); }
@@ -482,12 +513,14 @@
 
   /* ---------- кнопки экрана ---------- */
   document.addEventListener("click", function (e) {
-    var t = e.target.closest && e.target.closest("[data-wlnav],[data-wlz],[data-wlfull],[data-wloffv],[data-wloffnav],[data-wledit],[data-wlx],[data-wlsave],[data-wlopen],[data-wlundo]");
+    var t = e.target.closest && e.target.closest("[data-wlnav],[data-wlz],[data-wlfull],[data-wloffv],[data-wloffnav],[data-wledit],[data-wlx],[data-wlsave],[data-wlopen],[data-wlstart],[data-wlundo],[data-wlmonthpick],[data-wlday]");
     if (!t) return;
     if (!t.hasAttribute("data-wlundo") && !t.closest("#cal-app")) return;
     var d = t.dataset, w = st();
     if (d.wlundo) return undo();
-    if (d.wlnav != null) { w.off = d.wlnav === "0" ? 0 : w.off + (+d.wlnav); resetView(); return rerender(), after(); }
+    if (d.wlnav != null) { w.off = d.wlnav === "0" ? 0 : w.off + (+d.wlnav); w.focus = ""; w.month = ""; resetView(); return rerender(), after(); }
+    if (d.wlmonthpick) return gotoCalendar(d.wlmonthpick + "-01", true);
+    if (d.wlday) return gotoCalendar(d.wlday, false);
     if (d.wlz) { w.z = +d.wlz; lsSet("ds_wlz", d.wlz); resetView(); return rerender(), after(); }
     if (d.wlfull) { w.full = !w.full; lsSet("ds_wlfull", w.full ? "1" : "0"); return rerender(), after(); }
     if (d.woffv) {
@@ -520,11 +553,18 @@
       return propose({ item: i, ex: ex, exName: u ? u.name : i.exName, s: s, e: en, start: !!ex && (i.ready || (!i.ex && i.kind !== "part")) });
     }
   });
+  function gotoCalendar(day, atStart) {
+    var w = st(), back = w.z === 4 ? 1 : w.z === 13 ? 6 : 3;
+    w.off = Math.round((new Date(mon(day) + "T12:00:00") - new Date(mon(today()) + "T12:00:00")) / 864e5 / 7) + (atStart ? back : 0);
+    w.month = day.slice(0, 7);
+    w.focus = day;
+    w.scroll = atStart ? 0 : null;
+    rerender();
+    after();
+  }
   document.addEventListener("change", function (e) {
-    var t = e.target; if (!t || !t.matches || !t.matches("#cal-app [data-wlmonth]") || !t.value) return;
-    var w = st(), back = w.z === 4 ? 1 : w.z === 13 ? 6 : 3, m0 = mon(t.value + "-01");
-    w.off = Math.round((new Date(m0 + "T12:00:00") - new Date(mon(today()) + "T12:00:00")) / 864e5 / 7) + back;
-    w.scroll = 0; rerender(); var ll = document.getElementById("wlLL"); if (ll) ll.scrollLeft = 0;
+    var t = e.target;
+    if (t && t.matches && t.matches("#cal-app [data-wlmonth]") && t.value) gotoCalendar(t.value + "-01", true);
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && st && window.DS && DS.ldCtx && X().S.wl && X().S.wl.full) { X().S.wl.full = false; rerender(); after(); } });
   // не потерять отложенное: уход с экрана, скрытие вкладки, закрытие страницы — сохраняем сразу

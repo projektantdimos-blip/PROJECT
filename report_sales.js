@@ -109,7 +109,8 @@
   }
   function qa(n, bid, title, chipsHtml, bodyHtml, opt) {
     opt = opt || {};
-    return '<div class="qa" data-q="' + n + '"><button class="qb" type="button"><span class="no">' + n + '</span><span class="t"><b>' + E(title) + (opt.lock ? " " + LOCK : "") + '</b>' + (opt.titleSmall ? "<small>" + E(opt.titleSmall) + "</small>" : "")
+    var expanded = !opt.lock;
+    return '<div class="qa' + (expanded ? " open" : "") + '" data-q="' + n + '"><button class="qb" type="button" aria-expanded="' + expanded + '" aria-controls="' + bid + '"><span class="no">' + n + '</span><span class="t"><b>' + E(title) + (opt.lock ? " " + LOCK : "") + '</b>' + (opt.titleSmall ? "<small>" + E(opt.titleSmall) + "</small>" : "")
       + (chipsHtml || opt.plId ? '<span class="pl"' + (opt.plId ? ' id="' + opt.plId + '"' : "") + '>' + (chipsHtml || "") + "</span>" : "")
       + (opt.sub || "") + '</span><span class="ch">' + CHEV + '</span></button><div class="bx" id="' + bid + '">' + bodyHtml + "</div></div>";
   }
@@ -242,17 +243,47 @@
   }
 
   // --------------------------------------------------------------- блок 3: План прошлой недели
+  function weeklyPayments(plan, threshold, fact, pct, period) {
+    var tone = !plan ? "unset" : fact < threshold ? "low" : fact < plan ? "near" : "met";
+    var states = {unset: "План не задан", low: "ниже порога", near: "порог пройден", met: "план выполнен"};
+    var scale = Math.max(plan * 1.12, threshold * 1.12, fact * 1.04, 1);
+    function width(value) { return Math.max(0, value / scale * 100).toFixed(2) + "%"; }
+    function label(name, value, key) {
+      return '<div class="wp-label ' + key + '"><i></i><span>' + name + "</span><b>" + (value == null ? "—" : fmt(value)) + "</b></div>";
+    }
+    function fill(value, text, key) {
+      return '<span class="wp-fill ' + key + '" style="width:' + width(value) + '"><span>' + text + "</span></span>";
+    }
+    function delta(goal) {
+      if (!goal) return '<div class="wp-result neutral">—</div>';
+      var diff = fact - goal;
+      return '<div class="wp-result ' + (diff < 0 ? "low" : "met") + '">' + (diff < 0 ? "Не дошли" : "Дошли")
+        + "<small>" + (diff < 0 ? "−" : "+") + fmt(Math.abs(diff)) + "</small></div>";
+    }
+    function marker(name, value, key) {
+      return '<span class="wp-marker ' + key + '" style="--marker:' + width(value) + '"><i></i><span>' + name + "</span></span>";
+    }
+    var close = plan && plan !== threshold && Math.abs(plan - threshold) / scale < .25;
+    var markers = plan === threshold ? marker("план и порог", plan, "both")
+      : marker("порог безубыточности", threshold, "threshold") + (plan ? marker("план", plan, "plan") : "");
+    return '<div class="weekly-payments ' + tone + '"><div class="wp-head"><b>Оплаты за неделю' + (period ? " " + E(period) : "") + '</b><small>из CRM</small></div>'
+      + '<div class="wp-body"><div class="wp-score"><b>' + (plan ? pct + "<small>%</small>" : "—") + "</b>"
+      + (plan ? '<span class="wp-score-label">плана</span>' : "") + '<span class="wp-status">' + states[tone] + '</span></div><div class="wp-rows">'
+      + '<div class="wp-row">' + label("План", plan || null, "plan") + '<div class="wp-track">' + fill(plan, fmt(plan), "plan") + "</div>" + delta(plan) + "</div>"
+      + '<div class="wp-row">' + label("Порог безубыточности", threshold, "threshold") + '<div class="wp-track">' + fill(threshold, plan ? Math.round(threshold / plan * 100) + "% плана" : fmt(threshold), "threshold") + "</div>" + delta(threshold) + "</div>"
+      + '<div class="wp-row actual">' + label("Факт", fact, "fact") + '<div class="wp-track' + (close ? " close-markers" : "") + '">'
+      + (plan ? '<span class="wp-above" style="left:' + width(plan) + '">' + (fact > plan ? "" : "<span>сверх плана</span>") + "</span>" : "")
+      + fill(fact, plan ? pct + "%" : fmt(fact), "fact") + markers + "</div>"
+      + '<div class="wp-result neutral">' + (plan ? pct + "% плана" : "Факт") + "<small>" + Math.round(fact / threshold * 100) + "% порога</small></div></div></div></div></div>";
+  }
   function block3() {
     var s3 = item("s3");
-    var plan = num(kvs(s3, "План")), fact = num(kvs(s3, "Факт")), pct = num(kvs(s3, "Выполнение"));
-    var thr = s3.threshold || 300000;
+    var plan = Math.max(0, num(kvs(s3, "План"))), fact = num(kvs(s3, "Факт")), pct = num(kvs(s3, "Выполнение"));
+    var threshold = Math.max(0, num(s3.threshold)) || 300000;
     var mon = isoToD(WEEK), fri = mon ? addBD(mon, 4) : null;
-    var wlabel = mon ? "План на неделю " + mon.getDate() + "–" + fri.getDate() + " " + MONTHS[fri.getMonth()] : "План на неделю";
-    var bar = '<div class="ptr"><div class="pfl" style="width:' + Math.min(100, pct) + '%"></div>'
-      + (plan ? '<div class="pmk" style="left:' + Math.min(100, Math.round(thr / plan * 1000) / 10) + '%;background:#c0392b"></div><div class="pmt" style="left:' + Math.min(100, Math.round(thr / plan * 1000) / 10) + '%;color:#a5281b">Порог ' + fmt(thr) + '</div>' : "")
-      + '<div class="pmk" style="left:100%;background:#2a65a0"></div><div class="pmt rr" style="left:100%;color:#1b4a7e">План ' + fmt(plan) + "</div></div>";
-    var body = '<div class="plw"><div class="lane wide pl3"><h4><span>Выполнение плана прошлой недели</span><span class="cmpt' + (pct < 100 ? " dn" : "") + '">' + (plan ? pct + "% плана" : "план не задан") + "</span></h4>"
-      + '<div class="pbd"><div class="pbig"><div><span>' + E(wlabel) + "</span><b>" + fmt(plan) + '</b></div><div><span>Факт</span><b class="g">' + fmt(fact) + '</b></div><div><span>Не хватило до плана</span><b class="r">' + fmt(Math.max(0, plan - fact)) + "</b></div></div>" + bar + '<div class="pun"><span>0</span></div></div></div></div>'
+    var period = mon ? mon.getDate() + (mon.getMonth() === fri.getMonth() ? "" : " " + MONTHS[mon.getMonth()])
+      + "–" + fri.getDate() + " " + MONTHS[fri.getMonth()] : "";
+    var body = weeklyPayments(plan, threshold, fact, pct, period)
       + '<div class="fin"><div><textarea class="ta rq" data-ak="s3:why" placeholder="Почему так? Одной-двумя фразами" aria-label="Почему так"' + dis() + ">" + E(AV["s3:why"]) + '</textarea></div>'
       + '<div><div class="g3" style="margin-top:0"><input class="in rq" data-ak="s3:action" type="text" placeholder="Что делаю?" aria-label="Что делаю" value="' + E(AV["s3:action"]) + '"' + dis() + '><input class="in rq" data-ak="s3:date" type="date" aria-label="К какой дате" title="К какой дате" value="' + E(AV["s3:date"]) + '"' + dis() + "></div></div></div>";
     var chips = "<span>план <strong>" + fmt(plan) + "</strong></span><span>факт <strong>" + fmt(fact) + "</strong></span><span><strong>" + (plan ? pct + "%" : "—") + "</strong></span>";
@@ -801,7 +832,11 @@
       var sr = t.closest(".sr");
       if (!sr) return;
       later();
-      var qb = t.closest(".qb"); if (qb) { qb.parentNode.classList.toggle("open"); return; }
+      var qb = t.closest(".qb");
+      if (qb) {
+        qb.setAttribute("aria-expanded", String(qb.parentNode.classList.toggle("open")));
+        return;
+      }
       var ac = t.closest("[data-ac]"); if (ac) { ac.parentNode.classList.toggle("open"); return; }
       var nopen = t.closest("[data-nopen]");
       if (nopen && !RO) {
