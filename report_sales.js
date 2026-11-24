@@ -1,15 +1,21 @@
-/* Пятничный созвон РОПа: 9 блоков 1 в 1 по утверждённому макету. Данные и сохранение — API ds_reports (мост). */
+/* Пятничный созвон РОПа: 9 блоков по утверждённому макету. Данные и сохранение — API ds_reports (мост). */
 (function () {
   var R = null, RO = true, WEEK = "";
   var FILTER4 = null, MVO = false, CD = [];
+  var DEBT_RESULTS = {
+    "Звонок": ["Дозвонился", "Не взял трубку", "Не звонил"],
+    "Письмо": ["Отправлено", "Не отправлено"],
+    "Претензия": ["Отправлена", "Не отправлена"],
+    "Стоп работ": ["Работы и выдача документов остановлены", "Работы не остановлены"]
+  };
+  var DEBT_BASES = ["Договор подписан", "Акт подписан", "Акт подписан авто", "Счёт отправлен"];
+  var CLAIM_STATUS = ["Отправлена", "Не отправлена"];
   var AV = {}, KV = {};                                  // AV — ответы (ds_call_notes), KV — поля КП ("id|field")
-  var SYSTEMS = ["СПС", "СОУЭ", "ВПВ", "АУП", "ОГЗ", "АО", "ИД"];
-  var KC = { "СПС": "#2a65a0", "СОУЭ": "#2f8f5b", "ВПВ": "#1fa0c8", "АУП": "#d99a1f", "ОГЗ": "#d9603b", "АО": "#c0568f", "ИД": "#7a5fc0" };
   var TEMP_T = { h: "Горячий: запросил КП или назвал срок/бюджет, контакт в последние 3 р.д.", m: "Тёплый: отвечает, объект есть, срок и бюджет не названы", l: "Холодный: нет ответа 5+ р.д. или просто узнаёт цену" };
   var TEMP_L = { h: "горячий", m: "тёплый", l: "холодный" };
   var TEMP_C = { h: "h", m: "m2", l: "l" };
-  var WHY4 = ["Ждёт согласования", "Нет бюджета", "Ждёт деньги от своего заказчика", "Ждёт акт", "Не отвечает", "Оспаривает", "Свой вариант"];
-  var RC4 = { "Ждёт согласования": "c1", "Нет бюджета": "c2", "Ждёт акт": "c3", "Не отвечает": "c4", "Оспаривает": "c5", "Ждёт деньги от своего заказчика": "c6", "Свой вариант": "c7" };
+  var WHY4 = ["Ждёт согласования", "Нет бюджета", "Ждёт деньги от своего заказчика", "Ждёт от нас (документы, правки)", "Не отвечает", "Свой вариант"];
+  var RC4 = { "Ждёт согласования": "c1", "Нет бюджета": "c2", "Ждёт акт": "c3", "Не отвечает": "c4", "Оспаривает": "c5", "Ждёт от нас (документы, правки)": "c3", "Ждёт деньги от своего заказчика": "c6", "Свой вариант": "c7" };
   var LBL11 = { "Процесс": "в процессе", "ТЗ": "с ТЗ", "Сипуни": "в Сипуни", "CRM": "в CRM", "Взаимодействие с отделами": "во взаимодействии с отделами", "Жду оплату, сложно дожимать": "с дожимом оплаты", "Жду ответа от проектного отдела": "с ожиданием ответа проектного отдела", "Что делать, если клиент просит скидку": "с ответом на просьбу о скидке", "Как передать срочную задачу в проектный отдел": "с передачей срочной задачи в проектный отдел", "Много задач сразу, теряются приоритеты": "с приоритетами при большом числе задач", "Срочное перебивает плановое": "со срочными задачами, которые перебивают плановые", "Забываю, что обещал клиенту": "с обещаниями клиентам", "Не успеваю ответить всем в день обращения": "с ответами в день обращения", "Теряются сообщения в мессенджерах": "с сообщениями в мессенджерах", "Нет времени на дожим оплат": "с дожимом оплат", "Задачи копятся к концу недели": "с накоплением задач к концу недели", "Работаю допоздна, чтобы всё успеть": "с рабочим временем и переработками" };
   var WV13 = { "Личный Telegram": ["Переписывался в личном Telegram", "переписки"], "Личный MAX": ["Переписывался в личном MAX", "переписки"], "Личный телефон": ["Поговорил по личному телефону", "разговора"], "Личная почта": ["Переписывался по личной почте", "переписки"] };
   var NONE11 = "Ничего не мешало", OWN11 = "Свой вариант", ONLY13 = "Только рабочие каналы";
@@ -47,10 +53,21 @@
   function bdN(a, b) { var x = new Date(a), n = 0; while (x < b) { x.setDate(x.getDate() + 1); if (x.getDay() !== 0 && x.getDay() !== 6) n++; } return n; }
   function status(t) { var st = document.getElementById("srStatus"); if (st) st.textContent = t; }
 
+  var noteWrites = {};
   function saveNote(key, value) {
     AV[key] = value;
     status("Сохраняем…");
-    return MPBC.call("/../ds/reports/sales/answer", { body: { start: WEEK, key: key, text: value } }).then(function () { status("Сохранено"); }, function (e) { status("Не сохранено: " + e); });
+    var week = WEEK, pending = week + "|" + key;
+    var write = Promise.resolve(noteWrites[pending]).then(function () {
+      return MPBC.call("/../ds/reports/sales/answer", { body: { start: week, key: key, text: value } });
+    }).then(function () {
+      if (WEEK === week && noteWrites[pending] === write) status("Сохранено");
+    }, function (error) {
+      if (WEEK === week && noteWrites[pending] === write) status("Не сохранено: " + error);
+    });
+    noteWrites[pending] = write;
+    write.then(function () { if (noteWrites[pending] === write) delete noteWrites[pending]; });
+    return write;
   }
   function saveKp(kpId, field, value) {
     KV[kpId + "|" + field] = value;
@@ -103,12 +120,10 @@
     return '<div class="ac3 ' + cls + (open ? " open" : "") + '"><button class="acb" type="button" data-ac="1"><span>' + E(t) + " · " + cnt + "</span><span>" + (right || "") + " ▾</span></button>" + '<div class="bdy">' + body + "</div></div>";
   }
   function emptyNote() { return '<div class="sr-empty">Нет данных за выбранную неделю</div>'; }
-  function sysDots(active, clickableKey) {
-    return '<span class="cl' + (clickableKey ? " rq" : "") + '">' + SYSTEMS.map(function (k) {
-      var on = active.indexOf(k) >= 0;
-      return '<span class="m' + (clickableKey && on ? " on" : "") + '"' + (clickableKey ? ' data-sys="' + E(clickableKey) + "|" + E(k) + '" title="' + E(k) + '"' : "") + '><i class="' + (on ? "" : "o") + '"' + (on ? ' style="background:' + KC[k] + ";box-shadow:0 0 0 2px #fff,0 0 0 4px " + KC[k] + '"' : "") + "></i></span>";
-    }).join("") + "</span>";
+  function workCell(text) {
+    return '<span class="vw">' + E(text || "—") + "</span>";
   }
+
   function cmpSpan(cmp, cur, pl) {                           // сравнение с прошлой неделей: ▲/▼ по количеству и сумме
     if (!cmp) return "";
     var prev = cur - cmp.ds, dp = prev > 0 ? Math.round(cmp.ds / prev * 100) : 0;
@@ -143,13 +158,9 @@
   }
   function rowQ(r) {
     var kpId = r.kp;
-    var skey = kpId + "|systems";
-    if (KV[skey] === undefined) KV[skey] = JSON.stringify(r.systems && r.systems.length ? r.systems
-      : SYSTEMS.filter(function (k) { return (r.sv || "").indexOf(k) >= 0; }));      // код может быть в тексте как «СПС.СОУЭ»
-    var sv = list(KV[skey]);
     var lc = r.last_bd == null ? 99 : r.last_bd;
     var lq = lc >= 99 ? '<span class="lq r">—</span>' : '<span class="lq' + (lc >= 3 ? " r" : "") + '">' + (lc === 0 ? "сегодня" : lc + " р.д.") + "</span>";
-    return '<div class="i r6"><span class="nm1"><span class="nm2" title="' + E(r.cells[1]) + '">' + E(r.cells[1]) + '</span></span>' + sysDots(sv, "")
+    return '<div class="i r6"><span class="nm1"><span class="nm2" title="' + E(r.cells[1]) + '">' + E(r.cells[1]) + '</span></span>' + workCell(r.work || (Array.isArray(r.systems) && r.systems.join(", ")) || r.sv)
       + '<div class="rt">' + ptxtQ(kpId) + lq + ncell(kpId) + "<b>" + fmt(num(r.amt)) + "</b></div>"
       + '<input class="cmq" data-ak="s1:kp' + kpId + ':note" type="text" placeholder="Комментарий" aria-label="Комментарий к запросу" value="' + E(AV["s1:kp" + kpId + ":note"]) + '"' + dis() + "></div>";
   }
@@ -171,7 +182,7 @@
     var refSum = refs.reduce(function (s, r) { return s + num(r.amt != null ? r.amt : r.cells[2]); }, 0);
     var totalN = rows.length + sold.length + refs.length, totalS = openSum + soldSum + refSum;
 
-    var cap = '<div class="i cap r6"><span>Заказчик</span><span class="cl">' + SYSTEMS.map(function (k) { return '<span class="m">' + k + "</span>"; }).join("") + '</span><div class="rt"><span>Вероятность</span><span>Посл. контакт</span><span>След. контакт</span><b>Сумма</b></div><span>Комментарий</span></div>';
+    var cap = '<div class="i cap r6"><span>Заказчик</span><span class="vw">Вид работ</span><div class="rt"><span>Вероятность</span><span>Посл. контакт</span><span>След. контакт</span><b>Сумма</b></div><span>Комментарий</span></div>';
     var lane = '<div class="lane wide" style="border:0;border-radius:0;background:transparent">' + cap + rows.map(rowQ).join("") + (rows.length ? '<div class="i tt r6"><span>Итого</span><span></span><div class="rt"><span></span><span></span><span></span><b>' + fmt(openSum) + "</b></div><span></span></div>" : '<div class="sr-empty">Нет запросов в решении</div>') + "</div>";
 
     function r1(list2) {
@@ -211,15 +222,16 @@
     var PTC = { "Предоплата": "pre", "Доплата": "add", "Постоплата": "post" };
     var paySum = rows.reduce(function (s, r) { return s + num(r.cells[0]); }, 0);
     function rowP(r, n) {
-      var sysI = (r.inputs || [])[0] || {}, kindI = (r.inputs || [])[1] || {}, noteI = (r.inputs || [])[2] || {};
-      var sv = list(AV[sysI.key] !== undefined ? AV[sysI.key] : sysI.v);
+      var inputs = r.inputs || [];
+      var kindI = inputs.find(function (i) { return /:kind$/.test(i.key); }) || {};
+      var noteI = inputs.find(function (i) { return /:note$/.test(i.key); }) || {};
       var kind = AV[kindI.key] !== undefined ? AV[kindI.key] : (kindI.v || "");
-      return '<div class="i r6"><span>' + E(r.cells[1]) + "</span>" + sysDots(sv, sysI.key)
+      return '<div class="i r6"><span>' + E(r.cells[1]) + "</span>" + workCell(r.work || r.cells[3])
         + '<span class="tc"><select class="tsel rq ' + (PTC[kind] || "") + '" data-ak="' + E(kindI.key) + '" aria-label="Тип оплаты"' + dis() + '><option value="">Выбрать тип</option>'
         + ["Предоплата", "Доплата", "Постоплата"].map(function (t) { return "<option" + (t === kind ? " selected" : "") + ">" + t + "</option>"; }).join("") + "</select></span>"
         + "<b>" + E(r.cells[0]) + '</b><input class="cmq" data-ak="' + E(noteI.key) + '" type="text" placeholder="Комментарий" aria-label="Комментарий к оплате" value="' + E(AV[noteI.key]) + '"' + dis() + "></div>";
     }
-    var cap = '<div class="i cap r6"><span>Заказчик</span><span class="cl">' + SYSTEMS.map(function (k) { return '<span class="m">' + k + "</span>"; }).join("") + "</span><span>Тип оплаты</span><b>Сумма</b><span>Комментарий</span></div>";
+    var cap = '<div class="i cap r6"><span>Заказчик</span><span class="vw">Вид работ</span><span>Тип оплаты</span><b>Сумма</b><span>Комментарий</span></div>';
     var lane = '<div class="payw"><div class="lane wide pay"><h4><span>Оплаты · ' + rows.length + "</span>" + cmpSpan(s2.cmp, paySum, plp) + "</h4>" + cap
       + rows.map(rowP).join("")
       + (rows.length ? '<div class="i tt r6"><span>Итого</span><span></span><span></span><b>' + fmt(paySum) + "</b><span></span></div>" : '<div class="sr-empty">Оплат за неделю нет</div>') + "</div></div>"
@@ -248,31 +260,124 @@
   }
 
   // --------------------------------------------------------------- блок 4: Деньги, которые не пришли
+  function debtInput(attr, label, value, type, placeholder) {
+    return '<input class="cmq" ' + attr + ' type="' + type + '" aria-label="' + E(label) + '" value="' + E(value)
+      + '"' + (type === "text" ? ' maxlength="180" placeholder="' + E(placeholder || label) + '"' : "") + dis() + ">";
+  }
+  var DEBT_TONES = {
+    "Дозвонился": "ok", "Отправлено": "ok", "Отправлена": "ok", "Работы и выдача документов остановлены": "ok",
+    "Не взял трубку": "wait",
+    "Не звонил": "late", "Не отправлено": "late", "Не отправлена": "late", "Работы не остановлены": "late",
+    "Звонок": "info", "Письмо": "ok", "Претензия": "wait", "Стоп работ": "late"
+  };
+  function debtSelect(attr, label, value, options, colored) {
+    var tone = colored ? ' data-debt-tone="' + (DEBT_TONES[value] || "") + '" title="' + E(value || label) + '"' : "";
+    return '<select class="cmq" ' + attr + tone + ' aria-label="' + E(label) + '"' + dis() + ">"
+      + selOpts(value, options) + "</select>";
+  }
+  function debtActions(pre) {
+    return Object.keys(DEBT_RESULTS).filter(function (step) { return !pre || step !== "Претензия"; });
+  }
+  function debtPast(attr, get, pre, prevStep) {
+    var actions = debtActions(pre);
+    var past = get("past");
+    if (past === undefined) past = prevStep;
+    if (!actions.includes(past)) past = "";
+    return debtSelect(attr("past"), "Прошлый шаг", past, actions)
+      + (past ? debtSelect(attr("result"), "Итог прошлого шага", DEBT_RESULTS[past].includes(get("result")) ? get("result") : "", DEBT_RESULTS[past], true) : "");
+  }
+  function debtTail(attr, get, type, expected, nextDate, prevStep, legacy) {
+    var pre = type === "pre", why = get("why") || "";
+    var actions = debtActions(pre);
+    return '<span class="debt-fields"><span class="rsn ' + (RC4[why] || "c0") + '"><i class="rd"></i><select class="rsel" '
+      + attr("why") + ' aria-label="Почему не платят" title="' + E(why || "Почему не платят") + '"' + dis() + ">" + selOpts(why, WHY4) + "</select></span>"
+      + '<span class="debt-other"' + (why === "Свой вариант" ? "" : " hidden") + ">"
+      + debtInput(attr("whytext"), "Своя причина", get("whytext"), "text") + "</span></span>"
+      + '<span class="debt-fields">' + expected + "</span>"
+      + '<span class="debt-fields" data-past4>' + debtPast(attr, get, pre, prevStep) + "</span>"
+      + "<span>" + (type === "debt" ? debtSelect(attr("claim"), "Претензия", CLAIM_STATUS.includes(get("claim")) ? get("claim") : "", CLAIM_STATUS, true) : "—") + "</span>"
+      + '<span class="debt-fields">' + debtSelect(attr("step"), "Следующий шаг", actions.includes(get("step")) ? get("step") : "", actions, true)
+      + (legacy ? "<small>Ранее: " + E(legacy) + "</small>" : "") + "</span>"
+      + "<span>" + nextDate + "</span>";
+  }
+  function paymentEvent(event, base) {
+    if (!base) return "—";
+    var tones = {
+      "Договор подписан": "info", "Акт подписан": "ok",
+      "Акт подписан авто": "wait", "Акт отправлен": "wait", "Счёт отправлен": "violet"
+    };
+    return '<span class="payment-event" data-pay-tone="' + (tones[event] || "") + '"><span>'
+      + E(event || "Дата отсчёта") + '</span><time datetime="' + E(base) + '">' + E(dmyIso(base)) + "</time></span>";
+  }
+  function overdueBadge(days, limit, assumed) {
+    if (!Number.isFinite(limit) || limit < 0) return "";
+    var overdue = days - limit;
+    var title = assumed ? ' title="Типовой срок: ' + limit + ' р.д."' : ' title="Срок оплаты: ' + limit + ' р.д."';
+    return overdue > 0
+      ? '<span class="payment-overdue"' + title + '>Просрочено на <b>' + overdue + ' р.д.</b></span>'
+      : '<small class="payment-in-term"' + title + '>' + (overdue === 0 ? "Последний день срока" : "В сроке · " + (-overdue) + " р.д.") + "</small>";
+  }
+  function debtTiming(event, base, days, limit) {
+    if (!base) return "—";
+    return paymentEvent(event, base) + overdueBadge(days, limit);
+  }
+  function contactAge(iso, days) {
+    if (!Number.isFinite(days) || days < 0) return '<small class="payment-no-contact">Нет даты контакта</small>';
+    var age = days === 0 ? "сегодня" : days + " р.д. назад";
+    var date = iso ? ' title="' + E(dmyIso(iso)) + '"' : "";
+    return '<span class="payment-contact' + (days >= 3 ? " old" : "") + '"' + date + ">" + age + "</span>";
+  }
   function debtRow(r, i, pre) {
-    var pref = pre ? "s4:" : "s6:";
-    var whyKey = pref + r.key + ":why", wtKey = pref + r.key + ":whytext", doKey = pref + r.key;
-    var why = AV[whyKey] || "", wt = AV[wtKey] || "";
-    var lc = pre ? (r.last_bd == null || r.last_bd < 0 ? 99 : r.last_bd) : -1;
-    var lq = !pre ? '<span class="lq">—</span>' : lc >= 99 ? '<span class="lq r">—</span>' : '<span class="lq' + (lc >= 3 ? " r" : "") + '">' + (lc === 0 ? "сегодня" : lc + " р.д.") + "</span>";
-    var dt = pre
-      ? '<input class="cmq rq" type="date" data-akp="' + r.kp + '|next_contact" aria-label="Дата следующего шага" value="' + E(KV[r.kp + "|next_contact"]) + '"' + dis() + ">"
-      : '<input class="cmq rq" type="date" data-ak="' + E(doKey + ":date") + '" aria-label="Дата следующего шага" value="' + E(AV[doKey + ":date"]) + '"' + dis() + ">";
-    return '<div class="i r6 drow" data-rsn="' + E(why) + '" data-sum="' + num(r.amt) + '">'
+    var key = (pre ? "s4:" : "s6:") + r.key;
+    var attr = function (field) { return 'data-ak="' + E(key + ":" + field) + '"'; };
+    var get = function (field) { return AV[key + ":" + field]; };
+    var kp = r.expect_kp || (pre ? r.kp : 0);
+    var dt = pre && r.kp
+      ? debtInput('data-akp="' + r.kp + '|next_contact"', "Дата следующего контакта", KV[r.kp + "|next_contact"], "date")
+      : debtInput(attr("date"), "Дата следующего контакта", get("date"), "date");
+    var expected = kp
+      ? debtInput('data-akp="' + kp + '|pay_expect"', "Клиент обещал оплатить до", KV[kp + "|pay_expect"], "date")
+      : debtInput(attr("expect"), "Клиент обещал оплатить до", get("expect"), "date");
+    var contact = isoToD(r.contact);
+    var lastDays = contact ? bdN(contact, todayD()) : pre ? r.last_bd : undefined;
+    return '<div class="i r6 drow" data-rsn="' + E(get("why")) + '" data-type="' + (pre ? "pre" : "debt") + '" data-days="' + (r.bd || 0) + '" data-sum="' + num(r.amt) + '">'
       + '<span class="dnm"><i class="n4">' + (i + 1) + '</i><b>' + E(r.cells[pre ? 2 : 1]) + '</b><small>' + E(r.sub || "") + '</small></span>'
       + '<span><span class="dpill ' + (pre ? "pre" : "debt") + '">' + (pre ? "Предоплата" : "Долг") + "</span></span>"
-      + '<b class="sm">' + fmt(num(r.amt)) + '</b><span class="dd">' + (r.bd || 0) + ' р.д.</span><span>' + lq + "</span>"
-      + '<span><span class="rsn ' + (RC4[why] || "c0") + '"><i class="rd"></i><select class="rsel rq" data-ak="' + E(whyKey) + '" aria-label="Почему не платят"' + dis() + ">" + selOpts(why, WHY4) + "</select>"
-      + '<input class="cmq rq rown" data-ak="' + E(wtKey) + '" type="text" placeholder="Напишите свою причину" aria-label="Своя причина" value="' + E(wt) + '"' + (why === "Свой вариант" ? "" : " hidden") + dis() + "></span></span>"
-      + '<span><input class="cmq rq" data-ak="' + E(doKey) + '" type="text" placeholder="Следующий шаг" aria-label="Следующий шаг" value="' + E(AV[doKey]) + '"' + dis() + "></span>"
-      + "<span>" + dt + "</span></div>";
+      + '<b class="sm">' + fmt(num(r.amt)) + '</b><span class="dd debt-fields">' + debtTiming(r.ev, r.base, r.bd || 0, r.lim) + "</span>"
+      + debtTail(attr, get, pre ? "pre" : "debt", contactAge(r.contact, lastDays) + expected, dt, r.prev_step, AV[key]) + "</div>";
+  }
+  function manualDebtRow(key, row) {
+    var attr = function (field) { return 'data-md="' + field + '"'; };
+    var get = function (field) { return row[field]; };
+    var base = isoToD(row.base), days = base ? bdN(base, todayD()) : 0;
+    var event = row.event || "";
+    var limit = event === "Акт подписан авто" ? 10 : event ? 5 : undefined;
+    var typeOptions = '<option value="">Выбрать</option><option value="pre"' + (row.type === "pre" ? " selected" : "") + '>Предоплата</option>'
+      + '<option value="debt"' + (row.type === "debt" ? " selected" : "") + ">Долг</option>";
+    return '<div class="i r6 drow" data-manual="' + E(key) + '" data-rsn="' + E(row.why) + '" data-type="' + E(row.type)
+      + '" data-days="' + days + '" data-sum="' + Math.max(0, num(row.sum)) + '">'
+      + '<span class="dnm debt-fields"><i class="n4"></i>' + debtInput(attr("name"), "Заказчик", row.name, "text")
+      + debtInput(attr("ref"), "№ счёта или акта", row.ref, "text")
+      + (RO ? "" : '<button type="button" class="add" data-del4>Убрать строку</button>') + "</span>"
+      + '<span><select class="cmq" data-md="type" aria-label="Тип"' + dis() + ">" + typeOptions + "</select></span>"
+      + '<span><input class="cmq" data-md="sum" type="number" min="0" max="99999999999" step="1" aria-label="Сумма" value="' + E(row.sum) + '"' + dis() + "></span>"
+      + '<span class="debt-fields">' + debtSelect(attr("event"), "От чего считаем", event, DEBT_BASES)
+      + debtInput(attr("base"), "Дата отсчёта", row.base, "date") + (base ? overdueBadge(days, limit, true) : "") + "</span>"
+      + debtTail(attr, get, row.type, debtInput(attr("contact"), "Последний контакт", row.contact, "date")
+        + debtInput(attr("expect"), "Клиент обещал оплатить до", row.expect, "date"),
+        debtInput(attr("date"), "Дата следующего контакта", row.date, "date")) + "</div>";
+  }
+  function manualDebt(key) {
+    try { return JSON.parse(AV[key]) || {}; } catch (e) { return {}; }
   }
   function block4() {
     var s4 = item("s4"), s6 = item("s6");
     var rows = s4.rows.filter(function (r) { return r.late; }).map(function (r) { r.__pre = true; return r; })
       .concat(s6.rows.map(function (r) { r.__pre = false; return r; }));
     rows.sort(function (a, b) { var ta = a.__pre ? 0 : 1, tb = b.__pre ? 0 : 1; return ta - tb || (a.bd || 0) - (b.bd || 0); });
+    var manual = Object.keys(AV).filter(function (k) { return /^s4:m[a-z0-9]+$/.test(k) && AV[k]; });
     var tot = rows.reduce(function (s, r) { return s + num(r.amt); }, 0);
-    var np = rows.filter(function (r) { return r.__pre; }).length, nd = rows.length - np;
+    var longest = rows.reduce(function (max, r) { return Math.max(max, r.bd || 0); }, 0);
     var cmp = "";
     if (s4.cmp4) {
       var nw = s4.cmp4["new"] || [], paid = s4.cmp4.paid || [];
@@ -284,18 +389,41 @@
         + "</span>";
     }
     var body = '<div class="rsum" id="srrsum4"></div>'
-      + '<div class="payw"><div class="lane wide dbt"><h4><span>Деньги, которые не пришли · ' + rows.length + '</span><span class="cmpt dn">' + nd + " " + pld(nd) + " + " + np + " " + plpr(np) + " · " + fmt(tot) + " ₽</span></h4>"
-      + '<div class="i cap r6"><span>Заказчик</span><span>Тип</span><span>Сумма</span><span>Без оплаты</span><span>Посл. контакт</span><span>Почему не платят</span><span>Следующий шаг</span><span>Дата след. контакта</span></div>'
-      + (rows.length ? rows.map(function (r, i) { return debtRow(r, i, r.__pre); }).join("") : '<div class="sr-empty">Долгов нет</div>')
-      + '<div class="i tt r6"><span>Итого</span><span></span><b>' + fmt(tot) + '</b><span></span><span></span><span></span><span></span><span></span></div></div></div>'
+      + '<div class="payw"><div class="lane wide dbt"><h4><span>Деньги, которые не пришли</span><span id="srdebtSummary"></span></h4>'
+      + '<div class="debt-rules"><span><b>Предоплата.</b> От подписания договора, обычно 5 р.д.</span>'
+      + '<span><b>Постоплата.</b> От подписания акта. Без подписи отсчёт начинается через 5 р.д. после отправки.</span>'
+      + '<span><b>Доплата без акта.</b> От отправки счёта.</span></div>'
+      + '<div class="i cap r6"><span>Заказчик</span><span>Тип</span><span>Сумма</span><span class="debt-heading">Без оплаты<small>срок по договору</small></span><span>Почему не платят</span><span class="debt-heading">Посл. контакт<small>обещал оплатить</small></span><span class="debt-heading">Прошлый шаг<small>и его итог</small></span><span>Претензия</span><span>Следующий шаг</span><span>Дата след. контакта</span></div>'
+      + '<div id="srdebtRows">' + rows.map(function (r, i) { return debtRow(r, i, r.__pre); }).join("")
+      + manual.map(function (key) { return manualDebtRow(key, manualDebt(key)); }).join("") + "</div>"
+      + '<div id="srdebtEmpty" class="sr-empty"' + (rows.length || manual.length ? " hidden" : "") + ">Долгов нет</div>"
+      + (RO || !s4.manual_debts ? "" : '<div class="debt-add"><button class="add" type="button" data-add4>+ Добавить долг</button></div>')
+      + '<div class="i tt r6"><span>Итого</span><span></span><b id="srdebtTotal">' + fmt(tot) + '</b><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>'
       + '<input class="dcm" data-ak="s4:note" type="text" placeholder="Комментарий (необязательно)" aria-label="Комментарий к вопросу 4" value="' + E(s4.comment || "") + '"' + dis() + ">";
-    var chips = '<span class="r"><strong>' + rows.length + '</strong> строк</span><span class="r"><strong>' + fmt(tot) + '</strong></span><span class="r">самый долгий <strong>' + (s4.longest || 0) + "</strong> раб. дней</span>";
+    var chips = '<span class="r"><strong id="srdebtCount">' + rows.length + '</strong> строк</span><span class="r"><strong id="srdebtSum">' + fmt(tot) + '</strong></span><span class="r">самый долгий <strong id="srdebtDays">' + longest + "</strong> раб. дней</span>";
     return qa(4, "srb4", "Деньги, которые не пришли", chips, body, { sub: cmp });
   }
   function sum4() {
     var el = document.getElementById("srrsum4"); if (!el) return;
-    var rows = document.querySelectorAll(".sr #srb4 .drow"), t = {};
-    rows.forEach(function (r) { var k = r.dataset.rsn || ""; t[k] = t[k] || [0, 0]; t[k][0] += +r.dataset.sum; t[k][1]++; });
+    var rows = document.querySelectorAll(".sr #srb4 .drow"), t = Object.create(null);
+    var sum = 0, longest = 0, pre = 0, debt = 0;
+    rows.forEach(function (r, i) {
+      var k = r.dataset.rsn || "", amount = +r.dataset.sum || 0;
+      t[k] = t[k] || [0, 0];
+      t[k][0] += amount;
+      t[k][1]++;
+      sum += amount;
+      longest = Math.max(longest, +r.dataset.days || 0);
+      if (r.dataset.type === "pre") pre++;
+      if (r.dataset.type === "debt") debt++;
+      r.querySelector(".n4").textContent = i + 1;
+    });
+    document.getElementById("srdebtEmpty").hidden = rows.length > 0;
+    document.getElementById("srdebtCount").textContent = rows.length;
+    document.getElementById("srdebtTotal").textContent = fmt(sum);
+    document.getElementById("srdebtSum").textContent = fmt(sum);
+    document.getElementById("srdebtDays").textContent = longest;
+    document.getElementById("srdebtSummary").textContent = debt + " " + pld(debt) + " + " + pre + " " + plpr(pre) + " · " + fmt(sum) + " ₽";
     var h = '<span class="rl">Застряло по причинам:</span>';
     Object.keys(RC4).concat([""]).forEach(function (k) {
       if (!t[k]) return;
@@ -315,10 +443,8 @@
   var CP1 = '<div class="gr cap cols1"><span>Заказчик</span><span>Сумма</span><span>Тип</span><span data-tip="Берётся из CRM автоматически: дата подписания договора или акта, а если акт отправлен и ещё не подписан, то дата отправки акта. Вручную не меняется.">Дата отсчёта <i class="inf">ⓘ</i></span><span data-tip="Срок оплаты по договору, в рабочих днях.">Срок оплаты <i class="inf">ⓘ</i></span><span>Вероятность</span><span>След. контакт</span></div>';
   var CP2 = '<div class="gr cap cols2"><span>Заказчик</span><span>Сумма</span><span data-tip="Правило: после отправки КП менеджер перезванивает клиенту через 3 р.д. Срок звонка считается автоматически.">КП отправлено <i class="inf">ⓘ</i></span><span>Выставлю счёт</span><span>Что делаю, чтобы оплатили</span><span>Вероятность</span><span>След. контакт</span></div>';
   function seg5cell(r) {
-    var pre = r.type === "pre";
-    var cls = pre ? "d" : r.ev === "Акт подписан" ? "s" : "o";
-    var txt = pre ? "Счёт<br>выставлен" : r.ev === "Акт подписан" ? "Акт<br>подписан" : "Акт<br>отправлен";
-    return '<span class="bs"><span class="seg5" title="Из CRM, вручную не меняется"><span class="sa ev-' + cls + '">' + txt + '</span><span class="sb">' + E(dmyIso(r.base)) + "</span></span></span>";
+    var event = r.ev === "Счёт выставлен" ? "Счёт отправлен" : r.ev;
+    return '<span class="bs">' + paymentEvent(event, r.base) + "</span>";
   }
   function g1Row(r) {
     var pre = r.type === "pre", kpId = r.kp || 0;
@@ -377,7 +503,7 @@
       + grp5("k1", "Счёт отправлен", CP1, g1.map(g1Row).join(""), 0)
       + grp5("k2", "С выставленным КП", CP2, g2.map(g2Row).join("") + CD.map(function (x, i) { return cuRow(i); }).join(""), 2)
       + "</div>"
-      + '<p class="rl5">Срок оплаты считается автоматически в рабочих днях. <b>Предоплата:</b> 5 дней с выставления счёта. <b>Постоплата:</b> 5 дней с подписания акта, а если акт отправлен и ждёт подписи, то 10 дней с отправки. Дата и статус счёта или акта подтягиваются из CRM автоматически. Просрочил срок: строка уходит в «Деньги, которые не пришли». Строки идут по срочности: сверху тот, у кого срок оплаты ближе, а при одинаковом сроке выше высокая вероятность. Для КП: перезвонить клиенту нужно через 3 р.д. после отправки, дальше статус «звонок просрочен», и такие КП идут первыми.</p>'
+      + '<p class="rl5">Срок оплаты считается автоматически в рабочих днях. <b>Предоплата:</b> с даты подписания договора. <b>Постоплата:</b> с даты подписания акта. Если акт ждёт подписи, срок оплаты отсчитывается после 5 р.д. с его отправки. CRM берёт срок оплаты из договора, по умолчанию 5 р.д. Для старых записей без даты подписания CRM использует доступную дату по КП. Просрочил срок: строка уходит в «Деньги, которые не пришли». Строки идут по срочности: сверху тот, у кого срок оплаты ближе, а при одинаковом сроке выше высокая вероятность. Для КП: перезвонить клиенту нужно через 3 р.д. после отправки, дальше статус «звонок просрочен», и такие КП идут первыми.</p>'
       + '<div class="fin"><div class="real"><div><span class="lb2">Реалистично ожидаю</span><input class="in" id="srreal5" data-ak="s7:real" type="text" inputmode="numeric" placeholder="сумма" value="' + E(AV["s7:real"]) + '"' + dis() + '></div><div><span class="lb2">Комментарий</span><input class="in" data-ak="s7:note" type="text" placeholder="Необязательно" value="' + E(s7.comment || "") + '"' + dis() + "></div></div></div>";
     return qa(5, "srb5", "План по оплатам на следующую неделю", "", body, { plId: "srchips5" });
   }
@@ -420,11 +546,11 @@
       else {
         var n = bdN(base, TODAY), dd = addBD(base, lim);
         if (n > lim) { st = "m"; mv.push({ nm: r.dataset.nm, sum: sum, late: n - lim }); ms += sum; }
-        else if (signed && n >= 4) { st = "w"; h = "<b>до " + fdt(dd) + '</b><span class="stc w' + (n === lim ? " last" : "") + '">' + (n === lim ? "последний день" : "срок истекает") + "</span>"; }
+        else if (signed && n >= lim - 1) { st = "w"; h = "<b>до " + fdt(dd) + '</b><span class="stc w' + (n === lim ? " last" : "") + '">' + (n === lim ? "последний день" : "срок истекает") + "</span>"; }
         else if (!signed) { st = "u"; h = "<b>до " + fdt(dd) + '</b><span class="stc u">ждём подписи · ' + n + " из " + lim + " дн.</span>"; }
         else h = "<b>до " + fdt(dd) + '</b><span class="stc ok">осталось ' + (lim - n) + " р.д.</span>";
       }
-      due.dataset.tip = pre ? "Предоплата: 5 р.д. с выставления счёта. Дальше — в «Деньги, которые не пришли»." : signed ? "Постоплата: 5 р.д. с подписания акта. Дальше — в «Деньги, которые не пришли»." : "Акт отправлен, ждём подписи: 5 р.д. на приёмку и 5 на оплату, всего до 10 р.д. с отправки.";
+      due.dataset.tip = pre ? "Предоплата: " + lim + " р.д. от даты отсчёта." : signed ? "Постоплата: " + lim + " р.д. с подписания акта." : "Акт отправлен: 5 р.д. на подпись и " + (lim - 5) + " р.д. на оплату.";
       due.innerHTML = h;
       r.style.display = st === "m" ? "none" : "";
       if (st !== "m") { s1 += sum; c1++; var pbh = r.querySelector(".sg.s button.on"); if (pbh && pbh.textContent.trim() === "высокая") pt += sum; else pv += sum; }
@@ -433,7 +559,7 @@
     if (g1el) { g1el.querySelector(".cn5").textContent = c1 + " " + plc(c1); g1el.querySelector(".sm5").textContent = fmt(s1) + " ₽"; }
     var t51 = document.getElementById("srt51"); if (t51) t51.textContent = fmt(pt);
     var th = document.getElementById("srt5h");
-    if (th) { th.textContent = "Порог безубыточности " + fmt(THR5); th.className = "thr " + (pt >= THR5 ? "ok" : "no"); }
+    if (th) { th.textContent = "Порог безубыточности " + fmt(THR5); th.className = "thr " + (pt >= THR5 ? "ok" : "below"); }
     var t5v = document.getElementById("srt5v"); if (t5v) t5v.textContent = fmt(pv);
     var g = document.getElementById("srgp2"), sum2 = 0, c2 = 0;
     if (g) {
@@ -633,7 +759,7 @@
   var OPTRE = /Необязательно|Комментар/i, pend = false;
   function isReq(el) {
     if (el.type === "hidden" || el.disabled) return false;
-    if (el.matches(".dth,.ndt")) return false;
+    if (el.matches(".dth,.ndt") || el.closest("#srb4")) return false;
     if (el.closest(".rsn,.stw")) return false;
     var ph = el.getAttribute("placeholder") || "";
     if (el.hasAttribute("data-opt")) return false;
@@ -713,16 +839,20 @@
         if (box) box.innerHTML = st5Inner();
         return;
       }
-      var sys = t.closest("[data-sys]");
-      if (sys && !RO) {
-        var pr = sys.dataset.sys.split("|"), key0 = pr[0], val0 = pr[1];
-        var vals0 = list(AV[key0]), at0 = vals0.indexOf(val0), on = at0 < 0;
-        if (on) vals0.push(val0); else vals0.splice(at0, 1);
-        AV[key0] = vals0;
-        var ii = sys.querySelector("i");
-        sys.classList.toggle("on", on);
-        iiClass(ii, on, val0);
-        saveNote(key0, JSON.stringify(vals0));
+      if (!RO && t.closest("[data-add4]")) {
+        var key = "s4:m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+        FILTER4 = null;
+        document.getElementById("srdebtRows").insertAdjacentHTML("beforeend", manualDebtRow(key, {}));
+        sum4();
+        document.querySelector('[data-manual="' + key + '"] input').focus();
+        return;
+      }
+      var removeDebt = t.closest("[data-del4]");
+      if (removeDebt && !RO) {
+        var manual = removeDebt.closest("[data-manual]");
+        saveNote(manual.dataset.manual, "");
+        manual.remove();
+        sum4();
         return;
       }
       var sgb = t.closest("[data-aks] button");
@@ -757,7 +887,6 @@
         return;
       }
     });
-    function iiClass(ii, on, val0) { if (!ii) return; ii.className = on ? "" : "o"; ii.style.background = on ? KC[val0] : ""; }
     document.addEventListener("change", function (e) {
       var t = e.target;
       if (!t.closest || !t.closest(".sr")) return;
@@ -778,6 +907,30 @@
         return;
       }
       if (RO) return;
+      if (t.classList.contains("rsel")) t.title = t.value || t.getAttribute("aria-label");
+      if (t.hasAttribute("data-debt-tone")) {
+        t.dataset.debtTone = DEBT_TONES[t.value] || "";
+        t.title = t.value || t.getAttribute("aria-label");
+      }
+      if (t.dataset.md) {
+        var manual = t.closest("[data-manual]"), key = manual.dataset.manual, row = manualDebt(key);
+        var field = t.dataset.md;
+        row[field] = field === "sum" && t.value ? String(Math.max(0, Math.min(99999999999, Math.round(Number(t.value))))) : t.value;
+        if (field === "past") delete row.result;
+        if (row.type === "pre") {
+          delete row.claim;
+          if (row.step === "Претензия") delete row.step;
+          if (row.past === "Претензия") { delete row.past; delete row.result; }
+        }
+        saveNote(key, JSON.stringify(row));
+        if (["type", "base", "event", "past", "why"].includes(field)) manual.outerHTML = manualDebtRow(key, row);
+        else if (field === "sum") { manual.dataset.sum = row.sum; t.value = row.sum; }
+        sum4();
+        if (field === "why" && row.why === "Свой вариант") {
+          document.querySelector('[data-manual="' + key + '"] [data-md="whytext"]').focus();
+        }
+        return;
+      }
       if (t.classList.contains("dtx")) {
         if (t.closest(".kpd")) return;                          // дата отправки КП сохраняется на focusout (commitKp)
         var iso = dmyToIso(t.value);
@@ -799,16 +952,19 @@
       if (t.dataset.cu) { cuSet(t.dataset.cu, t.value); recalc5(); return; }
       if (t.dataset.ak) {
         saveNote(t.dataset.ak, t.value);
+        if (t.matches("[data-past4] select") && /:past$/.test(t.dataset.ak)) {
+          var prefix = t.dataset.ak.slice(0, -4), isPre = prefix.startsWith("s4:");
+          saveNote(prefix + "result", "");
+          t.closest("[data-past4]").innerHTML = debtPast(
+            function (f) { return 'data-ak="' + E(prefix + f) + '"'; },
+            function (f) { return AV[prefix + f]; }, isPre);
+        }
         if (t.classList.contains("tsel")) t.className = "tsel rq " + ({ "Предоплата": "pre", "Доплата": "add", "Постоплата": "post" }[t.value] || "");
         if (t.classList.contains("rsel")) {
           t.parentNode.className = "rsn " + (RC4[t.value] || "c0");
-          var rown = t.parentNode.querySelector(".rown"), cellEl = t.parentNode.parentNode;
-          if (rown) {
-            rown.hidden = t.value !== "Свой вариант";
-            cellEl.style.flexDirection = rown.hidden ? "" : "column";
-            cellEl.style.gap = rown.hidden ? "" : "4px";
-            if (!rown.hidden) rown.focus();
-          }
+          var other = t.closest(".debt-fields").querySelector(".debt-other");
+          other.hidden = t.value !== "Свой вариант";
+          if (!other.hidden) other.querySelector("input").focus();
           var drow = t.closest(".drow");
           if (drow) drow.dataset.rsn = t.value;
           sum4();
@@ -876,7 +1032,7 @@
       if (r.amt == null) r.amt = num(r.cells[3]);
       if (!r.sub) r.sub = "КП " + pillT(r.cells[1]);
       if (!r.type) r.type = "pre";
-      if (r.last_bd == null) r.last_bd = 99;
+      if (r.last_bd == null) r.last_bd = -1;
     });
     item("s6").rows.forEach(function (r) {
       if (r.bd == null) r.bd = num(pillT(r.cells[3]));
@@ -908,6 +1064,7 @@
         (it.inputs || []).forEach(collect);
         (it.rows || []).forEach(function (r) { (r.inputs || []).forEach(collect); });
       });
+      Object.assign(AV, item("s4").manual_debts || {});
       CD = list(AV["s7:custom"]);
       compat();
       PL = item("s14").prev_list || [];

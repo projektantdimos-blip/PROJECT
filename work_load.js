@@ -145,13 +145,12 @@
     var cntPlan = all.filter(function (i) { return !i.paused && (i.ready || (i.s && i.s > td0)); }).length;
     var cntPause = all.filter(function (i) { return i.paused && !uOID["p" + i.oid] && (uOID["p" + i.oid] = 1); }).length;
     var cntNs = all.filter(function (i) { return ppl.some(function (u) { return notStarted(i, u); }); }).length;
-    var cntHtml = '<div class="wl-cnt">'
-      + '<div class="wl-ci"><b>' + cntProj + "</b>Проекты в работе</div>"
-      + '<div class="wl-ci"><b>' + cntFix + "</b>Корректировки в работе</div>"
-      + '<div class="wl-ci"><b>' + cntPlan + "</b>Запланировано</div>"
-      + '<div class="wl-ci' + (cntPause ? " bad" : "") + '"><b>' + cntPause + "</b>На паузе (ждём заказчика)</div>"
-      + '<div class="wl-ci' + (cntNs ? " bad" : "") + '"><b>' + cntNs + "</b>Не взяты в работу в день старта</div>"
-      + '<div class="wl-ci' + (tray.length ? " bad" : "") + '"><b>' + tray.length + "</b>Ждут распределения</div></div>";
+    var CNTC = ["#2F6BD0", "#E07B16", "#5B7EF0", "#7D8899", "#D24B3F", "#7D8899"];
+    var cntItems = [["Проекты в работе", cntProj, false], ["Корректировки в работе", cntFix, false], ["Запланировано", cntPlan, false],
+      ["На паузе (ждём заказчика)", cntPause, cntPause > 0], ["Не взяты в работу в день старта", cntNs, cntNs > 0], ["Ждут распределения", tray.length, tray.length > 0]];
+    var cntHtml = '<div class="wl-cnt">' + cntItems.map(function (x, i) {
+      return '<div class="wl-ci' + (x[2] ? " bad" : "") + '"><span class="wl-cin" style="background:' + (x[2] ? "#D24B3F" : CNTC[i]) + '">' + x[1] + '</span><span class="wl-cit">' + x[0] + "</span></div>";
+    }).join("") + "</div>";
     var weeks = []; for (var k = 0; k < w.z; k++) weeks.push(days[k * 5]);
     var mh = '<div class="wl-h" style="grid-template-columns:' + cols + ";min-width:" + minw + 'px"><div class="wl-fp"><span>← что делали</span><span>план →</span></div>'
       + weeks.map(function (wk) { return '<div class="wl-w' + (wk === mon(td) ? " cur" : "") + '" style="grid-column:span 5"><b>' + wkLbl(wk) + "</b><small>" + wkName(wk) + "</small></div>"; }).join("")

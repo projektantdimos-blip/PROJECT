@@ -132,3 +132,30 @@ body.wl-drg .ds .ldpop{opacity:.15;pointer-events:none}
   .ds .wl-ci{padding:6px 10px;font-size:.68rem}.ds .wl-ci b{font-size:1.05rem}
   .ds .wl-ld-l{display:none}
 }
+
+
+/* ---------- «Занятость» 24.11: цвета и формы 1-в-1 по макету владельца ---------- */
+.ds .wl-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:0 0 12px}
+.ds .wl-ci{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid #d5dde0;border-radius:10px;padding:6px 12px 6px 6px;line-height:1.2}
+.ds .wl-cin{flex:0 0 auto;width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff}
+.ds .wl-cit{font-size:.74rem;font-weight:600;color:#3a4657}
+.ds .wl-ci.bad{border-color:#d24b3f}
+.ds .wl-r{border-bottom:0}
+.ds .wlb{border-radius:8px;padding:0 8px}
+.ds .wlb.work{background:#2F6BD0}
+.ds .wlb.plan{background:#D3E2FA;color:#163A75;border:2px dashed #2F6BD0}
+.ds .wlb.plan b,.ds .wlb.plan small,.ds .wlb.plan .wl-hot{color:#163A75}
+.ds .wlb.fix{background:#E07B16}
+.ds .wlb.done{background:#D5DBE3;color:#3F4A59}
+.ds .wlb.done b,.ds .wlb.done small{color:#3F4A59}
+.ds .wlb.rdy{outline:none}
+.ds .wlb.over{background:#D5DBE3;color:#3F4A59}
+.ds .wlb.over b,.ds .wlb.over small{color:#3F4A59}
+.ds .wl-nm{border-right:1px solid #E6EBF2}
+.ds .wl-ld{margin:-2px 0 0;padding-bottom:8px;border-bottom:12px solid #DFE5EE}
+.ds .wl-ld-c{height:8px;border-radius:2px}
+.ds .wl-ld-c.l1{background:#5FB880}
+.ds .wl-ld-c.l2{background:#F2C24F}
+.ds .wl-ld-c.l3{background:#D24B3F}
+.ds .wl-ld-l{line-height:8px}
+@media(max-width:760px){.ds .wl-cin{width:30px;height:30px;font-size:16px}.ds .wl-cit{font-size:.66rem}}
