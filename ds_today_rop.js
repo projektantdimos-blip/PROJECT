@@ -104,23 +104,13 @@
 
   function summarySec(d) {
     var s = d.summary;
-    return '<div class="tr-sec" style="border-color:#8a99ae">' + secHead("#8a99ae", false, "", "Итог дня", "", "")
-      + '<div class="tr-hint">в 17:00 уходит в пятничный отчёт сам — по фактам CRM и твоим отметкам</div>'
+    return '<div class="tr-sec" style="border-color:#4e9a6f">' + secHead("#4e9a6f", false, "", "Итог дня", "", "в 17:00 уходит в пятничный отчёт сам")
       + '<div class="tr-sumrow">'
-      + '<div class="tr-sumit"><b>' + s.calls_done + " из " + d.calls.goal + '</b><span>Звонков сделано</span></div>'
-      + '<div class="tr-sumit"><b>' + s.promises_n + " · " + money(s.promises_sum) + '</b><span>Обещаний оплаты получено</span></div>'
-      + '<div class="tr-sumit"><b>' + s.kp_agreed + '</b><span>Договорились по КП</span></div>'
-      + '<div class="tr-sumit"><b>' + s.kp_refused + '</b><span>Отказов</span></div>'
-      + '<div class="tr-sumit"><b>' + s.no_answer + '</b><span>Не дозвонился</span></div></div></div>';
-  }
-
-  function debtorsSec(d) {
-    var list = d.debtors || [];
-    if (!list.length) return "";
-    return '<div class="tr-sec" style="border-color:#8a99ae">' + secHead("#8a99ae", false, "", "Должники", list.length, "договор подписан, срок оплаты прошёл — блок без изменений")
-      + list.map(function (x) {
-        return '<div class="tr-row"><div class="tr-row-l"><span class="tr-name">' + E(x.customer) + '</span><span class="tr-status">' + E(x.contract_number || ("КП №" + x.number)) + " · " + E(x.object || "") + " · просрочка " + x.over_wd + ' р.д.</span></div><div class="tr-row-r"><span class="tr-amt2">' + money(x.debt) + "</span></div></div>";
-      }).join("") + "</div>";
+      + '<div class="tr-sumit"><span>Звонков сделано</span><b>' + s.calls_done + " из " + d.calls.goal + "</b></div>"
+      + '<div class="tr-sumit"><span>Обещаний оплаты получено</span><b>' + s.promises_n + " · " + money(s.promises_sum) + "</b></div>"
+      + '<div class="tr-sumit"><span>Договорились по КП</span><b>' + s.kp_agreed + "</b></div>"
+      + '<div class="tr-sumit"><span>Отказов</span><b>' + s.kp_refused + "</b></div>"
+      + '<div class="tr-sumit"><span>Не дозвонился</span><b>' + s.no_answer + '</b></div></div></div>';
   }
 
   function refuseHtml(d) {
@@ -145,7 +135,7 @@
     S.el.innerHTML = '<div class="ds dspage tr">'
       + '<div class="tr-head"><div><h1 class="tr-h1">Сегодня, ' + headDate() + '</h1><div class="tr-sub">' + E(d.greet) + '</div></div>'
       + '<div class="tr-headbtns"><button class="btn ghost sm" data-trtasks="1">Мои задачи · ' + (d.tasks || []).length + '</button><button class="btn primary sm" data-trnewtask="1">+ Задача</button></div></div>'
-      + tiles(d) + missedSec(d) + moneySec(d) + kpSec(d) + tasksSec(d) + summarySec(d) + debtorsSec(d) + refuseHtml(d) + cfgHtml(d)
+      + tiles(d) + missedSec(d) + moneySec(d) + '<div class="tr-duo">' + tasksSec(d) + summarySec(d) + "</div>" + kpSec(d) + refuseHtml(d) + cfgHtml(d)
       + "</div>";
   }
 

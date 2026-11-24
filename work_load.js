@@ -32,7 +32,7 @@
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
   function st() {
     var S = X().S;
-    if (!S.wl) S.wl = { off: 0, z: +lsGet("ds_wlz") || 4, pend: null, rs: null, edit: null, scroll: null, full: lsGet("ds_wlfull") !== "0", offv: null, days: null, daysKey: "", daysLoading: "" };
+    if (!S.wl) S.wl = { pend: null, rs: null, edit: null, scroll: null, full: false, offv: null, days: null, daysKey: "", daysLoading: "" };
     return S.wl;
   }
 
@@ -48,13 +48,13 @@
           ex: o.executor_id || 0, exName: o.executor || "", s: o.stage === READY && !o.plan_start ? "" : sp[0], e: o.stage === READY && !o.plan_end ? "" : sp[1],
           due: fx ? "" : due, cdue: due, left: o.left_days, urgent: !!o.urgent, ready: !paused && o.stage === READY, fixN: o.fix_n || 0, o: o,
           paused: paused, pauseDay: paused && o.pause_at ? Math.max(1, Math.round((Date.now() - o.pause_at * 1000) / 864e5)) : 0,
-          shifted: fx ? !!o.fix_shifted : !!o.plan_shifted, startedMan: o.started_man || "" });
+          shifted: fx ? !!o.fix_shifted : !!o.plan_shifted, move: fx ? o.fix_move : o.plan_move, startedMan: o.started_man || "" });
       }
       if (!paused && PART_ST.indexOf(o.stage) >= 0) (o.parts || []).forEach(function (p) {
         if (p.delivered) return;
         out.push({ key: "p" + p.id, kind: "part", oid: o.id, rid: p.id, number: o.number, object: "раздел " + p.system + " · " + (o.object || "").split(",")[0], sys: p.system, stage: o.stage,
           ex: p.executor_id || 0, exName: p.executor || "", s: p.plan_start || "", e: p.plan_end || "", due: due, cdue: due, left: o.left_days, urgent: !!o.urgent, ready: false, fixN: 0, o: o, part: p,
-          paused: false, pauseDay: 0, shifted: !!p.plan_shifted, startedMan: p.started_man || "" });
+          paused: false, pauseDay: 0, shifted: !!p.plan_shifted, move: p.plan_move, startedMan: p.started_man || "" });
       });
     });
     out.forEach(function (it) {                                           // ещё не сохранённое (бросок, растягивание) — поверх данных сервера
@@ -64,7 +64,11 @@
     return out;
   }
   function find(key) { return items().filter(function (i) { return i.key === key; })[0]; }
-  function people() { return X().staff(); }
+  function realStaff(u) {
+    var name = u.name.trim().replace(/\s+/g, " ").toLocaleLowerCase("ru");
+    return name !== "тест р. про. от" && name !== "тест проектировщик";
+  }
+  function people() { return X().staff().filter(realStaff); }
   function mine(u, list) { return list.filter(function (i) { return i.ex && (i.ex === u.id || i.exName === u.name) && i.s && i.e; }); }
   function freeFrom(u, list) { var m = ""; mine(u, list).forEach(function (i) { if (i.e > m) m = i.e; }); return m && m >= today() ? wdNext(m) : wdOn(today()); }      // в выходной — с ближайшего рабочего дня
   function label(i) { return (i.kind === "fix" ? "↻ " : "") + "№" + i.number + (i.kind === "fix" && i.fixN ? " К" + i.fixN : ""); }
@@ -82,7 +86,7 @@
     w.daysLoading = key;
     X().api("/load/days?from=" + days[0] + "&to=" + days[days.length - 1]).then(function (r) {
       if (st().daysLoading === key) { st().days = r; st().daysKey = key; st().daysLoading = ""; rerender(); }
-    }, function () { st().daysLoading = ""; });
+    }, function () { if (st().daysLoading === key) st().daysLoading = ""; });
   }
   function notStarted(i, u) {                                       // «не взято в работу в день старта»: план начался, а «Начато» не нажато
     if (i.hist || i.paused || i.ready || !i.s || i.s > today() || i.startedMan) return false;
@@ -118,22 +122,30 @@
 
   /* ---------- календарная сетка: выходные видны, планирование идёт по рабочим дням ---------- */
   function win() {
-    var w = st(), back = w.z === 4 ? 1 : w.z === 13 ? 6 : 3, w0 = addD(mon(today()), 7 * (w.off - back)), d = [];
-    for (var k = 0; k < w.z; k++) for (var j = 0; j < 7; j++) d.push(addD(w0, k * 7 + j));
-    return d;
+    var td = today(), month = st().month || td.slice(0, 7);
+    var first = addD(mon(td), -14), chosen = mon(month + "-01");
+    var last = iso(new Date(+td.slice(0, 4), +td.slice(5, 7) + 2, 0, 12));
+    // За пределами основной ленты открываем выбранный месяц, не загружая все месяцы истории сразу.
+    if (month < first.slice(0, 7) || month > last.slice(0, 7)) {
+      first = chosen;
+      last = iso(new Date(+month.slice(0, 4), +month.slice(5, 7), 0, 12));
+    }
+    var days = [];
+    for (var d = first; d <= last; d = addD(d, 1)) days.push(d);
+    return days;
   }
   function wkName(w) { var k = Math.round((new Date(w + "T12:00:00") - new Date(mon(today()) + "T12:00:00")) / 864e5 / 7); return k === 0 ? "эта неделя" : k === -1 ? "прошлая" : k === 1 ? "следующая" : k < 0 ? (-k) + " нед. назад" : "через " + k + " нед."; }
-  function wkLbl(w) { var e = addD(w, 6); return +w.slice(8) + " " + MONG[+w.slice(5, 7) - 1] + " – " + +e.slice(8) + " " + MONG[+e.slice(5, 7) - 1]; }
-  function geom() { var w = st(), ph = phone(); return { nw: ph ? 130 : 230, cw: w.z === 13 ? 13 : w.z === 8 ? 23 : 34, rh: 50 }; }
+  function wkLbl(w, e) { return +w.slice(8) + " " + MONG[+w.slice(5, 7) - 1] + " – " + +e.slice(8) + " " + MONG[+e.slice(5, 7) - 1]; }
+  function geom() { return { nw: phone() ? 130 : 230, cw: 34, rh: 50 }; }
 
-  function calendarMonth(w, td) { return w.month || addD(td, 7 * w.off).slice(0, 7); }
-  function miniCalendar(month, td, days) {
+  function miniCalendar(month, td) {
     var first = month + "-01", start = mon(first);
     var next = new Date(first + "T12:00:00"), prev = new Date(next);
     prev.setMonth(prev.getMonth() - 1); next.setMonth(next.getMonth() + 1);
     var last = addD(iso(next), -1), end = addD(mon(last), 6), cells = [];
+    var week = mon(td), sunday = addD(week, 6);
     for (var d = start; d <= end; d = addD(d, 1)) {
-      var cls = (d.slice(0, 7) !== month ? " other" : "") + (days.includes(d) ? " shown" : "") + (d === td ? " today" : "");
+      var cls = (d.slice(0, 7) !== month ? " other" : "") + (d >= week && d <= sunday ? " shown" : "") + (d === td ? " today" : "");
       cells.push('<button type="button" data-wlday="' + d + '" class="wl-miniday' + cls + '" aria-label="' + dm(d) + '"' + (d === td ? ' aria-current="date"' : "") + ">" + Number(d.slice(8)) + "</button>");
     }
     return '<div class="wl-mini-wrap"><div class="wl-mini"><div class="wl-mini-nav">'
@@ -145,16 +157,39 @@
   }
 
   /* ---------- экран ---------- */
+  var cardDetails = [];
+  function cardInfo(i, state, employee, latest) {
+    var historical = { work: "проектирование", fix: "корректировка" + (i.fixN ? " К" + i.fixN : ""), review: "проверка" };
+    var statuses = { work: i.stage, plan: "Запланировано", fix: "Корректировка", ps: "Пауза · ждём заказчика", done: "Сделано · " + historical[i.hist] };
+    var rows = [["Исполнитель", employee || "Не назначен"], ["Даты работы", i.s || i.e ? dm(i.s) + " — " + dm(i.e) : "Не назначены"]];
+    if (i.cdue) rows.push(["Срок договора", dm(i.cdue)]);
+    rows.push(["Статус", (i.pending ? "Ожидает сохранения · " : "") + (latest || statuses[state] || i.stage)]);
+    if (i.shifted) {
+      var move = i.move || {}, from = move.before || move.baseline;
+      rows.push(["Перенос плана", [move.at && dm(move.at), move.by].filter(Boolean).join(" · ") || "Сдвинут после утверждения"]);
+      if (from) rows.push([move.before ? "Было" : "Утверждённый план", dm(from[0]) + " — " + dm(from[1])]);
+      if (move.after) rows.push([move.before ? "Стало" : "Текущий план", dm(move.after[0]) + " — " + dm(move.after[1])]);
+    }
+    var markup = '<header><b>' + E(label(i)) + '</b>' + (i.urgent ? '<span>Срочно</span>' : "") + '</header>'
+      + (i.object ? '<div class="wl-card-object">' + E(i.object) + '</div>' : "")
+      + '<dl>' + rows.map(function (r) { return "<dt>" + E(r[0]) + "</dt><dd>" + E(r[1]) + "</dd>"; }).join("") + "</dl>";
+    return cardDetails.push({ state: state, markup: markup }) - 1;
+  }
+  function infoButton() {
+    return '<button type="button" class="wl-info" data-wlinfo aria-label="Подробности задачи" aria-expanded="false">ⓘ</button>';
+  }
   function html() { return '<div class="wl-root">' + inner() + "</div>"; }
   function inner() {
-    var x = X(), S = x.S, w = st(), p = x.pos(), mv = canMove() && !phone(), ph = phone();
+    closeCard();
+    cardDetails = [];
+    var x = X(), S = x.S, w = st(), p = x.pos(), ph = phone(), mv = canMove() && !ph;
     wasPhone = ph;                                                        // режим, в котором отрисовано (для перерисовки при смене ширины)
     var days = win(), N = days.length, td = today(), G = geom();
     var cols = G.nw + "px repeat(" + N + ",minmax(" + G.cw + "px,1fr))", minw = G.nw + N * G.cw;
     function idx(d, end) { return idxOf(days, d, end); }
     var all = items(), ppl = people();
     ensureDays(days);
-    var td0 = td, wk0 = mon(td), wk1 = addD(wk0, 6), month = calendarMonth(w, td);
+    var td0 = td, wk0 = mon(td), wk1 = addD(wk0, 6), month = w.month || td.slice(0, 7);
     var tray = all.filter(function (i) { return !i.ex || !i.s || !i.e; }).sort(function (a, b) { return (a.cdue || "9") < (b.cdue || "9") ? -1 : 1; });
     var uOID = {};
     var cntProj = all.filter(function (i) { return i.kind === "main" && !i.ready && !i.paused && i.s && !uOID[i.oid] && (uOID[i.oid] = 1); }).length;
@@ -169,8 +204,11 @@
     }).join("") + "</div>";
     var weeks = days.filter(function (_, i) { return i % 7 === 0; });
     var mh = '<div class="wl-h" style="grid-template-columns:' + cols + ";min-width:" + minw + 'px">'
-      + miniCalendar(month, td, days)
-      + weeks.map(function (wk, i) { return '<div class="wl-w' + (wk === wk0 ? " cur" : "") + '" style="grid-column:' + (i * 7 + 2) + '/span 7"><b>' + wkLbl(wk) + "</b><small>" + wkName(wk) + "</small></div>"; }).join("")
+      + miniCalendar(month, td)
+      + weeks.map(function (wk, i) {
+        var at = i * 7, span = Math.min(7, N - at);
+        return '<div class="wl-w' + (wk === wk0 ? " cur" : "") + '" style="grid-column:' + (at + 2) + '/span ' + span + '"><b>' + wkLbl(wk, days[at + span - 1]) + "</b><small>" + wkName(wk) + "</small></div>";
+      }).join("")
       + days.map(function (d, i) {
         return '<div class="wl-day' + (d === td ? " td" : "") + (d === (w.focus || td) ? " tn" : "") + (i % 7 === 0 ? " ws" : "") + (!isWd(d) ? " weekend" : "")
           + '" style="grid-column:' + (i + 2) + '"><b>' + Number(d.slice(8)) + "</b><small>" + dow(d) + "</small></div>";
@@ -180,39 +218,53 @@
         return !my.some(function (i) { return i.oid === h.order_id && i.kind !== "part" && h.end >= i.s; });      // не дублируем текущий план той же задачи
       }).map(function (h) { return { hist: h.kind, key: "h", oid: h.order_id, number: h.number, object: h.object || "", s: h.start, e: h.end, fixN: h.fix_n }; });
       var list = hist.concat(my).filter(function (i) { var e = effEnd(i); return e >= days[0] && i.s <= days[N - 1]; }).sort(function (a, b) { return a.s < b.s ? -1 : a.s > b.s ? 1 : 0; });
-      var ends = [], segs = "";
+      var ends = [], laneTasks = [], segs = "";
+      var absences = days.map(function (d) { return offKind(u, d); });
       list.forEach(function (i) {
         var e = effEnd(i), a = idx(i.s, false), b = idx(e, true); if (b < a) a = b = Math.max(0, b);      // целиком в выходные — на пятницу перед ними
         var l = 0; while (l < ends.length && ends[l] >= a) l++; ends[l] = b;
+        if (!laneTasks[l]) laneTasks[l] = [];
+        laneTasks[l].push({ start: a, end: b, date: e, item: i });
         var stt = i.paused ? "ps" : i.hist ? "done" : i.kind === "fix" ? "fix" : i.ready || i.s > td ? "plan" : "work";
         var ns = notStarted(i, u);
         var late = !i.hist && !i.paused && i.due && e > i.due && wdBetween(addD(i.due, 1), e) > 0, dI = i.due ? idx(i.due, true) : -1, me = late && dI >= a && dI < b ? dI : b;
         var lead = i.hist ? null : Math.min(i.e ? calLeft(i.e) : 99, i.left != null ? i.left : 99), hot = lead != null && lead >= 0 && lead <= 2, past = !i.hist && i.e && i.e < td;
-        var tip, l2, ttl = "№" + i.number;
-        if (i.hist) {
-          var HN = { work: "проектирование", fix: "корректировка" + (i.fixN ? " К" + i.fixN : ""), review: "проверка" };
-          tip = "№" + i.number + " · " + i.object + " · " + HN[i.hist] + " · " + dm(i.s) + "–" + dm(i.e) + " · сделано";
-        } else {
+        var l2, ttl = "№" + i.number;
+        if (!i.hist) {
           l2 = i.paused ? '<em class="wl-pause">⏸ ждём заказчика' + (i.pauseDay ? " · " + i.pauseDay + "-й день" : "") + "</em>"
             : ns ? '<em class="wl-ns">не взято в работу</em>'
             : stt === "plan" ? '<em class="wl-ready">Запланировано</em>' : past ? '<em class="wl-bad">план до ' + dm(i.e) + " прошёл</em>"
             : (i.shifted ? "Сдвинут · " : "") + (hot ? '<em class="wl-hot">≤ 2 дн.</em> · ' : "") + E(i.kind === "part" ? "раздел " + i.sys : i.sys || i.stage) + (i.due ? " · срок " + dm(i.due) : i.kind === "fix" ? " · до " + dm(i.e) : "");
-          tip = label(i) + " · " + i.object + " · " + i.stage + " · план " + dm(i.s) + "–" + dm(i.e) + (i.cdue ? ", срок договора " + dm(i.cdue) : "") + (i.ready ? " · распределено, стадия не переведена" : "") + (i.pending ? " · ещё не сохранено" : "");
         }
+        var card = cardInfo(i, stt, u.name, ns ? "Не взято в работу в день старта" : "");
         var drag = mv && !i.hist && !i.paused ? ' draggable="true" data-wld="' + i.key + '"' : "";
         var open = i.hist ? openAttr(i.oid) : ph && canMove() ? 'data-wledit="' + i.key + '"' : openAttr(i.oid);
         var startBtn = ns ? '<button type="button" class="wl-start" data-wlstart="' + i.oid + ":" + (i.rid || 0) + '" title="Взять в работу — снять красную метку">✓ Начато</button>' : "";
         segs += '<div class="wlb ' + stt + (hot ? " hot" : "") + (i.ready ? " rdy" : "") + (late && me === b ? " late" : "") + (i.pending ? " pend" : "") + (i.urgent && !i.hist ? " urg" : "") + (i.shifted ? " shf" : "") + (ns ? " ns" : "") + '"' + drag + " " + open
-          + ' style="grid-column:' + (a + 2) + "/" + (me + 3) + ";grid-row:" + (l + 1) + '" title="' + E(tip) + '"><b><span class="wlb-num">' + E(ttl) + '</span>' + (i.hist ? "" : '<span class="wlb-object">' + E(i.object) + '</span>') + "</b>" + (i.hist ? "" : "<small>" + l2 + "</small>") + startBtn + "</div>";
+          + ' style="grid-column:' + (a + 2) + "/" + (me + 3) + ";grid-row:" + (l + 1) + '" data-wlcard="' + card + '"><b><span class="wlb-num">' + E(ttl) + '</span>' + (i.hist ? "" : '<span class="wlb-object">' + E(i.object) + '</span>') + "</b>" + (i.hist ? "" : "<small>" + l2 + "</small>") + infoButton() + startBtn + "</div>";
         var lateDays = me < b ? wdBetween(addD(i.due, 1), e) : 0;
         if (me < b) segs += '<div class="wlb over" style="grid-column:' + (me + 3) + "/" + (b + 3) + ";grid-row:" + (l + 1) + '" title="Работа после срока договора: ' + lateDays + ' р.д."><b>+' + lateDays + (lateDays > 1 ? " р.д.</b><small>после срока</small>" : "</b>") + "</div>";
         if (mv && !i.hist && i.s >= td && i.s >= days[0]) segs += '<span class="wl-hd l" data-wlrs="' + i.key + ':l" style="grid-column:' + (a + 2) + ";grid-row:" + (l + 1) + '" title="Тяните — сдвинуть начало"></span>';
         if (mv && !i.hist && e >= td && e <= days[N - 1]) segs += '<span class="wl-hd r" data-wlrs="' + i.key + ':r" style="grid-column:' + (b + 2) + ";grid-row:" + (l + 1) + '" title="Тяните — сдвинуть окончание"></span>';
-        if (!i.hist && i.due && dI >= 0 && dI < N && i.due >= days[0] && i.due <= days[N - 1]) segs += '<span class="wl-flag' + (late ? " bad" : "") + '" style="grid-column:' + (dI + 2) + ";grid-row:" + (l + 1) + '">⚑ ' + dm(i.due) + "</span>";
+        if (!i.hist) {
+          for (var col = a; col <= b; col++) {
+            if (absences[col]) segs += '<span class="wl-overlap ' + absences[col] + '" aria-hidden="true" style="grid-column:' + (col + 2) + ";grid-row:" + (l + 1) + '"></span>';
+          }
+        }
+      });
+      laneTasks.forEach(function (tasks, lane) {
+        tasks.forEach(function (t, j) {
+          var i = t.item, next = tasks[j + 1], due = days.indexOf(i.due);
+          if (i.hist || !i.due) return;
+          var limit = due < 0 && i.due > days[N - 1] ? N - 1 : due;
+          var end = next ? Math.min(limit, next.start - 1) : limit, row = lane + 1;
+          if (!i.paused && i.due > t.date && t.end < end) segs += '<span class="wl-buf" aria-hidden="true" style="grid-column:' + (t.end + 3) + "/" + (end + 3) + ";grid-row:" + row + '"></span>';
+          if (due >= 0 && (i.paused || due <= t.end || due === end)) segs += '<span class="wl-flag' + (!i.paused && t.date > i.due && wdBetween(addD(i.due, 1), t.date) > 0 ? " bad" : "") + '" style="grid-column:' + (due + 2) + ";grid-row:" + row + '">⚑ ' + dm(i.due) + "</span>";
+        });
       });
       var lanes = Math.max(1, ends.length), act = mine(u, all), lt = act.filter(function (i) { return (i.due && effEnd(i) > i.due) || (i.left != null && i.left < 0 && i.kind !== "fix"); }).length, fr = freeFrom(u, all);
       var bg = days.map(function (d, i) {
-        var offk = offKind(u, d);
+        var offk = absences[i];
         return '<span class="wl-c' + (d === td ? " td" : "") + (i % 7 === 0 ? " ws" : "") + (!isWd(d) ? " weekend" : "") + (offk ? " " + offk : "")
           + '" style="grid-column:' + (i + 2) + ";grid-row:1/span " + lanes + '">' + (offk ? '<small>' + (offk === "vac" ? "отпуск" : "выходной") + '</small>' : "") + '</span>';
       }).join("");
@@ -227,8 +279,8 @@
         + absence.map(function (text) { return '<span class="wl-status absence">' + E(text) + "</span>"; }).join("")
         + "</div></div>" + bg + segs + "</div>"
         + (function () {
-          var seen = {}, load = days.map(function (d) {
-            if (!isWd(d) || offKind(u, d)) return 0;
+          var seen = {}, load = days.map(function (d, col) {
+            if (!isWd(d) || absences[col]) return 0;
             var n = 0;
             list.forEach(function (i) {
               if (i.hist) return;
@@ -245,25 +297,22 @@
     var trayHtml = '<div class="panel wl-tray' + (tray.length ? " waiting" : " clear") + '"><b>Ждут распределения · ' + tray.length + "</b>" + (tray.length && mv ? '<span class="wl-trh">тяните на строку сотрудника →</span>' : "")
       + tray.map(function (i) {
         var b = best(i), sub = (i.kind === "part" ? "раздел " + i.sys + " · " : "") + (i.ex ? E(i.exName) + ", без дат" : i.cdue ? "до " + dm(i.cdue) : "без срока");
-        var tip = label(i) + " · " + i.object + " · " + i.stage + (i.cdue ? " · срок договора " + dm(i.cdue) : "") + (i.ex ? " · назначено: " + i.exName + ", дат плана нет" : "") + (b ? " · раньше всех свободен: " + b[0] + " с " + dm(b[1]) : "");
+        var card = cardInfo(i, i.kind === "fix" ? "fix" : "plan", i.exName, "Ждёт распределения" + (b ? " · " + b[0] + " свободен с " + dm(b[1]) : ""));
         var act2 = mv ? ' draggable="true" data-wld="' + i.key + '" data-wledit="' + i.key + '"' : canMove() ? ' data-wledit="' + i.key + '"' : " " + openAttr(i.oid);
-        return '<div class="wl-chip' + (i.kind === "fix" ? " fix" : i.kind === "part" ? " part" : "") + (i.urgent ? " urg" : "") + '"' + act2 + ' title="' + E(tip) + '">' + (mv ? '<span class="wl-grip">⋮⋮</span>' : "") + "<b>" + E(label(i)) + "</b><small>" + sub + "</small></div>";
+        return '<div class="wl-chip' + (i.kind === "fix" ? " fix" : i.kind === "part" ? " part" : "") + (i.urgent ? " urg" : "") + '"' + act2 + ' data-wlcard="' + card + '">' + (mv ? '<span class="wl-grip">⋮⋮</span>' : "") + "<b>" + E(label(i)) + "</b><small>" + sub + "</small>" + infoButton() + "</div>";
       }).join("") + (tray.length ? "" : '<span class="wl-empty">всё распределено ✓</span>') + "</div>";
-    var months = monthList(), curM = month;
-    if (!months.includes(curM)) { months.push(curM); months.sort(); }
-    var top = '<div class="wl-top"><div class="seg"><button data-wlnav="-1" title="На неделю назад">←</button><button data-wlnav="0"' + (w.off ? "" : ' class="on"') + ' title="К сегодняшнему дню">Сегодня</button><button data-wlnav="1" title="На неделю вперёд">→</button></div>'
-      + '<select class="wl-sel" data-wlmonth="1"><option value="">Перейти к месяцу…</option>' + months.map(function (m) { return '<option value="' + m + '"' + (m === curM ? " selected" : "") + ">" + MONN[+m.slice(5, 7) - 1] + " " + m.slice(0, 4) + "</option>"; }).join("") + "</select>"
-      + '<span class="wl-vlab">Масштаб</span><div class="seg">' + [["4", "Месяц"], ["8", "2 месяца"], ["13", "Квартал"]].map(function (z) { return '<button data-wlz="' + z[0] + '"' + (String(w.z) === z[0] ? ' class="on"' : "") + ">" + z[1] + "</button>"; }).join("") + "</div>"
-      + '<span class="wl-grow"></span>' + (p === "owner" || p === "design" ? '<button class="btn ghost sm" data-wloffv="1">' + (w.offv && w.offv.open ? "🗓 Скрыть выходные" : "🗓 Выходные по неделям") + "</button>" : "")
+    var opts = !ph || p === "owner" || p === "ops" || p === "design" ? '<details class="wl-options"' + (w.options ? " open" : "") + '><summary>Настройки</summary><div>'
+      + (p === "owner" || p === "design" ? '<button class="btn ghost sm" data-wloffv="1">' + (w.offv && w.offv.open ? "Скрыть выходные" : "Выходные по неделям") + "</button>" : "")
       + (ph ? "" : '<button class="btn ghost sm" data-wlfull="1">' + (w.full ? "⤡ Свернуть" : "⤢ Во весь экран") + "</button>")
       + (p === "owner" || p === "ops" || p === "design" ? '<span class="ldwho wl-who"><button class="btn ghost sm" data-ldmenu="1">👥 Кого показывать (' + ppl.length + ")</button>"
-        + (S.ldMenu ? '<span class="ldpop"><b>Показывать в «Занятости»</b>' + x.staffAll().map(function (u) { var on = ppl.some(function (y) { return y.name === u.name; }); return '<button type="button" class="ldchk ' + (on ? "on" : "") + '" data-ldp="' + E(u.name) + '"><i>' + (on ? "✓" : "") + "</i>" + E(u.name) + "</button>"; }).join("") + '<button class="btn ghost sm" data-ldmenu="0" style="margin-top:8px">Готово</button></span>' : "") + "</span>" : "")
-      + "</div>";
+        + (S.ldMenu ? '<span class="ldpop"><b>Показывать в «Занятости»</b>' + x.staffAll().filter(realStaff).map(function (u) { var on = ppl.some(function (y) { return y.name === u.name; }); return '<button type="button" class="ldchk ' + (on ? "on" : "") + '" data-ldp="' + E(u.name) + '"><i>' + (on ? "✓" : "") + "</i>" + E(u.name) + "</button>"; }).join("") + '<button class="btn ghost sm" data-ldmenu="0" style="margin-top:8px">Готово</button></span>' : "") + "</span>" : "")
+      + "</div></details>" : "";
     var leg = '<div class="wl-leg"><span><i class="wl-dot" style="background:#c3cad6"></i>сделано (по истории задачи)</span><span><i class="wl-dot" style="background:#3b7ddd"></i>в работе</span><span><i class="wl-dot wl-plan-dot"></i>запланировано</span><span><i class="wl-dot" style="background:#e0873a"></i>корректировка</span><span><i class="wl-dot ov"></i>после срока договора</span><span><b class="wl-flag sm">⚑</b> срок по договору</span><span><i class="wl-dot hot"></i>≤ 2 дн. до срока</span><span><i class="wl-dot ps"></i>пауза (ждём заказчика)</span><span><i class="wl-corner shf"></i>сдвинут после утверждения плана</span><span><i class="wl-corner ns"></i>не взято в работу в день старта</span><span class="wl-ld-leg"><i class="wl-ld-c l1"></i><i class="wl-ld-c l2"></i><i class="wl-ld-c l3"></i>нагрузка: 1 / 2 / 3+</span>'
+      + '<span><i class="wl-dot urg"></i>срочная задача</span><span><i class="wl-buf-key"></i>запас до срока договора</span><span><i class="wl-overlap-key"></i>работа в отпуск или выходной сотрудника</span>'
       + (mv ? "<span>⋮⋮ перетащить задачу на сотрудника · ⟷ тяните за край полосы — меняются даты · в прошлое нельзя</span>" : canMove() ? "<span>нажмите на задачу — «Назначить сроки»</span>" : "<span>только просмотр: исполнителя и сроки назначают руководитель и руководитель проектного отдела</span>") + "</div>";
     var nodata = !ppl.length ? '<div class="note" style="padding:16px;margin:0">Сотрудников с задачами в работе нет</div>' : "";
-    return '<div class="head"><div><h1>Занятость</h1></div></div>' + top + offHtml() + cntHtml + trayHtml
-      + '<div class="panel wl-ll" id="wlLL">' + mh + rows + nodata + "</div>" + leg + editHtml();
+    return '<div class="head"><div><h1>Занятость</h1></div></div>' + offHtml() + cntHtml + trayHtml
+      + '<div class="panel wl-ll" id="wlLL">' + mh + rows + nodata + "</div>" + leg + opts + editHtml();
   }
   function idxOf(days, d, end) {
     var N = days.length, i = days.indexOf(d); if (i >= 0) return i;
@@ -274,15 +323,6 @@
   }
   function effEnd(i) { if (i.hist) return i.e; var td = today(); return i.e && i.e < td && !i.ready ? td : i.e; }      // срок плана прошёл, а работа не сдана — занят до сегодня
   function openAttr(oid) { var x = X(); return x.pos() !== "designer" || x.find(oid) ? 'data-open="' + oid + '"' : ""; }
-  function monthList() {
-    var td = today(), a = addD(td, -180), out = [];
-    (X().S.lh || []).forEach(function (h) { if (h.start && h.start < a) a = h.start; });
-    var cursor = new Date(a.slice(0, 7) + "-01T12:00:00"), end = new Date(td.slice(0, 7) + "-01T12:00:00");
-    end.setMonth(end.getMonth() + 3);
-    while (cursor <= end) { out.push(iso(cursor).slice(0, 7)); cursor.setMonth(cursor.getMonth() + 1); }
-    return out;
-  }
-
   /* ---------- «Выходные по неделям» (заявка п.10): свод по проектировщикам для руководителя и руководителя проектного отдела.
      Данные — готовый /week/summary (owner/design): отработано, выходные, комментарии; «не отмечался» — ни одной записи за неделю. ---------- */
   function offLoad() {
@@ -414,7 +454,7 @@
     var n = root.querySelector(".wl-ll"); if (n && sl != null) n.scrollLeft = sl;
     hookScroll();
   }
-  function hookScroll() { var ll = document.getElementById("wlLL"); if (ll) ll.onscroll = function () { if (ll.clientWidth) st().scroll = ll.scrollLeft; }; }
+  function hookScroll() { var ll = document.getElementById("wlLL"); if (ll) ll.onscroll = function () { closeCard(); if (ll.clientWidth) st().scroll = ll.scrollLeft; }; }
   /* после отрисовки: лента открывается на сегодняшнем дне (экран может быть ещё скрыт — тогда ждём ширину) */
   function after() {
     var ll = document.getElementById("wlLL"); if (!ll) return;
@@ -426,14 +466,68 @@
       var w = st();
       if (w.scroll != null) { ll.scrollLeft = w.scroll; return true; }
       var tdc = ll.querySelector(".wl-day.tn"), G = geom();      // сегодня или ближайший рабочий день (в выходной)
-      if (tdc) ll.scrollLeft = Math.max(0, tdc.offsetLeft - G.nw - Math.min(5 * tdc.offsetWidth, ll.clientWidth / 3));
+      if (tdc) ll.scrollLeft = Math.max(0, tdc.offsetLeft - G.nw - (w.focus ? 0 : Math.min(5 * tdc.offsetWidth, ll.clientWidth / 3)));
       return true;
     };
     replay();
     if (go()) return;
     if (window.ResizeObserver) { var ro = new ResizeObserver(function () { if (go()) ro.disconnect(); }); ro.observe(ll); }
   }
-  function resetView() { st().scroll = null; }
+
+  var activeCard = null;
+  function closeCard() {
+    if (!activeCard) return false;
+    activeCard.button.setAttribute("aria-expanded", "false");
+    activeCard.button.removeAttribute("aria-controls");
+    activeCard.panel.remove();
+    activeCard = null;
+    return true;
+  }
+  function showCard(anchor, pinned) {
+    if (activeCard && activeCard.anchor === anchor && activeCard.pinned === pinned) return;
+    closeCard();
+    var detail = cardDetails[anchor.dataset.wlcard], button = anchor.querySelector("[data-wlinfo]");
+    if (!detail || !button) return;
+    var panel = document.createElement("div");
+    panel.className = "wl-card-pop " + detail.state;
+    panel.id = "wlCardInfo";
+    panel.setAttribute("role", "region");
+    panel.setAttribute("aria-label", "Подробности задачи");
+    panel.innerHTML = detail.markup;
+    document.body.appendChild(panel);
+    var rect = button.getBoundingClientRect(), margin = 8;
+    var left = Math.min(Math.max(margin, rect.left), innerWidth - panel.offsetWidth - margin);
+    var top = rect.bottom + margin;
+    if (top + panel.offsetHeight > innerHeight - margin) top = Math.max(margin, rect.top - panel.offsetHeight - margin);
+    panel.style.left = left + "px";
+    panel.style.top = top + "px";
+    button.setAttribute("aria-controls", panel.id);
+    button.setAttribute("aria-expanded", "true");
+    activeCard = { anchor: anchor, button: button, panel: panel, pinned: pinned };
+  }
+  function cardAt(target) {
+    return target && target.closest ? target.closest("#cal-app [data-wlcard]") : null;
+  }
+  document.addEventListener("pointerover", function (e) {
+    var anchor = cardAt(e.target);
+    if (e.pointerType === "mouse" && !DRG && !RSZ && anchor && !anchor.contains(e.relatedTarget) && !(activeCard && activeCard.pinned)) showCard(anchor, false);
+  });
+  document.addEventListener("pointerout", function (e) {
+    if (activeCard && !activeCard.pinned && cardAt(e.target) === activeCard.anchor && !activeCard.anchor.contains(e.relatedTarget)) closeCard();
+  });
+  document.addEventListener("click", function (e) {
+    var button = e.target.closest && e.target.closest("#cal-app [data-wlinfo]");
+    if (button) {
+      e.stopPropagation();
+      var anchor = cardAt(button);
+      if (activeCard && activeCard.anchor === anchor && activeCard.pinned) closeCard();
+      else showCard(anchor, true);
+    } else if (activeCard && !activeCard.panel.contains(e.target)) {
+      closeCard();
+    }
+  }, true);
+  window.addEventListener("scroll", closeCard, true);
+  window.addEventListener("resize", closeCard);
 
   /* ---------- перетаскивание (ПК) ---------- */
   var DRG = null;
@@ -460,6 +554,7 @@
   }
   document.addEventListener("dragstart", function (e) {
     var t = e.target.closest && e.target.closest("#cal-app [data-wld]"); if (!t || !canMove()) return;
+    closeCard();
     DRG = t.getAttribute("data-wld");
     try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", "wl:" + DRG); } catch (x) { }
     t.classList.add("dragging"); setTimeout(function () { document.body.classList.add("wl-drg"); }, 0);
@@ -486,6 +581,7 @@
   document.addEventListener("pointerdown", function (e) {
     var h = e.target.closest && e.target.closest("#cal-app [data-wlrs]"); if (!h || !canMove()) return;
     e.preventDefault();
+    closeCard();
     var p = h.getAttribute("data-wlrs").split(":"), i = find(p[0]); if (!i) return;
     var w = st(); if (w.pend && !w.pend.sent && w.pend.key !== i.key) commit();
     RSZ = { key: i.key, side: p[1], s0: i.s, e0: i.e, item: i };
@@ -513,25 +609,23 @@
 
   /* ---------- кнопки экрана ---------- */
   document.addEventListener("click", function (e) {
-    var t = e.target.closest && e.target.closest("[data-wlnav],[data-wlz],[data-wlfull],[data-wloffv],[data-wloffnav],[data-wledit],[data-wlx],[data-wlsave],[data-wlopen],[data-wlstart],[data-wlundo],[data-wlmonthpick],[data-wlday]");
+    var t = e.target.closest && e.target.closest("[data-wlfull],[data-wloffv],[data-wloffnav],[data-wledit],[data-wlx],[data-wlsave],[data-wlopen],[data-wlstart],[data-wlundo],[data-wlmonthpick],[data-wlday]");
     if (!t) return;
     if (!t.hasAttribute("data-wlundo") && !t.closest("#cal-app")) return;
     var d = t.dataset, w = st();
     if (d.wlundo) return undo();
-    if (d.wlnav != null) { w.off = d.wlnav === "0" ? 0 : w.off + (+d.wlnav); w.focus = ""; w.month = ""; resetView(); return rerender(), after(); }
-    if (d.wlmonthpick) return gotoCalendar(d.wlmonthpick + "-01", true);
-    if (d.wlday) return gotoCalendar(d.wlday, false);
-    if (d.wlz) { w.z = +d.wlz; lsSet("ds_wlz", d.wlz); resetView(); return rerender(), after(); }
-    if (d.wlfull) { w.full = !w.full; lsSet("ds_wlfull", w.full ? "1" : "0"); return rerender(), after(); }
-    if (d.woffv) {
-      if (!w.offv) w.offv = { open: true, start: mon(today()), rows: null, loading: false };
+    if (d.wlmonthpick) return gotoCalendar(d.wlmonthpick + "-01");
+    if (d.wlday) return gotoCalendar(d.wlday);
+    if (d.wlfull) { w.full = !w.full; return rerender(), after(); }
+    if (d.wloffv) {
+      if (!w.offv) w.offv = { open: false, start: mon(today()), rows: null, loading: false };
       w.offv.open = !w.offv.open;
       if (w.offv.open && !w.offv.rows && !w.offv.loading) offLoad();
       return rerender();
     }
-    if (d.woffnav != null) {
+    if (d.wloffnav != null) {
       var o = w.offv; if (!o) return;
-      o.start = d.woffnav === "0" ? mon(today()) : addD(o.start, 7 * (+d.woffnav));
+      o.start = d.wloffnav === "0" ? mon(today()) : addD(o.start, 7 * (+d.wloffnav));
       o.rows = null; offLoad(); return rerender();
     }
     if (d.wlx) { w.edit = null; w.editErr = ""; w.editDraft = null; return rerender(); }
@@ -553,22 +647,26 @@
       return propose({ item: i, ex: ex, exName: u ? u.name : i.exName, s: s, e: en, start: !!ex && (i.ready || (!i.ex && i.kind !== "part")) });
     }
   });
-  function gotoCalendar(day, atStart) {
-    var w = st(), back = w.z === 4 ? 1 : w.z === 13 ? 6 : 3;
-    w.off = Math.round((new Date(mon(day) + "T12:00:00") - new Date(mon(today()) + "T12:00:00")) / 864e5 / 7) + (atStart ? back : 0);
+  function gotoCalendar(day) {
+    var w = st();
     w.month = day.slice(0, 7);
-    w.focus = day;
-    w.scroll = atStart ? 0 : null;
+    var days = win();
+    w.focus = day < days[0] ? days[0] : day;
+    w.scroll = null;
     rerender();
     after();
   }
-  document.addEventListener("change", function (e) {
+  document.addEventListener("toggle", function (e) {
     var t = e.target;
-    if (t && t.matches && t.matches("#cal-app [data-wlmonth]") && t.value) gotoCalendar(t.value + "-01", true);
+    if (t.matches && t.matches("#cal-app .wl-options")) st().options = t.open;
+  }, true);
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    if (closeCard()) return;
+    if (window.DS && DS.ldCtx && X().S.wl && X().S.wl.full) { X().S.wl.full = false; rerender(); after(); }
   });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && st && window.DS && DS.ldCtx && X().S.wl && X().S.wl.full) { X().S.wl.full = false; rerender(); after(); } });
   // не потерять отложенное: уход с экрана, скрытие вкладки, закрытие страницы — сохраняем сразу
-  window.addEventListener("hashchange", function () { if (window.DS && DS.ldCtx && X().S.wl && X().S.wl.pend && location.hash.indexOf("#/cal") !== 0) commit(); });
+  window.addEventListener("hashchange", function () { closeCard(); if (window.DS && DS.ldCtx && X().S.wl && X().S.wl.pend && location.hash.indexOf("#/cal") !== 0) commit(); });
   document.addEventListener("visibilitychange", function () { if (document.hidden && window.DS && DS.ldCtx && X().S.wl && X().S.wl.pend) commit(true); });
   window.addEventListener("pagehide", function () { if (window.DS && DS.ldCtx && X().S.wl && X().S.wl.pend) commit(true); });
   window.addEventListener("beforeunload", function () { if (window.DS && DS.ldCtx && X().S.wl && X().S.wl.pend) commit(true); });
