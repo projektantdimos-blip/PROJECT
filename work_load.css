@@ -368,3 +368,9 @@ body.wl-drg .ds .ldpop{opacity:.15;pointer-events:none}
 .ds .wl-popbd.shf{background:#2b3442;color:#f2f5fa}
 .ds .wl-popbd.late{background:var(--bad);color:#fff}
 :root[data-theme="dark"] .ds .wl-popbd.shf{background:var(--surface-2);color:var(--ink)}
+
+/* ---------- мини-подсказка шильдика (красный/чёрный уголок) ---------- */
+.ds .wl-bdtip{position:fixed;z-index:60;max-width:280px;border-radius:10px;padding:9px 13px;font-size:.8rem;font-weight:700;line-height:1.35;pointer-events:none;box-shadow:0 8px 22px rgba(15,25,45,.28)}
+.ds .wl-bdtip.shf{background:#2b3442;color:#f2f5fa}
+.ds .wl-bdtip.ns{background:var(--bad);color:#fff}
+:root[data-theme="dark"] .ds .wl-bdtip.shf{background:var(--surface-2);color:var(--ink);border:1px solid var(--line)}
