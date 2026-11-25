@@ -48,6 +48,22 @@
   /* должность в проектах: нормативный специалист с признаком «Исполнитель» работает со своими проектами как проектировщик */
   function projPos() { var p = pos(); return p === "norm" && C.me.executor ? "designer" : p; }
   function api(path, body) { return C.call("/../ds" + path, body ? { body: body } : {}); }
+  DS.commerceApi = api;
+  DS.commerceOpen = function (row) {
+    if (row.order_id) { location.hash = "#/task/" + row.order_id; return; }
+    loadKp().then(function () {
+      var k = (S.kp || []).find(function (item) { return item.id === row.id; });
+      if (k) openKpCard(k);
+      else toast("КП не найдено");
+    });
+  };
+  DS.commerceCall = function (contact, row) {
+    if (!contact || !contact.phone || !window.DSCalls || !DSCalls.enabled) {
+      toast("Телефония недоступна");
+      return;
+    }
+    DSCalls.dial(contact.phone, contact.name || row.customer, row.order_id, row.customer_id);
+  };
   /* оплата задачи: аванс на всю сумму — оплачено; часть — «Аванс получен»; аванс предусмотрен, но не пришёл — «Ждём аванс» */
   function prepaid(o) { return !!o.adv_paid && +o.amount > 0 && +o.adv_sum >= +o.amount; }
   function payPill(o) {
@@ -157,7 +173,7 @@
   var __modalHtml = null;                    // фикс двойного открытия (план 17.11): идентичную разметку не переписываем — карточка не моргает, ввод и прокрутка не теряются
   function setModal(html) { var m = modalRoot(); if (html === __modalHtml) return; __modalHtml = html; m.innerHTML = html; }
 
-  var TITLES = { risk: "Просрочено и зависло", tasks: "Задачи", scripts: "Скрипты", onec: "Оплаты из 1С", load: "Занятость", cust: "База заказчиков", week: "План на неделю", kp: "Реестр КП", orders: "Заказы", kpc: "Конструктор КП", contract: "Конструктор договора", report: "Пятничный созвон", stats: "Статистика", price: "Прайс", stages: "Этапы и сроки", auto: "Автоматизация", flow: "Конвейер заказа", tz: "Технические задания" };
+  var TITLES = { risk: "Просрочено и зависло", tasks: "Задачи", scripts: "Скрипты", onec: "Оплаты из 1С", load: "Занятость", cust: "База заказчиков", week: "План на неделю", kp: "Таблица РОП старая", orders: "Заказы", kpc: "Конструктор КП", contract: "Конструктор договора", report: "Пятничный созвон", stats: "Статистика", price: "Прайс", stages: "Этапы и сроки", auto: "Автоматизация", flow: "Конвейер заказа", tz: "Технические задания" };
   function mount(kind, el) {
     if (!el) return;
     S.mount = { kind: kind, el: el };
@@ -398,7 +414,12 @@
     // этап, выбранный вручную, сохраняется и когда КП в этот же раз привязали к задаче (например, сразу «В постоплате»)
     api("/kp/" + e.id + "/edit", body).then(function () { return e.status !== e.status0 && (KP_ORDER_MANUAL.indexOf(e.status) >= 0 || (!+e.order_id && body.order_id == null)) ? api("/kp/" + e.id + "/status", { status: e.status, day: e.status_date || "" }) : null; })
       .then(function () { S.ke = null; S.orders = null; S.tasks = null; return Promise.all([loadKp(), load()]); })
-      .then(function () { toast("КП сохранено"); paint(); }, function (er) { e.err = String(er); setModal(keHtml()); });
+      .then(function () {
+        toast("КП сохранено");
+        paint();
+        var frame = document.querySelector("#commerce-registry-app iframe");
+        if (frame && frame.contentWindow.refreshCommerceRegistry) frame.contentWindow.refreshCommerceRegistry();
+      }, function (er) { e.err = String(er); setModal(keHtml()); });
   }
   document.addEventListener("click", function (e) {
     var t = e.target.closest ? e.target.closest("[data-kpedit],[data-kpz],[data-kesave],[data-kectr],[data-kcopen],[data-kcsave],[data-kcclose],[data-kpcancel],[data-keadv],[data-kpstar],[data-kwp],[data-kwsave],[data-kwoff],[data-kwclose],[data-kesys],[data-knc],[data-kncd],[data-kncsave],[data-kncclose]") : null; if (!t) return;
@@ -428,13 +449,8 @@
       S.ke.systems = ksys; setModal(keHtml()); return;
     }
     if (d.kpedit) {
-      var k = (S.kp || []).filter(function (x) { return x.id === +d.kpedit; })[0]; if (!k) return;
-      S.kpHot = k.id;
-      S.ke = { id: k.id, k: k, number: k.number, customer_id: k.customer_id || 0, customer_text: k.customer_text || "", object: k.object || "", services: k.services || [], comment: k.comment || "", amount: k.amount, adv_sum: k.adv_sum, lead_date: k.lead_date || k.issued_date || "", status_date: k.status_date || "", status_date0: k.status_date || "", manager_id: k.manager_id || 0, status: k.status, status0: k.status,
-        pay_prob: k.pay_prob || "", pay_expect: k.pay_expect || "", next_contact: k.next_contact || "", refuse_reason: k.refuse_reason || "", refuse_back: k.refuse_back || "", refuse_note: k.refuse_note || "", order_id: k.order_id, order0: k.order_id, adv_date: k.adv_paid ? k.adv_date : "", adv_date0: k.adv_paid ? k.adv_date : "", systems: String(k.systems || "").split("|").filter(Boolean), err: "" };
-      setModal(keHtml());
-      if (!S.orders) load().then(function () { if (S.ke) setModal(keHtml()); });
-      if (S.assignable == null) api("/users/assignable").then(function (u) { S.assignable = u; if (S.ke) setModal(keHtml()); }, function () { S.assignable = []; });
+      var k = (S.kp || []).find(function (x) { return x.id === +d.kpedit; });
+      if (k) openKpCard(k);
       return;
     }
     if (d.kpz != null && t.hasAttribute("data-kpz")) { var z = kpFont(); z = d.kpz === "0" ? 13 : Math.max(10, Math.min(17, z + (+d.kpz))); S.kpz = z; try { localStorage.setItem("ds_kpz", String(z)); } catch (er) {} return paint(); }
@@ -1114,6 +1130,14 @@
     if (BOOT && BOOT.kp) return BOOT.kp;
     return api("/kp").then(function (k) { S.kp = k; }, function (e) { S.kp = []; S.err = String(e); });
   }
+  function openKpCard(k) {
+    S.kpHot = k.id;
+    S.ke = { id: k.id, k: k, number: k.number, customer_id: k.customer_id || 0, customer_text: k.customer_text || "", object: k.object || "", services: k.services || [], comment: k.comment || "", amount: k.amount, adv_sum: k.adv_sum, lead_date: k.lead_date || k.issued_date || "", status_date: k.status_date || "", status_date0: k.status_date || "", manager_id: k.manager_id || 0, status: k.status, status0: k.status,
+      pay_prob: k.pay_prob || "", pay_expect: k.pay_expect || "", next_contact: k.next_contact || "", refuse_reason: k.refuse_reason || "", refuse_back: k.refuse_back || "", refuse_note: k.refuse_note || "", order_id: k.order_id, order0: k.order_id, adv_date: k.adv_paid ? k.adv_date : "", adv_date0: k.adv_paid ? k.adv_date : "", systems: String(k.systems || "").split("|").filter(Boolean), err: "" };
+    setModal(keHtml());
+    if (!S.orders) load().then(function () { if (S.ke) setModal(keHtml()); });
+    if (S.assignable == null) api("/users/assignable").then(function (u) { S.assignable = u; if (S.ke) setModal(keHtml()); }, function () { S.assignable = []; });
+  }
   /* окно таблицы реестра КП заканчивается у нижнего края экрана: горизонтальная полоса прокрутки всегда на виду */
   function fitKpWrap() {
     var w = document.querySelector(".kpwrap"); if (!w || innerWidth <= 760) return;
@@ -1201,7 +1225,7 @@
     var onecTab = p === "owner" || p === "sales" || p === "ops" || p === "acc";      // вкладка «Оплаты 1С» — у ролей с разделом onec (макет меню РОПа, 17.11)
     var kptabs = onecTab ? '<div class="seg" title="Реестр КП и оплаты из 1С"><button data-kptab="kp" class="' + (S.kpTab !== "onec" ? "on" : "") + '">Реестр КП</button><button data-kptab="onec" class="' + (S.kpTab === "onec" ? "on" : "") + '">Оплаты 1С</button></div>' : "";
     if (S.kpTab === "onec" && onecTab)      // то же содержимое, что у раздела «Оплаты 1С»
-      return '<div class="head kphead"><h1>Реестр КП</h1>' + kptabs + '<span style="flex:1"></span>' + onecRunBtn(S.on) + "</div>"
+      return '<div class="head kphead"><h1>Таблица РОП старая</h1>' + kptabs + '<span style="flex:1"></span>' + onecRunBtn(S.on) + "</div>"
         + (S.on ? "" : '<div class="note">Загрузка оплат из 1С…</div>') + onecBody();
     var dOf = function (k) { return f.by === "s" ? k.status_date || "" : k.lead_date || k.issued_date || ""; };
     var per = all.filter(function (k) { var d = dOf(k); return (!f.from || d >= f.from) && (!f.to || (d && d <= f.to)); });
@@ -1224,7 +1248,7 @@
         return '<button class="pill ' + KP_TONE[s] + " kpst" + (f.st === s ? " on" : "") + '" data-kpst="' + E(s) + '" title="' + E(s) + ": " + ks.length + " КП на " + E(money(sum)) + '">' + E(s) + " · " + ks.length + "</button>";
       }).join("") + "</div>";
     // шапка в одну строку: заголовок · воронка · вкладка «Оплаты 1С» · шрифт и «Составить КП» — таблице остаётся больше места по высоте
-    var head = '<div class="head kphead"><h1 title="Нажмите на этап — в таблице останутся только его КП. «В работе» создаёт проектную задачу и чат; дальше этапы идут сами: аванс из 1С → «В работе», проект «Сдано» → «В постоплате», оплата по акту → «Закрыто». Красным — КП без общения больше 5 дней">Реестр КП</h1>' + pills + kptabs
+    var head = '<div class="head kphead"><h1 title="Нажмите на этап — в таблице останутся только его КП. «В работе» создаёт проектную задачу и чат; дальше этапы идут сами: аванс из 1С → «В работе», проект «Сдано» → «В постоплате», оплата по акту → «Закрыто». Красным — КП без общения больше 5 дней">Таблица РОП старая</h1>' + pills + kptabs
       + '<div style="display:flex;gap:10px;align-items:center;flex:none"><div class="seg" title="Размер шрифта таблицы"><button data-kpz="-1">A−</button><button data-kpz="0">' + kpz + ' px</button><button data-kpz="1">A+</button></div>'
       + (canEdit ? '<a class="btn accent" href="#/kpc" style="text-decoration:none">' + ic("plus") + "Составить КП</a>" : "") + "</div></div>";
     var funnel = '<div class="kpbar">'

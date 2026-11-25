@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Реестры коммерции</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap">
+  <link rel="stylesheet" href="commerce_registry.css?v=20261125b">
+</head>
+<body>
+  <main class="wrap">
+    <header class="top"><div><h1 id="rgTitle"></h1><div class="sub" id="rgMeta"></div></div><button type="button" class="b p" data-action="create" hidden>+ Составить КП</button></header>
+    <div class="intro" id="rgIntro"></div>
+    <div class="filters" id="rgFilters"></div>
+    <div class="per">
+      <label for="rgDateMode">Период</label>
+      <select id="rgDateMode"><option value="issued">по дате выставления КП</option><option value="next">по следующему контакту</option></select>
+      <label for="rgFrom">с</label><input id="rgFrom" type="date">
+      <label for="rgTo">по</label><input id="rgTo" type="date">
+      <button type="button" class="b sm" data-action="month">Этот месяц</button>
+      <button type="button" class="b sm" data-action="all">Весь период</button>
+      <input id="rgSearch" class="srch" type="search" aria-label="Поиск" placeholder="Поиск: номер КП или заказчик">
+    </div>
+    <div class="g4" id="rgKpis"></div>
+    <div class="card">
+      <div class="tw" tabindex="0" aria-label="Таблица реестра"><div class="tb" id="rgTable"></div></div>
+      <div class="foot"><span id="rgCount"></span><span id="rgStatus" role="status"></span></div>
+    </div>
+  </main>
+  <dialog id="rgModal" aria-labelledby="rgModalTitle"></dialog>
+  <script src="commerce_registry.js?v=20261125b"></script>
+</body>
+</html>
