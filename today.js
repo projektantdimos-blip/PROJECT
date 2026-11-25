@@ -45,7 +45,7 @@
       el.innerHTML = '<div class="ds dspage td"><div class="head"><div><h1>Сегодня</h1><p>Войдите, чтобы увидеть свои задачи</p></div><button class="btn primary" data-tdlogin="1">Войти по PIN</button></div></div>';
       return;
     }
-    if ((C.me.position === "sales" || C.me.position === "owner") && window.DSTodayRop) { window.DSTodayRop.mount(el); return; }   // «Сегодня» РОПа по макету 24.11
+    if ((C.me.position === "sales" || C.me.position === "owner") && window.DSTodayRop) { S.rop = true; window.DSTodayRop.mount(el); return; } else { S.rop = false; }   // «Сегодня» РОПа по макету 24.11; старое окно для этих ролей отключено полностью
     if (S.uid !== C.me.id) { S.d = null; S.edit = {}; S.more = {}; S.at = 0; S.tab = 0; S.uid = C.me.id; }      // сменился сотрудник — чужие данные не показываем
     if (!S.d) el.innerHTML = '<div class="ds dspage td"><div class="loading">Загружаю…</div></div>';
     else paint();
@@ -54,7 +54,7 @@
     load().then(paint);
   };
   function visible() { return S.el && S.el.style.display !== "none" && document.body.contains(S.el); }
-  function reload() { return load().then(function () { if (visible()) paint(); }); }
+  function reload() { if (S.rop) return window.DSTodayRop ? DSTodayRop.mount(S.el) && Promise.resolve() : Promise.resolve(); return load().then(function () { if (visible()) paint(); }); }
 
   /* ---------- разбор быстрой строки: «позвонить Спектр завтра 10:00 @Полина» ---------- */
   var WDN = { "пн": 1, "вт": 2, "ср": 3, "чт": 4, "пт": 5, "сб": 6, "вс": 0 };
@@ -444,7 +444,7 @@
       + '<div class="td-pv" data-tdpv="1"></div>' + (S.opts ? opts : "");
   }
 
-  function paint() {
+  function paint() { if (S.rop) return;
     if (!S.el) return;
     var d = S.d;
     if (!d) { S.el.innerHTML = '<div class="ds dspage td">' + (S.err ? '<div class="err">' + E(S.err) + '</div><button class="btn ghost" data-tdreload="1">Повторить</button>' : '<div class="loading">Загружаю…</div>') + "</div>"; return; }
@@ -596,8 +596,8 @@
   document.addEventListener("keydown", function (e) { if (e.key === "Enter" && S.el && e.target.dataset && e.target.dataset.tdinput) { e.preventDefault(); add(); } });
 
   /* обновлять раз в две минуты, пока экран открыт и вкладка видна; после выхода — забыть данные */
-  setInterval(function () { if (visible() && !document.hidden && C && C.loggedIn() && !S.loading && !(document.activeElement && S.el.contains(document.activeElement))) reload(); }, 120000);
-  if (C && C.on) C.on("logout", function () { S.d = null; S.edit = {}; S.at = 0; S.uid = null; });
+  setInterval(function () { if (S.rop) { if (visible() && !document.hidden && C && C.loggedIn()) window.DSTodayRop.mount(S.el); return; } if (visible() && !document.hidden && C && C.loggedIn() && !S.loading && !(document.activeElement && S.el.contains(document.activeElement))) reload(); }, 120000);
+  if (C && C.on) C.on("logout", function () { S.d = null; S.edit = {}; S.at = 0; S.uid = null; S.rop = false; });
   /* вход (/me) мог завершиться, пока грузились скрипты, — тогда ds.js не услышал «login»/«ready»: меню и экран — заново */
   if (C && C.me && !window.DS_READY && typeof window.globalRouter === "function") { window.DS_READY = true; window.globalRouter(); }
   else if (typeof window.sectionForHash === "function" && window.sectionForHash(location.hash) === "today") T.mount(document.getElementById("today-app"));

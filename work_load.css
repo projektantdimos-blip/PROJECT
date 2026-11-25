@@ -337,3 +337,22 @@ body.wl-drg .ds .ldpop{opacity:.15;pointer-events:none}
   .ds .wl-person b { font-size: .77rem }
   .ds .wl-person small,.ds .wl-nm .wl-status { font-size: .62rem }
 }
+
+/* ---------- тёмная тема (25.11): «Занятость», в т.ч. блок «Готов» ---------- */
+:root[data-theme="dark"] .ds .wlb.plan{background:var(--brand-soft);color:var(--brand-2);border-color:var(--brand)}
+:root[data-theme="dark"] .ds .wlb.plan b,:root[data-theme="dark"] .ds .wlb.plan small,:root[data-theme="dark"] .ds .wlb.plan .wl-hot{color:var(--brand-2)}
+:root[data-theme="dark"] .ds .wlb.done{background:var(--surface-2);color:var(--muted)}
+:root[data-theme="dark"] .ds .wlb.done b,:root[data-theme="dark"] .ds .wlb.done small{color:var(--muted)}
+:root[data-theme="dark"] .ds .wlb.over{background:var(--surface-2);color:var(--muted)}
+:root[data-theme="dark"] .ds .wlb.over b,:root[data-theme="dark"] .ds .wlb.over small{color:var(--muted)}
+:root[data-theme="dark"] .ds .wl-ready{color:var(--warn)}
+:root[data-theme="dark"] .ds .wlb.plan .wl-ready{color:var(--warn)}
+:root[data-theme="dark"] .ds .wlb.plan .wl-bad{color:var(--bad)}
+:root[data-theme="dark"] .ds .wl-cnt .wl-ci{background:var(--surface);border-color:var(--line);color:var(--muted)}
+:root[data-theme="dark"] .ds .wl-ci b{color:var(--ink)}
+:root[data-theme="dark"] .ds .wl-ci.bad{border-color:var(--bad)}
+:root[data-theme="dark"] .ds .wl-ci.bad b{color:var(--bad)}
+:root[data-theme="dark"] .ds .wl-ld-c{background:var(--surface-2)}
+:root[data-theme="dark"] .ds .wl-nm{border-color:var(--line)}
+:root[data-theme="dark"] .ds .wl-ld{border-color:var(--line)}
+:root[data-theme="dark"] .ds .wl-sec small,:root[data-theme="dark"] .ds .wl-leg,:root[data-theme="dark"] .ds .wl-trh{color:var(--muted)}

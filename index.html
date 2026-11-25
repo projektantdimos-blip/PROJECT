@@ -273,13 +273,13 @@ textarea{resize:vertical;min-height:64px}
 <!-- шрифты подгружаются без блокировки страницы: если Google Fonts недоступен (в РФ бывает), CRM всё равно откроется -->
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Onest:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Onest:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="theme-v2.css?v=20261115a">
+<link rel="stylesheet" href="theme-v2.css?v=20261125a">
 <script>try{var __t=localStorage.getItem("ds_theme");if(__t)document.documentElement.setAttribute("data-theme",__t)}catch(e){}</script>
-<link rel="stylesheet" href="ds.css?v=20261117a">
-<link rel="stylesheet" href="today.css?v=20261115c">
-<link rel="stylesheet" href="today_rop.css?v=20261124k">
-<link rel="stylesheet" href="work_load.css?v=20261124l">
-<link rel="stylesheet" href="report_sales.css?v=20261124n">
+<link rel="stylesheet" href="ds.css?v=20261125a">
+<link rel="stylesheet" href="today.css?v=20261125a">
+<link rel="stylesheet" href="today_rop.css?v=20261125b">
+<link rel="stylesheet" href="work_load.css?v=20261125b">
+<link rel="stylesheet" href="report_sales.css?v=20261125a">
 </head>
 <body>
 <div class="app">
@@ -510,6 +510,14 @@ function renderTopNav(){
   document.querySelectorAll("#topnav button[data-goto], #bottomnav button[data-goto], #subnavM button").forEach(function(btn){
     btn.onclick = function(){ location.hash = btn.dataset.goto; };
   });
+  /* средняя кнопка мыши — открыть пункт меню в новой вкладке (решение владельца 25.11) */
+  document.addEventListener("auxclick", function(e){
+    if (e.button !== 1) return;
+    var b = e.target.closest && e.target.closest("#topnav button[data-goto], #bottomnav button[data-goto]");
+    if (!b || !b.dataset.goto) return;
+    e.preventDefault();
+    window.open(location.pathname + location.search + b.dataset.goto, "_blank");
+  });
   var mo = document.querySelector("#bottomnav [data-more]");
   if (mo) mo.onclick = function(){ if (window.MPBX && window.MPBX.more) window.MPBX.more(); };
   if (window.__chatBadge) window.__chatBadge();
@@ -593,9 +601,9 @@ globalRouter();
 #apiModal button{padding:9px 16px;border-radius:8px;font:inherit;cursor:pointer;border:1px solid #b9c4d0;background:var(--card);color:var(--ink)}
 #apiModal button.ok{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
 </style>
-<script src="noautofill.js?v=20261031a"></script>
-<script src="sound.js?v=20261031a"></script>
-<script src="chat.js?v=20261112b"></script>
+<script src="noautofill.js?v=20261125a"></script>
+<script src="sound.js?v=20261125a"></script>
+<script src="chat.js?v=20261125a"></script>
 <button id="apiGear" title="Настройки подключения" aria-label="Настройки">⚙</button>
 <div id="apiModal"><div class="box">
   <h2>Подключение к серверу CRM</h2>
@@ -645,7 +653,7 @@ globalRouter();
   });
 })();
 </script>
-<script src="config.js?v=20261031a"></script>
+<script src="config.js?v=20261125a"></script>
 <script>
 /* настройки подключения, сохранённые в браузере, важнее config.js: неверные сбрасываем, чтобы они не мешали входу */
 (function(){
@@ -662,31 +670,31 @@ globalRouter();
   }, function(){});
 })();
 </script>
-<script src="crm.js?v=20261115a"></script>
-<script src="download.js?v=20261109b"></script>
-<script src="extras.js?v=20261117a"></script>
-<script src="team.js?v=20261105c"></script>
-<script src="teamsearch.js?v=20261117a"></script>
-<script src="ai.js?v=20261031d"></script>
-<script src="chatpanel.js?v=20261106a"></script>
-<script src="ds.js?v=20261124e"></script>
-<script src="ds_cust.js?v=20261124d"></script>
-<script src="ds_risk.js?v=20261124c"></script>
-<script src="ds_tasks.js?v=20261124b"></script>
-<script src="ds_friday.js?v=20261124k"></script>
-<script src="ds_price.js?v=20261124a"></script>
-<script src="ds_orders_reg.js?v=20261124l"></script>
-<script src="ds_contract.js?v=20261124a"></script>
-<script src="report_sales.js?v=20261124m"></script>
-<script src="work_load.js?v=20261124l"></script>
-<script src="work_conv.js?v=20261124m"></script>
-<script src="work_how.js?v=20261117a"></script>
-<script src="stats.js?v=20261102a"></script>
-<script src="visits.js?v=20261102b"></script>
-<script src="calls.js?v=20261116b"></script>
-<script src="remind.js?v=20261110a"></script>
-<script src="ds_today_rop.js?v=20261124l"></script>
-<script src="today.js?v=20261116b"></script>
+<script src="crm.js?v=20261125a"></script>
+<script src="download.js?v=20261125a"></script>
+<script src="extras.js?v=20261125a"></script>
+<script src="team.js?v=20261125a"></script>
+<script src="teamsearch.js?v=20261125a"></script>
+<script src="ai.js?v=20261125a"></script>
+<script src="chatpanel.js?v=20261125a"></script>
+<script src="ds.js?v=20261125a"></script>
+<script src="ds_cust.js?v=20261125a"></script>
+<script src="ds_risk.js?v=20261125a"></script>
+<script src="ds_tasks.js?v=20261125a"></script>
+<script src="ds_friday.js?v=20261125a"></script>
+<script src="ds_price.js?v=20261125a"></script>
+<script src="ds_orders_reg.js?v=20261125a"></script>
+<script src="ds_contract.js?v=20261125a"></script>
+<script src="report_sales.js?v=20261125a"></script>
+<script src="work_load.js?v=20261125a"></script>
+<script src="work_conv.js?v=20261125a"></script>
+<script src="work_how.js?v=20261125a"></script>
+<script src="stats.js?v=20261125a"></script>
+<script src="visits.js?v=20261125a"></script>
+<script src="calls.js?v=20261125a"></script>
+<script src="remind.js?v=20261125a"></script>
+<script src="ds_today_rop.js?v=20261125a"></script>
+<script src="today.js?v=20261125b"></script>
 <script>
 (function(){
   var KEY = "ds_theme", t = "light";

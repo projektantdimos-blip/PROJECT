@@ -68,3 +68,34 @@
   #today-app .tr-row{flex-direction:column}
   #today-app .tr-row-r{align-items:flex-start}
 }
+
+/* ---------- тёмная тема (25.11): жёсткие цвета → контраст по переменным ---------- */
+:root[data-theme="dark"] #today-app .tr-name{color:var(--ink)}
+:root[data-theme="dark"] #today-app .tr-status{color:var(--muted)}
+:root[data-theme="dark"] #today-app .tr-amt2{color:var(--ink)}
+:root[data-theme="dark"] #today-app .tr-tnum{color:var(--ink)}
+:root[data-theme="dark"] #today-app .tr-tlab{color:var(--muted)}
+:root[data-theme="dark"] #today-app .tr-tsub{color:var(--muted)}
+:root[data-theme="dark"] #today-app .tr-sub{color:var(--muted)}
+:root[data-theme="dark"] #today-app .tr-hint{color:var(--muted)}
+:root[data-theme="dark"] #today-app .tr-say{background:var(--surface-2);color:var(--ink)}
+:root[data-theme="dark"] #today-app .tr-say b{color:var(--ink)}
+:root[data-theme="dark"] #today-app .tr-sec{border-color:var(--line)}
+:root[data-theme="dark"] #today-app .tr-row{border-color:var(--line)}
+:root[data-theme="dark"] #today-app .tr-sec-f{border-color:var(--line);color:var(--muted)}
+:root[data-theme="dark"] #today-app .tr-dlg{background:var(--surface-2);border-color:var(--line)}
+:root[data-theme="dark"] #today-app .tr-dlg label{color:var(--muted)}
+:root[data-theme="dark"] #today-app .tr-cfg summary{color:var(--muted)}
+:root[data-theme="dark"] #today-app .tr-sumit{color:var(--muted)}
+:root[data-theme="dark"] #today-app .tr-sumit b{color:var(--ink)}
+:root[data-theme="dark"] #today-app .tr-step.s1{background:var(--surface-2);color:var(--muted)}
+:root[data-theme="dark"] #today-app .tr-step.s2{background:var(--warn-soft);color:var(--warn)}
+:root[data-theme="dark"] #today-app .tr-step.s3{background:var(--bad-soft);color:var(--bad)}
+:root[data-theme="dark"] #today-app .tr-legend .l1{background:var(--surface-2);color:var(--muted)}
+:root[data-theme="dark"] #today-app .tr-legend .l2{background:var(--warn-soft);color:var(--warn)}
+:root[data-theme="dark"] #today-app .tr-legend .l3{background:var(--bad-soft);color:var(--bad)}
+:root[data-theme="dark"] #today-app .tr-h1{color:var(--ink)}
+:root[data-theme="dark"] #today-app .tr .btn.ghost{background:var(--surface);border-color:var(--line);color:var(--ink)}
+:root[data-theme="dark"] #today-app .tr .btn.danger{background:var(--surface);border-color:var(--bad);color:var(--bad)}
+:root[data-theme="dark"] #today-app .tr-tile{border-color:var(--line)}
+:root[data-theme="dark"] #today-app .tr-t-bar{background:rgba(255,255,255,.25)}
