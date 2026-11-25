@@ -5,11 +5,17 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Реестры коммерции</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap">
-  <link rel="stylesheet" href="commerce_registry.css?v=20261125c">
+  <link rel="stylesheet" href="commerce_registry.css?v=20261125h">
 </head>
 <body>
   <main class="wrap">
-    <header class="top"><div><h1 id="rgTitle"></h1><div class="sub" id="rgMeta"></div></div><button type="button" class="b p" data-action="create" hidden>+ Составить КП</button></header>
+    <header class="top">
+      <div><h1 id="rgTitle"></h1><div class="sub" id="rgMeta"></div></div>
+      <div class="rg-top-actions">
+        <div class="rg-undo"><button type="button" class="b sm" id="rgUndo" data-action="undo" aria-describedby="rgUndoLabel" disabled>↶ Шаг назад</button><small id="rgUndoLabel"></small></div>
+        <button type="button" class="b p" data-action="create" hidden>+ Составить КП</button>
+      </div>
+    </header>
     <div class="intro" id="rgIntro"></div>
     <div class="filters" id="rgFilters"></div>
     <div class="per">
@@ -28,6 +34,11 @@
     </div>
   </main>
   <dialog id="rgModal" aria-labelledby="rgModalTitle"></dialog>
-  <script src="commerce_registry.js?v=20261125c"></script>
+  <div id="rgTooltip" class="rg-tooltip" role="tooltip" hidden></div>
+  <aside id="rgUndoBar" class="rg-undo-bar" aria-label="Отмена действия" hidden>
+    <span id="rgUndoMessage" role="status"></span>
+    <button type="button" data-action="undo" id="rgUndoQuick">Отменить последнее действие</button>
+  </aside>
+  <script src="commerce_registry.js?v=20261125h"></script>
 </body>
 </html>

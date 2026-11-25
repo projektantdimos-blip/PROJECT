@@ -48,11 +48,109 @@
     ["work","В работе","#dde7f6","#1d4f9e"],["full","Оплачено полностью","#d9efe0","#17653a"],["arch","Архив оплат","#e4e7ec","#4a5566"]];
   const filterKp = [["all","Все","#fff","#1b3a5e"],["sent","КП отправлено","#dde7f6","#1d4f9e"],
     ["advance","Ждём предоплату","#f6ead0","#7a5300"],["noprob","Без вероятности","#fdeeed","#a5281b"],["refused","Архив отказов","#e4e7ec","#4a5566"]];
-  const state = { rows: [], editable: false, filter: "all", ready: false };
+  const headerTips = {
+    "№ КП": "Номер КП в CRM.",
+    "Заказчик": "Название заказчика и вид работ. Нажмите на синее название, чтобы открыть карточку.",
+    "Дата выставления КП": "Когда КП отправили клиенту.",
+    "Сумма КП": "Полная сумма по КП. У «Ждём предоплату» под суммой указано, сколько ждём от клиента.",
+    "Статус": "Где сейчас КП. Наведите на метку статуса, чтобы прочитать пояснение.",
+    "Вероятность": "Насколько вероятна продажа. Наведите на кнопку, чтобы узнать правило для каждого уровня.",
+    "Последний контакт": "Рабочих дней с последнего контакта. <b>Зелёный</b> — до 2, <b>жёлтый</b> — 3–5, <b>красный</b> — больше 5. Больше 10 рабочих дней без ответа — звонок и письмо «Актуально ли КП?». Ещё 5 дней тишины — отказ «Пропал».",
+    "Следующий контакт": "Когда связаться в следующий раз. Нажмите на дату, чтобы поменять. Красная дата означает, что срок контакта прошёл.",
+    "Итог последнего контакта": "Что сказал клиент в последний раз и что дальше. Нажмите, чтобы записать новый итог. Последний контакт обновится на сегодня.",
+    "Причина отказа": "Причина из общего списка. Те же причины используются в пятничном отчёте.",
+    "Когда отказались": "Дата, когда записали отказ.",
+    "Комментарий": "Личная заметка менеджера по КП. Она доступна этому менеджеру в обоих реестрах.",
+    "Сумма по договору": "Полная сумма по договору. Полоска показывает разбивку на предоплату и остаток. Наведите на сумму, чтобы увидеть суммы, даты и статус оплаты.",
+    "Предоплата": "Первый платёж. КП может появиться в реестре оплат после перевода кнопкой «В оплаты» или поступления предоплаты.",
+    "Постоплата": "Остаток после сдачи работ. Наведите на метку, чтобы понять статус и следующий шаг.",
+    "Этап работ": "Сдачу работ отмечают в карточке задачи. После сдачи проверьте, нужно ли выставить счёт на остаток.",
+    "Срок оплаты": "<b>Акт подписан:</b> 5 рабочих дней от подписания или срок из договора. <b>Акт отправлен без подписи:</b> ещё 5 рабочих дней, по умолчанию всего 10 от счёта. Если даты счёта нет, отсчёт от отправки акта. <b>Доплата без акта:</b> 5 рабочих дней от счёта или срок из договора. Если исходной даты нет, срок можно назначить вручную.",
+    "Обещали оплатить": "Дата, которую назвал клиент. Нажмите, чтобы поставить или поменять."
+  };
+  const probabilityTips = {
+    low: "<b>Низкая</b> — нет ответа 5+ рабочих дней или клиент просто узнаёт цену и сравнивает.",
+    mid: "<b>Средняя</b> — клиент отвечает и объект реальный, но срок и бюджет не названы.",
+    high: "<b>Высокая</b> — клиент подтвердил интерес и назвал срок или бюджет, контакт был в последние 3 рабочих дня."
+  };
+  const quoteTips = {
+    "КП отправлено": "КП у клиента, ждём решения. Узнайте решение и поставьте дату следующего контакта.",
+    "Ждём предоплату": "Клиент согласился, ждём предоплату. Когда она поступит, КП появится в реестре оплат.",
+    "Отказ": "Причина выбирается из общего списка. КП находится в архиве отказов."
+  };
+  const postTips = {
+    paid: "<b>Оплачен</b> — деньги поступили. При опоздании указан срок просрочки.",
+    late: "<b>Просрочка</b> — прошёл срок оплаты или обещанная клиентом дата. Свяжитесь с клиентом. Просроченные оплаты разбираются в блоке 4 пятничного отчёта.",
+    wait: "<b>Счёт выставлен</b> — ждём оплату. Дата отсчитывается по условиям договора.",
+    bill: "<b>Счёт не выставлен</b> — работа сдана. Выставьте счёт на остаток.",
+    work: "<b>После сдачи работ</b> — счёт на остаток выставляется после отметки «Работа сдана»."
+  };
+  const tip = HTML => ' data-tip="'+esc(HTML)+'"';
+  const explained = (label, cls, content) => '<span class="'+cls+'" tabindex="0"'+tip(content)+'>'+esc(label)+'</span>';
+  const state = { rows: [], editable: false, filter: "all", ready: false, undo: null, busy: 0 };
   const noteWrites = new Map();
+  const tooltip = $("rgTooltip");
+  let undoTimer;
+  let activeTip = null;
+  function hideTip() {
+    if (activeTip) activeTip.removeAttribute("aria-describedby");
+    activeTip = null;
+    tooltip.hidden = true;
+  }
+  function showTip(anchor) {
+    if (!anchor || !anchor.dataset.tip || activeTip === anchor) return;
+    hideTip();
+    activeTip = anchor;
+    tooltip.innerHTML = anchor.dataset.tip;
+    tooltip.hidden = false;
+    anchor.setAttribute("aria-describedby", tooltip.id);
+    const rect = anchor.getBoundingClientRect();
+    const left = Math.min(Math.max(8, rect.left + (rect.width - tooltip.offsetWidth) / 2), innerWidth - tooltip.offsetWidth - 8);
+    const below = rect.bottom + 8;
+    tooltip.style.left = Math.max(8, left) + "px";
+    tooltip.style.top = Math.max(8, below + tooltip.offsetHeight <= innerHeight - 8 ? below : rect.top - tooltip.offsetHeight - 8) + "px";
+  }
+  document.addEventListener("pointerover", e => {
+    if (e.pointerType === "touch") return;
+    const anchor = e.target.closest("[data-tip]");
+    if (anchor) showTip(anchor);
+    else if (activeTip) hideTip();
+  });
+  document.addEventListener("pointerout", e => {
+    if (activeTip && activeTip.contains(e.target) && !activeTip.contains(e.relatedTarget) && activeTip !== document.activeElement) hideTip();
+  });
+  document.addEventListener("focusin", e => showTip(e.target.closest("[data-tip]")));
+  document.addEventListener("focusout", e => { if (activeTip === e.target) hideTip(); });
+  document.addEventListener("click", e => {
+    const anchor = e.target.closest("[data-tip]");
+    if (anchor && !anchor.hasAttribute("data-action")) showTip(anchor);
+    else if (!anchor) hideTip();
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") hideTip(); });
+  window.addEventListener("scroll", hideTip, true);
+  window.addEventListener("resize", hideTip);
   function status(text, error) {
     $("rgStatus").textContent = text;
     $("rgStatus").classList.toggle("rg-error", !!error);
+  }
+  function renderUndo() {
+    const step = state.undo;
+    $("rgUndo").disabled = !state.editable || !step || state.busy > 0 || noteWrites.size > 0;
+    $("rgUndoLabel").textContent = step ? step.label + " · КП №" + step.number : "Нет действий для отмены";
+    $("rgUndoQuick").disabled = $("rgUndo").disabled || +$("rgUndoQuick").dataset.step !== (step && step.id);
+  }
+  function hideUndoBar() {
+    clearTimeout(undoTimer);
+    $("rgUndoBar").hidden = true;
+  }
+  function offerUndo(result) {
+    if (!result.changed || !result.undo || !state.undo || result.undo.id !== state.undo.id) return;
+    hideUndoBar();
+    $("rgUndoMessage").textContent = result.undo.label + " · КП №" + result.undo.number;
+    $("rgUndoQuick").dataset.step = result.undo.id;
+    $("rgUndoBar").hidden = false;
+    renderUndo();
+    undoTimer = setTimeout(hideUndoBar, 10000);
   }
   function received(r) { return r.payments.reduce((sum, p) => sum + p.amount, 0); }
   function left(r) { return Math.max(0, r.amount - received(r)); }
@@ -185,6 +283,7 @@
     return tiles.map(([tone, label, value, unit, count, text]) => '<div class="kpi" style="background:'+tone+'"><span class="lb">'+esc(label)+'</span><b>'+esc(value)+'</b><span class="ds">'+esc(text)+'</span><div class="gl"><span>'+esc(unit)+'</span><strong>'+esc(count)+'</strong></div></div>').join("");
   }
   function render() {
+    renderUndo();
     const rows = state.rows.filter(inRegister);
     const inPeriod = rows.filter(period);
     const shown = inPeriod.filter(r => match(r, state.filter));
@@ -215,6 +314,7 @@
       const data = await api("/commerce/registry");
       state.rows = data.rows;
       state.editable = data.editable;
+      state.undo = data.undo;
       state.ready = true;
       $("rgMeta").textContent = [dm(now), data.name].filter(Boolean).join(" · ");
       document.querySelector('[data-action="create"]').hidden = isPay || !state.editable;
@@ -228,18 +328,29 @@
   }
   async function mutate(path, body, control) {
     if (control) control.disabled = true;
+    state.busy++;
+    renderUndo();
     try {
       await Promise.allSettled(noteWrites.values());
-      await send(path, body);
+      const result = await send(path, body);
       $("rgModal").close();
       await load();
+      if (path === "/commerce/undo") {
+        hideUndoBar();
+        status("Действие отменено");
+      } else offerUndo(result);
     } catch (error) {
       status(String(error), true);
       const message = $("rgModal").querySelector(".rg-error");
       if ($("rgModal").open && message) message.textContent = String(error);
     } finally {
-      if (control) control.disabled = false;
+      state.busy--;
+      if (control && control.dataset.action !== "undo") control.disabled = false;
+      renderUndo();
     }
+  }
+  function edit(r, action, values, control) {
+    return mutate("/commerce/registry/"+r.id, {action:action, ...values}, control);
   }
   function dialog(title, content, submit) {
     const modal = $("rgModal");
@@ -253,7 +364,7 @@
   function changeDate(r, key) {
     const label = key === "next_contact" ? "Следующий контакт" : "Обещали оплатить";
     dialog(label, '<label>'+label+' <input class="mdate" name="date" type="date" value="'+esc(r[key])+'"></label>', (form, b) =>
-      mutate("/kp/"+r.id+"/edit", {[key]: form.get("date")}, b));
+      edit(r, key === "next_contact" ? "next" : "expect", {text:form.get("date")}, b));
   }
   function call(r) {
     if (r.contacts.length === 1) {
@@ -271,12 +382,16 @@
     const promise = isPay ? '<label>Клиент назвал дату оплаты <input class="mdate" name="promise" type="date" value="'+esc(r.pay_expect)+'"></label>' : "";
     dialog("Итог звонка по КП "+r.number, '<label>Касание <select name="kind">'+["Звонок","Письмо","Мессенджер","Встреча"].map(k => '<option>'+k+'</option>').join("")+
       '</select></label><label>Итог<textarea name="note" maxlength="300"></textarea></label>'+promise+'<label>Следующий контакт <input class="mdate" name="next" type="date" required min="'+now+'" value="'+esc(r.next_contact >= now ? r.next_contact : "")+'"></label>', (f,b) =>
-      mutate("/kp/"+r.id+"/touch",{kind:f.get("kind"),next_contact:f.get("next"),note:f.get("note"),pay_expect:f.get("promise")},b));
+      edit(r,"touch",{kind:f.get("kind"),next_contact:f.get("next"),text:f.get("note"),pay_expect:f.get("promise")},b));
   }
   document.addEventListener("click", e => {
     const b = e.target.closest("[data-action]");
     if (!b || !host) return;
     const action = b.dataset.action;
+    if (action === "undo") {
+      if (state.undo && !b.disabled && (!b.dataset.step || +b.dataset.step === state.undo.id)) mutate("/commerce/undo", {step_id:state.undo.id}, b);
+      return;
+    }
     if (action === "create") { parent.location.hash = "#/kpc"; return; }
     if (action === "filter") { state.filter = b.dataset.value; render(); return; }
     if (action === "month" || action === "all") {
@@ -291,18 +406,20 @@
     if (action === "call") call(r);
     else if (action === "touch") touch(r);
     else if (action === "next" || action === "expect") changeDate(r, action === "next" ? "next_contact" : "pay_expect");
-    else if (action === "prob") mutate("/kp/"+r.id+"/edit",{pay_prob:r.pay_prob === b.dataset.value ? "" : b.dataset.value},b);
+    else if (action === "due") dialog("Назначить срок оплаты", '<label>Срок оплаты <input class="mdate" name="date" type="date" required value="'+esc(r.due_manual ? r.due : "")+'"></label>',
+      (f, btn) => edit(r, "due", {text:f.get("date")}, btn));
+    else if (action === "prob") edit(r, "prob", {text:r.pay_prob === b.dataset.value ? "" : b.dataset.value}, b);
     else if (action === "refuse") dialog("Причина отказа", '<label>Причина <select name="reason" required><option value="">выбрать</option>'+
       refused.map(v => '<option>'+esc(v)+'</option>').join("")+'</select></label>', (f, btn) =>
-      mutate("/commerce/registry/"+r.id,{action:"refuse",text:f.get("reason")},btn));
+      edit(r, "refuse", {text:f.get("reason")}, btn));
     else if (action === "restore") dialog("Вернуть КП в работу", '<label>Следующий контакт <input class="mdate" name="next" type="date" required min="'+now+'" value="'+esc(r.next_contact >= now ? r.next_contact : "")+'"></label>', (f,btn) =>
-      mutate("/kp/"+r.id+"/status",{status:"КП отправлено",next_contact:f.get("next")},btn));
+      edit(r, "restore", {next_contact:f.get("next")}, btn));
     else if (action === "advance") {
-      if (r.next_contact) mutate("/kp/"+r.id+"/status", {status:"В предоплате"}, b);
+      if (r.next_contact) edit(r, "advance", {}, b);
       else dialog("Ждём предоплату", '<label>Следующий контакт <input class="mdate" name="next" type="date" required min="'+now+'"></label>', (f,btn) =>
-        mutate("/kp/"+r.id+"/status",{status:"В предоплате",next_contact:f.get("next")},btn));
+        edit(r, "advance", {next_contact:f.get("next")}, btn));
     }
-    else if (action === "transfer" || action === "invoice") mutate("/commerce/registry/"+r.id,{action:action},b);
+    else if (action === "transfer" || action === "invoice") edit(r, action, {}, b);
   });
   document.addEventListener("change", e => {
     if (["rgDateMode","rgFrom","rgTo"].includes(e.target.id)) { render(); return; }
@@ -315,13 +432,21 @@
     row.note = text;
     const pending = Promise.resolve(noteWrites.get(id)).catch(() => {}).then(() => send("/commerce/registry/"+id, {action:"note",text}));
     noteWrites.set(id, pending);
+    renderUndo();
     status("Сохраняем заметку…");
-    pending.then(() => {
-      if (noteWrites.get(id) === pending) { noteWrites.delete(id); status("Заметка сохранена"); }
+    pending.then(result => {
+      if (noteWrites.get(id) === pending) {
+        noteWrites.delete(id);
+        if (result.undo && (!state.undo || result.undo.id >= state.undo.id)) state.undo = result.undo;
+        renderUndo();
+        offerUndo(result);
+        status("Заметка сохранена");
+      }
     }, err => {
       if (noteWrites.get(id) === pending) {
         noteWrites.delete(id);
         row.note = previous;
+        renderUndo();
         status(String(err), true);
       }
     });

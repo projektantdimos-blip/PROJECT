@@ -34,7 +34,7 @@
 .ds .pill{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border-radius:12px;font-size:.76rem;font-weight:700;white-space:nowrap}
 .ds .pill.ok{background:var(--ok-soft);color:var(--ok)}.ds .pill.bad{background:var(--bad-soft);color:var(--bad)}.ds .pill.warn{background:var(--warn-soft);color:var(--warn)}
 .ds .pill.info{background:var(--brand-soft);color:var(--brand)}.ds .pill.org{background:var(--org-soft);color:var(--org)}.ds .pill.sys{background:var(--sys-soft);color:var(--sys)}
-.ds .pill.muted{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}.ds .pill.urg{background:var(--bad);color:#fff}.ds .pill.paid{background:var(--ok);color:#fff}
+.ds .pill.muted{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}.ds .pill.urg{background:var(--bad);color:#fff}.ds .pill.paid{background:var(--ok);color:#fff}.ds .pill.go{background:var(--ok);color:#fff;font-weight:700;cursor:pointer;animation:ds-go-pulse 1.6s ease-in-out infinite}@keyframes ds-go-pulse{0%,100%{box-shadow:0 0 0 0 rgba(46,160,67,.45)}50%{box-shadow:0 0 0 5px rgba(46,160,67,0)}}
 .ds .note{font-size:.82rem;color:var(--muted);margin-top:12px}
 .ds .dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
 .ds .task{display:flex;overflow:hidden;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow-s);width:100%;text-align:left;transition:.15s}

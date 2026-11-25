@@ -154,8 +154,7 @@ textarea{min-height:76px;resize:vertical}
 
 @media(max-width:900px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:460px){.g4{grid-template-columns:minmax(0,1fr)}.top h1{font-size:24px}}
-.kpt .tr{grid-template-columns:40px 84px minmax(200px,1.2fr) 100px 150px 132px 204px 110px 122px minmax(210px,1.2fr) 100px}
-.tb.kpt{min-width:1500px}
+.kpt .tr{grid-template-columns:26px minmax(48px,.6fr) minmax(104px,1.5fr) minmax(60px,.72fr) minmax(63px,.77fr) minmax(68px,.82fr) minmax(132px,1.16fr) minmax(55px,.67fr) minmax(57px,.7fr) minmax(72px,1fr) minmax(88px,1.06fr) minmax(67px,.8fr)}
 .seg{display:inline-flex;border:1.5px solid #c3cad5;border-radius:10px;overflow:hidden;background:#fff}
 .seg.need{border:1.5px dashed #d77a72}
 .seg button{border:0;background:#fff;font:inherit;font-size:12.5px;font-weight:700;color:#4a5566;padding:8px 7px;min-height:38px}
@@ -245,3 +244,55 @@ textarea{min-height:76px;resize:vertical}
 #rgModal::backdrop{background:rgba(21,32,46,.45)}
 #rgModal .mb label{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
 #rgModal .mb :is(input,select,textarea){max-width:100%;font:inherit}
+
+/* Сетка занимает ширину рабочей области CRM. На меньшей ширине прокручивается только таблица. */
+.wrap{max-width:none;padding:16px 10px 24px;gap:10px;font-size:12px}
+.top h1{font-size:24px}
+.top .sub,.per label,.ft,.intro,.foot{font-size:11.5px}
+.per{gap:6px;padding:6px 9px}
+.per input,.per select,.per .b{height:30px;min-height:30px;font-size:11.5px;padding:0 7px}
+.g4,.payment-preview .g4{gap:8px;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr))}
+.kpi{padding:10px 12px;border-radius:10px}
+.kpi .lb{font-size:12px}
+.kpi b,.kpi .gl strong{font-size:20px}
+.kpi .ds,.kpi .gl{font-size:11px}
+.tr>.c{padding:6px 4px;gap:3px}
+.tr.hd>.c{font-size:11px;padding:7px 4px;overflow-wrap:anywhere}
+.tr.hd>.c small{font-size:10px}
+.grp{min-height:38px!important}
+.grp .gl{font-size:13px!important;gap:6px!important}
+.grp .gl small{font-size:11px}
+.tr .c :is(.nm,.kp,.am,.pd,.dt){font-size:12px}
+.tr .c :is(.ob,.wk,.sb,.chip,.ps,.pr,.rg-payment-detail){font-size:10.5px;line-height:1.3}
+.tr .c .nb{min-width:17px;height:19px;font-size:10px}
+.tr .c .chip,.tr .c .ps{padding:3px 4px}
+.tr .c .spl{width:min(100%,85px)}
+.tr .c .seg{width:100%}
+.tr .c .seg button{flex:1 0 auto;padding:4px 2px;min-height:27px;font-size:9px;white-space:nowrap}
+.tr .c .inl{padding:3px;font-size:10.5px}
+.tr>.c>.b.rg-stage{padding:3px;font-size:10px}
+.tr>.c.acts{flex-direction:column!important;flex-wrap:nowrap;gap:4px!important}
+.acts .b,.acts .b[data-transfer]{padding:4px 5px;min-height:25px;font-size:10.5px}
+.tr .rg-note{padding:5px 4px}
+.rg-note .manager-note{width:100%;min-width:0;min-height:36px;padding:4px;font-size:11px}
+.tr .c.acts>.rg-call{width:22px;height:22px}
+.tr .rg-call svg{width:12px;height:12px}
+.wrap>.top{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;margin:-8px 0 0;border-bottom:1px solid var(--line)}
+.rg-help{display:inline-grid;place-items:center;flex:none;width:15px;height:15px;border:0;border-radius:50%;padding:0;background:#c9d6ea;color:#1b3a5e;font:800 10.5px/1 var(--font);cursor:help}
+.rg-contact-recent{background:#d9efe0;color:#17653a}
+.rg-contact-mid{background:#f6ecd0;color:#5a4300}
+.rg-contact-late{background:#f8dfdc;color:#a5281b}
+.rg-date-late{color:#a5281b;font-weight:800}
+.rg-tooltip{position:fixed;z-index:40;width:max-content;max-width:min(290px,calc(100vw - 16px));padding:9px 12px;border-radius:10px;background:#1f3550;color:#fff;box-shadow:0 8px 22px rgba(21,32,46,.28);font:600 12.5px/1.45 var(--font);overflow-wrap:anywhere;pointer-events:none}
+.rg-tooltip b{color:#ffe08a}
+.tr .c .sumw{max-width:100%;padding:4px;background:#f4f8fe}
+.tr .c .sumw:hover,.tr .c .sumw:focus-visible{background:#eaf1fb}
+.tr .c .seg button[aria-disabled="true"]{opacity:.65;cursor:help}
+.tr>.c>.b.rg-due-add{max-width:100%;min-width:0;min-height:24px;padding:4px;white-space:normal;overflow-wrap:anywhere;background:#fff1ef;color:#a5281b;border:1px dashed #c0564d;font-size:10px;line-height:1.2}
+.tr>.c>.b.rg-due-add:hover{background:#f8dcd8}
+.rg-top-actions{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;min-width:0}
+.rg-undo{display:flex;flex-direction:column;align-items:flex-start;gap:3px;max-width:230px}
+.rg-undo small{color:var(--mute);font-size:10.5px;overflow-wrap:anywhere}
+.rg-undo-bar{position:fixed;z-index:45;bottom:16px;inset-inline:0;width:max-content;max-width:calc(100% - 20px);margin-inline:auto;display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:9px 12px;border-radius:10px;background:#1f3550;color:#fff;box-shadow:0 6px 20px #15202e45;font-size:12px}
+.rg-undo-bar button{border:1px solid #d9e4f4;border-radius:7px;padding:5px 8px;color:#fff;background:transparent;cursor:pointer;font-weight:700}
+.rg-undo-bar button:disabled{opacity:.55;cursor:default}

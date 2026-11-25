@@ -279,6 +279,12 @@
     var st = sysTarget(w); if (st) st.modern = e.target.checked ? 1 : 0;
   });
 
+  /* кнопка «Начать работу» у исполнителя: план уже начался, а «Начато» не отмечено (подтверждение старта, 25.11) */
+  function startPill(o, cls) {
+    var today = isoDay(new Date());
+    if (!(C && C.me && o.executor_id === C.me.id && o.stage === "В проектировании" && o.plan_start && o.plan_start <= today && !o.started_man)) return "";
+    return '<span class="' + (cls || "pill go") + '" data-ostart="' + o.id + '" title="План начался ' + E(dmy(o.plan_start).slice(0, 5)) + ', а «Начато» не отмечено — нажмите, когда приступите к работе">▶ Начать работу</span>';
+  }
   function card(o, withStage) {
     var stage = o.stage, money_ = can("money") && o.amount != null, pz = paused(o), late = pauseLate(o);
     return '<button class="task ' + (o.urgent ? "urgent" : "") + '" data-open="' + o.id + '"' + (taskCtl() ? ' draggable="true" data-dragid="' + o.id + '"' : "") + '><span class="stripe" style="--c:' + (o.urgent || late ? "var(--bad)" : (STAGE_COLOR[stage] || "var(--brand)")) + '"></span><span class="body">'
@@ -289,6 +295,7 @@
       + '<span class="meta">' + (o.executor ? ava(o.executor, "sm") + '<span style="font-size:.84rem;margin-right:auto">' + E(o.executor) + "</span>" : '<span class="pill muted" style="margin-right:auto">не назначен</span>')
       + (needPhone(o) ? '<span class="pill bad" title="В карточке заказчика не указан сотовый телефон">Нет телефона</span>' : "")
       + (withStage ? '<span class="pill muted"><i class="dot" style="background:' + (STAGE_COLOR[stage] || "#999") + '"></i>' + E(stage) + "</span>" : "")
+      + startPill(o)
       + (money_ ? payPill(o) : "")
       + (pz ? '<span class="pill muted" title="' + E("до " + dmy(o.pause_until) + " · " + (o.pause_reason || "")) + '">' + E(pauseText(o)) + "</span>" : '<span class="pill ' + tone(o) + '">' + E(leftText(o.left_days)) + "</span>") + "</span></span></button>";
   }
@@ -834,6 +841,7 @@
     var head = '<div class="ovl' + (o.urgent ? " urg" : "") + '"><button class="num" data-open="' + o.id + '" title="Открыть окно задачи">№' + E(o.number) + "</button>"
       + '<span class="cu" title="' + E(o.customer || "") + '">' + E(o.customer || "—") + '</span><span class="ob" title="' + E((o.object || "") + (sysText(o) ? " · " + sysText(o) : "")) + '">' + E(o.object || "") + (sysText(o) ? " · <b>" + E(sysText(o)) + "</b>" : "") + "</span>"
       + '<span class="pill muted"><i class="dot" style="background:' + (STAGE_COLOR[o.stage] || "#999") + '"></i>' + E(o.stage) + "</span>"
+      + (startPill(o, "btn primary sm") || "")
       + '<span class="ex">' + E(o.executor || "не назначен") + "</span>"
       + '<span class="pill ' + tn + '">' + E(paused(o) ? pauseText(o) : o.left_days == null ? "Без срока" : leftText(o.left_days)) + "</span>"
       + '<span class="lc" title="' + E(last ? last.user + ": " + last.text : "") + '">' + (last ? "<b>" + E(last.user) + ":</b> " + E(last.text) : "") + "</span>"
@@ -1719,10 +1727,17 @@
     var bg = e.target.getAttribute && e.target.getAttribute("data-bg");
     if (bg) return;                                    // щелчок мимо окна его не закрывает: набранное не теряется, закрыть — крестиком или «Отмена»
     if (e.target.closest("[data-trbox]") && !e.target.closest("[data-trsend]")) return;      // поле ответа в карточке задачи
-    var t = e.target.closest("[data-tack],[data-nfstart],[data-trep],[data-trsend],[data-who],[data-showclosed],[data-osel],[data-oselx],[data-oview],[data-gmore],[data-kpgo],[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-audload],[data-audlist],[data-audclose],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-cmdel],[data-tmopen],[data-tmstage],[data-pzopen],[data-pzx],[data-pzsave],[data-pzback],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
+    var t = e.target.closest("[data-ostart],[data-tack],[data-nfstart],[data-trep],[data-trsend],[data-who],[data-showclosed],[data-osel],[data-oselx],[data-oview],[data-gmore],[data-kpgo],[data-open],[data-close],[data-tab],[data-kb],[data-go],[data-urgent],[data-pay],[data-act],[data-new],[data-create],[data-tdone],[data-otype],[data-tile],[data-ostage],[data-ld],[data-edit],[data-saveplan],[data-csel],[data-cnew],[data-cadd],[data-cdel],[data-csave],[data-wmark],[data-woff],[data-wnav],[data-kpstatus],[data-kpcontract],[data-kptouch],[data-ksv],[data-ksave],[data-kcust],[data-kadd],[data-kdel],[data-ctmake],[data-ctsign],[data-ctpick],[data-rpkind],[data-rpnav],[data-rppub],[data-rpdl],[data-stnav],[data-stcsv],[data-pradd],[data-prdel],[data-prsave],[data-prreset],[data-doc],[data-compsave],[data-stsave],[data-aurun],[data-audload],[data-audlist],[data-audclose],[data-onrun],[data-onassign],[data-onignore],[data-tstate],[data-flstep],[data-fltab],[data-tzset],[data-tzadd],[data-tzdel],[data-tzremind],[data-tzopen],[data-ldn],[data-chatopen],[data-mt],[data-kpdel],[data-kt],[data-kpadd],[data-pcadd],[data-pcreset],[data-ctsvdel],[data-ctsvnew],[data-ctparty],[data-pt],[data-ppsave],[data-ppreset],[data-ccadd],[data-ccdel],[data-cckp],[data-ccreset],[data-ntopen],[data-ntsave],[data-lead],[data-cmtoggle],[data-cmsend],[data-cmdel],[data-tmopen],[data-tmstage],[data-pzopen],[data-pzx],[data-pzsave],[data-pzback],[data-tmprio],[data-tmurg],[data-tmcopy],[data-tmclose],[data-ldz],[data-ldmenu],[data-ldp],[data-tedit],[data-tdel],[data-tesave],[data-oesave],[data-oedel],[data-view],[data-scnew],[data-scsel],[data-scfpick],[data-scfopen],[data-scfdl],[data-scfdel],[data-scsave],[data-scdel],[data-sccopy],[data-kparch],[data-kptab]");
     if (!t) return;
     var d = t.dataset;
     if (d.close) return closeAll();
+    if (d.ostart) {
+      return api("/orders/" + d.ostart + "/start", { rid: 0 }).then(function () {
+        toast("Отмечено: работа начата");
+        S.orders = null;
+        return load().then(paint);
+      }, function (e2) { toast(String(e2)); });
+    }
     if (d.tmopen) return tmOpen(d.tmopen);
     if (d.tmstage) { if (S.oe) { S.oe.stage = d.tmstage; tmRepaint(); } return; }
     if (d.pzopen) { var po = find(+d.pzopen); S.pz = { id: +d.pzopen, reason: paused(po) ? po.pause_reason || "" : "", until: "", err: "" }; return tmRepaint(); }
