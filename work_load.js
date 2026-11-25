@@ -247,14 +247,15 @@
         var mv = i.move || {}, mfrom = mv.before || mv.baseline;
         var shfTip = i.shifted ? "Сдвинут" + (mv.at ? " " + dm(mv.at) + " (" + DOWS[new Date(mv.at + "T12:00:00").getDay()] + ")" : "") + (mv.by ? ", " + mv.by : "")
           + (mfrom || mv.after ? " — старт был " + (mfrom && mfrom[0] ? dm(mfrom[0]) : "—") + ", стал " + (mv.after && mv.after[0] ? dm(mv.after[0]) : "—") : "") : "";
-        var nsTip = ns ? "Не взято в работу в день старта — нажмите «✓ Начато» на карточке" : "";
+        var planOver = !i.hist && !i.paused && i.e && i.e < td;                 // красная плашка — только нарушение срока по плану
+        var nsTip = planOver ? "Нарушение срока по плану: план до " + dm(i.e) + " прошёл, работа не сдана" : "";
         var drag = mv && !i.hist && !i.paused ? ' draggable="true" data-wld="' + i.key + '"' : "";
         var open = i.hist ? openAttr(i.oid) : ph && canMove() ? 'data-wledit="' + i.key + '"' : openAttr(i.oid);
         var startBtn = ns ? '<button type="button" class="wl-start" data-wlstart="' + i.oid + ":" + (i.rid || 0) + '" title="Взять в работу — снять красную метку">✓ Начато</button>' : "";
-        segs += '<div class="wlb ' + stt + (hot ? " hot" : "") + (late && me === b ? " late" : "") + (i.pending ? " pend" : "") + (i.urgent && !i.hist ? " urg" : "") + (i.shifted ? " shf" : "") + (ns ? " ns" : "") + '"' + drag + " " + open
+        segs += '<div class="wlb ' + stt + (hot ? " hot" : "") + (late && me === b ? " late" : "") + (i.pending ? " pend" : "") + (i.urgent && !i.hist ? " urg" : "") + (i.shifted ? " shf" : "") + (planOver ? " ns" : "") + '"' + drag + " " + open
           + ' style="grid-column:' + (a + 2) + "/" + (me + 3) + ";grid-row:" + (l + 1) + '" data-wlcard="' + card + '"><b><span class="wlb-num">' + E(ttl) + '</span>' + (i.hist ? "" : '<span class="wlb-object">' + E(i.object) + '</span>') + "</b>" + (i.hist ? "" : "<small>" + l2 + "</small>")
           + (i.shifted ? '<span class="wl-bd shf" data-wlinfo="1" data-wltip="' + E(shfTip) + '"></span>' : "")
-          + (ns ? '<span class="wl-bd ns" data-wlinfo="1" data-wltip="' + E(nsTip) + '"></span>' : "")
+          + (planOver ? '<span class="wl-bd ns" data-wlinfo="1" data-wltip="' + E(nsTip) + '"></span>' : "")
           + infoButton() + startBtn + "</div>";
         var lateDays = me < b ? wdBetween(addD(i.due, 1), e) : 0;
         if (me < b) segs += '<div class="wlb over" style="grid-column:' + (me + 3) + "/" + (b + 3) + ";grid-row:" + (l + 1) + '" title="Работа после срока договора: ' + lateDays + ' р.д."><b>+' + lateDays + (lateDays > 1 ? " р.д.</b><small>после срока</small>" : "</b>") + "</div>";

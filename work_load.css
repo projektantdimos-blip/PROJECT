@@ -258,7 +258,11 @@ body.wl-drg .ds .ldpop{opacity:.15;pointer-events:none}
 .ds .wl-nm .wl-status.absence { background: #eee5fb; border-color: #cfb7eb; color: #542b88 }
 .ds .wl-nm .wl-status.overdue { background: #f9e3df; border-color: #e5aca5; color: #8b2119 }
 .ds .wl-c { display: grid; place-items: center; border-left: 1px solid var(--wl-grid) }
-.ds .wl-c.off:not(.td),.ds .wl-c.vac:not(.td) { background: #e7d8f7; color: #572f8e }
+.ds .wl-c.off:not(.td){background:color-mix(in srgb,var(--muted) 8%,transparent);color:var(--muted)}
+.ds .wl-c.vac:not(.td){background:color-mix(in srgb,#8a5fd0 10%,transparent);color:color-mix(in srgb,#8a5fd0 70%,var(--muted))}
+.ds .wl-c.off small,.ds .wl-c.vac small{font-size:.6rem;opacity:.7}
+.ds .wl-c{position:relative;z-index:0}
+.ds .wl-overlap{position:relative;z-index:0;pointer-events:none}
 .ds .wl-c small { writing-mode: vertical-rl; transform: rotate(180deg); font-size: .66rem; font-weight: 700 }
 .ds .wl-ld { column-gap: 0; margin: 0; padding-bottom: 5px; border-bottom: 12px solid #dfe5ee }
 .ds .wl-ld-l { line-height: 8px }
