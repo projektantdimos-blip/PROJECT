@@ -551,7 +551,7 @@ function renderTopNav(){
   } else if (dsPosition() && window.DS && registry.dataset.view !== view) {
     var frame = document.createElement("iframe");
     frame.title = view === "kp" ? "Реестр КП" : "Реестр оплат";
-    frame.src = "commerce_registry.html?v=20261125h&view=" + view;
+    frame.src = "commerce_registry.html?v=20261125i&view=" + view;
     frame.style.cssText = "display:block;border:0;width:100%;height:100dvh";
     registry.dataset.view = view;
     registry.replaceChildren(frame);

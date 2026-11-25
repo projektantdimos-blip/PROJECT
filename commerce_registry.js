@@ -38,6 +38,7 @@
     ["arch", "Архив оплат", "g", "Оплаты прошлых месяцев · история платежей в строке"]
   ];
   const kpGroups = [
+    ["advance", "Ждём предоплату", "p", "клиент согласился · просроченные сверху"],
     ["late", "Пропущен контакт", "r", "позвонить первыми"],
     ["today", "Позвонить сегодня", "w", "следующий контакт назначен на сегодня"],
     ["rest", "Дальше по графику", "o", ""],
@@ -48,6 +49,11 @@
     ["work","В работе","#dde7f6","#1d4f9e"],["full","Оплачено полностью","#d9efe0","#17653a"],["arch","Архив оплат","#e4e7ec","#4a5566"]];
   const filterKp = [["all","Все","#fff","#1b3a5e"],["sent","КП отправлено","#dde7f6","#1d4f9e"],
     ["advance","Ждём предоплату","#f6ead0","#7a5300"],["noprob","Без вероятности","#fdeeed","#a5281b"],["refused","Архив отказов","#e4e7ec","#4a5566"]];
+  const advanceSteps = [
+    ["Напоминание", "Позвонить, напомнить о предоплате и спросить дату оплаты."],
+    ["Подтверждение даты письмом", "Попросить клиента подтвердить дату оплаты письмом."],
+    ["Поставить на паузу", "Приостановить работу с просроченной предоплатой по этому КП."]
+  ];
   const headerTips = {
     "№ КП": "Номер КП в CRM.",
     "Заказчик": "Название заказчика и вид работ. Нажмите на синее название, чтобы открыть карточку.",
@@ -87,7 +93,7 @@
   };
   const tip = HTML => ' data-tip="'+esc(HTML)+'"';
   const explained = (label, cls, content) => '<span class="'+cls+'" tabindex="0"'+tip(content)+'>'+esc(label)+'</span>';
-  const state = { rows: [], editable: false, filter: "all", ready: false, undo: null, busy: 0 };
+  const state = { rows: [], editable: false, filter: "all", ready: false, undo: null, busy: 0, touchDraft: null };
   const noteWrites = new Map();
   const tooltip = $("rgTooltip");
   let undoTimer;
@@ -169,9 +175,11 @@
   }
   function kpGroup(r) {
     if (r.status === "Отказ") return "refused";
+    if (waitingAdvance(r)) return "advance";
     if (r.next_contact === now) return "today";
     return r.next_contact && r.next_contact < now ? "late" : "rest";
   }
+  function waitingAdvance(r) { return r.status === "В предоплате" || r.status === "Доки отправлены"; }
   function inRegister(r) {
     if (isPay) return r.status !== "Отказ" && (r.transferred || afterSale.has(r.status) || r.adv_paid || r.post_paid || r.payments.length);
     return r.status === "Отказ" || (!r.transferred && open.has(r.status) && !r.adv_paid && !r.post_paid && !r.payments.length);
@@ -180,8 +188,8 @@
     if (isPay) return filter === "all" ? payGroup(r) !== "arch" : payGroup(r) === filter;
     if (r.status === "Отказ") return filter === "refused";
     if (filter === "sent") return r.status === "КП отправлено";
-    if (filter === "advance") return r.status !== "КП отправлено";
-    return filter === "noprob" ? !r.pay_prob : filter === "all";
+    if (filter === "advance") return waitingAdvance(r);
+    return filter === "noprob" ? !r.pay_prob && !waitingAdvance(r) : filter === "all";
   }
   function period(r) {
     const q = $("rgSearch").value.trim().toLocaleLowerCase("ru");
@@ -221,6 +229,48 @@
       '" data-value="'+key+'" aria-pressed="'+(r.pay_prob === key)+'"'+(state.editable ? "" : " disabled")+'>'+label+'</button>').join("")+'</div>';
   }
   function prefix(r, i) { return c(plain(i + 1, "nb")) + c(plain("№" + r.number, "kp")) + customer(r); }
+  function advanceStatus(r, statusName, archive) {
+    const cls = "chip " + (archive ? "rg-refused" : waitingAdvance(r) ? "rg-advance" : "rg-sent");
+    let markup = state.editable && !archive && (waitingAdvance(r) || !r.order_id)
+      ? button("advance-menu", plain(statusName, cls), r, "inl rg-status-entry", tip(quoteTips[statusName]))
+      : explained(statusName, cls, quoteTips[statusName]);
+    if (!waitingAdvance(r)) return markup;
+    const step = r.advance_step || 0;
+    if (step === 3) markup += plain("На паузе", "ps work");
+    if (!r.advance_due) return markup + plain("Укажите дату подписания");
+    const late = r.advance_due < now;
+    const rule = "Договор подписан " + dm(r.advance_signed_on) + ". Срок предоплаты — " + r.advance_days + " раб. дн.";
+    markup += explained(late ? "Просрочка " + bd(r.advance_due, now) + " р.д." : "До " + shortDate(r.advance_due),
+      "ps " + (late && step !== 3 ? "late" : "wait"), esc(rule));
+    if (step > 0 && step < 3) markup += explained("Шаг "+step+" · "+advanceSteps[step-1][0], "ps wait", esc(advanceSteps[step-1][1]));
+    else if (late && !step) markup += plain("Шаги ещё не начаты");
+    return markup;
+  }
+  function dateOptions() {
+    const d = new Date(today), result = [];
+    let days = 0;
+    while (days < 3) {
+      d.setDate(d.getDate() + 1);
+      if (!d.getDay() || d.getDay() === 6) continue;
+      days++;
+      if (days === 1) result.push([iso(d), "Завтра"]);
+    }
+    result.push([iso(d), "+3 р.д."]);
+    const weekLater = new Date(today);
+    weekLater.setDate(weekLater.getDate() + 7);
+    result.push([iso(weekLater), "Через неделю"]);
+    return result;
+  }
+  function kpTouchCell(r, latest, archive) {
+    if (!state.editable || archive) return plain(r.refuse_note || latest);
+    const draft = state.touchDraft;
+    if (!draft || draft.id !== r.id) return button("kp-touch", esc(latest || "Записать итог") + (latest ? '<small class="pen">записать итог</small>' : ""), r, "inl");
+    return '<form class="rg-touch-form" data-touch="'+r.id+'"><label>Итог контакта<textarea name="text" required maxlength="300" rows="2">'+esc(draft.text)+'</textarea></label>'+
+      '<label>Касание<select name="kind">'+["Звонок","Письмо","Мессенджер","Встреча"].map(k => '<option'+(draft.kind === k ? " selected" : "")+'>'+k+'</option>').join("")+'</select></label>'+
+      '<label>Следующий контакт<input type="date" name="next" min="'+now+'" required value="'+esc(draft.next)+'"></label>'+
+      '<div class="rg-quick-dates">'+dateOptions().map(([date, label]) => '<button type="button" class="b sm" data-action="kp-touch-date" data-id="'+r.id+'" data-value="'+date+'">'+label+'<small>'+shortDate(date)+'</small></button>').join("")+'</div>'+
+      '<button type="submit" class="b bl sm">Сохранить</button>'+button("kp-touch-cancel", "Отмена", r)+'</form>';
+  }
   function kpRow(r, i) {
     const archive = r.status === "Отказ";
     const statusName = archive ? "Отказ" : r.status === "КП отправлено" ? r.status : "Ждём предоплату";
@@ -228,13 +278,11 @@
       button("transfer", "В оплаты", r, "", 'data-transfer title="Передать в реестр оплат"') +
       (r.order_id ? "" : button("refuse", "Отказ", r, "rfo"));
     const latest = r.last_touch || r.comment;
-    const touch = state.editable && !archive ? button("touch", esc(latest || "Записать итог") + (latest ? '<small class="pen">записать итог</small>' : ""), r, "inl") : plain(r.refuse_note || latest);
-    const statusChip = plain(statusName, "chip " + (archive ? "rg-refused" : statusName === "КП отправлено" ? "rg-sent" : "rg-advance"));
-    return prefix(r, i) + c(plain(dm(r.issued_date || r.created_date), "dt")) + c(plain(money(r.amount), "am")) +
-      c(statusChip + (state.editable && r.status === "КП отправлено" && !r.order_id && r.adv_sum > 0
-        ? button("advance", "Ждём предоплату", r, "rg-stage") : "")) +
-      c(archive ? plain(r.refuse_reason) : prob(r)) + c(archive ? plain(dm(r.status_date), "dt") : contact(r)) +
-      c(archive ? plain("—") : dateControl(r, "next_contact")) + c(touch, "l") + c(actions, "acts");
+    return prefix(r, i) + c(plain(dm(r.issued_date || r.created_date), "dt")) + c(plain(money(r.amount), "am") + (statusName === "Ждём предоплату" && r.adv_sum ? plain("Предоплата " + money(r.adv_sum)) : "")) +
+      c(advanceStatus(r, statusName, archive)) +
+      c(archive ? plain(r.refuse_reason) : waitingAdvance(r) ? explained("Клиент согласился", "ps paid", "Вероятность уже не оценивается. Теперь важен срок предоплаты.") : prob(r)) +
+      c(archive ? plain(dm(r.status_date), "dt") : contact(r)) + c(archive ? plain("—") : dateControl(r, "next_contact")) +
+      c(kpTouchCell(r, latest, archive), "l") + noteCell(r) + actionCell(r, actions);
   }
   function payRow(r, i) {
     const group = payGroup(r), paid = received(r);
@@ -272,7 +320,7 @@
         ["#4f8a68","Пришло на этой неделе",money(sum(incoming, p => p.amount)),"оплат",incoming.length,"Поступления с понедельника."]);
     } else {
       const newKp = all.filter(r => r.issued_date >= week && r.issued_date <= now && match(r, "all"));
-      const high = shown.filter(r => r.pay_prob === "high" && r.status !== "Отказ");
+      const high = shown.filter(r => r.pay_prob === "high" && r.status !== "Отказ" && !waitingAdvance(r));
       const sold = state.rows.filter(r => r.payments.some(p => p.date >= week && p.date <= now));
       const rejects = all.filter(r => r.status === "Отказ" && r.status_date >= week && r.status_date <= now);
       tiles.push(["#6f82a8","Новые КП за неделю",money(sum(newKp, r => r.amount)),"КП",newKp.length,"Выставлены с понедельника."],
@@ -296,7 +344,9 @@
     (isPay ? payGroups : kpGroups).forEach(([key, title, tone, help]) => {
       const group = shown.filter(r => (isPay ? payGroup(r) : kpGroup(r)) === key);
       if (!group.length) return;
-      if (!isPay && key !== "refused") group.sort((a,b) => (a.next_contact || "9").localeCompare(b.next_contact || "9"));
+      if (!isPay && key === "advance") group.sort((a,b) => (a.advance_step === 3) - (b.advance_step === 3) ||
+        (a.advance_due || "9").localeCompare(b.advance_due || "9"));
+      else if (!isPay && key !== "refused") group.sort((a,b) => (a.next_contact || "9").localeCompare(b.next_contact || "9"));
       if (isPay && key === "work") {
         const paid = group.some(r => r.adv_paid);
         if (paid) help = "Предоплата получена, работа идёт" + (group.some(r => !r.adv_paid) ? " · также КП, переданные в работу без поступления оплаты" : "");
@@ -333,6 +383,7 @@
     try {
       await Promise.allSettled(noteWrites.values());
       const result = await send(path, body);
+      if (body.action === "touch" && state.touchDraft && path === "/commerce/registry/"+state.touchDraft.id) state.touchDraft = null;
       $("rgModal").close();
       await load();
       if (path === "/commerce/undo") {
@@ -343,6 +394,11 @@
       status(String(error), true);
       const message = $("rgModal").querySelector(".rg-error");
       if ($("rgModal").open && message) message.textContent = String(error);
+      if (control && control.form && control.form.matches("[data-touch]")) {
+        let issue = control.form.querySelector(".rg-error");
+        if (!issue) { issue = document.createElement("small"); issue.className = "rg-error"; control.form.appendChild(issue); }
+        issue.textContent = String(error);
+      }
     } finally {
       state.busy--;
       if (control && control.dataset.action !== "undo") control.disabled = false;
@@ -384,6 +440,27 @@
       '</select></label><label>Итог<textarea name="note" maxlength="300"></textarea></label>'+promise+'<label>Следующий контакт <input class="mdate" name="next" type="date" required min="'+now+'" value="'+esc(r.next_contact >= now ? r.next_contact : "")+'"></label>', (f,b) =>
       edit(r,"touch",{kind:f.get("kind"),next_contact:f.get("next"),text:f.get("note"),pay_expect:f.get("promise")},b));
   }
+  function advanceMenu(r) {
+    const waiting = waitingAdvance(r), step = r.advance_step || 0;
+    const amount = r.adv_sum || (!r.advance_amount_locked ? Math.round(r.amount * 50) / 100 : 0);
+    const signed = r.advance_signed_on || (waiting ? "" : now);
+    let content = '';
+    if (waiting && step === 3) {
+      content += '<p class="stn">КП на паузе. Дальнейший шаг пока не назначен.</p>'+button("advance_resume", "Снять паузу", r, "sto b");
+    } else if (waiting && r.advance_due && r.advance_due < now && r.adv_sum > 0) {
+      const [label, help] = advanceSteps[step];
+      content += button("advance_step", "Шаг "+(step+1)+": "+esc(label)+'<small>'+esc(help)+'</small>', r, "sto r");
+    }
+    content += '<label>Дата подписания договора <input class="mdate" name="signed" type="date" required max="'+now+'" value="'+esc(signed)+'"'+(r.advance_date_locked ? " readonly" : "")+'></label>'+
+      '<label>Предоплата, ₽ <input name="amount" type="number" min="0.01" max="'+esc(r.amount)+'" step="0.01" required value="'+(amount || "")+'"'+(r.advance_amount_locked ? " readonly" : "")+'></label>'+
+      '<p class="stn">Срок предоплаты — '+esc(r.advance_days || 5)+' рабочих дней от подписания.'+
+      (waiting ? "" : " Следующий контакт — через 3 рабочих дня от подписания.")+'</p>'+
+      (r.advance_date_locked || r.advance_amount_locked ? '<p class="stn">Условия из сохранённого договора. Изменить их можно в карточке.</p>' : "");
+    if (waiting && !r.order_id) content += button("advance_cancel", "Клиент передумал", r, "sto b")+'<p class="stn">Вернуть в «КП отправлено».</p>';
+    dialog("Что произошло?", content, (f, b) => edit(r, waiting ? "advance_terms" : "advance_accept",
+      {text:f.get("signed"),advance_amount:Number(f.get("amount"))}, b));
+    $("rgModal").querySelector('[type="submit"]').textContent = waiting ? "Сохранить условия" : "Клиент согласился";
+  }
   document.addEventListener("click", e => {
     const b = e.target.closest("[data-action]");
     if (!b || !host) return;
@@ -405,6 +482,18 @@
     if (!state.editable) return;
     if (action === "call") call(r);
     else if (action === "touch") touch(r);
+    else if (action === "kp-touch") {
+      state.touchDraft = {id:r.id,text:"",kind:"Звонок",next:""};
+      render();
+      document.querySelector('[data-touch="'+r.id+'"] textarea').focus();
+    }
+    else if (action === "kp-touch-date") {
+      const form = b.closest("[data-touch]");
+      if (!form || !state.touchDraft) return;
+      form.elements.next.value = state.touchDraft.next = b.dataset.value;
+      form.querySelectorAll("[data-action=kp-touch-date]").forEach(option => option.classList.toggle("rg-quick-on", option === b));
+    }
+    else if (action === "kp-touch-cancel") { state.touchDraft = null; render(); }
     else if (action === "next" || action === "expect") changeDate(r, action === "next" ? "next_contact" : "pay_expect");
     else if (action === "due") dialog("Назначить срок оплаты", '<label>Срок оплаты <input class="mdate" name="date" type="date" required value="'+esc(r.due_manual ? r.due : "")+'"></label>',
       (f, btn) => edit(r, "due", {text:f.get("date")}, btn));
@@ -414,12 +503,25 @@
       edit(r, "refuse", {text:f.get("reason")}, btn));
     else if (action === "restore") dialog("Вернуть КП в работу", '<label>Следующий контакт <input class="mdate" name="next" type="date" required min="'+now+'" value="'+esc(r.next_contact >= now ? r.next_contact : "")+'"></label>', (f,btn) =>
       edit(r, "restore", {next_contact:f.get("next")}, btn));
-    else if (action === "advance") {
-      if (r.next_contact) edit(r, "advance", {}, b);
-      else dialog("Ждём предоплату", '<label>Следующий контакт <input class="mdate" name="next" type="date" required min="'+now+'"></label>', (f,btn) =>
-        edit(r, "advance", {next_contact:f.get("next")}, btn));
-    }
+    else if (action === "advance-menu") advanceMenu(r);
+    else if (action === "advance_step" || action === "advance_resume") edit(r, action, {advance_step:r.advance_step || 0}, b);
+    else if (action === "advance_cancel") edit(r, action, {}, b);
     else if (action === "transfer" || action === "invoice") edit(r, action, {}, b);
+  });
+  document.addEventListener("input", e => {
+    if (state.touchDraft && e.target.closest("[data-touch]") && ["text","kind","next"].includes(e.target.name)) {
+      state.touchDraft[e.target.name] = e.target.value;
+    }
+  });
+  document.addEventListener("submit", e => {
+    const form = e.target.closest("[data-touch]");
+    if (!form) return;
+    e.preventDefault();
+    const r = state.rows.find(row => row.id === +form.dataset.touch);
+    if (!r || !state.editable) return;
+    const values = new FormData(form), text = values.get("text").trim();
+    if (!text) { form.elements.text.focus(); return; }
+    edit(r, "touch", {kind:values.get("kind"),next_contact:values.get("next"),text}, form.querySelector('[type="submit"]'));
   });
   document.addEventListener("change", e => {
     if (["rgDateMode","rgFrom","rgTo"].includes(e.target.id)) { render(); return; }
