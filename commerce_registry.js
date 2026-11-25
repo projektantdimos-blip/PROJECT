@@ -31,11 +31,11 @@
   const refused = ["Дорого","Условия оплаты","Сроки","Дешевле у конкурента","Выбрали другого (не по цене)","Отложили","Пропал","Пока прицениваются","Не наш профиль","Другое (в комментарии)"];
   const payGroups = [
     ["bill", "Выставить счёт на остаток", "r", "Работы сданы, счёт ещё не выставлен"],
-    ["late", "Просроченные оплаты", "r", "Срок оплаты или обещание клиента прошли"],
+    ["late", "Просроченные оплаты", "r", "Срок оплаты или обещание клиента прошли · блок 4 пятничного отчёта"],
     ["wait", "Счёт выставлен, ждём оплату", "v", "Срок оплаты ещё не прошёл"],
     ["work", "В работе", "o", "Переданные КП и текущие заказы"],
-    ["full", "Оплачено полностью", "g", ""],
-    ["arch", "Архив оплат", "g", ""]
+    ["full", "Оплачено полностью", "g", "Оплаты за текущий месяц"],
+    ["arch", "Архив оплат", "g", "Оплаты прошлых месяцев · история платежей в строке"]
   ];
   const kpGroups = [
     ["late", "Пропущен контакт", "r", "позвонить первыми"],
@@ -152,8 +152,10 @@
     const adv = r.adv_sum ? plain(money(r.adv_sum), "am") + plain(r.adv_paid ? "Оплачен" : paidAdvance ? "Получено " + money(paidAdvance) : "Оплата не поступила", "ps " + (r.adv_paid ? "paid" : "none")) : plain("—");
     const post = r.post_sum ? plain(money(r.post_sum), "am") + plain(r.post_paid ? "Оплачен" : group === "bill" ? "Счёт не выставлен" :
       group === "late" ? "Просрочено" : group === "wait" ? "Счёт выставлен" : "После сдачи работ", "ps " + (r.post_paid ? "paid" : group)) : plain("—");
-    return prefix(r, i) + c(summary) + c(adv) + c(post) + c(plain(stage, "chip rg-sent") +
-      plain(r.transferred && group === "work" ? "Передано из реестра КП" : r.delivered_on ? "Сдано " + shortDate(r.delivered_on) : r.order_stage)) +
+    const stageNote = group === "work" && r.adv_paid ? "Предоплата получена, работа идёт"
+      : r.transferred && group === "work" ? "Передано из реестра КП"
+      : r.delivered_on ? "Сдано " + shortDate(r.delivered_on) : r.order_stage;
+    return prefix(r, i) + c(summary) + c(adv) + c(post) + c(plain(stage, "chip rg-sent") + plain(stageNote)) +
       c(due) + c(group === "full" || group === "arch" ? plain("—") : dateControl(r, "pay_expect")) + c(contact(r)) + c(actions, "acts");
   }
   function header() {
@@ -196,6 +198,10 @@
       const group = shown.filter(r => (isPay ? payGroup(r) : kpGroup(r)) === key);
       if (!group.length) return;
       if (!isPay && key !== "refused") group.sort((a,b) => (a.next_contact || "9").localeCompare(b.next_contact || "9"));
+      if (isPay && key === "work") {
+        const paid = group.some(r => r.adv_paid);
+        if (paid) help = "Предоплата получена, работа идёт" + (group.some(r => !r.adv_paid) ? " · также КП, переданные в работу без поступления оплаты" : "");
+      }
       markup += '<div class="tr grp '+tone+'">'+("<span class=\"c\"></span>").repeat(11)+'<span class="gl">'+title+' · '+group.length+
         (help ? ' <small>'+help+'</small>' : "")+'</span></div>';
       markup += group.map(r => '<div class="tr '+tone+(i % 2 ? " z" : "")+'">'+(isPay ? payRow(r,i++) : kpRow(r,i++))+'</div>').join("");

@@ -233,7 +233,10 @@ textarea{min-height:76px;resize:vertical}
 .rg-sent{background:#dde7f6;color:#1d4f9e}
 .rg-advance{background:#f6ead0;color:#7a5300}
 .rg-refused{background:#f8dfdc;color:#a5281b}
-.rg-stage{font-size:11px;min-height:24px;padding:3px 5px}
+.tr>.c>.b.rg-stage{min-width:0;max-width:100%;min-height:24px;padding:4px 6px;font-size:11px;line-height:1.25;white-space:normal;overflow-wrap:anywhere}
+.tr>.c>.seg{min-width:0;max-width:100%}
+.tr>.c>.seg button{min-width:0;overflow-wrap:anywhere}
+.grp .gl{max-width:calc(100% - 20px);white-space:normal}
 .rg-payment-detail,.rg-error{font-size:12px;overflow-wrap:anywhere}
 .rg-error{color:#a5281b}
 .rg-call:disabled{opacity:.45;cursor:default}

@@ -170,9 +170,17 @@
       if (from) rows.push([move.before ? "Было" : "Утверждённый план", dm(from[0]) + " — " + dm(from[1])]);
       if (move.after) rows.push([move.before ? "Стало" : "Текущий план", dm(move.after[0]) + " — " + dm(move.after[1])]);
     }
+    var badges = "";
+    if (i.shifted) {
+      var mv = i.move || {}, from = mv.before || mv.baseline, f0 = from && from[0] ? dm(from[0]) : "—", a0 = mv.after && mv.after[0] ? dm(mv.after[0]) : "—";
+      badges += '<div class="wl-popbd shf"><b>Сдвинут' + (mv.at ? " " + dm(mv.at) + " (" + ["вс", "пн", "вт", "ср", "чт", "пт", "сб"][new Date(mv.at + "T12:00:00").getDay()] + ")" : "") + (mv.by ? ", " + E(mv.by) : "") + '</b>'
+        + (from || mv.after ? '<small>старт был ' + f0 + ', стал ' + a0 + "</small>" : "") + "</div>";
+    }
+    var lateN = !i.hist && i.due && i.e && i.e > i.due ? wdBetween(addD(i.due, 1), i.e) : 0;
+    if (lateN > 0) badges += '<div class="wl-popbd late"><b>Опоздание: ' + lateN + " " + (lateN % 10 === 1 && lateN % 100 !== 11 ? "день" : lateN % 10 >= 2 && lateN % 10 <= 4 && (lateN % 100 < 10 || lateN % 100 >= 20) ? "дня" : "дней") + " после срока</b></div>";
     var markup = '<header><b>' + E(label(i)) + '</b>' + (i.urgent ? '<span>Срочно</span>' : "") + '</header>'
       + (i.object ? '<div class="wl-card-object">' + E(i.object) + '</div>' : "")
-      + '<dl>' + rows.map(function (r) { return "<dt>" + E(r[0]) + "</dt><dd>" + E(r[1]) + "</dd>"; }).join("") + "</dl>";
+      + '<dl>' + rows.map(function (r) { return "<dt>" + E(r[0]) + "</dt><dd>" + E(r[1]) + "</dd>"; }).join("") + "</dl>" + badges;
     return cardDetails.push({ state: state, markup: markup }) - 1;
   }
   function infoButton() {
@@ -239,7 +247,10 @@
         var open = i.hist ? openAttr(i.oid) : ph && canMove() ? 'data-wledit="' + i.key + '"' : openAttr(i.oid);
         var startBtn = ns ? '<button type="button" class="wl-start" data-wlstart="' + i.oid + ":" + (i.rid || 0) + '" title="Взять в работу — снять красную метку">✓ Начато</button>' : "";
         segs += '<div class="wlb ' + stt + (hot ? " hot" : "") + (late && me === b ? " late" : "") + (i.pending ? " pend" : "") + (i.urgent && !i.hist ? " urg" : "") + (i.shifted ? " shf" : "") + (ns ? " ns" : "") + '"' + drag + " " + open
-          + ' style="grid-column:' + (a + 2) + "/" + (me + 3) + ";grid-row:" + (l + 1) + '" data-wlcard="' + card + '"><b><span class="wlb-num">' + E(ttl) + '</span>' + (i.hist ? "" : '<span class="wlb-object">' + E(i.object) + '</span>') + "</b>" + (i.hist ? "" : "<small>" + l2 + "</small>") + infoButton() + startBtn + "</div>";
+          + ' style="grid-column:' + (a + 2) + "/" + (me + 3) + ";grid-row:" + (l + 1) + '" data-wlcard="' + card + '"><b><span class="wlb-num">' + E(ttl) + '</span>' + (i.hist ? "" : '<span class="wlb-object">' + E(i.object) + '</span>') + "</b>" + (i.hist ? "" : "<small>" + l2 + "</small>")
+          + (i.shifted ? '<span class="wl-bd shf" data-wlinfo="1" title="Сдвинут после утверждения плана — наведите или нажмите для подробностей"></span>' : "")
+          + (ns ? '<span class="wl-bd ns" data-wlinfo="1" title="Не взято в работу в день старта — наведите или нажмите для подробностей"></span>' : "")
+          + infoButton() + startBtn + "</div>";
         var lateDays = me < b ? wdBetween(addD(i.due, 1), e) : 0;
         if (me < b) segs += '<div class="wlb over" style="grid-column:' + (me + 3) + "/" + (b + 3) + ";grid-row:" + (l + 1) + '" title="Работа после срока договора: ' + lateDays + ' р.д."><b>+' + lateDays + (lateDays > 1 ? " р.д.</b><small>после срока</small>" : "</b>") + "</div>";
         if (mv && !i.hist && i.s >= td && i.s >= days[0]) segs += '<span class="wl-hd l" data-wlrs="' + i.key + ':l" style="grid-column:' + (a + 2) + ";grid-row:" + (l + 1) + '" title="Тяните — сдвинуть начало"></span>';
