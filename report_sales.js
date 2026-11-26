@@ -45,7 +45,13 @@
   function isoToD(s) { return s && s.length >= 10 ? new Date(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) : null; }
   function dmIso(s) { return s && s.length >= 10 ? s.slice(8, 10) + "." + s.slice(5, 7) : ""; }
   function dmyIso(s) { return s && s.length >= 10 ? s.slice(8, 10) + "." + s.slice(5, 7) + "." + s.slice(2, 4) : ""; }
-  function pdDmy(s) { var m = /^(\d\d)\.(\d\d)\.(\d\d)$/.exec(s || ""); return m ? new Date(2000 + (+m[3]), +m[2] - 1, +m[1]) : null; }
+  function pdDmy(s) {
+    var m = /^(\d\d)\.(\d\d)\.(\d\d)$/.exec(s || "");
+    if (!m) return null;
+    var year = 2000 + +m[3], month = +m[2] - 1, day = +m[1];
+    var date = new Date(year, month, day);
+    return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day ? date : null;
+  }
   function fdt(d) { return p2(d.getDate()) + "." + p2(d.getMonth() + 1); }
   function isoOf(d) { return d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate()); }
   function dmyToIso(s) { var d = pdDmy(s); return d ? isoOf(d) : ""; }
@@ -53,28 +59,220 @@
   function bdN(a, b) { var x = new Date(a), n = 0; while (x < b) { x.setDate(x.getDate() + 1); if (x.getDay() !== 0 && x.getDay() !== 6) n++; } return n; }
   function status(t) { var st = document.getElementById("srStatus"); if (st) st.textContent = t; }
 
-  var noteWrites = {};
-  function saveNote(key, value) {
-    AV[key] = value;
-    status("Сохраняем…");
-    var week = WEEK, pending = week + "|" + key;
-    var write = Promise.resolve(noteWrites[pending]).then(function () {
-      return MPBC.call("/../ds/reports/sales/answer", { body: { start: week, key: key, text: value } });
-    }).then(function () {
-      if (WEEK === week && noteWrites[pending] === write) status("Сохранено");
-    }, function (error) {
-      if (WEEK === week && noteWrites[pending] === write) status("Не сохранено: " + error);
+
+  var drafts = { writes: {}, edits: {} }, draftOwner = "", writeQueues = {};
+  function currentDraftOwner() {
+    var uid = window.MPBC && MPBC.me && MPBC.me.id;
+    return uid ? "ds-sales-report-drafts-v1:" + uid : "";
+  }
+  function openDrafts() {
+    var owner = currentDraftOwner();
+    if (owner === draftOwner) return;
+    draftOwner = owner;
+    drafts = { writes: {}, edits: {} };
+    if (!owner) return;
+    try {
+      var saved = JSON.parse(localStorage.getItem(owner) || "null");
+      if (saved && saved.writes && saved.edits) {
+        drafts = saved;
+        Object.keys(drafts.writes).forEach(function (key) { drafts.writes[key].error = true; });
+      }
+    } catch (_) {}
+  }
+  function storeDrafts() {
+    if (!draftOwner) return;
+    try { localStorage.setItem(draftOwner, JSON.stringify(drafts)); } catch (_) {}
+  }
+  function noteId(key) { return "note|" + WEEK + "|" + key; }
+  function entryFor(t) {
+    var kpd = t.classList.contains("dtx") && t.closest(".kpd");
+    if (kpd) return kpd.dataset.kp ? "kp|" + kpd.dataset.kp + "|issued_date" : noteId("s7:custom");
+    if (t.dataset.akp) return "kp|" + t.dataset.akp;
+    if (t.dataset.ak) return noteId(t.dataset.ak);
+    if (t.dataset.cu) return noteId("s7:custom");
+    if (t.dataset.md) return noteId(t.closest("[data-manual]").dataset.manual);
+    var group = t.dataset.aks || t.dataset.akm;
+    if (group) return group.indexOf("kp:") === 0 ? "kp|" + group.slice(3)
+      : noteId(group.indexOf("cu:") === 0 ? "s7:custom" : group);
+    return "";
+  }
+  function editId(t) {
+    var id = entryFor(t);
+    if (t.dataset.md) id += "|" + t.dataset.md;
+    if (t.dataset.cu) id += "|" + t.dataset.cu;
+    var kpd = t.classList.contains("dtx") && t.closest(".kpd[data-cukp]");
+    if (kpd) id += "|" + kpd.dataset.cukp + "|issued";
+    return id;
+  }
+  function rememberEdit(t, error) {
+    var key = editId(t);
+    if (!key) return;
+    drafts.edits[key] = { value: t.value, error: error || "" };
+    storeDrafts();
+  }
+  function forgetEdit(t) {
+    var key = editId(t);
+    if (key && drafts.edits[key]) {
+      delete drafts.edits[key];
+      storeDrafts();
+    }
+  }
+  function restoreEdits(root) {
+    root.querySelectorAll(".kpd").forEach(function (el) {
+      var key = el.dataset.kp ? "kp|" + el.dataset.kp + "|issued_date"
+        : noteId("s7:custom") + "|" + el.dataset.cukp + "|issued";
+      if (drafts.edits[key] && !el.querySelector(".dtx")) editKp(el, false);
     });
-    noteWrites[pending] = write;
-    write.then(function () { if (noteWrites[pending] === write) delete noteWrites[pending]; });
-    return write;
+    root.querySelectorAll("input,textarea,select").forEach(function (t) {
+      var draft = drafts.edits[editId(t)], pending = drafts.writes[entryFor(t)];
+      if (t.disabled) return;
+      if (draft) t.value = draft.value;
+      else if (pending && t.dataset.ak) t.value = t.classList.contains("dtx") ? dmyIso(pending.value) : pending.value;
+    });
+  }
+  function applyWrites() {
+    Object.keys(drafts.writes).forEach(function (id) {
+      var parts = id.split("|"), entry = drafts.writes[id];
+      if (parts[0] === "kp") KV[parts[1] + "|" + parts[2]] = entry.value;
+      else if (parts[1] === WEEK) AV[parts[2]] = entry.value;
+    });
+  }
+  function reportDrafts() {
+    var root = document.querySelector(".sr");
+    if (!root || RO) return;
+    var selector = "[data-ak],[data-akp],[data-aks],[data-akm],[data-cu],[data-md],.kpd .dtx,.kpd .dt5";
+    var fields = Object.create(null), seen = Object.create(null), hasEdits = false;
+    root.querySelectorAll(selector).forEach(function (t) {
+      var key = editId(t), ref = entryFor(t);
+      if (t.classList.contains("dt5") && t.closest(".kpd[data-kp]")) ref = "kp|" + t.closest(".kpd").dataset.kp + "|issued_date";
+      if (t.disabled) return;
+      var edit = drafts.edits[key], write = drafts.writes[ref];
+      if (edit) hasEdits = true;
+      var issue = edit && edit.error ? { key: key, text: edit.error, invalid: true }
+        : write && write.error && (!write.field || write.field === key) ? { key: ref, text: "Не сохранено. Повторите попытку.", retry: true } : null;
+      t.toggleAttribute("data-sr-invalid", Boolean(issue));
+      if (issue && issue.invalid) t.setAttribute("aria-invalid", "true");
+      else if (t.hasAttribute("aria-invalid")) t.removeAttribute("aria-invalid");
+      if (issue && !seen[issue.key]) {
+        var row = t.closest("[data-sr-row]");
+        if (row && row.classList.contains("sr-row-open") === false && t.closest(".sr-row-extra")) {
+          row.classList.add("sr-row-open");
+          var toggle = row.querySelector("[data-sr-detail]");
+          toggle.setAttribute("aria-expanded", "true");
+          toggle.textContent = "Свернуть детали";
+        }
+        seen[issue.key] = true;
+        fields[issue.key] = { target: t, issue: issue };
+      }
+    });
+    var previous = new Map();
+    root.querySelectorAll(".sr-field-error").forEach(function (e) { previous.set(e.dataset.srIssue, e); });
+    Object.keys(fields).forEach(function (key) {
+      var x = fields[key], issue = x.issue, el = previous.get(key);
+      if (el && el.isConnected && el.textContent.indexOf(issue.text) === 0) {
+        previous.delete(key);
+        return;
+      }
+      if (el) el.remove();
+      el = document.createElement("span");
+      el.className = "sr-field-error";
+      el.dataset.srIssue = key;
+      el.append(issue.text);
+      if (issue.retry) {
+        var button = document.createElement("button");
+        button.type = "button";
+        button.dataset.srRetry = key;
+        button.textContent = "Повторить";
+        el.append(button);
+      }
+      var cell = x.target.closest(".drow > *, .gr > *");
+      if (cell === x.target && cell.matches("input,textarea,select")) {
+        var wrapper = document.createElement("span");
+        wrapper.className = Array.from(cell.classList).filter(function (name) { return name.indexOf("sr-row-") === 0; }).join(" ");
+        wrapper.dataset.srLabel = cell.dataset.srLabel || "";
+        Array.from(wrapper.classList).forEach(function (name) { cell.classList.remove(name); });
+        cell.replaceWith(wrapper);
+        wrapper.append(cell);
+        cell = wrapper;
+      }
+      if (cell && !cell.matches("input, textarea, select")) cell.append(el);
+      else if (x.target.closest(".dtw,.kpd,.sg,.mcs")) x.target.closest(".dtw,.kpd,.sg,.mcs").after(el);
+      else x.target.after(el);
+      previous.delete(key);
+    });
+    previous.forEach(function (el) { el.remove(); });
+    var current = Object.keys(drafts.writes).filter(function (key) {
+      return key.indexOf("note|" + WEEK + "|") === 0 || key.indexOf("kp|") === 0;
+    });
+    var active = current.some(function (key) { return writeQueues[draftOwner + ":" + key]; });
+    var failed = current.filter(function (key) { return drafts.writes[key].error; });
+    var retry = document.getElementById("srRetryAll");
+    if (retry) {
+      retry.hidden = !failed.length && !hasEdits;
+      retry.textContent = failed.length ? "Повторить сохранение" : "Сохранить черновики";
+    }
+    if (failed.length) status("Есть несохранённые изменения");
+    else if (active) status("Сохраняем…");
+    else if (current.length || hasEdits) status("Есть черновики");
+    else status("Изменения сохраняются автоматически");
+  }
+  function queueWrite(id, url, body, value, field) {
+    var bucket = drafts, owner = draftOwner, queueKey = owner + ":" + id;
+    var previous = bucket.writes[id];
+    var entry = { url: url, body: body, value: value, error: false, field: field || (previous && previous.field) || "" };
+    bucket.writes[id] = entry;
+    storeDrafts();
+    var op = Promise.resolve(writeQueues[queueKey]).then(function () {
+      if (bucket.writes[id] !== entry || owner !== draftOwner || owner !== currentDraftOwner()) return false;
+      return Promise.resolve(MPBC.call(url, { body: body })).then(function () {
+        if (bucket.writes[id] === entry) delete bucket.writes[id];
+        return true;
+      });
+    }).catch(function () {
+      if (bucket.writes[id] === entry) entry.error = true;
+      return false;
+    }).then(function (ok) {
+      if (writeQueues[queueKey] === op) delete writeQueues[queueKey];
+      if (owner === draftOwner) {
+        storeDrafts();
+        reportDrafts();
+        if (ok && !Object.keys(drafts.writes).length && (id.indexOf("note|" + WEEK + "|") === 0 || id.indexOf("kp|") === 0)) status("Сохранено");
+      }
+      return ok;
+    });
+    writeQueues[queueKey] = op;
+    reportDrafts();
+    return op;
+  }
+  function retryWrite(id) {
+    var d = drafts.writes[id];
+    if (d && d.error) queueWrite(id, d.url, d.body, d.value);
+  }
+  function commitDraftEdits(root) {
+    var edits = new Set(), refs = new Set();
+    root.querySelectorAll("input,textarea").forEach(function (input) {
+      var id = editId(input);
+      if (!drafts.edits[id] || edits.has(id) || input.disabled) return;
+      edits.add(id);
+      refs.add(entryFor(input));
+      var kp = input.classList.contains("dtx") && input.closest(".kpd");
+      if (kp) commitKp(kp);
+      else input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    return refs;
+  }
+  function saveNote(key, value, source) {
+    AV[key] = value;
+    return queueWrite(noteId(key), "/../ds/reports/sales/answer", { start: WEEK, key: key, text: value }, value, source ? editId(source) : "");
   }
   function saveKp(kpId, field, value) {
-    KV[kpId + "|" + field] = value;
-    status("Сохраняем…");
-    var b = {}; b[field] = value;
-    return MPBC.call("/../ds/kp/" + kpId + "/edit", { body: b }).then(function () { status("Сохранено"); }, function (e) { status("Не сохранено: " + e); });
+    var key = kpId + "|" + field, body = {};
+    KV[key] = value;
+    body[field] = value;
+    return queueWrite("kp|" + key, "/../ds/kp/" + kpId + "/edit", body, value);
   }
+
+
   function saveKey(key, value) {                             // универсально: "kp:12|field" / "ak:key" / "cu:N|field"
     if (key.indexOf("kp:") === 0) { var p = key.slice(3).split("|"); return saveKp(p[0], p[1], value); }
     if (key.indexOf("cu:") === 0) {
@@ -99,7 +297,7 @@
     }).join("") + "</div>";
   }
   function dateField(dmy, attrs) {
-    return '<span class="dtw"><input class="in rq dtx" type="text" inputmode="numeric" maxlength="8" placeholder="дд.мм.гг" autocomplete="off" value="' + E(dmy || "") + '" ' + (attrs || "") + dis() + '>'
+    return '<span class="dtw"><input class="in rq dtx" type="text" inputmode="numeric" maxlength="8" placeholder="дд.мм.гг" autocomplete="off"' + ((attrs || "").indexOf("aria-label=") < 0 ? ' aria-label="Дата"' : "") + ' value="' + E(dmy || "") + '" ' + (attrs || "") + dis() + '>'
       + '<button type="button" class="dtb" aria-label="Выбрать дату в календаре"' + dis() + '>' + SVGCAL + '</button><input type="date" class="dth" tabindex="-1" aria-hidden="true"></span>';
   }
   function selOpts(cur, options) {                           // select со значением из списка + legacy-значение, если его нет в списке
@@ -118,7 +316,7 @@
     return '<div class="zn" style="' + vars + '"><div class="zh"><div><b class="big">' + E(title) + '</b></div></div><div class="zi">' + inner + "</div></div>";
   }
   function ac3(cls, t, cnt, right, body, open) {
-    return '<div class="ac3 ' + cls + (open ? " open" : "") + '"><button class="acb" type="button" data-ac="1"><span>' + E(t) + " · " + cnt + "</span><span>" + (right || "") + " ▾</span></button>" + '<div class="bdy">' + body + "</div></div>";
+    return '<div class="ac3 ' + cls + (open ? " open" : "") + '"><button class="acb" type="button" data-ac="1" aria-expanded="' + Boolean(open) + '"><span>' + E(t) + " · " + cnt + "</span><span>" + (right || "") + " ▾</span></button>" + '<div class="bdy">' + body + "</div></div>";
   }
   function emptyNote() { return '<div class="sr-empty">Нет данных за выбранную неделю</div>'; }
   function workCell(text, codes, cls) {
@@ -423,16 +621,17 @@
         + "</span>";
     }
     var body = '<div class="rsum" id="srrsum4"></div>'
-      + '<div class="payw"><div class="lane wide dbt"><h4><span>Деньги, которые не пришли</span><span id="srdebtSummary"></span></h4>'
+      + '<div class="lane wide dbt sr-debt-frame"><h4><span>Деньги, которые не пришли</span><span id="srdebtSummary"></span></h4>'
       + '<div class="debt-rules"><span><b>Предоплата.</b> От подписания договора, обычно 5 р.д.</span>'
       + '<span><b>Постоплата.</b> От подписания акта. Без подписи отсчёт начинается через 5 р.д. после отправки.</span>'
       + '<span><b>Доплата без акта.</b> От отправки счёта.</span></div>'
+      + '<div class="sr-table-window" tabindex="0" role="region" aria-label="Долги, таблица"><div class="sr-debt-grid">'
       + '<div class="i cap r6"><span>Заказчик</span><span>Тип</span><span>Сумма</span><span class="debt-heading">Без оплаты<small>срок по договору</small></span><span>Почему не платят</span><span class="debt-heading">Посл. контакт<small>обещал оплатить</small></span><span class="debt-heading">Прошлый шаг<small>и его итог</small></span><span>Претензия</span><span>Следующий шаг</span><span>Дата след. контакта</span></div>'
       + '<div id="srdebtRows">' + rows.map(function (r, i) { return debtRow(r, i, r.__pre); }).join("")
       + manual.map(function (key) { return manualDebtRow(key, manualDebt(key)); }).join("") + "</div>"
       + '<div id="srdebtEmpty" class="sr-empty"' + (rows.length || manual.length ? " hidden" : "") + ">Долгов нет</div>"
       + (RO || !s4.manual_debts ? "" : '<div class="debt-add"><button class="add" type="button" data-add4>+ Добавить долг</button></div>')
-      + '<div class="i tt r6"><span>Итого</span><span></span><b id="srdebtTotal">' + fmt(tot) + '</b><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>'
+      + '<div class="i tt r6"><span>Итого</span><span></span><b id="srdebtTotal">' + fmt(tot) + '</b><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div></div>'
       + '<input class="dcm" data-ak="s4:note" type="text" placeholder="Комментарий (необязательно)" aria-label="Комментарий к вопросу 4" value="' + E(s4.comment || "") + '"' + dis() + ">";
     var chips = '<span class="r"><strong id="srdebtCount">' + rows.length + '</strong> строк</span><span class="r"><strong id="srdebtSum">' + fmt(tot) + '</strong></span><span class="r">самый долгий <strong id="srdebtDays">' + longest + "</strong> раб. дней</span>";
     return qa(4, "srb4", "Деньги, которые не пришли", chips, body, { sub: cmp });
@@ -495,7 +694,7 @@
   function g2Row(r) {
     var kpId = r.kp;
     return '<div class="gr cols2" data-fix="1" data-sum="' + num(r.amt) + '"><b>' + E(r.cells[2]) + '</b><b class="amt">' + fmt(num(r.amt)) + "</b>"
-      + kp5cell(kpId, dmyIso(r.issued))
+      + kp5cell(kpId, dmyIso(drafts.writes["kp|" + kpId + "|issued_date"] && !RO ? KV[kpId + "|issued_date"] : r.issued))
       + dateField(dmyIso(KV[kpId + "|pay_expect"]), 'data-akp="' + kpId + '|pay_expect"')
       + '<input type="text" data-ak="s7:kp' + kpId + ':do" placeholder="Что делаю, чтобы оплатили" value="' + E(AV["s7:kp" + kpId + ":do"]) + '"' + dis() + ">"
       + probSeg("kp:" + kpId + "|pay_prob", KV[kpId + "|pay_prob"] || "")
@@ -519,8 +718,8 @@
     saveNote("s7:custom", JSON.stringify(CD));
   }
   function grp5(k, t, cap, rows, add) {
-    return '<div class="grp ' + k + '" id="srgp' + k.slice(1) + '"><h5><span>' + t + ' <small>· <span class="cn5">0</span></small><span class="kpc"></span></span><span class="sm5">0 ₽</span></h5>' + cap + rows
-      + (add && !RO ? '<div class="gr" style="border-top:1px solid rgba(0,0,0,.07)"><button class="add" type="button" data-add="' + add + '">+ Добавить клиента</button></div>' : "") + "</div>";
+    return '<div class="grp ' + k + '" id="srgp' + k.slice(1) + '"><h5><span>' + t + ' <small>· <span class="cn5">0</span></small><span class="kpc"></span></span><span class="sm5">0 ₽</span></h5><div class="sr-table-window" tabindex="0" role="region" aria-label="' + E(t) + '"><div class="sr-plan-grid">' + cap + rows
+      + (add && !RO ? '<div class="gr" style="border-top:1px solid rgba(0,0,0,.07)"><button class="add" type="button" data-add="' + add + '">+ Добавить клиента</button></div>' : "") + "</div></div></div>";
   }
   function block5() {
     var s7 = item("s7");
@@ -554,21 +753,34 @@
       el.innerHTML = '<b class="dt5" tabindex="0" title="Нажмите, чтобы изменить дату · с отправки прошло ' + bdN(d, todayD()) + ' р.д.">' + E(v) + '</b><span class="kpg kpg-' + st.c + '"><span class="ka">Звонок<br>' + st.a + '</span><span class="kb">' + st.b + "</span></span>";
     } else el.innerHTML = '<b class="dt5 ph" tabindex="0">дд.мм.гг</b>';
   }
-  function editKp(el) {
+  function editKp(el, focus) {
     if (RO) return;
-    el.innerHTML = dateField("", "");
-    var i = el.querySelector(".dtx");
-    i.value = el.dataset.v || "";
-    i.focus();
+    el.innerHTML = dateField("", 'aria-label="Дата отправки КП"');
+    var i = el.querySelector(".dtx"), draft = drafts.edits[editId(i)];
+    i.value = draft ? draft.value : el.dataset.v || "";
+    if (focus !== false) i.focus();
+  }
+  function validTextDate(input) {
+    var iso = dmyToIso(input.value);
+    if (!iso) {
+      rememberEdit(input, "Укажите существующую дату в формате дд.мм.гг.");
+      reportDrafts();
+      return "";
+    }
+    forgetEdit(input);
+    return iso;
   }
   function commitKp(el) {
     var inp = el.querySelector(".dtx");
     if (!inp) return;
-    var iso = dmyToIso(inp.value);
-    el.dataset.v = iso ? dmyIso(iso) : el.dataset.v || "";
+    if (inp.value === (el.dataset.v || "")) { forgetEdit(inp); renderKp(el); reportDrafts(); return; }
+    var iso = validTextDate(inp);
+    if (!iso) return;
+    el.dataset.v = dmyIso(iso);
     if (el.dataset.kp) saveKp(el.dataset.kp, "issued_date", iso);
-    else if (el.dataset.cukp != null) { var n = +el.dataset.cukp; if (CD[n]) { CD[n].issued = iso; saveNote("s7:custom", JSON.stringify(CD)); } }
+    else if (el.dataset.cukp != null) cuSet(el.dataset.cukp + "|issued", iso);
     renderKp(el);
+    reportDrafts();
     recalc5();
     sortG2(false);
   }
@@ -628,7 +840,7 @@
   }
   var PRK5 = { "высокая": 0, "средняя": 1, "низкая": 2 };
   function sortG1(force) {
-    var g = document.getElementById("srgp1");
+    var g = document.querySelector("#srgp1 .sr-plan-grid");
     if (!g) return;
     var ae = document.activeElement;
     if (!force && ae && ae.closest && ae.closest("#srgp1") && /^(INPUT|SELECT)$/.test(ae.tagName)) return;
@@ -643,7 +855,7 @@
     ks.forEach(function (x) { g.appendChild(x.r); });
   }
   function sortG2(force) {
-    var g = document.getElementById("srgp2");
+    var g = document.querySelector("#srgp2 .sr-plan-grid");
     if (!g) return;
     var ae = document.activeElement;
     if (!force && ae && ae.closest && ae.closest("#srgp2") && /^(INPUT|SELECT)$/.test(ae.tagName)) return;
@@ -661,6 +873,44 @@
       Array.prototype.slice.call(r.children).forEach(function (c) { var w = document.createElement("div"); w.className = "c"; r.insertBefore(w, c); w.appendChild(c); });
     });
   }
+
+  function sectionNav(privateBlock) {
+    var names = ["Запросы", "Оплаты", "План прошлой недели", "Долги", "План оплат", "Оценка недели", "Что мешало", "Каналы связи", "Самочувствие"];
+    if (!privateBlock) names.pop();
+    return '<nav class="sr-jumps" aria-label="Разделы отчёта">' + names.map(function (label, i) {
+      return '<button type="button" data-sr-jump="' + (i + 1) + '"><b>' + (i + 1) + "</b> " + E(label) + "</button>";
+    }).join("") + "</nav>";
+  }
+  var debtLabels = ["Заказчик", "Тип", "Сумма, ₽", "Срок оплаты", "Почему не платят", "Контакт и обещание",
+    "Прошлый шаг и итог", "Претензия", "Следующий шаг", "Дата следующего контакта"];
+  var planLabels = ["Заказчик", "Сумма, ₽", "Тип", "Дата отсчёта", "Срок оплаты", "Вероятность", "Следующий контакт"];
+  var quoteLabels = ["Заказчик", "Сумма, ₽", "Дата КП и срок звонка", "Выставлю счёт", "Что делаю", "Вероятность", "Следующий контакт"];
+  function prepareRows(root) {
+    if (!root) return;
+    root.querySelectorAll("#srdebtRows .drow, .sr-plan-grid .gr:is(.cols1,.cols2):not(.cap)").forEach(function (row) {
+      if (row.hasAttribute("data-sr-row")) return;
+      row.setAttribute("data-sr-row", "");
+      var isDebt = row.classList.contains("drow"), isPlan = row.classList.contains("cols1");
+      var labels = isDebt ? debtLabels : isPlan ? planLabels : quoteLabels;
+      var summary = [0, isDebt ? 2 : 1, isDebt ? 3 : isPlan ? 4 : 2];
+      Array.from(row.children).forEach(function (cell, index) {
+        var primary = summary.indexOf(index);
+        cell.dataset.srLabel = labels[index] || "";
+        if (primary < 0) cell.classList.add("sr-row-extra");
+        else cell.classList.add("sr-row-primary", ["sr-row-customer", "sr-row-amount", "sr-row-due"][primary]);
+      });
+      var open = row.classList.contains("sr-row-open");
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "sr-row-toggle";
+      button.setAttribute("data-sr-detail", "");
+      button.setAttribute("aria-expanded", String(open));
+      button.textContent = open ? "Свернуть детали" : "Показать детали";
+      row.append(button);
+    });
+  }
+
+
   function tipInit(root) {
     if (document.getElementById("srtip5")) return;
     var t = document.createElement("div");
@@ -835,13 +1085,41 @@
         document.querySelectorAll(".sr .npop").forEach(function (p) { var nq = p.parentNode; if (nq && nq.dataset.nk) renderN(nq.dataset.nk, false); });
       var sr = t.closest(".sr");
       if (!sr) return;
+      var retry = t.closest("[data-sr-retry]");
+      if (retry && !RO) {
+        if (retry.dataset.srRetry === "all") {
+          var refs = commitDraftEdits(sr);
+          Object.keys(drafts.writes).filter(function (key) {
+            return !refs.has(key) && (key.indexOf("note|" + WEEK + "|") === 0 || key.indexOf("kp|") === 0);
+          }).forEach(retryWrite);
+        } else retryWrite(retry.dataset.srRetry);
+        return;
+      }
+      var jump = t.closest("[data-sr-jump]");
+      if (jump) {
+        var target = sr.querySelector('.qa[data-q="' + jump.dataset.srJump + '"]');
+        if (!target) return;
+        target.classList.add("open");
+        var heading = target.querySelector(".qb");
+        heading.setAttribute("aria-expanded", "true");
+        heading.focus({preventScroll: true});
+        target.scrollIntoView({block: "start"});
+        return;
+      }
+      var detail = t.closest("[data-sr-detail]");
+      if (detail) {
+        var open = detail.parentNode.classList.toggle("sr-row-open");
+        detail.setAttribute("aria-expanded", String(open));
+        detail.textContent = open ? "Свернуть детали" : "Показать детали";
+        return;
+      }
       later();
       var qb = t.closest(".qb");
       if (qb) {
         qb.setAttribute("aria-expanded", String(qb.parentNode.classList.toggle("open")));
         return;
       }
-      var ac = t.closest("[data-ac]"); if (ac) { ac.parentNode.classList.toggle("open"); return; }
+      var ac = t.closest("[data-ac]"); if (ac) { ac.setAttribute("aria-expanded", String(ac.parentNode.classList.toggle("open"))); return; }
       var nopen = t.closest("[data-nopen]");
       if (nopen && !RO) {
         var id = nopen.dataset.nopen, op = !!document.querySelector('.sr .nq[data-nk="' + id + '"] .npop');
@@ -864,6 +1142,7 @@
         CD.push({ name: "", sum: "", issued: "", expect: "", action: "", prob: "", next: "" });
         add.parentNode.insertAdjacentHTML("beforebegin", cuRow(CD.length - 1));
         wrapC();
+        prepareRows(sr);
         saveNote("s7:custom", JSON.stringify(CD)).then(recalc5);
         return;
       }
@@ -883,6 +1162,7 @@
         FILTER4 = null;
         document.getElementById("srdebtRows").insertAdjacentHTML("beforeend", manualDebtRow(key, {}));
         sum4();
+        prepareRows(sr);
         document.querySelector('[data-manual="' + key + '"] input').focus();
         return;
       }
@@ -946,6 +1226,8 @@
         return;
       }
       if (RO) return;
+      if (t.type === "date" && !t.validity.valid) { rememberEdit(t, "Укажите существующую дату."); reportDrafts(); return; }
+      if (!t.classList.contains("dtx")) forgetEdit(t);
       if (t.classList.contains("rsel")) t.title = t.value || t.getAttribute("aria-label");
       if (t.hasAttribute("data-debt-tone")) {
         t.dataset.debtTone = DEBT_TONES[t.value] || "";
@@ -961,8 +1243,16 @@
           if (row.step === "Претензия") delete row.step;
           if (row.past === "Претензия") { delete row.past; delete row.result; }
         }
-        saveNote(key, JSON.stringify(row));
-        if (["type", "base", "event", "past", "why"].includes(field)) manual.outerHTML = manualDebtRow(key, row);
+        saveNote(key, JSON.stringify(row), t);
+        if (["type", "base", "event", "past", "why"].includes(field)) {
+          var expanded = manual.classList.contains("sr-row-open");
+          manual.outerHTML = manualDebtRow(key, row);
+          var replacement = document.querySelector('[data-manual="' + key + '"]');
+          if (expanded) replacement.classList.add("sr-row-open");
+          prepareRows(t.closest(".sr") || document.querySelector(".sr"));
+          restoreEdits(replacement);
+          reportDrafts();
+        }
         else if (field === "sum") { manual.dataset.sum = row.sum; t.value = row.sum; }
         sum4();
         if (field === "why" && row.why === "Свой вариант") {
@@ -972,10 +1262,11 @@
       }
       if (t.classList.contains("dtx")) {
         if (t.closest(".kpd")) return;                          // дата отправки КП сохраняется на focusout (commitKp)
-        var iso = dmyToIso(t.value);
+        var iso = validTextDate(t);
+        if (!iso) return;
         if (t.dataset.akp) { var p0 = t.dataset.akp.split("|"); saveKp(p0[0], p0[1], iso); }
         else if (t.dataset.cu) { cuSet(t.dataset.cu, iso); recalc5(); }
-        else if (t.dataset.ak) saveNote(t.dataset.ak, iso);
+        else if (t.dataset.ak) saveNote(t.dataset.ak, iso, t);
         return;
       }
       if (t.dataset.akp != null) {
@@ -990,7 +1281,7 @@
       }
       if (t.dataset.cu) { cuSet(t.dataset.cu, t.value); recalc5(); return; }
       if (t.dataset.ak) {
-        saveNote(t.dataset.ak, t.value);
+        saveNote(t.dataset.ak, t.value, t);
         if (t.matches("[data-past4] select") && /:past$/.test(t.dataset.ak)) {
           var prefix = t.dataset.ak.slice(0, -4), isPre = prefix.startsWith("s4:");
           saveNote(prefix + "result", "");
@@ -1021,6 +1312,11 @@
         if (d.length > 4) o += "." + d.slice(4, 6);
         t.value = o;
       }
+      if (!RO && t.matches("input,textarea")) {
+        var old = drafts.edits[editId(t)];
+        rememberEdit(t);
+        if ((!old && editId(t)) || (old && old.error)) reportDrafts();
+      }
       if (t.closest("#srb5")) recalc5();
     });
     document.addEventListener("focusout", function (e) {
@@ -1037,8 +1333,16 @@
       if (t.closest("#srgp2")) setTimeout(function () { sortG2(false); }, 0);
     });
     document.addEventListener("keydown", function (e) {
-      if (e.key !== "Enter") return;
       var t = e.target;
+      if (e.key === "Escape" && t.closest && t.closest(".sr .kpd") && t.classList.contains("dtx")) {
+        var cell = t.closest(".kpd");
+        forgetEdit(t);
+        renderKp(cell);
+        reportDrafts();
+        cell.querySelector(".dt5").focus();
+        return;
+      }
+      if (e.key !== "Enter") return;
       if (!t.closest || !t.closest(".sr")) return;
       var dt5 = t.closest(".kpd .dt5");
       if (dt5) { editKp(dt5.parentNode); return; }
@@ -1093,6 +1397,7 @@
   window.DSSalesReport = {
     html: function (report, ro, viewer, tabs) {
       R = report; RO = !!ro; WEEK = report.week_start; FILTER4 = null; MVO = false;
+      openDrafts();
       AV = {}; KV = {};
       function collect(i) {
         if (!i || !i.key) return;
@@ -1104,6 +1409,7 @@
         (it.rows || []).forEach(function (r) { (r.inputs || []).forEach(collect); });
       });
       Object.assign(AV, item("s4").manual_debts || {});
+      if (!RO) applyWrites();
       CD = list(AV["s7:custom"]);
       compat();
       PL = item("s14").prev_list || [];
@@ -1111,9 +1417,15 @@
         + zone("--zb:#e3b4b4;--zbg:#fcf0f0;--zh:#f4d3d3;--zt:#6a1f1f;--zc:#c0504d", "Должники и риски", block4())
         + zone("--zb:#a9c3de;--zbg:#eef4fa;--zh:#d3e2f2;--zt:#1b3a5e;--zc:#2a65a0", "План на следующую неделю", block5())
         + zone("--zb:#d3c3e6;--zbg:#f6f1fa;--zh:#e5d9f2;--zt:#43297a;--zc:#7a4fc0", "Мнение", loopBlock() + block6() + block7() + block8() + block9());
-      var head = '<div class="sr-head"><div><h1>' + E(report.person || report.title) + " <span>менеджер отдела продаж</span></h1><p>Неделя " + E(report.week_start) + " — " + E(report.week_end) + " · " + (RO ? "просмотр" : "ваши ответы сохраняются автоматически") + '</p></div><div class="sr-actions"><div class="seg"><button data-rpnav="-1">← Пред.</button><button data-rpnav="0" class="on">Эта</button><button data-rpnav="1">След. →</button></div><button class="btn ghost" data-rpref="1">⟳ Обновить</button></div></div>'
+      var now = todayD(), thisMonday = new Date(now);
+      thisMonday.setDate(now.getDate() - (now.getDay() + 6) % 7);
+      var current = isoOf(thisMonday) === WEEK;
+      var period = dmyIso(report.week_start) + " — " + dmyIso(report.week_end);
+      var head = '<div class="sr-head"><div><h1>' + E(report.person || report.title) + " <span>менеджер отдела продаж</span></h1></div>"
+        + '<div class="sr-actions"><span class="sr-period">Неделя <b>' + E(period) + '</b></span><div class="seg"><button type="button" data-rpnav="-1" aria-label="Предыдущая неделя">← Пред.</button><button type="button" data-rpnav="0"' + (current ? ' class="on" aria-current="date"' : "") + '>Эта неделя</button><button type="button" data-rpnav="1" aria-label="Следующая неделя">След. →</button></div><button type="button" class="btn ghost" data-rpref="1">⟳ Обновить</button></div></div>'
         + (tabs ? '<div class="sr-tabs">' + tabs + "</div>" : "")
-        + '<span class="sr-save-status" id="srStatus">' + (RO ? "Только чтение" : "Изменения сохраняются автоматически") + "</span>";
+        + '<div class="sr-save-line"><span class="sr-save-status" id="srStatus" role="status">' + (RO ? "Только чтение" : "Изменения сохраняются автоматически") + '</span><button type="button" data-sr-retry="all" id="srRetryAll" hidden>Повторить сохранение</button></div>'
+        + sectionNav(Boolean((item("s12").inputs || []).length));
       bindEvents();
       setTimeout(function () {
         var root = document.querySelector(".sr");
@@ -1126,6 +1438,8 @@
         refCState();
         sortG1(true);
         sortG2(true);
+        prepareRows(root);
+        if (!RO) { restoreEdits(root); recalc5(); reportDrafts(); }
         mark();
       }, 0);
       return '<div class="sr">' + head + body + "</div>";

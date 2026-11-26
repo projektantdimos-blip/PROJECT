@@ -940,6 +940,12 @@
 #ofr .tb .tr{display:grid}
 #ofr .tb .an input.in::placeholder{font-size:12px}
 
+/* кнопка аккордеона: рамка и стрелка в цвете зоны, при открытии — заливка */
+#ofr .qb .ch{width:32px;height:32px;border-radius:50%;background:#fff;border:1.5px solid var(--zb);color:var(--zt);transition:transform .18s ease,background .15s,border-color .15s}
+#ofr .qb .ch svg{stroke:var(--zt)}
+#ofr .qb .ch:hover{background:var(--zh);border-color:var(--zc)}
+#ofr .qa.open>.qb .ch{background:var(--zh);border-color:var(--zc)}
+
 `;
 
     /* ---------- helpers ---------- */
@@ -1564,7 +1570,7 @@
   }
   function paintInto(mount) {
     mount.innerHTML = render();
-    bind(mount);
+    if (!mount._ofrBound) { mount._ofrBound = true; bind(mount); }
     recalc();
   }
 

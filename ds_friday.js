@@ -11,12 +11,19 @@
     a.download = name; document.body.appendChild(a); a.click(); a.remove();
   }
   function rpLeads(p) { return p === "owner" || p === "sales" || p === "ops" || p === "design"; }      /* руководители видят отчёты всех отделов (17.11, п.10) */
+  var reportRequest = 0;
   function loadReport() {
     if (!S.rp) S.rp = { kind: reportKind(), start: isoDay(monday()), data: null };
     if (!rpLeads(pos())) S.rp.kind = reportKind();
-    if (S.rp.kind === "ops")                                        // окно Полины (макет 26.11) — свои данные и рендер
-      return api("/reports/ops2/friday?start=" + S.rp.start).then(function (d) { S.rp.ops2 = d; S.err = ""; }, function (e) { S.rp.ops2 = null; S.err = String(e); });
-    return api("/reports/" + S.rp.kind + "?start=" + S.rp.start).then(function (d) { S.rp.data = d; S.err = ""; }, function (e) { S.rp.data = null; S.err = String(e); });
+    var state = S.rp, kind = state.kind, start = state.start, request = ++reportRequest;
+    var ops = kind === "ops", key = ops ? "ops2" : "data";
+    var route = ops ? "/reports/ops2/friday" : "/reports/" + kind;
+    function isCurrent() { return request === reportRequest && S.rp === state && state.kind === kind && state.start === start; }
+    return api(route + "?start=" + start).then(function (report) {
+      if (isCurrent()) { state[key] = report; S.err = ""; }
+    }, function (e) {
+      if (isCurrent()) { state[key] = null; S.err = String(e); }
+    });
   }
   /* ---------- пятничный созвон: отчёты отделов по вопросам таблицы «Созвоны» ---------- */
   var RP_KINDS = [["sales", "Продажи"], ["ops", "Проекты"], ["design", "Проектирование"]];
