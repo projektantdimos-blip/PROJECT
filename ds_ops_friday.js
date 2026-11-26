@@ -946,9 +946,27 @@
 #ofr .qb .ch:hover{background:var(--zh);border-color:var(--zc)}
 #ofr .qa.open>.qb .ch{background:var(--zh);border-color:var(--zc)}
 
+/* пакет правок 26.11 (2): цвета карточек, жирные подписи, единый цвет шапок, скругления плашек */
+#ofr .t3 .k-g{background:#e3f4e8;border-color:#8fcaa3;color:#17653a}
+#ofr .t3 .k-y{background:#fff4d2;border-color:#d3b25c;color:#6b4a00}
+#ofr .pl span{border-radius:14px}
+#ofr .lb2{font-weight:700;font-size:14px;color:#1d2733}
+#ofr .lb2.q2h{font-weight:700;font-size:18px;color:#1d2733}
+#ofr .tb .cap>div.f{background:#bcd2ea!important;color:#0f2d4d!important}
+#ofr .tb .cap>div.f.hq{background:#bcd2ea!important;color:#0f2d4d!important}
+#ofr .tb .cap>div.f .hq::after{background:#2a65a0;color:#fff}
+#ofr .tb .sepr.sb2{color:#1d2733}
+
 `;
 
     /* ---------- helpers ---------- */
+  /* подсказки «?» из макета: колонки таблиц и подписи */
+  var TIPS = {"ТЗ и передача в проектирование": "Как идёт сбор ТЗ и передача проектов проектировщикам.", "Согласование проектов": "Проекты, которые ждут ответа заказчика.", "Корректировки заказчиков": "Замечания заказчиков по проектам и что с ними делаем.", "Заказчики": "Сложные случаи с заказчиками за неделю.", "Мнение": "Вопросы к Полине: что улучшить, что отнимает время, какая нагрузка.", "ТЗ в работе": "Цифры, карточки и выезды считает CRM. Вы заполняете только строки «Требуют действия» и «На паузе»: что тормозит (одно главное), что уже сделали, следующий шаг и дату не позже следующей пятницы. Хороший шаг: «Позвонить Ивану Петровичу (Техновид), попросить планы 2 этажа». Плохой: «жду».", "Вопросы и возвраты по ТЗ": "Две части. 1: заказчик и форма ТЗ до передачи, отсюда видно, какой пункт формы переписать. 2: проектировщики после передачи, отсюда видно, где ТЗ ушло неполным. Строки добавляете вы, плашки в заголовке считаются сами.", "Итог по ТЗ": "Вы вносите каждое ТЗ, переданное за неделю, с двумя датами. Дни, плашки в заголовке и строка «По заказчикам» считаются сами.", "Проекты на согласовании у заказчика": "Шаг и дату пишете, только если проект без ответа больше 5 р.д. По договору: акт не подписан 5 р.д. и нет мотивированного отказа, значит работы приняты. Пишите заказчику по скрипту.", "Корректировки": "Все числа считает CRM по реестру корректировок; замечания без причины в сводку не входят. Вручную вы отмечаете статус платных, ведомости и главную причину недели. Платно или нет решает Александр.", "Ситуации с заказчиками": "Любой случай: заказчик жаловался, ждал ответа больше суток или торопил. «Нужна помощь» отмечайте честно: это сигнал, где нужна поддержка, а не оценка.", "Что в общении с заказчиками можно улучшить?": "Мнение Полины: что мешает в работе с заказчиками и что поменять.", "Что отнимало больше всего времени на этой неделе?": "Задачи, которые можно делать быстрее или передать другому.", "Нагрузка и самочувствие": "Блок видят только Полина, Яна и Дмитрий. Отвечайте как есть: по ответам решаем, что с вас снять, а не оцениваем.", "Ваши предложения с прошлой недели": "Что Полина предлагала на прошлом созвоне и что с этим сейчас: сделано или в работе.", "Кто заполняет ТЗ": "Кто со стороны заказчика заполняет форму ТЗ.", "На сборе ТЗ с": "Дата, с которой ТЗ на этапе сбора.", "Сколько дней": "Рабочие дни на сборе ТЗ, норма 5. До 5: в заполнении. 6–10: требуют действия. 11 и больше: на паузе.", "Последний контакт": "Когда последний раз связывались с заказчиком.", "Что тормозит": "Одна главная причина. Если «Другое», напишите её в окошке.", "Что уже сделала": "Что вы сделали по этому ТЗ на этой неделе.", "Следующий шаг": "Конкретное действие: написать, позвонить, поставить на паузу.", "Срок шага": "Не позже следующей пятницы.", "Дата шага": "Не позже следующей пятницы.", "Кто едет": "Выезжают только Дмитрий Шубинов или Александр Ядыкин.", "Информация с выезда у Полины": "Получили ли вы данные после выезда. Получили: в тот же или следующий р.д. передаёте проектировщику и ставите дату. Через 1 р.д. после выезда данных нет: строка красная, проект в «Требуют действия» с причиной «Жду информацию с выезда».", "Передала проектировщику": "Дата, когда данные с выезда ушли проектировщику.", "Пункт ТЗ": "Пункт формы ТЗ, по которому был вопрос. В итоге блока видно, какие пункты заполняют хуже всего.", "Потеряно": "Сколько рабочих дней стояло проектирование: от возврата или вопроса до ответа.", "Каждое ТЗ: проект · дней": "Дни от «Формы ТЗ» до «Готово к проектированию». Зелёный до 5, жёлтый 6–10, красный больше 10 р.д.", "В среднем по готовым": "Среднее только по ТЗ, которые уже готовы к проектированию.", "Отправлено заказчику": "Дата, когда проект ушёл заказчику на согласование.", "Без ответа": "Рабочие дни без ответа заказчика, считает CRM. До 5: ждём, шаг не нужен. 6–10: вы пишете шаг и дату. 11 и больше: пишете шаг и дату обязательно.", "Причина (один выбор)": "Почему появилось замечание: заказчик, мы или норма и органы. Ставите по ведомости проектировщика.", "Раунд": "Номер круга замечаний заказчика по проекту.", "Согласован": "Дата, когда заказчик согласовал проект.", "Платно или нет": "Замена оборудования или производителя платная, решает Александр. Наша ошибка или замечание органа бесплатно.", "Ведомость замечаний от проектировщика": "Прислал ли проектировщик ответ по каждому замечанию.", "Передала Саше": "Дата, когда платную корректировку передали Александру.", "Нужна помощь?": "Отмечайте честно: это сигнал, где нужна поддержка.", "Пункт формы": "Пункт формы ТЗ, по которому был вопрос или возврат.", "Суть вопроса": "Что спросил заказчик или чего не хватало в ТЗ.", "Как решили": "Как ответили или что заказчик дослал.", "Почему пропустили": "Почему ТЗ ушло в проектирование неполным. По этому видно, что менять: проверку перед передачей или саму форму.", "Форма ТЗ получена": "Дата, когда заказчик прислал форму ТЗ.", "Готово к проектированию": "Дата, когда ТЗ полное и передано в проектирование.", "Дней": "Считается само: рабочие дни между двумя датами. Норма 5.", "Вернули?": "Был ли возврат по этому ТЗ: заказчику или от проектировщика.", "Проверено Иваном": "Посмотрел ли Иван ТЗ до старта проектирования."};
+  function th(text, isField) {
+    var tip = TIPS[text] || "";
+    return '<div' + (isField ? ' class="f' : ' class="') + (tip ? ' hq" data-tip="' + esc(tip) : '') + '">' + esc(text) + "</div>";
+  }
+
   function esc(v) { return E(v == null ? "" : v); }
   function num(v) { return '<strong>' + esc(v) + '</strong>'; }
   function dshort(iso) {                        // 2026-11-26 -> 26.11 (вт)
@@ -1057,9 +1075,9 @@
               "Сегодня последний день: <b>" + filling.filter(function (o) { return o.days >= 5; }).length + "</b>")
       + "</div>";
     var actTbl = action.length || pause.length
-      ? '<div class="tw"><div class="tb tb1" style="min-width:1090px;--c:118px 106px 72px 100px 94px 100px 1fr 1fr 1fr 116px"><div class="tr cap"><div>Проект</div><div>Кто заполняет ТЗ</div><div>Вид работы</div><div>На сборе ТЗ с</div><div>Сколько дней</div><div>Последний контакт</div><div class="f">Что тормозит</div><div class="f">Что уже сделала</div><div class="f">Следующий шаг</div><div class="f">Срок шага</div></div>'
+      ? '<div class="tw"><div class="tb tb1" style="min-width:1090px;--c:118px 106px 72px 100px 94px 100px 1fr 1fr 1fr 116px"><div class="tr cap">' + th("Проект") + th("Кто заполняет ТЗ") + th("Вид работы") + th("На сборе ТЗ с") + th("Сколько дней") + th("Последний контакт") + th("Что тормозит", true) + th("Что уже сделала", true) + th("Следующий шаг", true) + th("Срок шага", true) + '</div>'
         + (action.length ? '<div class="sepr sb2">Требуют действия <span>(6–10 р.д.)</span></div>' + action.map(function (o) { return collectRow(o, false); }).join("") : "")
-        + (pause.length ? '<div class="sepr sb2">На паузе <span>(11 р.д. и больше)</span></div>' + pause.map(function (o) { return collectRow(o, true); }).join("") : "")
+        + '<div class="sepr sb2">На паузе <span>(11 р.д. и больше)</span></div>' + (pause.length ? pause.map(function (o) { return collectRow(o, true); }).join("") : '<div class="note" style="padding:10px 12px;font-weight:400;text-transform:none;letter-spacing:0">Пауз нет</div>')
         + "</div></div>"
       : '<div class="note">Все ТЗ в норме (до 5 рабочих дней) — действия не требуются</div>';
     /* выезды */
@@ -1080,7 +1098,7 @@
       }).join("");
     };
     var visitTbl = (D.visits.new.length || D.visits.old.length)
-      ? '<div class="tw"><div class="tb tb1" style="min-width:960px;--c:56px 110px 90px 96px 140px 104px 1.1fr 1fr"><div class="tr cap"><div>Проект</div><div>Заказчик</div><div>Вид работы</div><div>Выезд запросили</div><div>Кто едет</div><div>Дата выезда</div><div>Информация с выезда у Полины</div><div class="f">Передала проектировщику</div></div>'
+      ? '<div class="tw"><div class="tb tb1" style="min-width:960px;--c:56px 110px 90px 96px 140px 104px 1.1fr 1fr"><div class="tr cap">' + th("Проект") + th("Заказчик") + th("Вид работы") + th("Выезд запросили") + th("Кто едет") + th("Дата выезда") + th("Информация с выезда у Полины") + th("Передала проектировщику", true) + '</div>'
         + (D.visits.new.length ? '<div class="sepr">Новые за неделю</div>' + vRows(D.visits.new) : "")
         + (D.visits.old.length ? '<div class="sepr">Перешли с прошлой недели</div>' + vRows(D.visits.old) : "")
         + "</div></div>"
@@ -1108,13 +1126,13 @@
     var pl = '<span class="bt">от заказчиков <strong>' + (rr.length + qs.length) + '</strong></span><span class="y">от проектировщиков <strong>' + br.length + '</strong></span><span class="r">потеряно <strong>' + lost + '</strong> р.д.</span>';
     var addBtns = RO ? "" : '<div class="adds"><button class="add" type="button" data-ofadd="rr">+ Добавить возврат заказчику</button><button class="add" type="button" data-ofadd="q">+ Добавить вопрос заказчика</button></div>';
     var body = '<span class="lb2 q2h">1. До передачи в проектирование: заказчик и форма ТЗ</span>'
-      + '<div class="tw"><div class="tb q2a" style="min-width:1000px;--c:150px 185px 1fr 1.2fr 1.2fr"><div class="tr cap"><div>Проект</div><div>Что произошло</div><div class="f">Пункт формы</div><div class="f">Суть вопроса</div><div class="f">Как решили</div></div>'
+      + '<div class="tw"><div class="tb q2a" style="min-width:1000px;--c:150px 185px 1fr 1.2fr 1.2fr"><div class="tr cap">' + th("Проект") + th("Что произошло") + th("Пункт формы", true) + th("Суть вопроса", true) + th("Как решили", true) + '</div>'
       + '<div class="sepr">Возвраты заказчику · добавляете вы</div>' + rr.map(evRow).join("")
       + '<div class="sepr">Вопросы заказчиков · добавляете вы</div>' + qs.map(evRow).join("") + "</div></div>"
       + addBtns
       + '<div class="fin" style="margin-top:14px"><div style="border:0;padding:0"><span class="lb2">Какой пункт формы ТЗ предлагаете исправить и как?</span>' + inp("q2:fixform", "Необязательно: например, «Производитель СОУЭ: добавить список на выбор»", M.answers["q2:fixform"]) + "</div></div>"
       + '<span class="lb2 q2h">2. После передачи в проектирование: проектировщики</span>'
-      + '<div class="tw"><div class="tb q2b" style="min-width:1120px;--c:150px 185px 1fr 1.2fr 110px 1fr 124px"><div class="tr cap"><div>Проект</div><div>Что произошло</div><div class="f">Пункт ТЗ</div><div class="f">Почему пропустили</div><div>Потеряно</div><div class="f">Следующий шаг</div><div class="f">Дата шага</div></div>'
+      + '<div class="tw"><div class="tb q2b" style="min-width:1120px;--c:150px 185px 1fr 1.2fr 110px 1fr 124px"><div class="tr cap">' + th("Проект") + th("Что произошло") + th("Пункт ТЗ", true) + th("Почему пропустили", true) + th("Потеряно") + th("Следующий шаг", true) + th("Дата шага", true) + '</div>'
       + '<div class="sepr">Добавляете вы</div>' + br.map(evRow).join("") + "</div></div>"
       + (RO ? "" : '<button class="add" type="button" data-ofadd="br" style="max-width:300px">+ Добавить возврат или вопрос проектировщика</button>')
       + commentFld("q2");
@@ -1127,7 +1145,7 @@
     var pl = '<span>передано <strong id="of-q3n">' + rows.length + '</strong></span><span>в среднем <strong id="of-q3avg">—</strong> р.д.</span>'
       + '<span class="g">без возврата <strong id="of-q3nr">—</strong></span><span>проверено Иваном <strong id="of-q3iv">—</strong></span>';
     var body = '<span class="lb2">ТЗ, переданные в проектирование за неделю</span>'
-      + '<div class="tw"><div class="tb q3t" style="min-width:1080px;--c:110px 1fr 150px 160px 90px 1fr 150px"><div class="tr cap"><div>Проект</div><div>Заказчик</div><div>Форма ТЗ получена</div><div>Готово к проектированию</div><div>Дней</div><div>Вернули?</div><div>Проверено Иваном</div></div>'
+      + '<div class="tw"><div class="tb q3t" style="min-width:1080px;--c:110px 1fr 150px 160px 90px 1fr 150px"><div class="tr cap">' + th("Проект") + th("Заказчик") + th("Форма ТЗ получена") + th("Готово к проектированию") + th("Дней") + th("Вернули?") + th("Проверено Иваном") + '</div>'
       + rows.map(function (r) {
           var k = "q3:r" + r.id + ":";
           return '<div class="tr"><div class="an">' + inp(k + "n", "№", r.n, true) + '</div><div class="an">' + inp(k + "cust", "Заказчик", r.customer, true) + '</div><div class="an">' + df(k + "fd", r.form_date, true) + '</div><div class="an">' + df(k + "rd", r.ready_date, true) + '</div><div class="cm ov1c dd"><span class="ov1 of-dn">—</span><small class="ov1s">р.д.</small></div><div class="an">' + sel(k + "ret", ["Нет", "Вернули заказчику", "Вернул проектировщик"], r.returned, true) + '</div><div class="an">' + sg(k + "ivan", ["Да", "Нет"], r.ivan, true, "rq sm iv") + '</div><button type="button" class="ofdel" data-ofdel="tz_rows|' + r.id + '"' + (RO ? " disabled" : "") + ">✕</button></div>";
@@ -1159,7 +1177,7 @@
     }).join("");
     var seprN = ap.rows.some(function (o) { return o.is_new; }) ? '<div class="sepr">Новые за неделю</div>' : "";
     var seprO = ap.rows.some(function (o) { return !o.is_new; }) ? '<div class="sepr">Перешли с прошлой недели</div>' : "";
-    var body = bar + '<div class="tw"><div class="tb tb1" style="min-width:960px;--c:56px 116px 92px 104px 96px 130px 1.4fr 112px"><div class="tr cap"><div>Проект</div><div>Заказчик</div><div>Вид работы</div><div>Отправлено заказчику</div><div>Без ответа</div><div>Последний контакт</div><div class="f">Следующий шаг</div><div class="f">Дата шага</div></div>'
+    var body = bar + '<div class="tw"><div class="tb tb1" style="min-width:960px;--c:56px 116px 92px 104px 96px 130px 1.4fr 112px"><div class="tr cap">' + th("Проект") + th("Заказчик") + th("Вид работы") + th("Отправлено заказчику") + th("Без ответа") + th("Последний контакт") + th("Следующий шаг", true) + th("Дата шага", true) + '</div>'
       + seprN + ap.rows.filter(function (o) { return o.is_new; }).map(function () { return ""; }).join("")
       + rows + seprO + "</div></div>" + commentFld("q4");
     /* разделители новые/прошлые — проще: строки уже в DOM, пометим через data-ofnew и разобьём ниже в render */
@@ -1176,7 +1194,7 @@
         + '<div class="cm dt1">' + (o.contact ? "<b>" + esc(o.contact.day) + "</b>" + (o.contact.action ? '<small class="ov1s">' + esc(o.contact.action) + "</small>" : "") : "<b>—</b>") + "</div>" + stepCell + "</div>";
     }
     var nw = ap.rows.filter(function (o) { return o.is_new; }), old = ap.rows.filter(function (o) { return !o.is_new; });
-    return '<div class="tw"><div class="tb tb1" style="min-width:960px;--c:56px 116px 92px 104px 96px 130px 1.4fr 112px"><div class="tr cap"><div>Проект</div><div>Заказчик</div><div>Вид работы</div><div>Отправлено заказчику</div><div>Без ответа</div><div>Последний контакт</div><div class="f">Следующий шаг</div><div class="f">Дата шага</div></div>'
+    return '<div class="tw"><div class="tb tb1" style="min-width:960px;--c:56px 116px 92px 104px 96px 130px 1.4fr 112px"><div class="tr cap">' + th("Проект") + th("Заказчик") + th("Вид работы") + th("Отправлено заказчику") + th("Без ответа") + th("Последний контакт") + th("Следующий шаг", true) + th("Дата шага", true) + '</div>'
       + (nw.length ? '<div class="sepr">Новые за неделю</div>' + nw.map(row).join("") : "")
       + (old.length ? '<div class="sepr">Перешли с прошлой недели</div>' + old.map(row).join("") : "")
       + (ap.rows.length ? "" : '<div class="note" style="padding:12px">Ничего не ждёт согласования</div>') + "</div></div>";
@@ -1212,7 +1230,7 @@
     }).join("");
     var body = cards + bar
       + '<span class="lb2">Платные корректировки, переданные Саше</span>'
-      + '<div class="tw"><div class="tb" style="min-width:860px;--c:150px 90px 130px 1fr 1.2fr"><div class="tr cap"><div>Проект</div><div>Раунд</div><div>Передала Саше</div><div>Статус</div><div>Комментарий</div></div>'
+      + '<div class="tw"><div class="tb" style="min-width:860px;--c:150px 90px 130px 1fr 1.2fr"><div class="tr cap">' + th("Проект") + th("Раунд") + th("Передала Саше") + th("Статус") + th("Комментарий") + '</div>'
       + paid + "</div></div>"
       + (RO ? "" : '<button class="add" type="button" data-ofadd="paidfix" style="max-width:300px">+ Добавить платную корректировку</button>')
       + '<div class="fin" style="margin-bottom:10px"><div style="border:0;padding:0"><span class="lb2">По всем ли корректировкам получена ведомость от проектировщиков?</span>'
@@ -1243,7 +1261,7 @@
       + '<div class="fin" style="margin-bottom:10px"><div style="border:0;padding:0"><span class="lb2">Были такие ситуации на этой неделе?</span>'
       + sg("q6:was", ["Были", "Ничего не было за неделю"], none ? "Ничего не было за неделю" : "Были", true)
       + '</div></div><div id="of-sitx"' + (none ? " hidden" : "") + '>'
-      + '<div class="tw"><div class="tb" style="min-width:1140px;--c:70px 120px 200px 1.4fr 140px 100px 1fr 128px"><div class="tr cap"><div>Проект</div><div>Заказчик</div><div>Что случилось</div><div>Что сделала</div><div>Кому передала</div><div>Нужна помощь?</div><div>Кто поможет</div><div>До какой даты</div></div>'
+      + '<div class="tw"><div class="tb" style="min-width:1140px;--c:70px 120px 200px 1.4fr 140px 100px 1fr 128px"><div class="tr cap">' + th("Проект") + th("Заказчик") + th("Что случилось") + th("Что сделала") + th("Кому передала") + th("Нужна помощь?") + th("Кто поможет") + th("До какой даты") + '</div>'
       + ss.map(sitRow).join("") + "</div></div>"
       + (RO ? "" : '<button class="add" type="button" data-ofadd="sit" style="max-width:260px">+ Добавить ситуацию</button>') + "</div>"
       + commentFld("q6");
@@ -1333,7 +1351,7 @@
           '<div class="loop5">' + loopHtml() + "</div>"
           + qa(7, "Что в общении с заказчиками можно улучшить?", "Мнение Полины: что мешает в работе с заказчиками.", q7.pl, q7.body)
           + qa(8, "Что отнимало больше всего времени на этой неделе?", "Задачи, которые можно делать быстрее или передать другому.", q8.pl, q8.body)
-          + qa(9, "Нагрузка и самочувствие", "Блок видят только Полина, Яна и Дмитрий.", q9.pl, q9.body))
+          + (D.locked ? qa(9, "Нагрузка и самочувствие", "Блок видят только Полина, Яна и Дмитрий.", q9.pl, q9.body) : ""))
       + '<div id="ofr-tipb" class="tipb" hidden></div></div>';
     return h;
   }
