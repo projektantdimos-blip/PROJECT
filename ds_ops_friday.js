@@ -972,6 +972,10 @@
 #ofr .tb .cm input.in{border:0!important;background:transparent!important;box-shadow:none!important;padding:0!important;font-size:13px;min-height:0}
 #ofr .tb .cm input.in::placeholder{font-size:12px;color:#9aa5b4}
 
+/* шапка блока 4 (Согласование) — синяя, без фиолетового */
+#ofr .zn:nth-child(2) .tb .cap>div, #ofr .zn:nth-child(2) .tb1 .cap>div, #ofr .zn:nth-child(2) .tb .cap>div.f, #ofr .zn:nth-child(2) .tb1 .cap>div.f{background:#bcd2ea!important;color:#0f2d4d!important;border-left-color:#9cb8d8!important}
+#ofr .zn:nth-child(2) .tb .cap, #ofr .zn:nth-child(2) .tb1 .cap{border-bottom-color:#8fb0d3}
+
 `;
 
     /* ---------- helpers ---------- */
