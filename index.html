@@ -313,6 +313,7 @@ textarea{resize:vertical;min-height:64px}
 <div id="flow-app" style="display:none"></div>
 <div id="risk-app" style="display:none"></div>
 <div id="tz-app" style="display:none"></div>
+<div id="tz-registry-app" hidden></div>
 <div id="stats-app" style="display:none"></div>
 <div id="price-app" style="display:none"></div>
 <div id="scripts-app" style="display:none"></div>
@@ -369,6 +370,7 @@ function tasksRouter(){
 }
 function sectionForHash(h){
   if (h.indexOf("#/today") === 0) return "today";
+  if (/^#\/tz-registry(?:\/|$)/.test(h)) return "tz-registry";
   if (/^#\/commerce-kp(?:\/|$)/.test(h)) return "commerce-kp";
   if (/^#\/commerce-payments(?:\/|$)/.test(h)) return "commerce-payments";
   if (h.indexOf("#/price") === 0) return "price";
@@ -425,6 +427,7 @@ function dsAllowed(sec){
   var p = dsPosition();
   if (!p && DS_HAS_TOKEN && !DS_READY) return true;      /* вход ещё проверяется: не выкидываем со страницы */
   if (!p) return sec === "me";
+  if (sec === "tz-registry") return ["owner","ops","sales","design"].indexOf(p) >= 0;
   if (sec === "commerce-kp" || sec === "commerce-payments") return ["owner","sales","ops","acc"].indexOf(p) >= 0;
   if (p === "norm" && sec === "tasks" && MPBC.me.executor) return true;      /* нормативный специалист-исполнитель видит свои проекты */
   if (DS_WORK && (DS_WORK_OPEN[p] || []).indexOf(sec) >= 0) return true;
@@ -433,18 +436,18 @@ function dsAllowed(sec){
 /* Подпункты «Работы» у текущей роли: [раздел, адрес, значок, название] */
 function dsWorkSubs(){
   var own = DS_WORK_OWN[dsPosition()];
-  return [["tasks", own ? "#/conv" : "#/", "flow", "Конвейер"], ["cal", "#/cal", "cal", "Занятость"], ["visits", "#/visits", "pin", "Выезды"], ["flow", "#/flow", "layers", "Регламент"]]
+  return [["tasks", own ? "#/conv" : "#/", "flow", "Конвейер"], ["cal", "#/cal", "cal", "Занятость"], ["visits", "#/visits", "pin", "Выезды"], ["flow", "#/flow", "layers", "Регламент"], ["tz-registry", "#/tz-registry", "list", "Реестр ТЗ"]]
     .filter(function(x){ return dsAllowed(x[0]); });
 }
 /* Какой подпункт «Работы» открыт сейчас ("" — открыт другой раздел) */
 function dsWorkSub(){
   var cur = sectionForHash(location.hash);
   if (cur === "tasks") return (!DS_WORK_OWN[dsPosition()] || location.hash.indexOf("#/conv") === 0) ? "tasks" : "";
-  return (cur === "cal" || cur === "visits" || cur === "flow") ? cur : "";
+  return (cur === "cal" || cur === "visits" || cur === "flow" || cur === "tz-registry") ? cur : "";
 }
 function renderTopNav(){
   var cur = sectionForHash(location.hash);
-  var own = { today:1, risk:1, scripts:1, tasks:1, cal:1, my:1, chat:1, mail:1, team:1, log:1, me:1, auto:1, stages:1, clients:1, report:1, stats:1, flow:1, tz:1, visits:1 };
+  var own = { today:1, risk:1, scripts:1, tasks:1, "tz-registry":1, cal:1, my:1, chat:1, mail:1, team:1, log:1, me:1, auto:1, stages:1, clients:1, report:1, stats:1, flow:1, tz:1, visits:1 };
   var pa = own[cur] ? cur : "commerce";
   var ok = dsAllowed;
   var b = function(go, ic, t, on, sec){ return ok(sec) ? '<button data-goto="'+go+'" class="'+(on?"active":"")+'">'+icon(ic)+'<span>'+t+'</span></button>' : ""; };
@@ -457,7 +460,7 @@ function renderTopNav(){
   var ws = DS_WORK ? dsWorkSubs() : [], wcur = DS_WORK ? dsWorkSub() : "";
   if (wcur) pa = "work";
   var workNav = !DS_WORK
-    ? lab("Заказы", ["flow","tasks","tz","cal","visits","risk","my","report"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz","list","Технические задания",pa==="tz","tz") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/visits","pin","Выезды",pa==="visits","visits") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my") + b("#/report","list","Пятничный созвон",pa==="report","report")
+    ? lab("Заказы", ["flow","tasks","tz-registry","cal","visits","risk","my","report"]) + b("#/flow","flow","Конвейер",pa==="flow","flow") + b("#/","tasks",pos==="designer"?"Мои проекты":pos==="acc"?"Закрытие":"Задачи",pa==="tasks","tasks") + b("#/tz-registry","list","Реестр ТЗ",pa==="tz-registry","tz-registry") + b("#/cal","cal","Занятость",pa==="cal","cal") + b("#/visits","pin","Выезды",pa==="visits","visits") + b("#/risk","flame","Просрочено и зависло",pa==="risk","risk") + b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my") + b("#/report","list","Пятничный созвон",pa==="report","report")
     : lab("Заказы", ["today","report"]) + b("#/today","sun","Сегодня",pa==="today","today")
       + (DS_WORK_OWN[pos] ? b("#/","tasks",pos==="designer"?"Мои проекты":"Закрытие",pa==="tasks","tasks") : "")
       + (DS_WORK_NOMY[pos] ? "" : b("#/my","bell",pos==="designer"?"План на неделю":"Мои задачи",pa==="my","my"))
@@ -589,6 +592,16 @@ function renderTopNav(){
   document.getElementById("tz-app").style.display = (sec === "tz") ? "block" : "none";
   if (sec === "flow" && window.DS) DS.mount("flow", document.getElementById("flow-app"));
   if (sec === "tz" && window.DS) DS.mount("tz", document.getElementById("tz-app"));
+  var tzRegistry = document.getElementById("tz-registry-app");
+  tzRegistry.hidden = sec !== "tz-registry";
+  if (tzRegistry.hidden) tzRegistry.replaceChildren();
+  else if (dsPosition() && window.DS && !tzRegistry.firstChild) {
+    var tzFrame = document.createElement("iframe");
+    tzFrame.title = "Реестр ТЗ";
+    tzFrame.src = "tz_registry.html?v=20261126a";
+    tzFrame.style.cssText = "display:block;border:0;width:100%;height:100dvh";
+    tzRegistry.append(tzFrame);
+  }
   document.getElementById("stats-app").style.display = (sec === "stats") ? "block" : "none";
   if (sec === "report" && window.DS) DS.mount("report", document.getElementById("report-app"));
   if (sec === "stats" && window.DS) DS.mount("stats", document.getElementById("stats-app"));
@@ -695,12 +708,12 @@ globalRouter();
 <script src="teamsearch.js?v=20261125a"></script>
 <script src="ai.js?v=20261125a"></script>
 <script src="chatpanel.js?v=20261125a"></script>
-<script src="ds.js?v=20261125c"></script>
+<script src="ds.js?v=20261126a"></script>
 <script src="ds_cust.js?v=20261125a"></script>
 <script src="ds_risk.js?v=20261125a"></script>
 <script src="ds_tasks.js?v=20261125a"></script>
-<script src="ds_friday.js?v=20261126a"></script>
-<script src="ds_ops_friday.js?v=20261126a"></script>
+<script src="ds_friday.js?v=20261126b"></script>
+<script src="ds_ops_friday.js?v=20261126c"></script>
 <script src="ds_price.js?v=20261125a"></script>
 <script src="ds_orders_reg.js?v=20261125a"></script>
 <script src="ds_contract.js?v=20261125a"></script>

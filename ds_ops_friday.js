@@ -929,6 +929,11 @@
 #ofr .lst3 .cp{background:#d3dfec!important;color:#1b3a5e!important}
 #ofr .tipb{position:fixed;max-width:320px;background:#1f3550;color:#fff;font:600 12.5px/1.45 "Segoe UI",Roboto,Arial,sans-serif;padding:9px 12px;border-radius:10px;z-index:9999;pointer-events:none;box-shadow:0 8px 22px rgba(21,32,46,.28)}
 #ofr .hq{text-decoration:underline dotted 1.5px;text-underline-offset:3px;cursor:help}
+/* адаптив карточек: на узком экране колонки не схлопываются */
+#ofr .t3{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+#ofr .t3 .r span:nth-child(2){overflow-wrap:anywhere}
+#ofr .t3 .r em{white-space:normal}
+
 `;
 
     /* ---------- helpers ---------- */
@@ -987,9 +992,9 @@
   }
   function pj(cell) { return '<div class="pj"' + (cell.left ? ' style="align-items:flex-start;text-align:left"' : "") + "><b>" + esc(cell.n) + "</b>" + (cell.sub || "") + (cell.tag || "") + "</div>"; }
   function cardK(cls, big, title, cols, rows, foot) {
-    return '<div class="k-b ' + cls + '"><div class="big"><b>' + big + "</b><p>" + esc(title) + '</p></div><div class="lst3"><div class="cp">'
+    return '<div class="k-b ' + cls + '"><div class="big"><b>' + big + "</b><p>" + title + '</p></div><div class="lst3"><div class="cp">'
       + cols.map(function (c) { return "<span>" + esc(c) + "</span>"; }).join("") + "</div>"
-      + rows.map(function (r) { return '<div class="r">' + r.map(function (x, i) { return i === 0 ? "<i>" + esc(x) + "</i>" : (typeof x === "string" && x.charAt(0) === "§" ? "<u class='" + x.slice(1, 3) + "'>" + esc(x.slice(4)) + "</u>" : "<span>" + esc(x) + "</span>"); }).join("") + "</div>"; }).join("")
+      + rows.map(function (r) { return '<div class="r">' + r.map(function (x, i) { return i === 0 ? "<i>" + esc(x) + "</i>" : (typeof x === "string" && x.charAt(0) === "§" ? "<u class='" + x.slice(1, 3) + "'>" + esc(x.slice(4)) + "</u>" : (i === r.length - 1 ? "<em>" + esc(x) + "</em>" : "<span>" + esc(x) + "</span>")); }).join("") + "</div>"; }).join("")
       + '</div><p class="ft">' + foot + "</p></div>";
   }
 

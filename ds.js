@@ -49,6 +49,7 @@
   function projPos() { var p = pos(); return p === "norm" && C.me.executor ? "designer" : p; }
   function api(path, body) { return C.call("/../ds" + path, body ? { body: body } : {}); }
   DS.commerceApi = api;
+  DS.tzRegistryApi = api;
   DS.commerceOpen = function (row) {
     if (row.order_id) { location.hash = "#/task/" + row.order_id; return; }
     loadKp().then(function () {
