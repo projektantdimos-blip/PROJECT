@@ -934,6 +934,12 @@
 #ofr .t3 .r span:nth-child(2){overflow-wrap:anywhere}
 #ofr .t3 .r em{white-space:normal}
 
+/* CRM .ds .tb{display:flex} ломал таблицы макета — принудительно block, разделители на всю ширину */
+#ofr .tb{display:block}
+#ofr .tb .sepr{display:block;width:100%;box-sizing:border-box}
+#ofr .tb .tr{display:grid}
+#ofr .tb .an input.in::placeholder{font-size:12px}
+
 `;
 
     /* ---------- helpers ---------- */
