@@ -58,6 +58,13 @@
       else toast("КП не найдено");
     });
   };
+  DS.reportKp = function (id) {
+    return loadKp().then(function () {
+      var kp = (S.kp || []).find(function (item) { return item.id === id; });
+      if (!kp) throw new Error("КП не найдено");
+      return {kp: kp, systems: KP_SYS};
+    });
+  };
   DS.commerceCall = function (contact, row) {
     if (!contact || !contact.phone || !window.DSCalls || !DSCalls.enabled) {
       toast("Телефония недоступна");
@@ -366,7 +373,7 @@
       + (+e.customer_id ? "" : inp("Для кого КП (текстом)", "customer_text"))
       + inp("Объект", "object")
       + ((e.services || []).length ? '<div class="fld"><label>Услуги</label><div class="kesvc">' + e.services.map(function (s) { return "<div>" + E(s.name) + "<span>" + money(s.price) + "</span></div>"; }).join("") + '</div><div class="note" style="margin-top:4px">Состав и цены — кнопка «Состав услуг…» внизу</div></div>' : "")
-      + '<div class="fld"><label>Системы по КП <small style="color:var(--muted)">как в пятничном созвоне: отметьте, какие системы есть в услугах — они сами попадут в отчёт</small></label><div class="kesys">'
+      + '<div class="fld"><label>Вид работ</label><div class="kesys">'
       + KP_SYS.map(function (s) {
           var on = (e.systems || []).indexOf(s) >= 0;
           return '<button type="button" class="kpsys' + (on ? " on" : "") + '" data-kesys="' + E(s) + '"' + (on ? ' style="background:' + KP_SYS_C[s] + ";border-color:" + KP_SYS_C[s] + '"' : "") + ">" + E(s) + "</button>";
@@ -385,10 +392,16 @@
         : '<div class="g2f">' + keSel("Вероятность оплаты", "pay_prob", KP_PROB) + inp("Ожидаемая дата оплаты", "pay_expect", "date") + "</div>" + inp("Следующий контакт", "next_contact", "date"))
       + '<div class="fld"><label>Документы</label><div class="kedocs">' + kpDocs(e.k, true) + (!e.order_id && e.status0 !== "Отказ" ? '<button class="btn ghost sm" data-kpcontract="' + e.id + '">✍ Договор…</button>' : "") + "</div></div>"
       + (e.err ? '<div class="err">' + E(e.err) + "</div>" : "")
+      + keSel("Вероятность продажи", "sale_prob", KP_PROB)
+      + '<div class="g2f">' + keSel("Основание оплаты", "pay_basis_event", kpBasisOptions(e.status0)) + inp("Дата отсчёта", "pay_basis_date", "date") + "</div>"
       + '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" data-kesave="1">Сохранить</button><button class="btn ghost" data-kectr="1" title="Изменить состав услуг и цены">Состав услуг…</button><button class="btn ghost" data-close="1">Отмена</button>'
       + (!e.order_id ? '<button class="btn ghost" data-kpdel="' + e.id + '" style="margin-left:auto;color:var(--bad)" title="Удалить КП из реестра">Удалить</button>' : "") + "</div></div></div></div>";
   }
   var KP_REFUSE = ["Дорого", "Условия оплаты", "Сроки", "Дешевле у конкурента", "Выбрали другого (не по цене)", "Отложили", "Пропал", "Пока прицениваются", "Не наш профиль", "Другое (в комментарии)"], KP_BACK = ["Да", "Нет"], KP_PROB = [["high", "высокая"], ["mid", "средняя"], ["low", "низкая"]];
+  var KP_PAY_BASIS = ["Договор подписан", "Акт подписан", "Акт отправлен", "Акт подписан авто", "Счёт отправлен"];
+  function kpBasisOptions(status) {
+    return ["В работе", "В постоплате", "Закрыто"].includes(status) ? KP_PAY_BASIS.slice(1) : [KP_PAY_BASIS[0], KP_PAY_BASIS[4]];
+  }
   var KP_SYS = ["СПС", "СОУЭ", "ВПВ", "АУП", "ОГЗ", "АО", "ИД"], KP_SYS_C = { "СПС": "#2a65a0", "СОУЭ": "#2f8f5b", "ВПВ": "#1fa0c8", "АУП": "#d99a1f", "ОГЗ": "#d9603b", "АО": "#c0568f", "ИД": "#7a5fc0" };
   function keSel(label, k, opts) {
     return '<div class="fld"><label>' + label + '</label><select data-ke="' + k + '"><option value="">—</option>' + opts.map(function (o) { var v = Array.isArray(o) ? o[0] : o, l = Array.isArray(o) ? o[1] : o; return '<option value="' + E(v) + '"' + (v === S.ke[k] ? " selected" : "") + ">" + E(l) + "</option>"; }).join("") + "</select></div>";
@@ -418,10 +431,22 @@
     var body = { customer_id: +e.customer_id || 0, customer_text: +e.customer_id ? "" : (e.customer_text || ""), object: e.object || "", amount: +e.amount || 0, adv_sum: +e.adv_sum || 0, comment: e.comment || "", lead_date: e.lead_date || "", status_date: e.status_date || "", manager_id: +e.manager_id || 0 };
     if (+e.order_id !== +e.order0) body.order_id = +e.order_id || 0;
     ["pay_prob", "pay_expect", "next_contact", "refuse_reason", "refuse_back", "refuse_note"].forEach(function (k) { body[k] = e[k] || ""; });
+    if (Boolean(e.pay_basis_event) !== Boolean(e.pay_basis_date)) {
+      e.err = "Укажите основание оплаты и дату отсчёта или очистите оба поля";
+      setModal(keHtml());
+      return;
+    }
+    body.sale_prob = e.sale_prob || "";
+    if (e.pay_basis_event !== e.pay_basis_event0 || e.pay_basis_date !== e.pay_basis_date0) {
+      body.pay_basis = e.pay_basis_event ? {event: e.pay_basis_event, date: e.pay_basis_date} : "";
+    }
     body.systems = e.systems || [];                    // системы по КП — для пятничного созвона («шарики» в блоке «Запросы»)
     // этап, выбранный вручную, сохраняется и когда КП в этот же раз привязали к задаче (например, сразу «В постоплате»)
     api("/kp/" + e.id + "/edit", body).then(function () { return e.status !== e.status0 && (KP_ORDER_MANUAL.indexOf(e.status) >= 0 || (!+e.order_id && body.order_id == null)) ? api("/kp/" + e.id + "/status", { status: e.status, day: e.status_date || "" }) : null; })
-      .then(function () { S.ke = null; S.orders = null; S.tasks = null; return Promise.all([loadKp(), load()]); })
+      .then(function () {
+        S.ke = null; S.orders = null; S.tasks = null;
+        return Promise.all([loadKp(), load(), location.hash === "#/report" ? loadReport() : null]);
+      })
       .then(function () {
         toast("КП сохранено");
         paint();
@@ -1141,7 +1166,11 @@
   }
   function openKpCard(k) {
     S.kpHot = k.id;
-    S.ke = { id: k.id, k: k, number: k.number, customer_id: k.customer_id || 0, customer_text: k.customer_text || "", object: k.object || "", services: k.services || [], comment: k.comment || "", amount: k.amount, adv_sum: k.adv_sum, lead_date: k.lead_date || k.issued_date || "", status_date: k.status_date || "", status_date0: k.status_date || "", manager_id: k.manager_id || 0, status: k.status, status0: k.status,
+    var basis;
+    try { basis = JSON.parse(k.pay_basis || "{}"); } catch (e) { basis = {}; }
+    if (basis.scope && basis.scope !== (kpBasisOptions(k.status).length === 2 ? "pre" : "post")) basis = {};
+    S.ke = { id: k.id, k: k, sale_prob: k.sale_prob || "", pay_basis_event: basis.event || "", pay_basis_date: basis.date || "",
+      pay_basis_event0: basis.event || "", pay_basis_date0: basis.date || "", number: k.number, customer_id: k.customer_id || 0, customer_text: k.customer_text || "", object: k.object || "", services: k.services || [], comment: k.comment || "", amount: k.amount, adv_sum: k.adv_sum, lead_date: k.lead_date || k.issued_date || "", status_date: k.status_date || "", status_date0: k.status_date || "", manager_id: k.manager_id || 0, status: k.status, status0: k.status,
       pay_prob: k.pay_prob || "", pay_expect: k.pay_expect || "", next_contact: k.next_contact || "", refuse_reason: k.refuse_reason || "", refuse_back: k.refuse_back || "", refuse_note: k.refuse_note || "", order_id: k.order_id, order0: k.order_id, adv_date: k.adv_paid ? k.adv_date : "", adv_date0: k.adv_paid ? k.adv_date : "", systems: String(k.systems || "").split("|").filter(Boolean), err: "" };
     setModal(keHtml());
     if (!S.orders) load().then(function () { if (S.ke) setModal(keHtml()); });

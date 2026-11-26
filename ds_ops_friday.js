@@ -957,6 +957,21 @@
 #ofr .tb .cap>div.f .hq::after{background:#2a65a0;color:#fff}
 #ofr .tb .sepr.sb2{color:#1d2733}
 
+/* пакет 26.11 (3): шапка фиолетовая, поля без рамок, колонки полосой */
+#ofr .tb .cap>div, #ofr .tb1 .cap>div, #ofr .tb .cap>div.f, #ofr .tb1 .cap>div.f{background:#d9cdf0!important;color:#2e1a5e!important}
+#ofr .tb .cap, #ofr .tb1 .cap{border-bottom-color:#bba9e2}
+#ofr .tb .cap>div{border-left-color:#bba9e2!important}
+/* поля ввода — без квадратов: только текст, фокус подчёркивает */
+#ofr .tb .an .in, #ofr .tb .an select.in, #ofr .tb .an input.in, #ofr .tb .an textarea.in{border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;border-bottom:1.5px dashed transparent!important;padding:2px 0!important;min-height:0!important;font-size:13.5px}
+#ofr .tb .an .in:focus{border-bottom-color:#2a65a0!important;background:transparent!important;outline:0}
+#ofr .tb .an .in:disabled{color:var(--ink)}
+#ofr .tb .an .dtx{border-bottom:1.5px dashed #c3ccd8!important}
+#ofr .tb .an .dtb{border:0!important;background:transparent!important;box-shadow:none!important;padding:0 2px}
+#ofr .tb .an .dtw{border:0!important;background:transparent!important}
+/* колонка «Кто заполняет ТЗ»: текст значения, без обрезки */
+#ofr .tb .cm input.in{border:0!important;background:transparent!important;box-shadow:none!important;padding:0!important;font-size:13px;min-height:0}
+#ofr .tb .cm input.in::placeholder{font-size:12px;color:#9aa5b4}
+
 `;
 
     /* ---------- helpers ---------- */
@@ -1250,7 +1265,7 @@
       + (r.what === "Другое" ? inp(k + "whatOth", "Что случилось", r.other, true) : "")
       + '</div><div class="an">' + inp(k + "did", "Что сделала", r.did, true) + '</div><div class="an">'
       + sel(k + "to", ["Решила сама", "Ивану", "Саше", "Дмитрию", "Яне"], r.to_, true) + '</div><div class="an">'
-      + sel(k + "help", ["Нет", "Да"], r.help, true, "hlp") + '</div><div class="an"><span class="hp"' + (r.help === "Да" ? "" : " hidden") + ">" + inp(k + "who", "Кто", r.who, true) + '</span></div><div class="an"><span class="hp"' + (r.help === "Да" ? "" : " hidden") + ">" + df(k + "until", r.until_date, true) + '</span></div><button type="button" class="ofdel" data-ofdel="situations|' + r.id + '"' + (RO ? " disabled" : "") + ">✕</button></div>";
+      + sel(k + "help", ["Нет", "Да"], r.help, true).replace('class="in rq"', 'class="in rq hlp"') + '</div><div class="an"><span class="hp"' + (r.help === "Да" ? "" : " hidden") + ">" + inp(k + "who", "Кто", r.who, true) + '</span></div><div class="an"><span class="hp"' + (r.help === "Да" ? "" : " hidden") + ">" + df(k + "until", r.until_date, true) + '</span></div><button type="button" class="ofdel" data-ofdel="situations|' + r.id + '"' + (RO ? " disabled" : "") + ">✕</button></div>";
   }
   function q6Html() {
     var ss = M.situations;
