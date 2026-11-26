@@ -1171,3 +1171,12 @@
 .ds .sr #srb4 .dbt .lc4 .sb4 { white-space: nowrap; overflow-wrap: normal; min-width: max-content }
 .ds .sr #srb4 .dbt .dnm b { overflow-wrap: anywhere }
 .ds .sr #srb4 .dbt .dtw { width: 100%; min-width: 0 }
+
+/* 26.11: dark theme — select'ы светлым текстом, долг ярко-красный */
+:root[data-theme="dark"] .ds .sr .rsn select,
+:root[data-theme="dark"] .ds .sr .cmq,
+:root[data-theme="dark"] .ds .sr .tsel,
+:root[data-theme="dark"] .ds .sr .rsel { color:#dbe2eb !important; }
+:root[data-theme="dark"] .ds .sr .cmq { background:#171f31 !important; }
+.ds .sr .dpill.debt { background:#c9453f !important; color:#fff !important; border-color:#c9453f !important; }
+:root[data-theme="dark"] .ds .sr .dpill.debt { background:#c9453f !important; color:#fff !important; }
