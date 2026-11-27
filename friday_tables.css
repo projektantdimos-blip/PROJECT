@@ -13,10 +13,34 @@
   font-family: "Segoe UI", Roboto, Arial, sans-serif;
 }
 
-#report-app .dspage:has(#ofr-mount, #dfr-mount) > :is(.head, div:has(> .seg)) {
+#report-app .dspage:has(.friday-report-menu) {
+  inline-size: 100%;
+  max-inline-size: none;
+  margin-inline: auto;
+}
+
+#report-app :is(#ofr-mount, #dfr-mount, .friday-report-menu) {
+  inline-size: 100%;
   max-inline-size: 1200px;
   margin-inline: auto;
 }
+
+.ds .friday-report-menu {
+  max-inline-size: 1200px;
+  margin: 0 auto 14px;
+}
+.ds .friday-report-menu .head {
+  align-items: center;
+  margin-bottom: 14px;
+}
+.ds .friday-report-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.ds .friday-report-tabs > .seg { flex-wrap: wrap }
+.ds .sr .sr-head h1 span { display: inline }
 
 /* Общая сетка и оформление ячеек в отчётах Полины и Ивана. */
 :is(#ofr, #dfr) .tw {
@@ -111,6 +135,28 @@
   min-inline-size: 0;
   max-inline-size: 100%;
 }
+#dfr .b-late .tb .tr .stl {
+  display: inline-block;
+  flex: 0 1 auto;
+  max-inline-size: 100%;
+  padding: 4px 10px;
+  border: 1px solid #efa136;
+  border-radius: 999px;
+  background: #fce4b5;
+  color: #754200;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+  white-space: normal;
+}
+#dfr .b-late .tb .tr .stl.nw {
+  border-color: #c94538;
+  background: #c94538;
+  color: #fff;
+}
+#dfr .b-late .tb .tr > div:has(> .stl) { padding-inline: 4px }
+#dfr .b-late .tb .tr.cap > div { padding-inline: 4px }
 :is(#ofr, #dfr) .tb .tr > div > .an { inline-size: 100% }
 #ofr .zn .qa .tb .tr .an .in {
   inline-size: 100%;

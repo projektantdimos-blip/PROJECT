@@ -29,7 +29,13 @@
   function E(v) { return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function item(id) { return (R.items || []).filter(function (x) { return x.id === id; })[0] || { inputs: [], rows: [], kv: [] }; }
   function list(v) { if (Array.isArray(v)) return v; if (!v) return []; try { var x = JSON.parse(v); return Array.isArray(x) ? x : []; } catch (e) { return []; } }
-  function num(v) { return parseInt(String(v == null ? "" : v).replace(/[^\d-]/g, ""), 10) || 0; }
+  function num(v) {
+    if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+    var text = String(v == null ? "" : v);
+    var amount = text.replace(/[\s\u20BD]/g, "");
+    if (/^-?\d+[.,]\d{1,2}$/.test(amount)) return Number(amount.replace(",", "."));
+    return parseInt(text.replace(/[^\d-]/g, ""), 10) || 0;
+  }
   function fmt(n) { return (n || 0).toLocaleString("ru-RU"); }
   function kvs(it, k) { var x = (it.kv || []).filter(function (v) { return v[0] === k; })[0]; return x ? x[1] : "—"; }
   function dis() { return RO ? " disabled" : ""; }
@@ -768,7 +774,8 @@
           return;
         }
         dialog.close();
-        var refresh = button.closest(".sr") && button.closest(".sr").querySelector("[data-rpref]");
+        var reportRoot = button.closest("#report-app") || button.closest(".sr");
+        var refresh = reportRoot && reportRoot.querySelector("[data-rpref]");
         if (refresh) refresh.click();
       });
     }
@@ -1549,7 +1556,7 @@
 
   // --------------------------------------------------------------- точка входа
   window.DSSalesReport = {
-    html: function (report, ro, viewer, tabs) {
+    html: function (report, ro) {
       R = report; RO = !!ro; WEEK = report.week_start; FILTER4 = null; MVO = false;
       openDrafts();
       AV = {}; KV = {};
@@ -1571,13 +1578,9 @@
         + zone("--zb:#dfc9c2;--zbg:#f9f5f3;--zh:#efe2dd;--zt:#5a3329;--zc:#a0675a", "Должники и риски", block4())
         + zone("--zb:#c4cfdc;--zbg:#f4f6f9;--zh:#e2e8ef;--zt:#2a3d53;--zc:#5a7391", "План на следующую неделю", block5())
         + zone("--zb:#d9d0bf;--zbg:#f8f6f2;--zh:#ece6db;--zt:#4a4030;--zc:#8c7a5b", "Мнение", loopBlock() + block6() + block7() + block8() + block9());
-      var now = todayD(), thisMonday = new Date(now);
-      thisMonday.setDate(now.getDate() - (now.getDay() + 6) % 7);
-      var current = isoOf(thisMonday) === WEEK;
       var period = dmyIso(report.week_start) + " — " + dmyIso(report.week_end);
-      var head = '<div class="sr-head"><div><h1>' + E(report.person || report.title) + " <span>менеджер отдела продаж</span></h1></div>"
-        + '<div class="sr-actions"><span class="sr-period">Неделя <b>' + E(period) + '</b></span><div class="seg"><button type="button" data-rpnav="-1" aria-label="Предыдущая неделя">← Пред.</button><button type="button" data-rpnav="0"' + (current ? ' class="on" aria-current="date"' : "") + '>Эта неделя</button><button type="button" data-rpnav="1" aria-label="Следующая неделя">След. →</button></div><button type="button" class="btn ghost" data-rpref="1">⟳ Обновить</button></div></div>'
-        + (tabs ? '<div class="sr-tabs">' + tabs + "</div>" : "")
+      var head = '<div class="sr-head"><h1>' + E(report.person || report.title)
+        + ' <span>(менеджер отдела продаж)</span></h1><span class="sr-period">Неделя <b>' + E(period) + '</b></span></div>'
         + '<div class="sr-save-line"><span class="sr-save-status" id="srStatus" role="status">' + (RO ? "Только чтение" : "Изменения сохраняются автоматически") + '</span><button type="button" data-sr-retry="all" id="srRetryAll" hidden>Повторить сохранение</button></div>'
         + sectionNav(Boolean((item("s12").inputs || []).length));
       bindEvents();

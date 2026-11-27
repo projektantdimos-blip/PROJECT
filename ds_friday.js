@@ -287,7 +287,9 @@
     }
   });
   document.addEventListener("click", function (e) {
-    var t = e.target.closest ? e.target.closest("[data-rpsug],[data-rphide],[data-rpunhide],[data-rpref],[data-rpblk],[data-rpbcol]") : null; if (!t || !S.rp || !S.rp.data) return;
+    var t = e.target.closest ? e.target.closest("[data-rpsug],[data-rphide],[data-rpunhide],[data-rpref],[data-rpblk],[data-rpbcol]") : null; if (!t || !S.rp) return;
+    if (t.dataset.rpref) { t.disabled = true; return loadReport().then(paint).then(function () { toast("Отчёт обновлён"); }); }
+    if (!S.rp.data) return;
     if (t.dataset.rpbcol) { S.rpCol = S.rpCol || {}; S.rpCol[t.dataset.rpbcol] = !t.closest(".rpb").classList.contains("col"); return paint(); }
     if (t.dataset.rpblk) {                                                     // к блоку: развернуть и прокрутить
       var sec = document.getElementById("rpb" + t.dataset.rpblk); if (!sec) return;
@@ -295,7 +297,6 @@
       if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
-    if (t.dataset.rpref) { t.disabled = true; return loadReport().then(paint).then(function () { toast("Отчёт обновлён"); }); }
     if (t.dataset.rphide) { t.disabled = true; return rpSave(t.dataset.rphide, "1").then(loadReport).then(paint); }
     if (t.dataset.rpunhide) {
       var hi = S.rp.data.items.filter(function (x) { return x.id === t.dataset.rpunhide; })[0]; if (!hi) return;
@@ -308,13 +309,23 @@
       return Promise.all(Object.keys(fill).map(function (k) { return rpSave(k, fill[k]); })).then(loadReport).then(function () { toast("Подставлено — можно дописать"); paint(); });
     }
   });
+  function reportToolbar(title, tabs) {
+    var current = S.rp.start === isoDay(monday());
+    return '<div class="friday-report-menu"><div class="head"><h1>Пятничный созвон · ' + E(title) + '</h1>'
+      + '<div class="friday-report-actions"><div class="seg" aria-label="Неделя отчёта">'
+      + '<button type="button" data-rpnav="-1" aria-label="Предыдущая неделя">← Пред.</button>'
+      + '<button type="button" data-rpnav="0"' + (current ? ' class="on" aria-current="date"' : "") + '>Эта</button>'
+      + '<button type="button" data-rpnav="1" aria-label="Следующая неделя">След. →</button></div>'
+      + '<button type="button" class="btn ghost" data-rpref="1">⟳ Обновить</button></div></div>'
+      + (tabs ? '<div class="friday-report-tabs">' + tabs + '</div>' : '') + '</div>';
+  }
   function reportScreen() {
     var p = pos(), r = S.rp && S.rp.data;
     var tabs = rpLeads(p) ? '<div class="seg">' + RP_KINDS.map(function (x) { return '<button data-rpkind="' + x[0] + '" class="' + (S.rp && S.rp.kind === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>" : "";
     if (S.rp && S.rp.kind === "ops") return opsScreen(tabs);        // окно Полины (макет 26.11)
     if (S.rp && S.rp.kind === "design") return designScreen(tabs);  // окно Ивана (макет 26.11)
     if (!r) return '<div class="head"><div><h1>Пятничный созвон</h1></div></div>' + tabs + '<div class="note">' + (S.err ? E(S.err) : "Нет данных") + "</div>";
-    if (r.kind === "sales" && window.DSSalesReport) return DSSalesReport.html(r, !r.can_edit, p, tabs);
+    if (r.kind === "sales" && window.DSSalesReport) return reportToolbar("Отдел продаж", tabs) + DSSalesReport.html(r, !r.can_edit);
     var ro = !r.can_edit, tone = { ok: "var(--ok)", bad: "var(--bad)", brand: "var(--brand)", warn: "var(--warn)" };
     var done = r.items.filter(rpDone).length, auto = r.items.filter(function (it) { return it.mode !== "manual"; }).length;
     var head = '<div class="head"><div><h1>Пятничный созвон · ' + E(r.title) + "</h1><p>Неделя " + dmy(r.week_start).slice(0, 5) + " — " + dmy(r.week_end).slice(0, 5) + ". Цифры и списки CRM считает сама; допишите комментарии и ответы на ручные вопросы — в пятницу в 17:00 отчёт уйдёт руководителю.</p></div>"
@@ -336,10 +347,7 @@
   /* окно Полины (вкладка «Проекты», макет 26.11): своя шапка и рендер DSOpsFriday */
   function opsScreen(tabs) {
     var r = S.rp && S.rp.ops2;
-    var head = '<div class="head"><div><h1>Пятничный созвон · Менеджер проектов</h1><p>Неделя ' + dmy(S.rp.start).slice(0, 5) + " — " + dmy(r ? r.week_end : S.rp.start).slice(0, 5) + '. Синее подтягивает CRM, кремовое заполняет Полина. Ответы сохраняются сами, по неделям.</p></div>'
-      + '<div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg"><button data-rpnav="-1">← Пред.</button><button data-rpnav="0" class="on">Эта</button><button data-rpnav="1">След. →</button></div>'
-      + '<button class="btn ghost" data-rpref="1" title="Пересчитать цифры CRM на сейчас">⟳ Обновить</button></div></div>'
-      + (tabs ? '<div style="margin-bottom:14px">' + tabs + "</div>" : "")
+    var head = reportToolbar("Менеджер проектов", tabs)
       + (S.err && !r ? '<div class="note">' + E(S.err) + "</div>" : "");
     if (!r) return head + '<div class="note">Загружаю…</div>';
     setTimeout(function () { if (window.DSOpsFriday) window.DSOpsFriday.load(S.rp.start); }, 0);
@@ -349,10 +357,7 @@
   /* окно Ивана (вкладка «Проектирование», макет 26.11): данные design2 и рендер DSDesignFriday */
   function designScreen(tabs) {
     var r = S.rp && S.rp.design2, start = S.rp.start;
-    var head = '<div class="head"><div><h1>Пятничный созвон · Проектный отдел</h1><p>Неделя ' + dmy(r ? r.week_start : start).slice(0, 5) + " — " + dmy(r ? r.week_end : S.rp.start).slice(0, 5) + '. Синее подтягивает CRM, кремовое заполняет Иван. Ответы сохраняются сами, по неделям.</p></div>'
-      + '<div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg"><button data-rpnav="-1">← Пред.</button><button data-rpnav="0" class="on">Эта</button><button data-rpnav="1">След. →</button></div>'
-      + '<button class="btn ghost" data-rpref="1" title="Пересчитать цифры CRM на сейчас">⟳ Обновить</button></div></div>'
-      + (tabs ? '<div style="margin-bottom:14px">' + tabs + "</div>" : "")
+    var head = reportToolbar("Проектный отдел", tabs)
       + (S.err && !r ? '<div class="note">' + E(S.err) + "</div>" : "");
     if (!r) return head + '<div class="note">Загружаю…</div>';
     setTimeout(function () { if (window.DSDesignFriday) window.DSDesignFriday.load(start, r); }, 0);

@@ -129,7 +129,7 @@
         '<div class="an">' + select(k + ":why", LATE, null, true) + otherField(k + ":why") + '</div>', '<div class="an">' + field(k + ":change", null, "Одно изменение", true) + "</div>", '<div class="na">' + (o.actual_start ? "взят " + dInput(o.actual_start).slice(0, 5) : "не взят") + "</div>"]));
     });
     if (!d.late_rows.length && !d.not_started.length) lateRows.push(sep("Опозданий и пропущенных стартов нет", "sbG"));
-    var late = '<div class="blk b-late"><div class="blh">Опоздания: сдача и взятие в работу</div>' + table(["Проект", "Статус", "По плану", "По факту", "Опоздание", "Предупредил?", "Причина", "Что меняем", "Новая дата"], lateRows, "minmax(150px,1fr) 132px 82px 82px 82px 100px 222px minmax(140px,1fr) 86px") + "</div>";
+    var late = '<div class="blk b-late"><div class="blh">Опоздания: сдача и взятие в работу</div>' + table(["Проект", "Статус", "По плану", "По факту", "Опоздание", "Предупредил?", "Причина", "Что меняем", "Новая дата"], lateRows, "minmax(150px,1fr) 185px 82px 82px 88px 105px 168px minmax(140px,1fr) 86px") + "</div>";
     var WHY = ["Корректировка другого проекта", "Ждём заказчика или данные", "Срочная работа вне плана", "Перегрузка", "Ошибка, переделывали", "Просьба заказчика", "Другое"];
     var shiftRows = d.shifts.map(function (o) {
       var k = "q1:shift" + o.oid;
