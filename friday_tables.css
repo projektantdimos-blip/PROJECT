@@ -1,0 +1,149 @@
+/* Общие размеры отчётов. Цвета и структуру таблиц продаж задаёт макет Александра. */
+:is(#ofr, #dfr, .ds .sr) {
+  --friday-width: 1200px;
+  --friday-row-font: 13px;
+  --friday-heading-font: 12px;
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: var(--friday-width);
+  margin-inline: auto;
+  padding-inline: 0;
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+#report-app .dspage:has(#ofr-mount, #dfr-mount) > :is(.head, div:has(> .seg)) {
+  max-inline-size: 1200px;
+  margin-inline: auto;
+}
+
+/* Общая сетка и оформление ячеек в отчётах Полины и Ивана. */
+:is(#ofr, #dfr) .tw {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+
+:is(#ofr, #dfr) .tw > .tb {
+  --friday-table-min: 680px;
+  display: block;
+  min-inline-size: min(100%, var(--friday-table-min)) !important;
+  inline-size: max(100%, var(--friday-table-min));
+}
+
+:is(#ofr, #dfr) .tb:has(> .cap > :nth-child(7)) { --friday-table-min: 880px }
+:is(#ofr, #dfr) .tb:has(> .cap > :nth-child(9)) { --friday-table-min: 1060px }
+
+:is(#ofr, #dfr) .tb .tr > div {
+  box-sizing: border-box;
+  min-inline-size: 0;
+  padding: 9px 8px;
+  align-items: center !important;
+  justify-content: center;
+  text-align: center !important;
+  border-inline-start-color: #e1e8f0;
+  font-size: var(--friday-row-font);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+:is(#ofr, #dfr) .tb .tr:not(.cap) > :is(.cm, .an, .pjc) {
+  background: #fff !important;
+}
+
+:is(#ofr, #dfr) .zn .qa .tb.tb .tr.cap > div {
+  padding: 8px;
+  background: #3b6596 !important;
+  color: #fff !important;
+  border-inline-start-color: rgb(255 255 255 / 28%) !important;
+  font-size: var(--friday-heading-font) !important;
+  font-weight: 700;
+  letter-spacing: normal;
+  white-space: normal;
+}
+
+:is(#ofr, #dfr) .tb .cap { border-bottom: 0 }
+:is(#ofr, #dfr) .tb .tr > div:first-child { border-inline-start: 0 !important }
+
+:is(#ofr, #dfr) .tb :is(.pcell, .whs, .nav, .sg, .wk) {
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+:is(#ofr, #dfr) .tb :is(.tr > div > *, .pcell .pu, .dtw, .in, .ta, .sg button, .mc) {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+:is(#ofr, #dfr) .tb :is(.tr b, .tr small, .pcell .pu, .sg button, .mc, .fc, .na1, .rk1) {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+:is(#ofr, #dfr) .tb .tr:not(.cap) b { font-size: var(--friday-row-font) !important }
+:is(#ofr, #dfr) .tb :is(.in, .ta) { text-align: center; font-size: var(--friday-row-font) !important }
+#ofr .tb .tr > .an::after { content: none }
+#ofr .tb .an select.in {
+  appearance: auto;
+  -webkit-appearance: auto;
+  padding-inline: 4px !important;
+}
+:is(#ofr, #dfr) .tb .tr .dtw { inline-size: 100% }
+:is(#ofr, #dfr) .tb .tr .dtw .dtx {
+  inline-size: 100%;
+  padding-inline: 6px 26px !important;
+}
+#ofr .tb .tr > .ofdel {
+  grid-column: 1 / -1;
+  justify-self: end;
+  margin: 3px 8px;
+}
+
+/* Продажи. У широких таблиц прокручивается собственная область. */
+.ds .sr :is(.sr-table-window, .payw, .p5w) { min-inline-size: 0; max-inline-size: 100% }
+.ds .sr .sr-table-window { scrollbar-gutter: auto }
+.ds .sr :is(.r1, .lane .i, .p5w .gr) > * {
+  min-inline-size: 0;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.ds .sr :is(.r1, .lane .i, .p5w .gr) :is(button, input, select, .cmq, .rsn, .dpill, .sr-basis-actions) {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+.ds .sr :is(.lane .i, .p5w .gr) :is(.rsn, .dpill, .sr-basis-actions button) { overflow-wrap: anywhere }
+.ds .sr .lane .i :is(.sr-kp-link, .rsn select) { text-align: center }
+.ds .sr :is(.lane .i, .r1, .p5w .gr) :is(.cap, .pcell, .vt, .amt, .dpill, .sm) { white-space: normal }
+
+@media (min-width: 801px) {
+  .ds .sr #srb4 .sr-debt-grid { min-inline-size: 1096px }
+  .ds .sr #srb4 .sr-debt-grid .i.r6 {
+    grid-template-columns: minmax(120px, 1fr) 80px 78px 136px minmax(126px, 1.1fr) 112px 112px 102px minmax(120px, 1fr) 110px;
+  }
+}
+
+.ds .sr #srb4 .dbt .i.r6 > :is(.sm, .dnm) { justify-content: center }
+.ds .sr #srb4 .dbt .i.r6 > .sm { font-variant-numeric: tabular-nums }
+.ds .sr #srb4 .dbt .dpill { white-space: normal; display: inline-block; overflow-wrap: anywhere }
+.ds .sr #srb4 .dbt .bo4 { max-inline-size: 100%; inline-size: 100% }
+.ds .sr #srb4 .dbt .sg4 { max-inline-size: 100%; min-inline-size: 0 }
+.ds .sr #srb4 .dbt :is(.bo4, .debt-fields) .sg4:not(.ct4, .pm4) {
+  display: grid;
+  grid-template-columns: minmax(0, 57fr) minmax(0, 43fr);
+}
+.ds .sr #srb4 .dbt :is(.bo4, .lc4, .debt-fields) .sg4 > :is(.sa4, .sb4) {
+  min-inline-size: 0;
+  inline-size: auto;
+  padding-inline: 3px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+.ds .sr #srb4 .dbt .debt-fields :is(.cmq, .add, .sr-debt-select) { box-sizing: border-box }
+.ds .sr #srb4 .dbt .debt-fields .add { white-space: normal }
+
+@media (max-width: 800px) {
+  .ds .sr #srb4 .dbt .bo4 { inline-size: min(100%, 210px) }
+}
