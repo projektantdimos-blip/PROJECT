@@ -16,8 +16,8 @@
     if (!S.rp) S.rp = { kind: reportKind(), start: isoDay(monday()), data: null };
     if (!rpLeads(pos())) S.rp.kind = reportKind();
     var state = S.rp, kind = state.kind, start = state.start, request = ++reportRequest;
-    var ops = kind === "ops", key = ops ? "ops2" : "data";
-    var route = ops ? "/reports/ops2/friday" : "/reports/" + kind;
+    var ops = kind === "ops", design = kind === "design", key = ops ? "ops2" : design ? "design2" : "data";
+    var route = ops ? "/reports/ops2/friday" : design ? "/reports/design2/friday" : "/reports/" + kind;
     function isCurrent() { return request === reportRequest && S.rp === state && state.kind === kind && state.start === start; }
     return api(route + "?start=" + start).then(function (report) {
       if (isCurrent()) { state[key] = report; S.err = ""; }
@@ -312,6 +312,7 @@
     var p = pos(), r = S.rp && S.rp.data;
     var tabs = rpLeads(p) ? '<div class="seg">' + RP_KINDS.map(function (x) { return '<button data-rpkind="' + x[0] + '" class="' + (S.rp && S.rp.kind === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>" : "";
     if (S.rp && S.rp.kind === "ops") return opsScreen(tabs);        // окно Полины (макет 26.11)
+    if (S.rp && S.rp.kind === "design") return designScreen(tabs);  // окно Ивана (макет 26.11)
     if (!r) return '<div class="head"><div><h1>Пятничный созвон</h1></div></div>' + tabs + '<div class="note">' + (S.err ? E(S.err) : "Нет данных") + "</div>";
     if (r.kind === "sales" && window.DSSalesReport) return DSSalesReport.html(r, !r.can_edit, p, tabs);
     var ro = !r.can_edit, tone = { ok: "var(--ok)", bad: "var(--bad)", brand: "var(--brand)", warn: "var(--warn)" };
@@ -343,6 +344,19 @@
     if (!r) return head + '<div class="note">Загружаю…</div>';
     setTimeout(function () { if (window.DSOpsFriday) window.DSOpsFriday.load(S.rp.start); }, 0);
     return head + '<div id="ofr-mount"></div>';
+  }
+
+  /* окно Ивана (вкладка «Проектирование», макет 26.11): данные design2 и рендер DSDesignFriday */
+  function designScreen(tabs) {
+    var r = S.rp && S.rp.design2, start = S.rp.start;
+    var head = '<div class="head"><div><h1>Пятничный созвон · Проектный отдел</h1><p>Неделя ' + dmy(r ? r.week_start : start).slice(0, 5) + " — " + dmy(r ? r.week_end : S.rp.start).slice(0, 5) + '. Синее подтягивает CRM, кремовое заполняет Иван. Ответы сохраняются сами, по неделям.</p></div>'
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg"><button data-rpnav="-1">← Пред.</button><button data-rpnav="0" class="on">Эта</button><button data-rpnav="1">След. →</button></div>'
+      + '<button class="btn ghost" data-rpref="1" title="Пересчитать цифры CRM на сейчас">⟳ Обновить</button></div></div>'
+      + (tabs ? '<div style="margin-bottom:14px">' + tabs + "</div>" : "")
+      + (S.err && !r ? '<div class="note">' + E(S.err) + "</div>" : "");
+    if (!r) return head + '<div class="note">Загружаю…</div>';
+    setTimeout(function () { if (window.DSDesignFriday) window.DSDesignFriday.load(start, r); }, 0);
+    return head + '<div id="dfr-mount"></div>';
   }
   window.DSFriday = { loadReport: loadReport, reportScreen: reportScreen, downloadText: downloadText, rpSave: rpSave, rpFind: rpFind, rpCsv: rpCsv };
 })();
