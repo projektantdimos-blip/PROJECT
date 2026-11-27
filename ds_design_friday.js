@@ -90,7 +90,11 @@
     return "<span" + (cls ? " class=" + cls : "") + ">" + esc(label) + " " + num(value) + "</span>";
   }
   function table(cols, rows, widths, cls) {
-    return '<div class="tw"><div class="tb tb1' + (cls ? " " + cls : "") + '" style="min-width:0;--c:' + widths + '"><div class="tr cap">' + cols.map(function (c, i) {
+    // Retain the template's proportions while letting each column shrink with the table.
+    var tracks = widths.replace(/minmax\((\d+)px,\s*[\d.]+fr\)|(\d+)px/g, function (_, min, fixed) {
+      return "minmax(0," + (min || fixed) + "fr)";
+    });
+    return '<div class="tw" tabindex="0" role="region" aria-label="' + esc(cols.join(", ")) + '"><div class="tb tb1' + (cls ? " " + cls : "") + '" style="--c:' + tracks + '"><div class="tr cap">' + cols.map(function (c, i) {
       return "<div" + (i > 1 ? ' class="f"' : "") + ">" + esc(c) + "</div>";
     }).join("") + "</div>" + (rows.join("") || '<div class="sepr">Нет данных за выбранную неделю</div>') + "</div></div>";
   }

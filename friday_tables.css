@@ -3,6 +3,7 @@
   --friday-width: 1200px;
   --friday-row-font: 13px;
   --friday-heading-font: 12px;
+  --friday-table-head: #3b6596;
   box-sizing: border-box;
   inline-size: 100%;
   min-inline-size: 0;
@@ -53,7 +54,7 @@
 
 :is(#ofr, #dfr) .zn .qa .tb.tb .tr.cap > div {
   padding: 8px;
-  background: #3b6596 !important;
+  background: var(--friday-table-head) !important;
   color: #fff !important;
   border-inline-start-color: rgb(255 255 255 / 28%) !important;
   font-size: var(--friday-heading-font) !important;
@@ -100,6 +101,31 @@
   justify-self: end;
   margin: 3px 8px;
 }
+:is(#ofr, #dfr) .tb .sepr {
+  display: block;
+  inline-size: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+:is(#ofr, #dfr) .tb .an {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+:is(#ofr, #dfr) .tb .tr > div > .an { inline-size: 100% }
+#ofr .zn .qa .tb .tr .an .in {
+  inline-size: 100%;
+  min-height: 32px !important;
+  padding: 3px 6px !important;
+  border: 1px solid #bf9a3e !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  text-align-last: center;
+}
+#ofr .zn .qa .tb .tr .an .dtx { padding-inline-end: 26px !important }
+#ofr .zn .qa .tb .tr .an .rq:is(:placeholder-shown, select:has(option[value=""]:checked)) {
+  border-color: #c0392b !important;
+  border-style: dashed !important;
+}
 
 /* Продажи. У широких таблиц прокручивается собственная область. */
 .ds .sr :is(.sr-table-window, .payw, .p5w) { min-inline-size: 0; max-inline-size: 100% }
@@ -116,6 +142,23 @@
 .ds .sr :is(.lane .i, .p5w .gr) :is(.rsn, .dpill, .sr-basis-actions button) { overflow-wrap: anywhere }
 .ds .sr .lane .i :is(.sr-kp-link, .rsn select) { text-align: center }
 .ds .sr :is(.lane .i, .r1, .p5w .gr) :is(.cap, .pcell, .vt, .amt, .dpill, .sm) { white-space: normal }
+.ds .sr :is(.lane .i.cap, .ac3 .cap1, .p5w .gr.cap) {
+  background: var(--friday-table-head) !important;
+  color: #fff !important;
+  font-size: var(--friday-heading-font) !important;
+}
+.ds .sr :is(.lane .i.cap, .ac3 .cap1, .p5w .gr.cap) :is(span, b, small, .c) {
+  color: inherit !important;
+  font-size: inherit;
+  text-align: center;
+  white-space: normal;
+}
+.ds .sr :is(.lane .i.cap, .ac3 .cap1, .p5w .gr.cap) > :not(:first-child) {
+  border-inline-start-color: rgb(255 255 255 / 28%) !important;
+}
+.ds .sr :is(.lane .i.r6:not(.cap), .ac3 .r1:not(.cap1), .p5w .gr:not(.cap)) {
+  font-size: var(--friday-row-font);
+}
 
 @media (min-width: 801px) {
   .ds .sr #srb4 .sr-debt-grid { min-inline-size: 1096px }

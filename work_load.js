@@ -19,8 +19,6 @@
   function today() { return iso(new Date()); }
   function addD(s, k) { var d = new Date(s + "T12:00:00"); d.setDate(d.getDate() + k); return iso(d); }
   function isWd(s) { var w = new Date(s + "T12:00:00").getDay(); return w !== 0 && w !== 6; }
-  function wdOn(s) { var x = s; while (!isWd(x)) x = addD(x, 1); return x; }                       // ближайший рабочий день (сам день, если рабочий)
-  function wdAdd(s, n) { var x = wdOn(s), c = 1; while (c < n) { x = addD(x, 1); if (isWd(x)) c++; } return x; }      // n-й рабочий день, считая s
   function wdBetween(a, b) { var c = 0, x = a; while (x <= b) { if (isWd(x)) c++; x = addD(x, 1); } return c; }
   function mon(s) { return addD(s, -((new Date(s + "T12:00:00").getDay() + 6) % 7)); }
   function dm(s) { return s ? s.slice(8, 10) + "." + s.slice(5, 7) : "—"; }
@@ -108,13 +106,13 @@
     if (!i.due) return dm(s) + " – " + dm(e);
     return dm(s) + " – " + dm(e) + (e > i.due ? " · позже срока " + dm(i.due) + " на " + Math.max(1, wdBetween(addD(i.due, 1), e)) + " р.д." : " · успевает к " + dm(i.due));
   }
-  /* длина при броске: прежняя длина плана в рабочих днях; плана не было — до срока договора (оценки трудоёмкости в CRM нет) */
+  /* При переносе сохраняем длительность полосы в календарных днях. */
   function placed(i, s) {
-    if (i.s && i.e) return wdAdd(s, Math.max(1, wdBetween(i.s, i.e)));
+    if (i.s && i.e) return addD(s, Math.max(0, Math.round((new Date(i.e + "T12:00:00") - new Date(i.s + "T12:00:00")) / 864e5)));
     return i.due && i.due >= s ? i.due : s;
   }
 
-  /* ---------- календарная сетка: выходные видны, планирование идёт по рабочим дням ---------- */
+  /* ---------- календарная сетка ---------- */
   function win() {
     var td = today(), month = st().month || td.slice(0, 7);
     var first = addD(mon(td), -14), chosen = mon(month + "-01");
@@ -359,7 +357,7 @@
   function editHtml() {
     var w = st(); if (!w.edit) return "";
     var i = find(w.edit); if (!i) return "";
-    var td = today(), dr = w.editDraft || {}, s0 = dr.s != null ? dr.s : i.s || wdOn(td), e0 = dr.e != null ? dr.e : i.e || (i.cdue && i.cdue >= td ? i.cdue : ""), ex0 = dr.ex != null ? dr.ex : i.ex;
+    var td = today(), dr = w.editDraft || {}, s0 = dr.s != null ? dr.s : i.s || td, e0 = dr.e != null ? dr.e : i.e || (i.cdue && i.cdue >= td ? i.cdue : ""), ex0 = dr.ex != null ? dr.ex : i.ex;
     var ppl = people().filter(function (u) { return u.id; });
     if (i.ex && !ppl.some(function (u) { return u.id === i.ex; })) ppl.push({ id: i.ex, name: i.exName });
     var what = i.kind === "part" ? "Исполнитель раздела получит уведомление; стадия задачи не меняется."
@@ -561,7 +559,7 @@
   function ghostOff() { var g = document.getElementById("wlGhost"); if (g) g.remove(); var o = document.querySelector(".wl-r.hov"); if (o) o.classList.remove("hov"); }
   function dropPlan(row, x) {
     var i = find(DRG); if (!i) return null;
-    var days = win(), s = wdOn(days[colAt(row, x)]), c = days.indexOf(s);
+    var days = win(), s = days[colAt(row, x)], c = days.indexOf(s);
     if (c < 0) return null;
     var e = placed(i, s), G = geom();
     return { i: i, c: c, s: s, e: e, end: Math.min(days.length - 1, idxOf(days, e, true)), uid: +row.getAttribute("data-wlrow") || 0, name: row.getAttribute("data-wlname") || "", G: G };
@@ -598,7 +596,7 @@
   function tip(x, y, i, s, e) {
     var g = document.getElementById("wlTip"); if (!g) { g = document.createElement("div"); g.id = "wlTip"; document.body.appendChild(g); }
     g.className = "wl-tip" + (i.due && e > i.due ? " bad" : ""); g.style.left = Math.min(x + 16, innerWidth - 260) + "px"; g.style.top = (y - 56) + "px";
-    g.innerHTML = "<b>" + E(label(i)) + " · " + dm(s) + " – " + dm(e) + "</b><small>" + wdBetween(s, e) + " р.д." + (i.due ? " · " + (e > i.due ? "позже срока " + dm(i.due) : "успевает к " + dm(i.due)) : "") + "</small>";
+    g.innerHTML = "<b>" + E(label(i)) + " · " + dm(s) + " – " + dm(e) + "</b><small>" + (Math.round((new Date(e + "T12:00:00") - new Date(s + "T12:00:00")) / 864e5) + 1) + " кал. дн." + (i.due ? " · " + (e > i.due ? "позже срока " + dm(i.due) : "успевает к " + dm(i.due)) : "") + "</small>";
   }
   document.addEventListener("pointerdown", function (e) {
     var h = e.target.closest && e.target.closest("#cal-app [data-wlrs]"); if (!h || !canMove()) return;
@@ -613,8 +611,7 @@
   document.addEventListener("pointermove", function (e) {
     if (!RSZ) return;
     var w = st(), row = document.querySelector('#cal-app .wl-r [data-wlrs^="' + RSZ.key + ':"]'); row = row && row.closest(".wl-r"); if (!row) return;
-    var d = win()[colAt(row, e.clientX)], td = wdOn(today()), r = w.rs, ch = false;
-    while (!isWd(d)) d = addD(d, RSZ.side === "r" ? -1 : 1);
+    var d = win()[colAt(row, e.clientX)], td = today(), r = w.rs, ch = false;
     if (RSZ.side === "r") { var ne = d < r.s ? r.s : d; if (ne < td) ne = td; if (ne !== r.e) { r.e = ne; ch = true; } }
     else { var ns = d > r.e ? r.e : d; if (ns < td) ns = td; if (ns !== r.s) { r.s = ns; ch = true; } }
     if (ch) { rerender(); var hh = document.querySelector('#cal-app [data-wlrs="' + RSZ.key + ":" + RSZ.side + '"]'); if (hh) hh.classList.add("act"); }

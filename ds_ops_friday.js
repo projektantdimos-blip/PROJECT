@@ -8,7 +8,66 @@
   var D = null;                     // данные сервера
   var RO = true;                    // только чтение
   var M = { answers: {}, tz_rows: [], tz_events: [], situations: [], paid_fixes: [] };
-  var saveTimer = null, saving = false;
+  var drafts = new Map(), rowSequence = 0;
+  var rowFields = {
+    "q2:e": ["tz_events", {n:"n", d:"d", k:"d", d2:"step_date", p:"point", "p:oth":"other", q:"what", a:"why", w:"why", l:"lost", s:"step", sd:"step_date"}],
+    "q3:r": ["tz_rows", {n:"n", cust:"customer", fd:"form_date", rd:"ready_date", ret:"returned", ivan:"ivan"}],
+    "q5:p": ["paid_fixes", {n:"n", cust:"customer", round:"round_", sent:"sent", st:"status", cm:"comment"}],
+    "q6:s": ["situations", {n:"n", cust:"customer", what:"what", whatOth:"other", did:"did", to:"to_", help:"help", who:"who", until:"until_date"}]
+  };
+
+  function saveStatus(text) {
+    var badge = document.getElementById("ofr-saved");
+    if (badge) { badge.textContent = text; badge.hidden = false; }
+  }
+
+  function scheduleSave(table) {
+    if (RO || !M.week) return;
+    var draft = M;
+    drafts.set(draft.week, draft);
+    if (table) draft.collections.add(table);
+    clearTimeout(draft.timer);
+    draft.timer = setTimeout(function () { saveNow(draft); }, 450);
+    saveStatus("Сохраняю…");
+  }
+
+  function saveNow(draft) {
+    if (draft.saving || (!Object.keys(draft.dirty).length && !draft.collections.size)) return;
+    var payload = {answers: draft.dirty}, collections = draft.collections;
+    collections.forEach(function (name) { payload[name] = structuredClone(draft[name]); });
+    draft.dirty = {};
+    draft.collections = new Set();
+    draft.saving = true;
+    api("/reports/ops2/save", {start: draft.week, payload: payload}).then(function () {
+      draft.saving = false;
+      if (Object.keys(draft.dirty).length || draft.collections.size) saveNow(draft);
+      else {
+        drafts.delete(draft.week);
+        if (draft === M) saveStatus("✓ Сохранено");
+      }
+    }, function (error) {
+      draft.saving = false;
+      draft.dirty = Object.assign(payload.answers, draft.dirty);
+      collections.forEach(function (name) { draft.collections.add(name); });
+      if (draft === M) saveStatus("Ошибка сохранения. Повторите ввод или обновите отчёт.");
+      toast(String(error));
+    });
+  }
+
+  function setAns(key, value) {
+    if (RO) return;
+    var match = /^(q[2356]:[erps])((?:tmp)?[0-9]+):(.+)$/.exec(key);
+    var form = match && rowFields[match[1]], field = form && form[1][match[3]];
+    if (field) {
+      var row = M[form[0]].find(function (item) { return String(item.id) === match[2]; });
+      if (row) { row[field] = value; scheduleSave(form[0]); }
+      return;
+    }
+    if (key === "q6:was") { key = "q6:none"; value = value === "Были" ? "" : "1"; }
+    M.answers[key] = value;
+    M.dirty[key] = value;
+    scheduleSave();
+  }
 
   var OF_CSS = `
 #ofr{--bg:#f4f6f8;--ink:#1d2733;--muted:#46515e;--line:#d3dbe3;--blue:#2a65a0;--blue-bg:#dbe8f5;--blue-bd:#a9c3de;--blue-tx:#1b3a5e;--cream:#fff0c8;--cream-bd:#d3b25c;--cream-tx:#3d2c05;--input-bd:#bf9a3e}
@@ -1262,7 +1321,9 @@
         }).join("") + "</div>";
     var paid = M.paid_fixes.map(function (r) {
       var k = "q5:p" + r.id + ":";
-      return '<div class="tr"><div class="cm"><b>' + esc(r.n) + "</b><small>" + esc(r.customer) + '</small></div><div class="cm"><b>' + esc(r.round_) + '</b></div><div class="cm"><b>' + esc(r.sent) + '</b></div><div class="an">'
+      return '<div class="tr"><div class="an">' + inp(k + "n", "№ проекта", r.n, true)
+        + inp(k + "cust", "Заказчик", r.customer, true) + '</div><div class="an">' + inp(k + "round", "Раунд", r.round_, true)
+        + '</div><div class="an">' + df(k + "sent", r.sent, true) + '</div><div class="an">'
         + sel(k + "st", ["Ждём решения Саши", "Счёт выставлен", "Оплачен", "Отказ"], r.status, true)
         + '</div><div class="an">' + inp(k + "cm", "Комментарий (необязательно)", r.comment) + '</div><button type="button" class="ofdel" data-ofdel="paid_fixes|' + r.id + '"' + (RO ? " disabled" : "") + ">✕</button></div>";
     }).join("");
@@ -1312,7 +1373,7 @@
   var LBL8 = {"ТЗ": "с ТЗ", "Корректировки": "с корректировками", "Согласование проектов": "с согласованием проектов", "CRM": "в CRM", "Жду ответа от проектировщиков": "с ожиданием ответа проектировщиков", "Жду ответа от Ивана": "с ожиданием ответа Ивана", "Сверка ведомостей замечаний": "со сверкой ведомостей замечаний", "Много задач сразу, теряются приоритеты": "с приоритетами при большом числе задач", "Срочное перебивает плановое": "со срочными задачами, которые перебивают плановые", "Теряются сообщения в рабочих каналах": "с сообщениями в рабочих каналах", "Задачи копятся к концу недели": "с накоплением задач к концу недели", "Работаю допоздна, чтобы всё успеть": "с рабочим временем и переработками"};
   function q7Html() {
     var body = '<div class="fin"><div><span class="lb2">Насколько легко было общаться с заказчиками на этой неделе?</span>'
-      + '<div class="sg rq sc10"><span class="se">совсем нет</span>' + [1,2,3,4,5,6,7,8,9,10].map(function (n) { return '<button type="button"' + (String(M.answers["q7:scale"]) === String(n) ? ' class="on"' : "") + (RO ? " disabled" : "") + ">" + n + "</button>"; }).join("") + '<span class="se">очень</span></div></div>'
+      + '<div class="sg rq sc10" data-ofsg="q7:scale"><span class="se">совсем нет</span>' + [1,2,3,4,5,6,7,8,9,10].map(function (n) { return '<button type="button"' + (String(M.answers["q7:scale"]) === String(n) ? ' class="on"' : "") + (RO ? " disabled" : "") + ">" + n + "</button>"; }).join("") + '<span class="se">очень</span></div></div>'
       + '<div><span class="lb2">Что давалось тяжелее всего <small>(можно несколько)</small></span>'
       + chips("q7:hard", HARD7, M.answers["q7:hard"] || []) + '</div>'
       + '<div id="of-q7ex"><span class="lb2">Один пример <small>заказчик и что произошло</small></span><input class="in" data-ofd="q7:example" type="text" placeholder="Коротко" value="' + esc(M.answers["q7:example"] || "") + '"' + (RO ? " disabled" : "") + "></div></div>";
@@ -1337,7 +1398,7 @@
   }
   function q9Html() {
     var inner = '<div class="fin"><div><span class="lb2">Сколько вечеров на этой неделе работали после рабочего времени?</span>'
-      + '<div class="sg rq sc10"><span class="se">ни одного</span>' + [0,1,2,3,4,5].map(function (n) { return '<button type="button"' + (String(M.answers["q9:evenings"]) === String(n) ? ' class="on"' : "") + (RO ? " disabled" : "") + ">" + n + "</button>"; }).join("") + '<span class="se">каждый день</span></div></div>'
+      + '<div class="sg rq sc10" data-ofsg="q9:evenings"><span class="se">ни одного</span>' + [0,1,2,3,4,5].map(function (n) { return '<button type="button"' + (String(M.answers["q9:evenings"]) === String(n) ? ' class="on"' : "") + (RO ? " disabled" : "") + ">" + n + "</button>"; }).join("") + '<span class="se">каждый день</span></div></div>'
       + '<div><span class="lb2">Что чаще всего доделывали вечером?</span>' + inp("q9:what", "Необязательно: что именно", M.answers["q9:what"]) + "</div>"
       + '<div><span class="lb2">Нагрузка на этой неделе</span>' + sg("q9:load", ["Мало", "Норма", "Много", "Перегруз"], M.answers["q9:load"], true) + "</div>"
       + '<div><span class="lb2">Что забрать у вас или с чем помочь?</span>' + ta("q9:help", "", M.answers["q9:help"]) + "</div></div>";
@@ -1460,13 +1521,13 @@
         var grp = sgB.parentNode;
         grp.querySelectorAll("button").forEach(function (x) { x.classList.remove("on"); });
         sgB.classList.add("on");
-        onField(grp);
+        onField(sgB);
         return;
       }
       var mc = e.target.closest && e.target.closest(".mc");
       if (mc && !RO) {
         mc.classList.toggle("on");
-        onField(mc.parentNode);
+        onField(mc);
         return;
       }
       var add = e.target.closest && e.target.closest("[data-ofadd]");
@@ -1474,7 +1535,6 @@
       var del = e.target.closest && e.target.closest("[data-ofdel]");
       if (del && !RO) { onDel(del.getAttribute("data-ofdel")); }
     });
-    root.addEventListener("input", function (e) { if (e.target.closest("[data-ofd]")) onField(e.target); });
     root.addEventListener("change", function (e) {
       var t = e.target;
       if (t.classList && t.classList.contains("dth")) {
@@ -1491,11 +1551,13 @@
     /* маска дд.мм.гг */
     root.addEventListener("input", function (e) {
       var t = e.target;
-      if (!t.classList || !t.classList.contains("dtx")) return;
+      if (!t.matches("[data-ofd]")) return;
+      if (!t.classList.contains("dtx")) { onField(t); return; }
       var d = t.value.replace(/\D/g, "").slice(0, 6), o = d.slice(0, 2);
       if (d.length > 2) o += "." + d.slice(2, 4);
       if (d.length > 4) o += "." + d.slice(4, 6);
       t.value = o;
+      onField(t);
     });
     /* тултипы */
     var tip = root.querySelector("#ofr-tipb");
@@ -1552,6 +1614,10 @@
     }
     if (!key) return;
     var v = el.value;
+    if (el.classList.contains("dtx") && v) {
+      var day = pd(v);
+      if (!day || day.getDate() !== +v.slice(0, 2) || day.getMonth() + 1 !== +v.slice(3, 5)) return;
+    }
     setAns(key, v);
     /* «Другое» рядом с селектом */
     if (el.tagName === "SELECT") {
@@ -1600,18 +1666,21 @@
 
   /* ---------- добавление/удаление строк ---------- */
   function onAdd(kind) {
-    if (kind === "tzrow") M.tz_rows.push({ id: "tmp" + Date.now(), n: "", customer: "", form_date: "", ready_date: "", returned: "", ivan: "" });
-    else if (kind === "paidfix") M.paid_fixes.push({ id: "tmp" + Date.now(), n: "", customer: "", round_: "", sent: "", status: "", comment: "" });
-    else if (kind === "sit") M.situations.push({ id: "tmp" + Date.now(), n: "", customer: "", what: "", other: "", did: "", to_: "", help: "", who: "", until_date: "" });
-    else M.tz_events.push({ id: "tmp" + Date.now(), kind: kind, n: "", d: "", point: "", other: "", what: "", why: "", lost: "", step: "", step_date: "" });
-    redraw(true);
+    var id = "tmp" + Date.now() + String(++rowSequence);
+    var name = {tzrow:"tz_rows", paidfix:"paid_fixes", sit:"situations"}[kind] || "tz_events";
+    M[name].push({id: id, kind: kind});
+    scheduleSave(name);
+    redraw();
+    var first = document.querySelector('[data-ofdel="' + name + '|' + id + '"]');
+    if (first) first.closest(".tr").querySelector("input, select").focus({preventScroll: true});
   }
   function onDel(spec) {
     var p = spec.split("|"), table = p[0], id = p[1];
     M[table] = M[table].filter(function (r) { return String(r.id) !== String(id); });
-    redraw(true);
+    scheduleSave(table);
+    redraw();
   }
-  function redraw(keepFocus) {
+  function redraw() {
     var mount = document.getElementById("ofr-mount");
     if (!mount) return;
     var sc = window.scrollY;
@@ -1622,7 +1691,6 @@
       if (n && openNo.indexOf(n.textContent.trim()) >= 0) q.classList.add("open");
     });
     window.scrollTo(0, sc);
-    scheduleSave();
   }
   function paintInto(mount) {
     mount.innerHTML = render();
@@ -1633,13 +1701,21 @@
   /* ---------- загрузка и точка входа ---------- */
   function load(start) {
     return api("/reports/ops2/friday?start=" + start).then(function (d) {
+      var mount = document.getElementById("ofr-mount");
+      if (!mount || !S.rp || S.rp.kind !== "ops" || S.rp.start !== start) return;
       D = d;
       RO = !(pos() === "ops" || pos() === "owner");
-      M = { answers: JSON.parse(JSON.stringify(d.answers || {})),
+      var answers = Object.assign({}, d.answers);
+      ["q7:hard", "q8:what"].forEach(function (key) {
+        if (typeof answers[key] === "string") {
+          try { answers[key] = JSON.parse(answers[key]); } catch (e) { answers[key] = []; }
+        }
+      });
+      M = (!RO && drafts.get(d.week_start)) || {week: d.week_start, answers: answers, dirty: {}, collections: new Set(),
             tz_rows: d.tz_rows || [], tz_events: d.tz_events || [],
-            situations: d.situations || [], paid_fixes: d.paid_fixes || [] };
-      var mount = document.getElementById("ofr-mount");
-      if (mount) paintInto(mount);
+            situations: d.situations || [], paid_fixes: d.paid_fixes || []};
+      paintInto(mount);
+      if (!RO && drafts.has(M.week)) scheduleSave();
     }, function (e) { toast(String(e)); });
   }
 
