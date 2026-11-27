@@ -392,7 +392,7 @@
     var openSum = rows.reduce(function (s, r) { return s + num(r.amt); }, 0);
     var sold = s1.sold || [], soldSum = sold.reduce(function (s, r) { return s + num(r.amt); }, 0);
     var refSum = refs.reduce(function (s, r) { return s + num(r.amt != null ? r.amt : r.cells[2]); }, 0);
-    var totalN = rows.length + sold.length + refs.length, totalS = openSum + soldSum + refSum;
+    var totalN = s1.created_count == null ? rows.length : s1.created_count, totalS = s1.created_sum == null ? openSum : s1.created_sum;
 
     var cap = '<div class="i cap r6"><span>Заказчик</span><span class="vw">Вид работ</span><div class="rt"><span>Вероятность</span><span>Посл. контакт</span><span>След. контакт</span><b>Сумма</b></div><span>Комментарий</span></div>';
     var lane = '<div class="lane wide" style="border:0;border-radius:0;background:transparent">' + cap + rows.map(rowQ).join("") + (rows.length ? '<div class="i tt r6"><span>Итого</span><span></span><div class="rt"><span></span><span></span><span></span><b>' + fmt(openSum) + "</b></div><span></span></div>" : '<div class="sr-empty">Нет запросов в решении</div>') + "</div>";
@@ -432,7 +432,7 @@
   function block2() {
     var s2 = item("s2"), rows = s2.rows || [];
     var PTC = { "Предоплата": "pre", "Доплата": "add", "Постоплата": "post" };
-    var paySum = rows.reduce(function (s, r) { return s + num(r.cells[0]); }, 0);
+    var paySum = rows.reduce(function (s, r) { return s + num(r.amount == null ? r.cells[0] : r.amount); }, 0);
     function rowP(r, n) {
       var inputs = r.inputs || [];
       var kindI = inputs.find(function (i) { return /:kind$/.test(i.key); }) || {};
@@ -441,13 +441,17 @@
       return '<div class="i r6"><span>' + E(r.cells[1]) + "</span>" + workCell(r.systems)
         + '<span class="tc"><select class="tsel rq ' + (PTC[kind] || "") + '" data-ak="' + E(kindI.key) + '" aria-label="Тип оплаты"' + dis() + '><option value="">Выбрать тип</option>'
         + ["Предоплата", "Доплата", "Постоплата"].map(function (t) { return "<option" + (t === kind ? " selected" : "") + ">" + t + "</option>"; }).join("") + "</select></span>"
-        + "<b>" + E(r.cells[0]) + '</b><input class="cmq" data-ak="' + E(noteI.key) + '" type="text" placeholder="Комментарий" aria-label="Комментарий к оплате" value="' + E(AV[noteI.key]) + '"' + dis() + "></div>";
+        + "<b>" + (r.amount == null ? E(r.cells[0]) : fmt(r.amount)) + '</b><input class="cmq" data-ak="' + E(noteI.key) + '" type="text" placeholder="Комментарий" aria-label="Комментарий к оплате" value="' + E(AV[noteI.key]) + '"' + dis() + "></div>";
     }
     var cap = '<div class="i cap r6"><span>Заказчик</span><span class="vw">Вид работ</span><span>Тип оплаты</span><b>Сумма</b><span>Комментарий</span></div>';
+    var legacy = s2.legacy_payments || [];
     var lane = '<div class="payw"><div class="lane wide pay"><h4><span>Оплаты · ' + rows.length + "</span>" + cmpSpan(s2.cmp, paySum, plp) + "</h4>" + cap
       + rows.map(rowP).join("")
       + (rows.length ? '<div class="i tt r6"><span>Итого</span><span></span><span></span><b>' + fmt(paySum) + "</b><span></span></div>" : '<div class="sr-empty">Оплат за неделю нет</div>') + "</div></div>"
-      + (s2.note ? '<p class="rl5">' + E(s2.note) + "</p>" : "");
+      + (s2.note ? '<p class="rl5">' + E(s2.note) + "</p>" : "")
+      + (legacy.length ? '<details class="rl5"><summary>Ранее сохранённые отметки оплат по номерам старых строк</summary><ul>'
+        + legacy.map(function (row) { return "<li>Строка " + row.n + " · " + E([row.kind, row.note].filter(Boolean).join(" · ")) + "</li>"; }).join("")
+        + "</ul></details>" : "");
     var chips = '<span><strong>' + rows.length + "</strong> " + plp(rows.length) + "</span><span><strong>" + fmt(paySum) + "</strong></span>"
       + "<span>по новым КП <strong>" + (s2.new_req || 0) + "</strong></span>";
     return qa(2, "srb2", "Оплаты", chips, lane);
@@ -495,7 +499,7 @@
     var plan = Math.max(0, num(kvs(s3, "План"))), registry = s3.registry_fact == null ? num(kvs(s3, "Факт")) : s3.registry_fact;
     var mpb = num(AV["s3:mpb"]), fact = registry + mpb, pct = plan ? Math.round(fact * 100 / plan) : 0;
     var threshold = Math.max(0, num(s3.threshold)) || 300000;
-    var mon = isoToD(WEEK), fri = mon ? addBD(mon, 4) : null;
+    var mon = isoToD(WEEK), fri = isoToD(R.week_end) || (mon ? addBD(mon, 4) : null);
     var period = mon ? mon.getDate() + (mon.getMonth() === fri.getMonth() ? "" : " " + MONTHS[mon.getMonth()])
       + "–" + fri.getDate() + " " + MONTHS[fri.getMonth()] : "";
     var body = '<div id="sr-weekly-chart" data-plan="' + plan + '" data-threshold="' + threshold + '" data-registry="' + registry + '" data-period="' + E(period) + '">'
@@ -594,7 +598,7 @@
     var expectedAttr = kp ? 'data-akp="' + kp + '|pay_expect"' : attr("expect");
     var contact = isoToD(r.contact);
     var lastDays = contact ? bdN(contact, todayD()) : pre ? r.last_bd : undefined;
-    return '<div class="i r6 drow" data-rsn="' + E(get("why")) + '" data-type="' + (pre ? "pre" : "debt") + '" data-days="' + (r.bd || 0) + '" data-sum="' + num(r.amt) + '">'
+    return '<div class="i r6 drow" data-rsn="' + E(get("why")) + '" data-type="' + (pre ? "pre" : "debt") + '" data-days="' + Math.max(0, (r.bd || 0) - (r.lim || 0)) + '" data-sum="' + num(r.amt) + '">'
       + '<span class="dnm"><i class="n4">' + (i + 1) + '</i><b>' + E(r.cells[pre ? 2 : 1]) + '</b><small>' + E(r.sub || "") + '</small></span>'
       + '<span><span class="dpill ' + (pre ? "pre" : "debt") + '">' + (pre ? "Просрочена предоплата" : "Долг") + "</span></span>"
       + '<b class="sm">' + fmt(num(r.amt)) + '</b><span class="dd debt-fields">' + debtTiming(r.ev, r.base, r.bd || 0, r.lim) + "</span>"
@@ -609,7 +613,7 @@
     var typeOptions = '<option value="">выбрать</option><option value="pre"' + (row.type === "pre" ? " selected" : "") + '>Предоплата</option>'
       + '<option value="debt"' + (row.type === "debt" ? " selected" : "") + ">Долг</option>";
     return '<div class="i r6 drow" data-manual="' + E(key) + '" data-rsn="' + E(row.why) + '" data-type="' + E(row.type)
-      + '" data-days="' + days + '" data-sum="' + Math.max(0, num(row.sum)) + '">'
+      + '" data-days="' + Math.max(0, days - (limit || 0)) + '" data-sum="' + Math.max(0, num(row.sum)) + '">'
       + '<span class="dnm debt-fields"><i class="n4"></i>' + debtInput(attr("name"), "Заказчик", row.name, "text")
       + debtInput(attr("ref"), "№ счёта или акта", row.ref, "text")
       + (RO ? "" : '<button type="button" class="add" data-del4>Убрать строку</button>') + "</span>"
@@ -631,7 +635,7 @@
     rows.sort(function (a, b) { var ta = a.__pre ? 0 : 1, tb = b.__pre ? 0 : 1; return ta - tb || (a.bd || 0) - (b.bd || 0); });
     var manual = Object.keys(AV).filter(function (k) { return /^s4:m[a-z0-9]+$/.test(k) && AV[k]; });
     var tot = rows.reduce(function (s, r) { return s + num(r.amt); }, 0);
-    var longest = rows.reduce(function (max, r) { return Math.max(max, r.bd || 0); }, 0);
+    var longest = rows.reduce(function (max, r) { return Math.max(max, (r.bd || 0) - (r.lim || 0)); }, 0);
     var cmp = "";
     if (s4.cmp4) {
       var nw = s4.cmp4["new"] || [], paid = s4.cmp4.paid || [];
@@ -800,7 +804,7 @@
     var kpId = r.kp;
     return '<div class="gr cols2" data-fix="1" data-sum="' + num(r.amt) + '"><b>' + E(r.cells[2]) + '</b><b class="amt">' + fmt(num(r.amt)) + "</b>"
       + kp5cell(kpId, dmyIso(drafts.writes["kp|" + kpId + "|issued_date"] && !RO ? KV[kpId + "|issued_date"] : r.issued))
-      + dateField(dmyIso(KV[kpId + "|pay_expect"]), 'data-akp="' + kpId + '|pay_expect"')
+      + dateField(dmyIso(KV[kpId + "|invoice_planned_on"]), 'data-akp="' + kpId + '|invoice_planned_on"')
       + '<input type="text" data-ak="s7:kp' + kpId + ':do" placeholder="Что делаю, чтобы оплатили" value="' + E(AV["s7:kp" + kpId + ":do"]) + '"' + dis() + ">"
       + probSeg("kp:" + kpId + "|pay_prob", KV[kpId + "|pay_prob"] || "")
       + dateField(dmyIso(KV[kpId + "|next_contact"]), 'data-akp="' + kpId + '|next_contact"') + "</div>";
@@ -890,7 +894,9 @@
     sortG2(false);
   }
   function recalc5() {
-    var TODAY = todayD(), mon = isoToD(WEEK), from = mon ? isoOf(addBD(mon, 5)) : "", to = mon ? isoOf(addBD(mon, 9)) : "";
+    var TODAY = isoToD(R.as_of) || todayD(), start = isoToD(WEEK);
+    var nextMonday = start ? addBD(start, 6) : null;
+    var from = nextMonday ? isoOf(nextMonday) : "", to = nextMonday ? isoOf(addBD(nextMonday, 4)) : "";
     var mv = (item("s7").moved || []).slice(), ms = mv.reduce(function (total, r) { return total + r.sum; }, 0);
     var s1 = 0, c1 = 0, pt = 0, pv = 0;
     document.querySelectorAll(".sr #srgp1 .gr[data-t]").forEach(function (r) {
@@ -1030,7 +1036,7 @@
   }
 
 
-  var TIPS = {"КП": "Новые КП за неделю, сколько продано и сколько отказов. Продано = пришла предоплата = КП перешло в реестр оплат. Данные из реестра КП.", "Оплаты": "Все деньги, которые пришли за неделю, и сравнение с прошлой неделей. Данные из реестра оплат.", "Выполнение плана прошлой недели": "Сколько денег планировали получить на прошлой неделе и сколько пришло. Порог безубыточности 300 000 ₽ — ниже него компания работает в минус.", "Просроченные оплаты": "Долги: срок оплаты по договору прошёл, а денег нет. И просроченные предоплаты: договор подписан, денег нет. Данные из реестра оплат и реестра КП.", "План по оплатам на следующую неделю": "Какие деньги ждём на следующей неделе и насколько уверены. Выставленные счета — из реестра оплат, ожидаемые предоплаты — из реестра КП.", "Что в общении с заказчиками можно улучшить?": "Мнение Александра: что мешает в работе с клиентами и что поменять.", "Что отнимало больше всего времени на этой неделе?": "Задачи, которые можно делать быстрее или передать другому.", "Где ещё общались с заказчиками?": "Каналы вне CRM: мессенджеры, личная почта, встречи. Чтобы договорённости не терялись.", "Нагрузка и самочувствие": "Как прошла неделя по силам. Помогает вовремя заметить перегруз.", "КП, оплаты": "Что произошло за неделю: новые КП, продажи, отказы, поступления денег.", "Должники и риски": "Деньги, которые должны были прийти и не пришли.", "План на следующую неделю": "Какие деньги ждём и насколько уверены.", "Мнение": "Вопросы к Александру: что улучшить, что мешает, как самочувствие.", "Без оплаты": "Сколько рабочих дней прошло с даты договора, акта или счёта. На оплату даётся 5 р.д., всё сверху — просрочка.", "Вид работ": "Что делаем для заказчика: СПС, СОУЭ, АУП и т. д.", "Дата след. контакта": "Когда связаться с клиентом снова.", "Посл. контакт": "Когда последний раз говорили с клиентом. Ниже — до какой даты клиент обещал оплатить.", "Почему не платят": "Причина со слов клиента: ждёт согласования, нет денег и т. д.", "Претензия": "Отправлена ли претензия по шаблону и что с ней.", "Прошлый шаг": "Что сделали на прошлой неделе и чем закончилось. Зелёный — сделано, оранжевый — ждём клиента, красный — не сделали мы.", "Следующий шаг": "Что сделаем по этому долгу дальше.", "Тип": "Долг — остаток по договору не оплачен. Просрочена предоплата — договор подписан, а предоплаты нет.", "Тип оплаты": "Предоплата — первый платёж. Доплата — по счёту без акта. Постоплата — остаток после подписания акта.", "Причина отказа": "Причина из общего списка — тот же список, что в реестре КП.", "Смысл вернуться": "Стоит ли через время предложить снова.", "Что делаю": "Конкретное действие, если возвращаемся к клиенту.", "Когда вернусь": "Дата следующей попытки.", "Ваши предложения с прошлой недели": "Что Александр предлагал на прошлом созвоне и что с этим сейчас: сделано или в работе.", "Клиент назвал дату": "Счета, по которым клиент сам назвал дату оплаты на следующей неделе. Эти деньги закладываем в план.", "Возможно": "Счета, у которых на следующей неделе наступает срок по договору, или даты нет совсем. Могут прийти, но в план не закладываем.", "Максимум, если оплатят все": "Сумма всех выставленных счетов. Больше этого на неделе прийти не может.", "Надеюсь": "КП без выставленного счёта. Это надежда, а не план — в прогноз не входит.", "Ответ по отказам": "По каждому отказу: причина, стоит ли вернуться и когда."};
+  var TIPS = {"КП": "Новые КП за неделю, сколько продано и сколько отказов. В «Продано» КП считается один раз по первому поступлению предоплаты. Данные из реестра КП.", "Оплаты": "Все деньги, которые пришли за неделю, и сравнение с прошлой неделей. Данные из реестра оплат.", "Выполнение плана прошлой недели": "Сколько денег планировали получить на прошлой неделе и сколько пришло. Порог безубыточности 300 000 ₽ — ниже него компания работает в минус.", "Просроченные оплаты": "Долги: срок оплаты по договору прошёл, а денег нет. И просроченные предоплаты: договор подписан, денег нет. Данные из реестра оплат и реестра КП.", "План по оплатам на следующую неделю": "Какие деньги ждём на следующей неделе и насколько уверены. Выставленные счета — из реестра оплат, ожидаемые предоплаты — из реестра КП.", "Что в общении с заказчиками можно улучшить?": "Мнение Александра: что мешает в работе с клиентами и что поменять.", "Что отнимало больше всего времени на этой неделе?": "Задачи, которые можно делать быстрее или передать другому.", "Где ещё общались с заказчиками?": "Каналы вне CRM: мессенджеры, личная почта, встречи. Чтобы договорённости не терялись.", "Нагрузка и самочувствие": "Как прошла неделя по силам. Помогает вовремя заметить перегруз.", "КП, оплаты": "Что произошло за неделю: новые КП, продажи, отказы, поступления денег.", "Должники и риски": "Деньги, которые должны были прийти и не пришли.", "План на следующую неделю": "Какие деньги ждём и насколько уверены.", "Мнение": "Вопросы к Александру: что улучшить, что мешает, как самочувствие.", "Без оплаты": "Сколько рабочих дней прошло с даты договора, акта или счёта. На оплату даётся 5 р.д., всё сверху — просрочка.", "Вид работ": "Что делаем для заказчика: СПС, СОУЭ, АУП и т. д.", "Дата след. контакта": "Когда связаться с клиентом снова.", "Посл. контакт": "Когда последний раз говорили с клиентом. Ниже — до какой даты клиент обещал оплатить.", "Почему не платят": "Причина со слов клиента: ждёт согласования, нет денег и т. д.", "Претензия": "Отправлена ли претензия по шаблону и что с ней.", "Прошлый шаг": "Что сделали на прошлой неделе и чем закончилось. Зелёный — сделано, оранжевый — ждём клиента, красный — не сделали мы.", "Следующий шаг": "Что сделаем по этому долгу дальше.", "Тип": "Долг — остаток по договору не оплачен. Просрочена предоплата — договор подписан, а предоплаты нет.", "Тип оплаты": "Предоплата — первый платёж. Доплата — по счёту без акта. Постоплата — остаток после подписания акта.", "Причина отказа": "Причина из общего списка — тот же список, что в реестре КП.", "Смысл вернуться": "Стоит ли через время предложить снова.", "Что делаю": "Конкретное действие, если возвращаемся к клиенту.", "Когда вернусь": "Дата следующей попытки.", "Ваши предложения с прошлой недели": "Что Александр предлагал на прошлом созвоне и что с этим сейчас: сделано или в работе.", "Клиент назвал дату": "Счета, по которым клиент сам назвал дату оплаты на следующей неделе. Эти деньги закладываем в план.", "Возможно": "Счета, у которых на следующей неделе наступает срок по договору, или даты нет совсем. Могут прийти, но в план не закладываем.", "Максимум, если оплатят все": "Сумма всех выставленных счетов. Больше этого на неделе прийти не может.", "Надеюсь": "КП без выставленного счёта. Это надежда, а не план — в прогноз не входит.", "Ответ по отказам": "По каждому отказу: причина, стоит ли вернуться и когда."};
   function tipInit(root) {
     root.querySelectorAll(".qb .t>b,.cap span,.cap>b,.hd5>span,.tot5>div,.zh b,.lab,.lane h4>span:first-child").forEach(function (el) {
       var key = (el.firstChild && el.firstChild.nodeType === 3 ? el.firstChild.textContent : el.textContent).trim().replace(/\s*·\s*\d+$/, "");

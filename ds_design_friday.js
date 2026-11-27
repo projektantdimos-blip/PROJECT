@@ -115,28 +115,28 @@
     var cards = '<div class="t3">' + miniCard("k-b", c.planned, "Запланировано к сдаче", d.planned, "Прошлая неделя: <b>" + d.prev_planned + "</b>")
       + miniCard("k-g", c.on_time, "Сдано в срок", d.on_time, "В срок за 4 недели: <b>" + d.four_good + " из " + d.four_total + "</b>")
       + miniCard("k-y", c.late + c.missed, "С опозданием или не сдано", d.problems, "Опоздания и несданные проекты", true) + "</div>";
-    var lateRows = [sep("Сданы с опозданием", "sbY")];
+    var lateRows = [sep("Сданы с опозданием или не сданы", "sbY")];
     var LATE = ["Ждём заказчика", "Ушло на корректировки", "Нереальный срок", "Поздно добавили в план", "План поменяли", "Неполное ТЗ", "Поздно пришло ТЗ", "Ошибка, переделка", "Перегрузка", "Задача потерялась в CRM", "Заказчик отнимает время", "Другое"];
     d.late_rows.forEach(function (o) {
       var k = "q1:o" + o.oid;
-      lateRows.push(cells([project(o), '<span class="stl">Сдан с опозданием</span>', "<b>" + dshort(o.plan_end) + "</b>", "<b>" + dshort(o.actual) + "</b>", '<span class="ov1 r">+' + o.delay + '</span><small class="ov1s">р.д.</small>', '<span class="noc">Нет</span>',
-        '<div class="an">' + select(k + ":why", LATE, null, true) + otherField(k + ":why") + '</div>', '<div class="an">' + field(k + ":change", null, "Одно изменение", true) + "</div>", '<div class="na">сдан</div>']));
+      lateRows.push(cells([project(o), o.status === "missed" ? '<span class="stl nw">Не сдан в срок</span>' : '<span class="stl">Сдан с опозданием</span>', "<b>" + dshort(o.plan_end) + "</b>", "<b>" + dshort(o.actual) + "</b>", '<span class="ov1 r">+' + o.delay + '</span><small class="ov1s">р.д.</small>', '<div class="an">' + sg(k + ":warned", ["Да", "Нет"], "sm") + "</div>",
+        '<div class="an">' + select(k + ":why", LATE, null, true) + otherField(k + ":why") + '</div>', '<div class="an">' + field(k + ":change", null, "Одно изменение", true) + "</div>", o.status === "missed" ? field(k + ":new_date", null, "", false, "date") : '<div class="na">сдан</div>']));
     });
     lateRows.push(sep("Не взяты в работу в день старта", "sbR"));
     d.not_started.forEach(function (o) {
       var k = "q1:start" + o.oid;
-      lateRows.push(cells([project(o), '<span class="stl nw">Не взят вовремя</span>', "<b>" + dshort(o.plan_start) + "</b>", "<b>" + (o.actual_start ? dshort(o.actual_start) : "не начат") + "</b>", '<span class="ov1 r">+' + o.start_delay + '</span><small class="ov1s">р.д.</small>', '<span class="noc">Нет</span>',
-        '<div class="an">' + select(k + ":why", LATE, null, true) + otherField(k + ":why") + '</div>', '<div class="an">' + field(k + ":change", null, "Одно изменение", true) + "</div>", '<div class="na">' + (o.actual_start ? "взят " + dInput(o.actual_start).slice(0, 5) : "не взят") + "</div>"]));
+      lateRows.push(cells([project(o), '<span class="stl nw">Не взят вовремя</span>', "<b>" + dshort(o.plan_start) + "</b>", "<b>" + (o.actual_start ? dshort(o.actual_start) : "не начат") + "</b>", '<span class="ov1 r">+' + o.start_delay + '</span><small class="ov1s">р.д.</small>', '<div class="an">' + sg(k + ":warned", ["Да", "Нет"], "sm") + "</div>",
+        '<div class="an">' + select(k + ":why", LATE, null, true) + otherField(k + ":why") + '</div>', '<div class="an">' + field(k + ":change", null, "Одно изменение", true) + "</div>", o.actual_start ? '<div class="na">взят ' + dInput(o.actual_start).slice(0, 5) + "</div>" : field(k + ":new_date", null, "", false, "date")]));
     });
     if (!d.late_rows.length && !d.not_started.length) lateRows.push(sep("Опозданий и пропущенных стартов нет", "sbG"));
     var late = '<div class="blk b-late"><div class="blh">Опоздания: сдача и взятие в работу</div>' + table(["Проект", "Статус", "По плану", "По факту", "Опоздание", "Предупредил?", "Причина", "Что меняем", "Новая дата"], lateRows, "minmax(150px,1fr) 185px 82px 82px 88px 105px 168px minmax(140px,1fr) 86px") + "</div>";
     var WHY = ["Корректировка другого проекта", "Ждём заказчика или данные", "Срочная работа вне плана", "Перегрузка", "Ошибка, переделывали", "Просьба заказчика", "Другое"];
     var shiftRows = d.shifts.map(function (o) {
-      var k = "q1:shift" + o.oid;
-      return cells([project(o, true), "<b>" + dshort(o.plan_end0) + "</b>", "<b>" + dshort(o.plan_end) + "</b>", '<span class="ov1 w">+' + o.shift + '</span><small class="ov1s">р.д.</small>', '<div class="an">' + select(k + ":why", WHY, null, true) + otherField(k + ":why") + '</div>', '<div class="an">' + sg(k + ":known", ["Да", "Нет"], "sm") + "</div>"]);
+      var k = "q1:shift" + o.oid + (o.move_id ? ":m" + o.move_id : "");
+      return cells([project(o, true), "<b>" + dshort(o.plan_end0) + "</b>", "<b>" + dshort(o.plan_end) + "</b>", '<span class="ov1 w">' + (o.shift > 0 ? "+" : "") + o.shift + '</span><small class="ov1s">р.д.</small>', '<div class="an">' + select(k + ":why", WHY, null, true) + otherField(k + ":why") + '</div>', '<div class="an">' + sg(k + ":known", ["Да", "Нет"], "sm") + "</div>"]);
     });
-    var shifts = '<div class="blk b-chg"><div class="blh">Сдвиги сроков за неделю <span class="blh2">новые работы и не взятые в работу проекты не считаются</span></div>' + table(["Проект", "Было", "Стало", "Сдвиг", "Почему сдвинул", "Полина знает новый срок?"], shiftRows, "minmax(170px,1.2fr) 104px 104px 90px 250px 190px") + '<p class="rl2">Полина сообщает заказчику новый срок, при условии если опаздываем, поэтому важно, чтобы она узнала о сдвиге в тот же день.</p></div>';
-    var body = '<p class="src">Сдан = передан Полине. Все цифры и списки считает CRM по плану, который был на прошлой пятнице. Одна строка = одна задача CRM.</p>' + (d.live ? '<p class="dq">Снимка плана за прошлую пятницу нет — показан расчёт по текущим срокам в «Занятости».</p>' : "") + cards + late + shifts + comment(1);
+    var shifts = '<div class="blk b-chg"><div class="blh">Сдвиги сроков за неделю <span class="blh2">первое назначение срока не считается переносом</span></div>' + table(["Проект", "Было", "Стало", "Сдвиг", "Почему сдвинул", "Полина знает новый срок?"], shiftRows, "minmax(170px,1.2fr) 104px 104px 90px 250px 190px") + '<p class="rl2">Полина сообщает заказчику новый срок, при условии если опаздываем, поэтому важно, чтобы она узнала о сдвиге в тот же день.</p></div>';
+    var body = '<p class="src">Сдан = передан Полине. Все цифры и списки считает CRM по плану, который был на прошлой пятнице. Одна строка = одна задача CRM.</p>' + (d.live ? '<p class="dq">Для дней без снимка используются текущие сроки из «Занятости».</p>' : "") + cards + late + shifts + comment(1);
     return qa(1, "Сдача проектов за неделю", pills, body, true);
   }
 
@@ -167,7 +167,7 @@
       return cells([project(o, true), "<b>" + dshort(o.handed) + "</b>", '<span class="na1 nav">' + avatar(o.executor) + esc(o.executor) + "</span>", '<div class="an">' + sg(k + ":checked", ["Да", "Нет"], "sm") + "</div>", '<div class="an">' + select(k + ":full", ["Полное, можно работать", "Нужна доработка", "Вопрос к Полине"], null, true) + "</div>", '<div class="an">' + field(k + ":found", null, "Что проверил и что нашёл", true) + "</div>"], "an");
     });
     var checked = D.tz.rows.filter(function (o) { return ans("q3:o" + o.oid + ":checked") === "Да"; }).length;
-    var rework = D.tz.rows.filter(function (o) { return ans("q3:o" + o.oid + ":full") === "Нужна доработка"; }).length;
+    var rework = D.tz.rows.filter(function (o) { return o.returned || ans("q3:o" + o.oid + ":full") === "Нужна доработка"; }).length;
     var pills = pill("получено", D.tz.rows.length) + pill("проверено до старта", checked + " из " + D.tz.rows.length, "y") + pill("на доработку", rework, "r");
     var body = table(["Проект", "Передано в проектирование", "Исполнитель", "Проверено до старта", "ТЗ полное?", "Что нашёл при проверке"], rows, "minmax(150px,1fr) 190px 130px 170px 230px minmax(200px,1.3fr)") + comment(3);
     return qa(3, "ТЗ, полученные от Полины", pills, body, false);
@@ -221,7 +221,7 @@
       return cells(['<span class="na1 nav">' + avatar(u.name) + esc(u.name) + "</span>", '<span class="ov1 n2">' + u.in_work + '</span><small class="ov1s">проекта</small>', '<span class="ov1 n2">' + u.month_good + " из " + u.month_total + "</span>", '<span class="ov1 ' + (u.month_errors ? "r" : "n2") + '">' + u.month_errors + "</span>",
         own ? '<div class="na">—</div>' : '<div class="an">' + field(k + ":good", null, "", true) + "</div>", own ? '<div class="na">—</div>' : '<div class="an">' + field(k + ":improve", null, "Одна вещь", true) + "</div>", own ? '<div class="na">—</div>' : '<div class="an">' + select(k + ":help", ["Разбор ошибок", "Разговор один на один", "Обучение", "Пока никак"], null, true) + "</div>"], "an");
     });
-    var body = table(["Проектировщик", "В работе на этой неделе", "Сдано в срок (месяц)", "Ошибка отдела (месяц)", "Что получилось", "Над чем работать", "Как помогаю"], rows, "120px 150px 150px 160px minmax(140px,1fr) minmax(140px,1fr) 196px") + comment(6);
+    var body = table(["Проектировщик", "В работе к концу недели", "Сдано в срок (месяц)", "Ошибка отдела (месяц)", "Что получилось", "Над чем работать", "Как помогаю"], rows, "120px 150px 150px 160px minmax(140px,1fr) minmax(140px,1fr) 196px") + comment(6);
     return qa(6, "Проектировщики", D.team.map(function (u) { return "<span>" + esc(u.name) + "</span>"; }).join(""), body, false);
   }
 

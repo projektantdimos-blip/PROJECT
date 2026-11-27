@@ -12,7 +12,7 @@
   var rowFields = {
     "q2:e": ["tz_events", {n:"n", d:"d", k:"d", d2:"step_date", p:"point", "p:oth":"other", q:"what", a:"why", w:"why", l:"lost", s:"step", sd:"step_date"}],
     "q3:r": ["tz_rows", {n:"n", cust:"customer", fd:"form_date", rd:"ready_date", ret:"returned", ivan:"ivan"}],
-    "q5:p": ["paid_fixes", {n:"n", cust:"customer", round:"round_", sent:"sent", st:"status", cm:"comment"}],
+    "q5:p": ["paid_fixes", {n:"n", cust:"customer", round:"round_", sent:"sent", st:"status", cm:"comment", bill:"billing_kp"}],
     "q6:s": ["situations", {n:"n", cust:"customer", what:"what", whatOth:"other", did:"did", to:"to_", help:"help", who:"who", until:"until_date"}]
   };
 
@@ -38,7 +38,18 @@
     draft.dirty = {};
     draft.collections = new Set();
     draft.saving = true;
-    api("/reports/ops2/save", {start: draft.week, payload: payload}).then(function () {
+    api("/reports/ops2/save", {start: draft.week, payload: payload}).then(function (result) {
+      if (result && result.paid_fixes_status && !draft.collections.has("paid_fixes")) {
+        draft.paid_fixes.forEach(function (row, i) {
+          row.billing_status = result.paid_fixes_status[i] || "";
+          if (draft !== M) return;
+          var status = document.querySelector('[data-ofbilling="' + row.id + '"]');
+          if (!status) return;
+          status.textContent = row.billing_status;
+          status.hidden = !row.billing_status;
+          status.nextElementSibling.hidden = !!row.billing_status;
+        });
+      }
       draft.saving = false;
       if (Object.keys(draft.dirty).length || draft.collections.size) saveNow(draft);
       else {
@@ -60,7 +71,11 @@
     var form = match && rowFields[match[1]], field = form && form[1][match[3]];
     if (field) {
       var row = M[form[0]].find(function (item) { return String(item.id) === match[2]; });
-      if (row) { row[field] = value; scheduleSave(form[0]); }
+      if (row) {
+        row[field] = value;
+        if (field === "billing_kp") delete row.billing_status;
+        scheduleSave(form[0]);
+      }
       return;
     }
     if (key === "q6:was") { key = "q6:none"; value = value === "Были" ? "" : "1"; }
@@ -1137,8 +1152,8 @@
     var k = "q1:o" + o.id + ":";
     var tag = "";
     if (o.visit && o.visit.status === "plan") tag = '<span class="fc g" style="margin-top:4px">выезд ' + esc(dshort(o.visit.day)) + ' · запланирован</span>';
-    else if (o.visit && o.visit.status !== "plan") tag = '<span class="fc r" style="margin-top:4px">выезд ' + esc(dshort(o.visit.day)) + ' · нет информации</span>';
-    if (isPause) tag = '<span class="ps2 au" style="margin-top:4px">пауза авто с ' + esc(o.pause_from || "") + "</span>";
+    else if (o.visit && o.visit.status !== "plan") tag = '<span class="fc r" style="margin-top:4px">выезд ' + esc(dshort(o.visit.day)) + ' · проверьте данные</span>';
+    if (isPause) tag = '<span class="ps2 au" style="margin-top:4px">пауза с ' + esc(o.pause_from || "") + "</span>";
     var over = o.days - 5;
     return '<div class="tr" data-oid="' + o.id + '">'
       + pj({ n: o.number, left: true, sub: '<small class="ov1s" style="font-size:12.5px;color:#1d2733">' + esc(o.customer) + "</small>" + (o.days > 14 ? '<small class="ov1s">с прошлой недели</small>' : ""), tag: tag })
@@ -1163,7 +1178,7 @@
     var cards = '<div class="t3">'
       + cardK("", wk.created_n, "Пришло из продаж", ["Проект", "Заказчик", "Вид работы"],
               wk.came.slice(0, 6).map(function (o) { return [o.number, o.customer, o.works]; }),
-              "Прошлая неделя: <b>" + Math.max(wk.created_n - wk.came.filter(function (x) { return x.is_new; }).length, 0) + "</b>")
+              "Прошлая неделя: <b>" + (wk.prev_created || 0) + "</b>")
       + cardK("k-g", wk.ready_n, "Передано в проектирование", ["Проект", "Заказчик", "Вид работы"],
               wk.passed.slice(0, 6).map(function (o) { return [o.number, o.customer, o.works]; }),
               "Из переданных вернули: <b>" + wk.returned + "</b>")
@@ -1180,18 +1195,20 @@
     /* выезды */
     var vRows = function (list) {
       return list.map(function (v) {
-        var k = "q1:v" + v.oid + ":";
+        var k = "q1:visit:" + v.id + ":";
+        var legacy = D.visits.new.concat(D.visits.old).filter(function (other) { return other.oid === v.oid; }).length === 1;
+        var sent = Object.hasOwn(M.answers, k + "sent") ? M.answers[k + "sent"] : legacy ? M.answers["q1:v" + v.oid + ":sent"] : "";
         var info;
         if (!v.done && v.status === "plan") info = '<span class="fc n">ещё не выезжали</span>';
         else if (v.done) {
-          var passed = M.answers[k + "sent"];
-          var dd = wd2(new Date(v.day_iso + "T12:00:00"), new Date());
+          var passed = sent;
+          var dd = wd2(new Date((v.done_iso || v.day_iso) + "T12:00:00"), D.as_of ? new Date(D.as_of + "T12:00:00") : new Date());
           if (passed) info = '<span class="fc g">передала ' + esc(passed) + "</span>";
           else if (dd >= 1) info = '<span class="fc r">нет · ' + dd + ' р.д. после выезда</span>';
           else info = '<span class="fc n">жду данные</span>';
         } else info = '<span class="fc n">—</span>';
         return '<div class="tr"><div class="pj"><b>' + esc(v.number) + "</b></div><div class=\"pc2\"><b>" + esc(v.customer) + '</b></div><div class="pw"><em>' + esc(v.works || "—")
-          + '</em></div><div class="cm dt1"><b>' + esc(v.asked) + '</b></div><div class="cm ov1c"><span class="na1">' + esc(v.who || "—") + '</span></div><div class="cm dt1"><b>' + esc(dshort(v.day_iso)) + "</b>" + (v.status === "plan" ? '<small class="ov1s">запланирован</small>' : "") + '</div><div class="cm ov1c">' + info + '</div><div class="an">' + (v.done ? df(k + "sent", M.answers[k + "sent"], false) : '<span class="na">—</span>') + "</div></div>";
+          + '</em></div><div class="cm dt1"><b>' + esc(v.asked) + '</b></div><div class="cm ov1c"><span class="na1">' + esc(v.who || "—") + '</span></div><div class="cm dt1"><b>' + esc(dshort(v.day_iso)) + "</b>" + (v.status === "plan" ? '<small class="ov1s">запланирован</small>' : "") + '</div><div class="cm ov1c">' + info + '</div><div class="an">' + (v.done ? df(k + "sent", sent, false) : '<span class="na">—</span>') + "</div></div>";
       }).join("");
     };
     var visitTbl = (D.visits.new.length || D.visits.old.length)
@@ -1300,21 +1317,21 @@
   /* ---------- зона 3: корректировки ---------- */
   function q5Html() {
     var fx = D.fixes;
-    var wNew = fx.week_new, open = fx.open;
+    var wNew = fx.week_new, open = fx.open, closed = fx.closed || [];
     var paidN = open.filter(function (r) { return r.paid; }).length;
     var pl = '<span>новых раундов <strong>' + wNew.length + '</strong></span><span class="r">открыто <strong>' + open.length + '</strong></span><span class="y">платных у Саши <strong>' + M.paid_fixes.length + '</strong></span>';
     var cards = '<div class="t3">'
       + cardK("c4b", wNew.length, "Новых раундов за неделю", ["Проект", "Заказчик", "Раунд", "Замеч."],
-              wNew.map(function (r) { return [r.number, r.customer, "§n1:№ " + r.n, String((r.remarks.match(/Ⓝ/g) || []).length || r.n)]; }),
-              "Замечаний: <b>" + wNew.length + "</b>")
-      + cardK("k-g c4b", open.filter(function (r) { return !r.open; }).length || wNew.filter(function (r) { return !r.open; }).length, "Раундов закрыто", ["Проект", "Заказчик", "Раунд", "Замеч."],
-              wNew.filter(function (r) { return !r.open; }).map(function (r) { return [r.number, r.customer, "§n1:№ " + r.n, "—"]; }), "Прошлая неделя: <b>—</b>")
+              wNew.map(function (r) { return [r.number, r.customer, "§n1:№ " + r.n, String(r.remarks_n || 0)]; }),
+              "Замечаний: <b>" + wNew.reduce(function (sum, row) { return sum + (row.remarks_n || 0); }, 0) + "</b>")
+      + cardK("k-g c4b", closed.length, "Раундов закрыто", ["Проект", "Заказчик", "Раунд", "Замеч."],
+              closed.map(function (r) { return [r.number, r.customer, "§n1:№ " + r.n, String(r.remarks_n || 0)]; }), "Прошлая неделя: <b>" + (fx.prev_closed || 0) + "</b>")
       + cardK("k-y c4b", open.length, "Открыто на конец недели", ["Проект", "Заказчик", "Срок", "Раунд"],
-              open.slice(0, 6).map(function (r) { return [r.number, r.customer, "§w1:" + (r.days == null ? "—" : r.days + " р.д."), "§n1:№ " + r.n]; }),
+              open.slice(0, 6).map(function (r) { return [r.number, r.customer, "§w1:" + (r.due || "—"), "§n1:№ " + r.n]; }),
               "Платных: <b>" + paidN + "</b>")
       + "</div>";
     var month = fx.month;
-    var bar = '<div class="bx2 one"><h6>Причины замечаний за ' + monthName() + '</h6><p class="nov1">' + monthName() + ': <b>' + month.rounds + "</b> раундов · замечаний с причиной <b>" + month.total_with_cat + "</b></p>"
+    var bar = '<div class="bx2 one"><h6>Причины замечаний за ' + monthName(month.date) + '</h6><p class="nov1">' + monthName(month.date) + ': <b>' + month.rounds + "</b> раундов · замечаний с причиной <b>" + month.total_with_cat + "</b></p>"
       + Object.keys(month.by_cat).map(function (k) {
           var v = month.by_cat[k], pct = month.total_with_cat ? Math.round(v / month.total_with_cat * 100) : 0;
           return '<div class="brl"><span>' + esc(k) + "</span><i><u style=\"width:" + pct + '%"></u></i><b>' + v + " (" + pct + "%)</b></div>";
@@ -1322,9 +1339,10 @@
     var paid = M.paid_fixes.map(function (r) {
       var k = "q5:p" + r.id + ":";
       return '<div class="tr"><div class="an">' + inp(k + "n", "№ проекта", r.n, true)
-        + inp(k + "cust", "Заказчик", r.customer, true) + '</div><div class="an">' + inp(k + "round", "Раунд", r.round_, true)
+        + inp(k + "cust", "Заказчик", r.customer, true) + '</div><div class="an">' + inp(k + "round", "Раунд", r.round_, true) + inp(k + "bill", "№ КП на корректировку", r.billing_kp, false)
         + '</div><div class="an">' + df(k + "sent", r.sent, true) + '</div><div class="an">'
-        + sel(k + "st", ["Ждём решения Саши", "Счёт выставлен", "Оплачен", "Отказ"], r.status, true)
+        + '<span class="na1" data-ofbilling="' + esc(r.id) + '"' + (r.billing_status ? "" : " hidden") + ">" + esc(r.billing_status || "")
+        + '</span><span' + (r.billing_status ? " hidden" : "") + ">" + sel(k + "st", ["Ждём решения Саши", "Счёт выставлен", "Оплачен", "Отказ"], r.status, !r.billing_status) + "</span>"
         + '</div><div class="an">' + inp(k + "cm", "Комментарий (необязательно)", r.comment) + '</div><button type="button" class="ofdel" data-ofdel="paid_fixes|' + r.id + '"' + (RO ? " disabled" : "") + ">✕</button></div>";
     }).join("");
     var body = cards + bar
@@ -1339,7 +1357,7 @@
       + commentFld("q5");
     return { pl: pl, body: body };
   }
-  function monthName() { var m = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"]; return m[new Date().getMonth()]; }
+  function monthName(day) { var m = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"]; return m[day ? Number(day.slice(5, 7)) - 1 : new Date().getMonth()]; }
 
   /* ---------- зона 4: ситуации с заказчиками ---------- */
   function sitRow(r) {
@@ -1407,7 +1425,7 @@
   }
   function loopHtml() {
     return '<div class="k5"><div class="col5 nw5"><span class="lb2">Что предлагаете изменить?</span>' + ta("loop:proposal", "Необязательно: что бы вы изменили в работе, процессах, CRM или общении с заказчиками?", M.answers["loop:proposal"]) + '</div>'
-      + '<div class="col5 st5b"><p class="ct5 hd5"><span>Ваши предложения с прошлой недели</span></p>'
+      + '<div class="col5 st5b"><p class="ct5 hd5"><span>Ваши предложения с прошлой недели</span></p>' + (D.previous_proposal ? '<p class="note">' + esc(D.previous_proposal) + "</p>" : "")
       + '<div class="sub5 ok5"><p class="ct5"><span>Сделано</span></p>' + inp("loop:done", "Что из прошлых предложений сделано", M.answers["loop:done"]) + "</div>"
       + '<div class="sub5 wk5"><p class="ct5"><span>В работе</span></p>' + inp("loop:doing", "Что в работе и до какого срока", M.answers["loop:doing"]) + "</div></div></div>";
   }
