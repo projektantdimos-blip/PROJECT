@@ -1626,7 +1626,7 @@
       var weekStatus = Object.assign({unmatched: "Не разобрано", amb: "Не разобрано", other: "Прочее поступление"}, ST);
       var rubles = function (amount) { return amount.toLocaleString("ru-RU", {maximumFractionDigits: 2}) + " ₽"; };
       weekly = '<section class="panel pad" aria-labelledby="onec-week-title" style="margin-bottom:16px">'
-        + '<h3 id="onec-week-title">Оплаты за неделю</h3><p class="sub">' + dmy(week.start) + ' — ' + dmy(week.end)
+        + '<h3 id="onec-week-title">Оплаты за неделю</h3><p class="sub">' + dmy(week.start) + ' 12:00 — ' + dmy(week.end) + ' 12:00 МСК'
         + ' · поступлений ' + week.items.length + ' · <b>Итого ' + rubles(week.total) + '</b></p>'
         + '<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Дата</th><th>Плательщик</th><th>Сумма</th><th>Задача</th><th>Итог</th></tr></thead><tbody>'
         + (week.items.map(function (x) {
