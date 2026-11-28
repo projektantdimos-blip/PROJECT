@@ -42,9 +42,16 @@ function stageCell(r){
     return '<span class="edb">'+Object.keys(STAGE).filter(function(k){return k!==r.stage;}).map(function(k){return '<button type="button" class="op" data-stg="'+r.p+'|'+k+'">'+(k==='done'?'→ Передать в проектирование':STAGE[k][0])+'</button>';}).join('')+'<button type="button" class="ex" data-ed="">отмена</button></span>';
   }
   var sub='';
-  if(r.stage==='visit'&&r.visit){sub=isToday(r.visit.d)?'<span class="pl b">выезд сегодня · '+esc(r.visit.who.split(' ')[0])+'</span>':(pd(r.visit.d)>TODAY?'<span class="pl b">выезд '+dmw(r.visit.d)+'</span>':(r.visit.info?'<span class="pl g">инфо получена '+dm(r.visit.info)+'</span>':'<span class="pl r">инфо нет '+wd(pd(r.visit.d),TODAY)+' р.д.</span>'));}
+  if(r.stage==='visit'&&r.visit&&!r.visit.received_on&&r.visit.state!=='done'){sub=isToday(r.visit.d)?'<span class="pl b">выезд сегодня · '+esc(r.visit.who.split(' ')[0])+'</span>':(pd(r.visit.d)>TODAY?'<span class="pl b">выезд '+dmw(r.visit.d)+'</span>':(r.visit.info?'<span class="pl g">инфо получена '+dm(r.visit.info)+'</span>':'<span class="pl r">инфо нет '+wd(pd(r.visit.d),TODAY)+' р.д.</span>'));}
   if(r.stage==='check'&&r.ivan){var n=wd(pd(r.ivan),TODAY);sub='<span class="pl '+(n>1?'r':'n')+'">у Ивана '+n+' р.д.</span>';}
   if(r.stage==='done'){sub='<span class="sb">'+dmw(r.handed)+'</span>'+(r.ivanOk==='нет'?'<span class="pl a">без проверки Ивана</span>':'');}
+  if(r.visit && r.visit.received_on){
+    var receivedLabel=r.visit.handed_on?'Получены материалы':'Материалы у Полины';
+    sub+='<span class="pl g">'+receivedLabel+' · '+dm(r.visit.received_on)+'</span>';
+  }
+  if(r.visit && r.visit.handed_on){
+    sub+='<span class="pl g">Материалы переданы проектировщику · '+dm(r.visit.handed_on)+'</span>';
+  }
   if(r.stage==='done')return '<span class="chip" style="background:'+s[1]+';color:'+s[2]+'" data-tip="'+esc(s[3])+'">'+s[0]+'</span>'+sub;
   return '<button type="button" class="inl" data-ed="st|'+r.p+'"'+disabled(!editable||!r.can_edit)+'><span class="chip" style="background:'+s[1]+';color:'+s[2]+'" data-tip="'+esc(s[3])+'">'+s[0]+'</span>'+sub+'<span class="pen">изменить</span></button>';
 }
