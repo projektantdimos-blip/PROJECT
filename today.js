@@ -45,6 +45,14 @@
       el.innerHTML = '<div class="ds dspage td"><div class="head"><div><h1>Сегодня</h1><p>Войдите, чтобы увидеть свои задачи</p></div><button class="btn primary" data-tdlogin="1">Войти по PIN</button></div></div>';
       return;
     }
+    if (C.me.position === "ops") {
+      S.rop = false;
+      if (!el.querySelector("iframe[data-ops-day]") || S.uid !== C.me.id) {
+        S.uid = C.me.id; S.d = null;
+        el.innerHTML = '<iframe data-ops-day title="Сегодня — Полина" src="ops_today.html?v=20261128a" style="display:block;width:100%;height:calc(100vh - 76px);min-height:440px;border:0"></iframe>';
+      }
+      return;
+    }
     if ((C.me.position === "sales" || C.me.position === "owner") && window.DSTodayRop) { S.rop = true; window.DSTodayRop.mount(el); return; } else { S.rop = false; }   // «Сегодня» РОПа по макету 24.11; старое окно для этих ролей отключено полностью
     if (S.uid !== C.me.id) { S.d = null; S.edit = {}; S.more = {}; S.at = 0; S.tab = 0; S.uid = C.me.id; }      // сменился сотрудник — чужие данные не показываем
     if (!S.d) el.innerHTML = '<div class="ds dspage td"><div class="loading">Загружаю…</div></div>';
@@ -54,7 +62,7 @@
     load().then(paint);
   };
   function visible() { return S.el && S.el.style.display !== "none" && document.body.contains(S.el); }
-  function reload() { if (S.rop) return window.DSTodayRop ? DSTodayRop.mount(S.el) && Promise.resolve() : Promise.resolve(); return load().then(function () { if (visible()) paint(); }); }
+  function reload() { if (C.me && C.me.position === "ops") return T.mount(S.el); if (S.rop) return window.DSTodayRop ? DSTodayRop.mount(S.el) && Promise.resolve() : Promise.resolve(); return load().then(function () { if (visible()) paint(); }); }
 
   /* ---------- разбор быстрой строки: «позвонить Спектр завтра 10:00 @Полина» ---------- */
   var WDN = { "пн": 1, "вт": 2, "ср": 3, "чт": 4, "пт": 5, "сб": 6, "вс": 0 };

@@ -98,7 +98,7 @@
     var list = d.tasks || [];
     return '<div class="tr-sec" style="border-color:#8a99ae">' + secHead("#8a99ae", false, "", "Мои задачи на сегодня", list.length, "")
       + (list.length ? list.map(function (t) {
-        return '<div class="tr-row"><div class="tr-row-l"><span class="tr-name">' + E(t.title) + '</span>' + (t.due ? '<span class="tr-status">к ' + E(t.due) + "</span>" : "") + '</div><div class="tr-row-r"><button class="btn ghost sm" data-trtdone="' + t.id + '">Готово</button></div></div>';
+        return '<div class="tr-row"><div class="tr-row-l"><span class="tr-name">' + (t.question ? '<a href="#/t/' + t.id + '">' + E(t.title) + ' · Ответить</a>' : E(t.title)) + '</span>' + (t.due ? '<span class="tr-status">к ' + E(t.due) + "</span>" : "") + '</div><div class="tr-row-r"><button class="btn ghost sm" data-trtdone="' + t.id + '">Готово</button></div></div>';
       }).join("") : '<div class="tr-hint">На сегодня ничего. Добавь задачу кнопкой «+ Задача» сверху.</div>') + "</div>";
   }
 
