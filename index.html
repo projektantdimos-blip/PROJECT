@@ -552,7 +552,7 @@ function renderTopNav(){
   document.getElementById("kpreg-app").style.display = (sec === "kpreg") ? "block" : "none";
   var registry = document.getElementById("commerce-registry-app");
   var view = sec === "commerce-kp" ? "kp" : sec === "commerce-payments" ? "payments" : "";
-  var target = (location.hash.match(/^#\/commerce-(?:kp|payments)\/((?:number\/)?[^/?#]+)$/) || [])[1] || "";
+  var target = (location.hash.match(/^#\/commerce-(?:kp|payments)\/((?:(?:number|order)\/)?[^/?#]+)$/) || [])[1] || "";
   var frameKey = view + "/" + target;
   registry.hidden = !view;
   if (!view) {
@@ -561,7 +561,7 @@ function renderTopNav(){
   } else if (dsPosition() && window.DS && registry.dataset.view !== frameKey) {
     var frame = document.createElement("iframe");
     frame.title = view === "kp" ? "Реестр КП" : "Реестр оплат";
-    frame.src = "commerce_registry.html?v=20261128n&view=" + view + (target ? "&target=" + target.replace("/", "%2F") : "");
+    frame.src = "commerce_registry.html?v=20261128p&view=" + view + (target ? "&target=" + target.replace("/", "%2F") : "");
     frame.style.cssText = "display:block;border:0;width:100%;height:100dvh";
     registry.dataset.view = frameKey;
     registry.replaceChildren(frame);
@@ -715,7 +715,7 @@ globalRouter();
 <script src="teamsearch.js?v=20261125a"></script>
 <script src="ai.js?v=20261125a"></script>
 <script src="chatpanel.js?v=20261128n"></script>
-<script src="ds.js?v=20261128n"></script>
+<script src="ds.js?v=20261128p"></script>
 <script src="ds_cust.js?v=20261125a"></script>
 <script src="ds_risk.js?v=20261125a"></script>
 <script src="ds_tasks.js?v=20261128n"></script>
@@ -733,7 +733,7 @@ globalRouter();
 <script src="visits.js?v=20261128n"></script>
 <script src="calls.js?v=20261125a"></script>
 <script src="remind.js?v=20261125a"></script>
-<script src="ds_today_rop.js?v=20261125a"></script>
+<script src="ds_today_rop.js?v=20261128p"></script>
 <script src="today.js?v=20261128n"></script>
 <script>
 (function(){

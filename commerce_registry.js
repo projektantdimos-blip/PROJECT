@@ -389,7 +389,9 @@
       const selection = target;
       target = null;
       const byNumber = selection && selection.startsWith("number/");
-      const row = selection && state.rows.find(r => byNumber ? String(r.number).replace(/^К-/, "") === selection.slice(7).replace(/^К-/, "") : String(r.id) === selection);
+      const byOrder = selection && selection.startsWith("order/");
+      const row = byOrder ? state.rows.find(r => String(r.order_id) === selection.slice(6) && inRegister(r)) || state.rows.find(r => String(r.order_id) === selection.slice(6))
+        : selection && state.rows.find(r => byNumber ? String(r.number).replace(/^К-/, "") === selection.slice(7).replace(/^К-/, "") : String(r.id) === selection);
       if (row && !inRegister(row)) {
         const page = isPay ? "commerce-kp" : "commerce-payments";
         parent.location.replace(parent.location.href.split("#")[0] + "#/" + page + "/" + row.id);

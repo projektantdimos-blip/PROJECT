@@ -51,7 +51,21 @@
   DS.commerceApi = api;
   DS.tzRegistryApi = api;
   DS.commerceOpen = function (row) {
-    if (row.order_id) { location.hash = "#/task/" + row.order_id; return; }
+    if (row.order_id) {
+      var id = +row.order_id, route = location.hash;
+      S.open = id;
+      S.tab = "info";
+      S.edit = S.oe = null;
+      S.actErr = "";
+      S.history = [];
+      return Promise.all([load(), api("/orders/" + id + "/history")]).then(function (results) {
+        if (location.hash !== route || S.open !== id) return;
+        S.history = results[1];
+        paint();
+      }, function (err) {
+        if (location.hash === route && S.open === id) { closeAll(); toast(String(err)); }
+      });
+    }
     loadKp().then(function () {
       var k = (S.kp || []).find(function (item) { return item.id === row.id; });
       if (k) openKpCard(k);
@@ -612,6 +626,10 @@
   function formHtml() { return window.DSRisk.formHtml(); }
   function fixFormHtml(f) { return window.DSRisk.fixFormHtml(f); }
   function paint() {
+    if (/^#\/commerce-(?:kp|payments)(?:\/|$)/.test(location.hash)) {
+      paintCard();
+      return;
+    }
     if (!S.mount) return;
     var el = S.mount.el;
     if (S.err) { el.innerHTML = '<div class="ds dspage"><div class="err">Ошибка: ' + E(S.err) + '</div><button class="btn ghost" id="dsRetry">Повторить</button></div>'; var r = document.getElementById("dsRetry"); if (r) r.onclick = DS.reload; return; }
@@ -640,6 +658,9 @@
     if (cn && window.MPBD && MPBD.notes) MPBD.notes(cn, +cn.getAttribute("data-cid"));
     var ca = k === "cust" && document.getElementById("cuAi");
     if (ca && window.DSAI) DSAI.customer(ca, +ca.getAttribute("data-cid"));
+    paintCard();
+  }
+  function paintCard() {
     var m = modalRoot();
     if (S.ke) { setModal(keHtml()); return; }
     if (S.tm) { setModal(tmWrap()); return; }
@@ -703,7 +724,7 @@
   }
   DS.newTask = ntOpen;
   DS.orders = function () { return (S.orders || []).map(function (o) { return { id: o.id, label: "№" + o.number + " · " + (o.customer || "") + " · " + (o.object || ""), number: o.number, object: o.object || "", system: o.system || "" }; }); };
-  DS.closeAll = function () { S.form = S.edit = S.nt = S.te = S.ke = null; S.tm = false; S.oe = null; S.open = null; S.tab = "info"; var m = document.getElementById("ds-modal"); if (m) m.innerHTML = ""; };
+  DS.closeAll = function () { S.form = S.edit = S.nt = S.te = S.ke = null; S.tm = false; S.oe = null; S.open = null; S.tab = "info"; setModal(""); };
   DS.ensureOrders = function () { return S.orders == null && C && C.loggedIn() ? load().then(null, function () {}) : Promise.resolve(); };
 
   /* ---------- полный контроль руководителя, операционного менеджера и руководителя продаж: правка и удаление ---------- */

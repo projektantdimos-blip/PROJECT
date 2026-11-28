@@ -66,7 +66,7 @@
     return '<div class="tr-sec" style="border-color:#d9bc72">' + secHead("#ecd08f", true, "b-dark", "Деньги сегодня", d.money.length, "обещали оплату, ждём аванс, просрочка по договору · сверху больше денег и дольше ждём")
       + d.money.map(function (m) {
         var isDlg = S.dlg && S.dlg.kind === "promise" && S.dlg.ref === m.ref;
-        return '<div class="tr-row"><div class="tr-row-l"><span><span class="tr-step s' + m.step + '">шаг ' + m.step + '</span> <span class="tr-name">№' + E(m.number) + " · " + E(m.customer) + '</span></span>'
+        return '<div class="tr-row"><div class="tr-row-l"><span><span class="tr-step s' + m.step + '">шаг ' + m.step + '</span> <a class="tr-name" href="#/commerce-payments/' + (m.kind === "post" ? "order/" : "") + E(m.id) + '">№' + E(m.number) + " · " + E(m.customer) + '</a></span>'
           + '<span class="tr-status">' + E(m.status) + '</span>'
           + '<div class="tr-say"><b>Что сказать:</b> «' + E(m.script) + '»' + (isDlg ? dlgHtml() : "") + "</div></div>"
           + '<div class="tr-row-r"><span class="tr-amt2">' + money(m.amount) + '</span><div class="tr-btns">'
@@ -82,7 +82,7 @@
     return '<div class="tr-sec" style="border-color:#5b84c4">' + secHead("#5b84c4", false, "b-blue", "Звонки по КП", d.kp.length, "подобраны на сегодня: сумма × давность контакта · норма 10–15 в день")
       + d.kp.slice(0, d.calls.goal).map(function (k) {
         var isDlg = S.dlg && S.dlg.ref === k.ref;
-        return '<div class="tr-row"><div class="tr-row-l"><span class="tr-name">КП №' + E(k.number) + " · " + E(k.customer) + '</span>'
+        return '<div class="tr-row"><div class="tr-row-l"><a class="tr-name" href="#/commerce-kp/' + E(k.id) + '">КП №' + E(k.number) + " · " + E(k.customer) + '</a>'
           + '<span class="tr-status">' + E(k.status) + (k.ctx ? " · " + E(k.ctx) : "") + '</span>'
           + '<div class="tr-say"><b>Цель звонка:</b> ' + E(k.goal) + (isDlg ? dlgHtml() : "") + "</div></div>"
           + '<div class="tr-row-r"><span class="tr-amt2">' + money(k.amount) + '</span><div class="tr-btns">'
