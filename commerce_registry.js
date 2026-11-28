@@ -219,7 +219,9 @@
   function noteCell(r) {
     const note = '<textarea rows="1" class="manager-note" data-note="'+r.id+'" maxlength="1000" aria-label="Комментарий по КП '+esc(r.number)+'" placeholder="Комментарий"'+(state.editable ? "" : " readonly")+'>'+esc(r.note)+'</textarea>';
     const watch = r.watch ? plain("★ Следим" + (r.pay_expect ? " · "+dm(r.pay_expect) : "")) + (r.watch_note ? plain(r.watch_note) : "") : "";
-    return c(watch + (r.comment ? plain(r.comment) : "") + note, "rg-note");
+    const control = state.editable && !["Отказ","Закрыто"].includes(r.status)
+      ? button("watch", r.watch ? "Изменить обещание" : "☆ Следить", r, "inl") : "";
+    return c(watch + control + (r.comment ? plain(r.comment) : "") + note, "rg-note");
   }
   function contact(r) {
     if (!r.last_contact) return plain("—");
@@ -588,6 +590,14 @@
     else if (action === "next" || action === "expect") changeDate(r, action === "next" ? "next_contact" : "pay_expect");
     else if (action === "due") dialog("Назначить срок оплаты", '<label>Срок оплаты <input class="mdate" name="date" type="date" required value="'+esc(r.due_manual ? r.due : "")+'"></label>',
       (f, btn) => edit(r, "due", {text:f.get("date")}, btn));
+    else if (action === "watch") {
+      dialog("Следим · КП №"+r.number,
+        editField("Обещали оплатить к", "date", r.pay_expect || "", "date") +
+        '<label>Что обещал заказчик<textarea name="promise" maxlength="300">'+esc(r.watch_note || "")+'</textarea></label>' +
+        (r.watch ? '<label><input type="checkbox" name="off"> Снять отметку «Следим»</label>' : ""),
+        (fields, btn) => fields.has("off") ? edit(r, "unwatch", {}, btn) :
+          edit(r, "watch", {text:fields.get("promise"), pay_expect:fields.get("date")}, btn));
+    }
     else if (action === "edit-row") editRow(r);
     else if (action === "prob") edit(r, "prob", {text:r.pay_prob === b.dataset.value ? "" : b.dataset.value}, b);
     else if (action === "refuse") dialog("Причина отказа", '<label>Причина <select name="reason" required><option value="">выбрать</option>'+
