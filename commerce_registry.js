@@ -208,7 +208,9 @@
   function customer(r) {
     const name = r.customer || "заказчик не указан";
     const link = state.editable || r.order_id ? '<button type="button" class="nm lk" data-action="open" data-id="'+r.id+'" title="Открыть карточку">'+esc(name)+' <span class="ar">↗</span></button>' : plain(name, "nm");
-    return c(link + plain(r.object, "ob") + (r.systems ? '<p class="wk"><b>Вид работ:</b> '+esc(r.systems)+'</p>' : ""), "l");
+    const works = r.systems || r.service_codes;
+    const services = r.service_names?.length ? '<details><summary>Услуги КП</summary>'+r.service_names.map(s => plain(s)).join("")+'</details>' : "";
+    return c(link + plain(r.object, "ob") + (works ? '<p class="wk"><b>Вид работ:</b> '+esc(works)+'</p>' : "") + services, "l");
   }
   function actionCell(r, actions) {
     const call = state.editable ? '<button type="button" class="rg-call" data-action="call" data-id="'+r.id+'" title="'+(r.contacts.length ? "Позвонить" : "У заказчика нет номера телефона")+'" aria-label="Позвонить по КП '+esc(r.number)+'"'+(r.contacts.length ? "" : " disabled")+'>'+phone+'</button>' : "";
@@ -216,7 +218,8 @@
   }
   function noteCell(r) {
     const note = '<textarea rows="1" class="manager-note" data-note="'+r.id+'" maxlength="1000" aria-label="Комментарий по КП '+esc(r.number)+'" placeholder="Комментарий"'+(state.editable ? "" : " readonly")+'>'+esc(r.note)+'</textarea>';
-    return c(note, "rg-note");
+    const watch = r.watch ? plain("★ Следим" + (r.pay_expect ? " · "+dm(r.pay_expect) : "")) + (r.watch_note ? plain(r.watch_note) : "") : "";
+    return c(watch + (r.comment ? plain(r.comment) : "") + note, "rg-note");
   }
   function contact(r) {
     if (!r.last_contact) return plain("—");
@@ -310,7 +313,7 @@
     const stageNote = group === "work" && r.adv_paid ? "Предоплата получена, работа идёт"
       : r.transferred && group === "work" ? "Передано из реестра КП"
       : r.delivered_on ? "Сдано " + shortDate(r.delivered_on) : r.order_stage;
-    return prefix(r, i) + c(summary) + c(adv) + c(post) + c(plain(stage, "chip rg-sent") + plain(stageNote)) +
+    return prefix(r, i) + c(summary + (r.payment_conflict ? plain("Сверить тип платежа с 1С", "ps late") : "")) + c(adv) + c(post) + c(plain(stage, "chip rg-sent") + plain(stageNote)) +
       c(due) + c(group === "full" || group === "arch" ? plain("—") : dateControl(r, "pay_expect")) + c(contact(r)) + noteCell(r) + actionCell(r, actions);
   }
   function header() {
