@@ -186,7 +186,7 @@
       + (v.state === "need" ? " · прошёл " + diff(v.day, t) + " дн. назад" : v.state === "done" ? " · выполнен" : v.state === "cancel" ? " · отменён" : "");
     var k = E(v.kind_label) + (v.kind === "supervision" ? " " + v.sup_n + (v.sup_total ? " из " + v.sup_total : "") : "") + (v.order_number ? " · №" + E(v.order_number) : v.kp_number ? " · КП №" + E(v.kp_number) + " (договора ещё нет)" : "");
     var ord = v.order_number ? (v.order_open ? '<a href="#/task/' + v.order_id + '">№' + E(v.order_number) + "</a>" : "№" + E(v.order_number)) + (v.customer ? " · " + E(v.customer) : "")
-      : v.kp_number ? '<a href="#/kpreg/">КП №' + E(v.kp_number) + "</a>" + (v.customer ? " · " + E(v.customer) : "") : "—";
+      : v.kp_number ? '<a href="#/commerce-kp/' + v.kp_id + '">КП №' + E(v.kp_number) + "</a>" + (v.customer ? " · " + E(v.customer) : "") : "—";
     var who = ed && V.meta && V.meta.people.length
       ? '<select data-vexec="' + v.id + '" style="border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:var(--surface);max-width:100%">' + V.meta.people.map(function (p) { return '<option value="' + p.id + '"' + (p.id === v.executor_id ? " selected" : "") + ">" + E(p.name) + "</option>"; }).join("") + "</select>"
       : '<span class="vz-who">' + av(v.executor) + E(v.executor || "—") + "</span>";

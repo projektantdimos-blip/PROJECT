@@ -189,7 +189,7 @@
   }
   function kpCard(it) {
     var x = X(), kp = it.kp, k = it.k, nt = kpNote(kp, k), sum = kpSum(kp, k);
-    var act = KP_EDIT[x.pos()] ? 'data-kpedit="' + kp.id + '" title="Окно КП"' : 'data-kpgo="1" title="Открыть реестр КП"';
+    var act = KP_EDIT[x.pos()] ? 'data-kpedit="' + kp.id + '" title="Окно КП"' : 'data-kpgo="' + kp.id + '" title="Открыть реестр КП"';
     return '<button type="button" class="task cv-kp" ' + act + '><span class="stripe" style="--c:' + (k <= 4 ? "var(--org)" : "var(--ok)") + '"></span><span class="body">'
       + '<span class="r1"><span class="num" style="color:var(--org)">' + E(x.kpNo(kp.number)) + "</span><span>" + E(kp.customer || kp.customer_text || "") + "</span></span>"
       + '<span class="ttl" style="display:block">' + E(kp.object || "—") + "</span>"

@@ -346,7 +346,7 @@
   function kpTone(k) { return k.last_days == null ? "muted" : k.last_days > 5 ? "bad" : k.last_days >= 3 ? "warn" : "info"; }
   function kpCard(k) {
     var tn = kpTone(k);
-    return '<a class="task" href="#/kpreg/" style="text-decoration:none;color:inherit"><span class="stripe" style="--c:' + (tn === "bad" ? "var(--bad)" : "var(--org)") + '"></span><span class="body">'
+    return '<a class="task" href="#/commerce-kp/' + k.id + '" style="text-decoration:none;color:inherit"><span class="stripe" style="--c:' + (tn === "bad" ? "var(--bad)" : "var(--org)") + '"></span><span class="body">'
       + '<span class="r1"><span class="num" style="color:var(--org);font-size:1.1rem">' + E(kpNo(k.number)) + "</span><span>" + E(k.customer) + '</span><span class="fl"><b>' + money(k.amount) + "</b></span></span>"
       + '<span class="ttl" style="display:block">' + E(k.object || "—") + "</span>"
       + '<span class="meta"><span class="pill ' + tn + '">' + (k.last_days == null ? "нет общения" : k.last_days === 0 ? "общались сегодня" : "без общения " + plural(k.last_days, ["день", "дня", "дней"])) + "</span>"
@@ -489,7 +489,7 @@
     if (d.kpz != null && t.hasAttribute("data-kpz")) { var z = kpFont(); z = d.kpz === "0" ? 13 : Math.max(10, Math.min(17, z + (+d.kpz))); S.kpz = z; try { localStorage.setItem("ds_kpz", String(z)); } catch (er) {} return paint(); }
     if (d.kesave) return keSave();
     if (d.kectr) { var kk = (S.kp || []).filter(function (x) { return x.id === S.ke.id; })[0]; if (kk) { kpToForm(kk); S.ke = null; setModal(""); location.hash = "#/kpc"; } return; }
-    if (d.kpcancel != null && t.hasAttribute("data-kpcancel")) { S.kpf = null; location.hash = "#/kpreg/"; return; }
+    if (d.kpcancel != null && t.hasAttribute("data-kpcancel")) { S.kpf = null; location.hash = "#/commerce-kp"; return; }
     if (d.kcopen != null && t.hasAttribute("data-kcopen")) { kpcInit(); S.kpf.nc = { mode: d.kcopen, name: "", fio: "", phone: "", email: "", err: "" }; return paint(); }
     if (d.kcclose != null && t.hasAttribute("data-kcclose")) { if (S.kpf) S.kpf.nc = null; return paint(); }
     if (d.kcsave != null && t.hasAttribute("data-kcsave")) return kcSave();
@@ -1394,8 +1394,8 @@
     var items = f.items.filter(function (i) { return i.on && i.name && +i.price > 0; }).map(function (i) { return { name: i.name, price: +i.price }; });
     if (!items.length) { f.err = "Отметьте хотя бы одну услугу с ценой"; return paint(); }
     var payCode = f.pay === "custom" ? ((+f.advpct || 0) <= 0 ? "post100" : "adv" + Math.min(100, Math.round(+f.advpct))) : f.pay;
-    api(f.id ? "/kp/" + f.id : "/kp", { customer_id: f.customer_id || 0, customer_text: f.customer_id ? "" : (f.customer_text || ""), object: f.object, services: items, pay: payCode, pay_text: f.pay_text || "", send: !!send }).then(function () {
-      var was = f.id; S.kpf = null; toast(was ? "КП изменено" : (send ? "КП выставлено и добавлено в реестр" : "Черновик сохранён в реестре")); location.hash = "#/kpreg/";
+    api(f.id ? "/kp/" + f.id : "/kp", { customer_id: f.customer_id || 0, customer_text: f.customer_id ? "" : (f.customer_text || ""), object: f.object, services: items, pay: payCode, pay_text: f.pay_text || "", send: !!send }).then(function (saved) {
+      var was = f.id; S.kpf = null; toast(was ? "КП изменено" : (send ? "КП выставлено и добавлено в реестр" : "Черновик сохранён в реестре")); location.hash = "#/commerce-kp/" + saved.id;
     }, function (er) { f.err = String(er); paint(); });
   }
   /* ---------- конструктор договора — вынесен в web/ds_contract.js (24.11); здесь — точки входа ---------- */
@@ -1802,7 +1802,7 @@
     if (t.hasAttribute("data-who")) { S.ov.who = d.who; S.ov.sel = ""; return paint(); }                 // «Чьи задачи» в «Организационных»
     if (d.osel) { S.ov.sel = S.ov.sel === d.osel ? "" : d.osel; return paint(); }
     if (d.oselx) { S.ov.sel = ""; if (S.topen) { S.topen = 0; if (/^#\/t\//.test(location.hash)) history.replaceState(null, "", "#/"); } return paint(); }
-    if (d.kpgo) { location.hash = "#/kpreg/"; return; }
+    if (d.kpgo) { location.hash = "#/commerce-kp/" + d.kpgo; return; }
     if (d.gmore) { S.ov.more = S.ov.more || {}; S.ov.more[d.gmore] = 1; return paint(); }
     if (d.showclosed) { S.showClosed = !S.showClosed; return paint(); }
     if (d.scnew != null && t.hasAttribute("data-scnew")) { var nid = "s" + Date.now(); S.sc = (S.sc || []).concat([{ id: nid, title: "Новый скрипт", group: "", text: "" }]); S.scSel = nid; return paint(); }

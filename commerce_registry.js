@@ -26,6 +26,8 @@
     }
     return n;
   };
+  let target = new URLSearchParams(location.search).get("target");
+  const drafts = new Set(["Новое обращение","Обращение","Сбор вводных"]);
   const open = new Set(["КП отправлено", "Доки отправлены", "В предоплате"]);
   const afterSale = new Set(["В работе", "В постоплате", "Закрыто"]);
   const refused = ["Дорого","Условия оплаты","Сроки","Дешевле у конкурента","Выбрали другого (не по цене)","Отложили","Пропал","Пока прицениваются","Не наш профиль","Другое (в комментарии)"];
@@ -38,6 +40,7 @@
     ["arch", "Архив оплат", "g", "Оплаты прошлых месяцев · история платежей в строке"]
   ];
   const kpGroups = [
+    ["draft", "Обращения и черновики", "o", ""],
     ["advance", "Ждём предоплату", "p", "клиент согласился · просроченные сверху"],
     ["late", "Пропущен контакт", "r", "позвонить первыми"],
     ["today", "Позвонить сегодня", "w", "следующий контакт назначен на сегодня"],
@@ -174,6 +177,7 @@
     return "work";
   }
   function kpGroup(r) {
+    if (drafts.has(r.status)) return "draft";
     if (r.status === "Отказ") return "refused";
     if (waitingAdvance(r)) return "advance";
     if (r.next_contact === now) return "today";
@@ -182,7 +186,7 @@
   function waitingAdvance(r) { return r.status === "В предоплате" || r.status === "Доки отправлены"; }
   function inRegister(r) {
     if (isPay) return r.status !== "Отказ" && (r.transferred || afterSale.has(r.status) || r.adv_paid || r.post_paid || r.payments.length);
-    return r.status === "Отказ" || (!r.transferred && open.has(r.status) && !r.adv_paid && !r.post_paid && !r.payments.length);
+    return r.status === "Отказ" || (!r.transferred && (open.has(r.status) || drafts.has(r.status)) && !r.adv_paid && !r.post_paid && !r.payments.length);
   }
   function match(r, filter) {
     if (isPay) return filter === "all" ? payGroup(r) !== "arch" : payGroup(r) === filter;
@@ -287,13 +291,13 @@
   }
   function kpRow(r, i) {
     const archive = r.status === "Отказ";
-    const statusName = archive ? "Отказ" : r.status === "КП отправлено" ? r.status : "Ждём предоплату";
+    const statusName = waitingAdvance(r) ? "Ждём предоплату" : r.status;
     const actions = !state.editable ? "" : button("edit-row", "Править", r, "rg-edit-row") + (archive ? (r.order_id ? "" : button("restore", "Вернуть в работу", r)) :
-      button("transfer", "В оплаты", r, "", 'data-transfer title="Передать в реестр оплат"') +
-      (r.order_id ? "" : button("refuse", "Отказ", r, "rfo")));
+      (drafts.has(r.status) ? button("open", "Карточка КП", r) : button("transfer", "В оплаты", r, "", 'data-transfer title="Передать в реестр оплат"')) +
+      (r.order_id || drafts.has(r.status) ? "" : button("refuse", "Отказ", r, "rfo")));
     const latest = r.last_touch || r.comment;
     return prefix(r, i) + c(plain(dm(r.issued_date || r.created_date), "dt")) + c(plain(money(r.amount), "am") + (statusName === "Ждём предоплату" && r.adv_sum ? plain("Предоплата " + money(r.adv_sum)) : "")) +
-      c(advanceStatus(r, statusName, archive)) +
+      c(drafts.has(r.status) ? plain(statusName, "chip") : advanceStatus(r, statusName, archive)) +
       c(archive ? plain(r.refuse_reason) : waitingAdvance(r) ? explained("Клиент согласился", "ps paid", "Вероятность уже не оценивается. Теперь важен срок предоплаты.") : prob(r)) +
       c(archive ? plain(dm(r.status_date), "dt") : contact(r)) + c(archive ? plain("—") : dateControl(r, "next_contact")) +
       c(kpTouchCell(r, latest, archive), "l") + noteCell(r) + actionCell(r, actions);
@@ -367,7 +371,7 @@
       }
       markup += '<div class="tr grp '+tone+'">'+("<span class=\"c\"></span>").repeat(12)+'<span class="gl">'+title+' · '+group.length+
         (help ? ' <small>'+help+'</small>' : "")+'</span></div>';
-      markup += group.map(r => '<div class="tr '+tone+(i % 2 ? " z" : "")+'">'+(isPay ? payRow(r,i++) : kpRow(r,i++))+'</div>').join("");
+      markup += group.map(r => '<div tabindex="-1" data-registry-row="'+r.id+'" class="tr '+tone+(i % 2 ? " z" : "")+'">'+(isPay ? payRow(r,i++) : kpRow(r,i++))+'</div>').join("");
     });
     if (!shown.length) markup += '<div class="empty">'+(state.ready ? "Ничего не найдено. Измените фильтр или поиск." : "Загрузка…")+'</div>';
     $("rgTable").innerHTML = markup;
@@ -382,8 +386,25 @@
       state.ready = true;
       $("rgMeta").textContent = [dm(now), data.name].filter(Boolean).join(" · ");
       document.querySelector('[data-action="create"]').hidden = isPay || !state.editable;
+      const selection = target;
+      target = null;
+      const byNumber = selection && selection.startsWith("number/");
+      const row = selection && state.rows.find(r => byNumber ? String(r.number).replace(/^К-/, "") === selection.slice(7).replace(/^К-/, "") : String(r.id) === selection);
+      if (row && !inRegister(row)) {
+        const page = isPay ? "commerce-kp" : "commerce-payments";
+        parent.location.replace(parent.location.href.split("#")[0] + "#/" + page + "/" + row.id);
+        return;
+      }
+      if (row) {
+        state.filter = isPay && payGroup(row) === "arch" ? "arch" : row.status === "Отказ" ? "refused" : "all";
+        $("rgFrom").value = $("rgTo").value = "";
+      }
       render();
-      status("");
+      status(selection && !row ? "КП не найдено в доступных реестрах" : "");
+      if (row) {
+        const element = document.querySelector('[data-registry-row="'+row.id+'"]');
+        if (element) { element.focus({preventScroll:true}); element.scrollIntoView({block:"center"}); }
+      }
     } catch (e) {
       state.ready = true;
       $("rgCount").textContent = "";

@@ -123,7 +123,7 @@
     var b = e.target.closest("[data-stplan],[data-stall],[data-sto],[data-stk]");
     if (!b) return;
     if (b.hasAttribute("data-sto")) { location.hash = "#/task/" + b.getAttribute("data-sto"); return; }
-    if (b.hasAttribute("data-stk")) { location.hash = "#/kpreg/"; return; }
+    if (b.hasAttribute("data-stk")) { location.hash = "#/commerce-kp/" + b.dataset.stk; return; }
     if (b.hasAttribute("data-stall")) { if (b.getAttribute("data-stall") === "debt") debtAll = true; else fcAll = true; reload(); return; }
     var a = b.getAttribute("data-stplan");
     if (a === "edit") { planEdit = true; reload(); setTimeout(function () { var i = document.getElementById("dstPlan"); if (i) i.focus(); }, 300); return; }

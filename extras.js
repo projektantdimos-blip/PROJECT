@@ -303,7 +303,7 @@
     var ps = (window.MPBC && MPBC.me && (MPBC.me.position || (MPBC.me.role === "admin" ? "owner" : ""))) || "";
     var ALL = [["today", "sun", "Сегодня", "#/today"], ["flow", "flow", "Конвейер", "#/flow"], ["tasks", "tasks", ps === "designer" ? "Мои проекты" : ps === "acc" ? "Закрытие" : "Задачи", "#/"], ["tz", "list", "Технические задания", "#/tz"],
       ["cal", "cal", "Занятость", "#/cal"], ["visits", "pin", "Выезды", "#/visits"], ["my", "bell", ps === "designer" ? "План на неделю" : "Мои задачи", "#/my"], ["report", "list", "Пятничный созвон", "#/report"], ["clients", "users", ps === "design" ? "Кому звонить" : "База заказчиков", "#/clients"],
-      ["kpreg", "list", "Реестр КП", "#/kpreg/"], ["kpc", "calc", "Конструктор КП", "#/kpc"], ["price", "list", "Прайс", "#/price"], ["contracts", "file", "Конструктор договоров", "#/contracts"],
+      ["commerce-kp", "list", "Реестр КП", "#/commerce-kp"], ["commerce-payments", "wallet", "Реестр оплат", "#/commerce-payments"], ["kpc", "calc", "Конструктор КП", "#/kpc"], ["price", "list", "Прайс", "#/price"], ["contracts", "file", "Конструктор договоров", "#/contracts"],
       ["team", "team", "Чаты команды", "#/team"], ["chat", "chat", "Мессенджеры", "#/chat"], ["mail", "mail", "Почта", "#/mail"], ["scripts", "list", "Скрипты", "#/scripts"], ["stats", "lock", "Статистика", "#/stats"],
       ["stages", "layers", "Этапы и сроки", "#/stages"], ["onec", "wallet", "Оплаты из 1С", "#/onec"], ["auto", "zap", "Автоматизация", "#/auto"], ["log", "history", "Журнал", "#/log"], ["me", "user", "Кабинет", "#/me"]];
     if (window.DS_WORK && window.dsWorkSubs) {      /* Ч0 «Работа» (index.html): старые пункты заменяются подпунктами «Работы», «Мои задачи» у owner/ops/design — на «Сегодня» */

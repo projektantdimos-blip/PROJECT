@@ -454,8 +454,8 @@ function renderTopNav(){
   var pos = dsPosition();
   var dialNav = window.DSCalls && window.DSCallRoles && DSCallRoles[pos]
     ? '<button type="button" data-dialer="1" title="Позвонить через Sipuni">'+icon("phone")+'<span>Позвонить</span></button>' : "";
-  var sub = '<div class="sub">'+b("#/commerce-kp","list","Реестр КП",cur==="commerce-kp","commerce-kp")+b("#/commerce-payments","wallet","Реестр оплат",cur==="commerce-payments","commerce-payments")+b("#/kpreg/","list","Таблица РОП старая",cur==="kpreg","kpreg")+b("#/orders","list","Заказы",cur==="orders","orders")+b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc")+b("#/price","list","Прайс",cur==="price","price")+b("#/contracts","file","Конструктор договоров",cur==="contracts","contracts")+b("#/onec","wallet","Оплаты 1С",cur==="onec","onec")+'</div>';
-  var comm = (ok("kpreg") || ok("orders") || ok("kpc") || ok("contracts") || ok("onec")) ? '<button data-goto="'+(ok("commerce-kp")?"#/commerce-kp":"#/kpreg/")+'" class="'+(pa==="commerce"?"active":"")+'">'+icon("briefcase")+'<span>Коммерция</span></button>' + (pa==="commerce" ? sub : "") : "";
+  var sub = '<div class="sub">'+b("#/commerce-kp","list","Реестр КП",cur==="commerce-kp","commerce-kp")+b("#/commerce-payments","wallet","Реестр оплат",cur==="commerce-payments","commerce-payments")+b("#/orders","list","Заказы",cur==="orders","orders")+b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc")+b("#/price","list","Прайс",cur==="price","price")+b("#/contracts","file","Конструктор договоров",cur==="contracts","contracts")+b("#/onec","wallet","Оплаты 1С",cur==="onec","onec")+'</div>';
+  var comm = (ok("kpreg") || ok("orders") || ok("kpc") || ok("contracts") || ok("onec")) ? '<button data-goto="'+(ok("commerce-kp")?"#/commerce-kp":ok("orders")?"#/orders":ok("kpc")?"#/kpc":ok("contracts")?"#/contracts":"#/onec")+'" class="'+(pa==="commerce"?"active":"")+'">'+icon("briefcase")+'<span>Коммерция</span></button>' + (pa==="commerce" ? sub : "") : "";
   var lab = function(t, secs){ return secs.some(ok) ? '<div class="nav-label">'+t+'</div>' : ""; };
   var ws = DS_WORK ? dsWorkSubs() : [], wcur = DS_WORK ? dsWorkSub() : "";
   if (wcur) pa = "work";
@@ -474,7 +474,7 @@ function renderTopNav(){
   if (false && DS_WORK && pos === "sales") {      /* спец-меню РОПа отключено (решение владельца 24.11): полное меню как у руководителя; ветку сохранили для отката. Было: меню РОПа по утверждённому макету (17.11) + кнопка звонка (18.11): 12 кнопок в 4 группах; «Оплаты 1С» — вкладка внутри «Реестр КП» */
     var docsOn = cur === "kpc" || cur === "contracts" || cur === "price";
     navHtml = '<div class="nav-label">Работа</div>'
-      + b("#/today","sun","Сегодня",pa==="today","today") + b("#/kpreg/","list","Реестр КП",cur==="kpreg","kpreg") + b("#/orders","list","Заказы",cur==="orders","orders") + b("#/clients","users","Заказчики",cur==="clients","clients")
+      + b("#/today","sun","Сегодня",pa==="today","today") + b("#/commerce-kp","list","Реестр КП",cur==="commerce-kp","commerce-kp") + b("#/orders","list","Заказы",cur==="orders","orders") + b("#/clients","users","Заказчики",cur==="clients","clients")
       + ((ok("kpc") || ok("contracts") || ok("price")) ? '<button data-goto="#/kpc" class="' + (docsOn ? "active" : "") + '">' + icon("file") + "<span>Документы</span></button>"
           + (docsOn ? '<div class="sub">' + b("#/kpc","calc","Конструктор КП",cur==="kpc","kpc") + b("#/contracts","file","Конструктор договоров",cur==="contracts","contracts") + b("#/price","list","Прайс",cur==="price","price") + "</div>" : "") : "")
       + '<div class="nav-label">Общение</div>'
@@ -510,7 +510,7 @@ function renderTopNav(){
     bnAll.filter(bnOk).slice(0, bnSlots).map(function(x){ return bn(x[1], x[2], x[3], pa===x[0]); }).join("")
     + '<button data-more="1">'+icon("menu")+'<span class="bn-t">Ещё</span></button>';
   document.getElementById("subnavM").innerHTML = pa==="commerce"
-    ? [["#/commerce-kp","Реестр КП","commerce-kp"],["#/commerce-payments","Реестр оплат","commerce-payments"],["#/kpreg/","Таблица РОП старая","kpreg"],["#/kpc","Конструктор КП","kpc"],["#/price","Прайс","price"],["#/contracts","Договоры","contracts"]].filter(function(x){ return ok(x[2]); }).map(function(x){ return '<button data-goto="'+x[0]+'" class="tab '+(cur===x[2]?"active":"")+'">'+x[1]+'</button>'; }).join("")
+    ? [["#/commerce-kp","Реестр КП","commerce-kp"],["#/commerce-payments","Реестр оплат","commerce-payments"],["#/kpc","Конструктор КП","kpc"],["#/price","Прайс","price"],["#/contracts","Договоры","contracts"]].filter(function(x){ return ok(x[2]); }).map(function(x){ return '<button data-goto="'+x[0]+'" class="tab '+(cur===x[2]?"active":"")+'">'+x[1]+'</button>'; }).join("")
     : pa==="work" && ws.length > 1
     ? ws.map(function(x){ return '<button data-goto="'+x[1]+'" class="tab '+(wcur===x[0]?"active":"")+'">'+x[3]+'</button>'; }).join("")
     : "";
@@ -533,6 +533,11 @@ function renderTopNav(){
 }function globalRouter(){
   if (!location.hash || location.hash === "#") history.replaceState(null, "", location.pathname + location.search + "#/today");      // приложение открывается на «Сегодня»
   if (location.hash.indexOf("#/dash") === 0) { location.hash = "#/"; return; }       // старые ссылки на «Обзор» ведут в «Задачи»
+  var legacyLead = /^#\/kpreg\/lead\/(\d+)\/?$/.exec(location.hash);
+  if (legacyLead) {
+    location.replace("#/commerce-kp/number/" + (Number(legacyLead[1]) - 1));
+    return;
+  }
   var sec0 = sectionForHash(location.hash);
   if (DS_HIDDEN.indexOf(sec0) >= 0) { location.hash = "#/today"; return; }      // спрятанный раздел (старые ссылки, закладки) — на «Сегодня»
   if (!dsAllowed(sec0)) { var hm = dsPosition() ? (DS_HOME[dsPosition()] || '#/me') : '#/me'; if (location.hash !== hm) { location.hash = hm; return; } }
@@ -547,16 +552,18 @@ function renderTopNav(){
   document.getElementById("kpreg-app").style.display = (sec === "kpreg") ? "block" : "none";
   var registry = document.getElementById("commerce-registry-app");
   var view = sec === "commerce-kp" ? "kp" : sec === "commerce-payments" ? "payments" : "";
+  var target = (location.hash.match(/^#\/commerce-(?:kp|payments)\/((?:number\/)?[^/?#]+)$/) || [])[1] || "";
+  var frameKey = view + "/" + target;
   registry.hidden = !view;
   if (!view) {
     registry.replaceChildren();
     registry.dataset.view = "";
-  } else if (dsPosition() && window.DS && registry.dataset.view !== view) {
+  } else if (dsPosition() && window.DS && registry.dataset.view !== frameKey) {
     var frame = document.createElement("iframe");
     frame.title = view === "kp" ? "Реестр КП" : "Реестр оплат";
-    frame.src = "commerce_registry.html?v=20261128i&view=" + view;
+    frame.src = "commerce_registry.html?v=20261128n&view=" + view + (target ? "&target=" + target.replace("/", "%2F") : "");
     frame.style.cssText = "display:block;border:0;width:100%;height:100dvh";
-    registry.dataset.view = view;
+    registry.dataset.view = frameKey;
     registry.replaceChildren(frame);
   }
   document.getElementById("orders-app").style.display = (sec === "orders") ? "block" : "none";
@@ -703,15 +710,15 @@ globalRouter();
 </script>
 <script src="crm.js?v=20261125a"></script>
 <script src="download.js?v=20261125a"></script>
-<script src="extras.js?v=20261125a"></script>
+<script src="extras.js?v=20261128n"></script>
 <script src="team.js?v=20261125a"></script>
 <script src="teamsearch.js?v=20261125a"></script>
 <script src="ai.js?v=20261125a"></script>
-<script src="chatpanel.js?v=20261125a"></script>
-<script src="ds.js?v=20261128m"></script>
+<script src="chatpanel.js?v=20261128n"></script>
+<script src="ds.js?v=20261128n"></script>
 <script src="ds_cust.js?v=20261125a"></script>
 <script src="ds_risk.js?v=20261125a"></script>
-<script src="ds_tasks.js?v=20261125a"></script>
+<script src="ds_tasks.js?v=20261128n"></script>
 <script src="ds_friday.js?v=20261128l"></script>
 <script src="ds_ops_friday.js?v=20261127e"></script>
 <script src="ds_design_friday.js?v=20261127e"></script>
@@ -720,14 +727,14 @@ globalRouter();
 <script src="ds_contract.js?v=20261125a"></script>
 <script src="report_sales.js?v=20261128l"></script>
 <script src="work_load.js?v=20261127c"></script>
-<script src="work_conv.js?v=20261125a"></script>
+<script src="work_conv.js?v=20261128n"></script>
 <script src="work_how.js?v=20261125a"></script>
-<script src="stats.js?v=20261125a"></script>
-<script src="visits.js?v=20261125a"></script>
+<script src="stats.js?v=20261128n"></script>
+<script src="visits.js?v=20261128n"></script>
 <script src="calls.js?v=20261125a"></script>
 <script src="remind.js?v=20261125a"></script>
 <script src="ds_today_rop.js?v=20261125a"></script>
-<script src="today.js?v=20261125b"></script>
+<script src="today.js?v=20261128n"></script>
 <script>
 (function(){
   var KEY = "ds_theme", t = "light";

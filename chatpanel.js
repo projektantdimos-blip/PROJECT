@@ -349,7 +349,7 @@
           + (o.left_days != null ? " · " + (o.left_days < 0 ? "просрочено " : "осталось ") + Math.abs(o.left_days) + " дн." : "") + "</small></a>";
       }).join("") || '<p class="note" style="margin:0">Проектных задач пока нет</p>') + "</div>";
       h += '<div class="pb pb-purple"><h5>Предложения</h5>' + (l.kp.map(function (k) {
-        return '<a class="pi" href="#/kpreg/"><b>КП №' + E(String(k.number).replace(/^К-/, "")) + " · " + money(k.amount) + "</b><small>"
+        return '<a class="pi" href="#/commerce-kp/number/' + encodeURIComponent(k.number) + '"><b>КП №' + E(String(k.number).replace(/^К-/, "")) + " · " + money(k.amount) + "</b><small>"
           + (k.issued_date ? "выставлено " + dmy(k.issued_date) : "черновик, не отправлено") + (k.object ? " · " + E(k.object) : "") + "</small></a>";
       }).join("") || '<p class="note" style="margin:0">Предложений пока нет</p>') + "</div>";
       h += '<div class="pb pb-gray"><h5>Передать по конвейеру</h5>'

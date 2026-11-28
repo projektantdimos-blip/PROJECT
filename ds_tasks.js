@@ -50,7 +50,7 @@ function orgRow(it) {
     tn = kpTone(k);
     return '<div class="ovr"><div class="ovl"><span class="num">' + E(kpNo(k.number)) + '</span><span class="cu" title="' + E(k.customer) + '">' + E(k.customer) + '</span><span class="ob">' + E(k.object || "") + "</span>"
       + '<span class="pill info">' + E(kpStatusLabel(k.status)) + '</span><span class="ex">' + E(k.manager || "") + '</span><span class="pill ' + tn + '">'
-      + (k.last_days == null ? "нет общения" : k.last_days === 0 ? "общались сегодня" : "без общения " + plural(k.last_days, ["день", "дня", "дней"])) + '</span><span class="lc"></span><a class="cmb" href="#/kpreg/">Открыть</a></div></div>';
+      + (k.last_days == null ? "нет общения" : k.last_days === 0 ? "общались сегодня" : "без общения " + plural(k.last_days, ["день", "дня", "дней"])) + '</span><span class="lc"></span><a class="cmb" href="#/commerce-kp/' + k.id + '">Открыть</a></div></div>';
   }
   tn = taskTone(u);
   var acts = "";
@@ -121,7 +121,7 @@ function olRow(x, sel) {
     title = E(kpNo(k.number)) + " · " + E(kpStatusLabel(k.status));
     sub = [k.customer || "", k.object || "", k.amount ? money(k.amount) : ""].filter(Boolean).join(" · ");
     who = k.manager || "";
-    attr = 'data-kpgo="1" title="Открыть реестр КП"';
+    attr = 'data-kpgo="' + k.id + '" title="Открыть реестр КП"';
   }
   return '<div class="olr' + (sel ? " sel" : "") + '" ' + attr + ">" + ck + '<div style="min-width:0"><div class="olt">' + title + '</div><div class="ols">' + E(sub || "—") + "</div></div>"
     + '<span class="oltag"><b style="background:' + col[2] + '"></b>' + E(col[0] === "np" ? "Не проектная" : col[1]) + "</span>"

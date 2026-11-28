@@ -348,7 +348,7 @@
       var r = key === "late" ? '<b class="bad">контакт был ' + E(dm(k.next_contact)) + "</b>" : key === "today" ? "<b>сегодня</b>" : '<b class="org">без даты</b>';
       var call = window.DSCalls && String(k.phone || "").replace(/\D/g, "").length >= 10 ?'<button type="button" class="btn ghost sm" data-dial="' + E(k.phone) + '" data-dcid="' + (k.customer_id || 0) + '" data-dwho="' + E(k.fio || "") + '">Позвонить</button>' : "";
       return row(dot(key === "late" ? "bad" : key === "today" ? "info" : "org"), "КП №" + E(k.number) + " · " + E(k.customer || ""), [money(k.amount), k.status, last].filter(Boolean).map(E).join(" · "), r,
-        btn("Актуализировать", 'data-tdtouch="' + k.id + '"', "primary") + call + btn("Открыть", 'data-tdhash="#/kpreg/"'));
+        btn("Актуализировать", 'data-tdtouch="' + k.id + '"', "primary") + call + btn("Открыть", 'data-tdhash="#/commerce-kp/' + k.id + '"'));
     }
     var h = (g.late.length ? grp("Просрочено", g.late.length) + cap("nc_late", g.late.map(function (k) { return kRow(k, "late"); })) : "")
       + (g.today.length ? grp("Сегодня", g.today.length, "info") + cap("nc_today", g.today.map(function (k) { return kRow(k, "today"); })) : "")
@@ -374,14 +374,14 @@
         var s = k.adv_sum || k.amount || 0, late = k.pay_expect && k.pay_expect < td, now = k.pay_expect === td; psum += s;
         return row(dot(late ? "bad" : now ? "ok" : "warn"), E(k.number) + " · " + E(k.customer || ""), [k.watch_note ? "💬 " + k.watch_note : "", k.object, k.manager].filter(Boolean).map(E).join(" · "),
           "<b" + (late ? ' class="bad"' : "") + ">" + (!k.pay_expect ? "без даты" : now ? "сегодня" : (late ? "просрочено, " : "к ") + E(dm(k.pay_expect))) + "</b>" + money(s),
-          btn("Актуализировать", 'data-tdtouch="' + k.id + '"') + btn("Реестр", 'data-tdhash="#/kpreg/"'));
+          btn("Актуализировать", 'data-tdtouch="' + k.id + '"') + btn("Реестр", 'data-tdhash="#/commerce-payments/' + k.id + '"'));
       })), "", "Обещали на сумму " + money(psum));
     }
     if (b.kp_silent && b.kp_silent.length) {
       var sum = b.kp_silent.reduce(function (a, k) { return a + (k.amount || 0); }, 0);
       h += panel("kp_silent", "КП без ответа", b.kp_silent.length, cap("kp_silent", b.kp_silent.map(function (k) {
         return row(dot(k.last_days >= 2 * b.kp_silent_days ? "bad" : "warn"), E(k.number) + " · " + E(k.customer || ""), [k.object, k.status, k.manager].filter(Boolean).map(E).join(" · "),
-          "<b>" + money(k.amount) + "</b>" + k.last_days + " р.д. без ответа", btn("Актуализировать", 'data-tdtouch="' + k.id + '"') + btn("Реестр", 'data-tdhash="#/kpreg/"'));
+          "<b>" + money(k.amount) + "</b>" + k.last_days + " р.д. без ответа", btn("Актуализировать", 'data-tdtouch="' + k.id + '"') + btn("Реестр", 'data-tdhash="#/commerce-kp/' + k.id + '"'));
       })), "", "Без ответа " + b.kp_silent_days + " р.д. и дольше (порог правила «КП без ответа») · на сумму " + money(sum));
     }
     if (b.wait_pay && b.wait_pay.length) {
@@ -389,7 +389,7 @@
       var rows = cap("wait_pay", b.wait_pay.map(function (x) {
         if (x.type === "kp") {
           var s = x.adv_sum || x.amount || 0; tot += s;
-          return row(dot("warn"), E(x.number) + " · " + E(x.customer || ""), [x.status, x.object].filter(Boolean).map(E).join(" · "), "<b>" + money(s) + "</b>" + (x.adv_sum ? "аванс" : "сумма"), btn("Реестр", 'data-tdhash="#/kpreg/"'));
+          return row(dot("warn"), E(x.number) + " · " + E(x.customer || ""), [x.status, x.object].filter(Boolean).map(E).join(" · "), "<b>" + money(s) + "</b>" + (x.adv_sum ? "аванс" : "сумма"), btn("Реестр", 'data-tdhash="#/commerce-payments/' + x.id + '"'));
         }
         var a = x.adv_sum || 0; tot += a;
         return row(dot((x.late != null ? x.late : x.days >= 5) ? "bad" : "warn"), "№" + E(x.number) + " · " + E(x.customer || ""), "Ожидает аванс " + x.days + " р.д." + (x.object ? " · " + E(x.object) : ""), a ? "<b>" + money(a) + "</b>аванс" : "", btn("Открыть", 'data-tdorder="' + x.id + '"'));
@@ -402,7 +402,7 @@
         dsum += x.debt;
         var call = window.DSCalls && String(x.phone || "").replace(/\D/g, "").length >= 10 ? '<button type="button" class="btn ghost sm" data-dial="' + E(x.phone) + '" data-dcid="' + (x.customer_id || 0) + '" data-dwho="' + E(x.fio || "") + '">Позвонить</button>' : "";
         return row(dot("bad"), "Договор №" + E(x.contract_number) + " · " + E(x.customer || ""), [x.object, x.status].filter(Boolean).map(E).join(" · "),
-          "<b>" + money(x.debt) + "</b>просрочка " + x.over_wd + " р.д.", call + btn("Реестр", 'data-tdhash="#/kpreg/"'));
+          "<b>" + money(x.debt) + "</b>просрочка " + x.over_wd + " р.д.", call + btn("Реестр", 'data-tdhash="#/commerce-payments/' + x.id + '"'));
       })), "", "Просрочено по договорам: " + money(dsum) + " · срок — обещанная дата или дата договора + срок оплаты");
     }
     // Д4: распределённым — пометка «распределено ДД.ММ — переведите» и «→ В проектирование»; плановое начало прошло — красным (правило ready_thu, Г-11)
@@ -519,7 +519,7 @@
       var b = e.target.closest("button"); if (!b) return;
       if (b.dataset.tkind) { st.kind = b.dataset.tkind; return paintM(); }
       if (b.dataset.twhen) { st.when = b.dataset.twhen; paintM(); var di = bg.querySelector("[data-tdate]"); if (di) di.focus(); return; }
-      if (b.dataset.trefuse) { close(); location.hash = "#/kpreg/"; toast("КП №" + k.number + ": поставьте статус «Отказ» и укажите причину"); return; }
+      if (b.dataset.trefuse) { close(); location.hash = "#/commerce-kp/" + k.id; toast("КП №" + k.number + ": поставьте статус «Отказ» и укажите причину"); return; }
       if (b.dataset.tsave) {
         var nc = nextIso(), note = (bg.querySelector("[data-tnote]") || {}).value || "";
         if (!ready()) return;
