@@ -92,6 +92,7 @@
   }
 
   V.mount = function () {
+    V.quick=null;
     var el = root();
     if (!el) return;
     if (!C() || !C().loggedIn()) { el.innerHTML = '<div class="ds dspage"><div class="head"><div><h1>Выезды</h1><p>Войдите, чтобы увидеть выезды</p></div></div></div>'; return; }
@@ -128,42 +129,164 @@
     if (v.state==="plan" && v.previous_day) return "Перенесён";
     return STATE[v.state] || v.state;
   }
-  function groups() {
-    var rows=shown().filter(v=>matches(v,V.tab));
-    if (!rows.length) return '<div class="vz-empty">В этом разделе выездов нет</div>';
-    var headers=[["№", "Номер строки в группе"], ["Дата выезда", "Когда едут на объект. «Нет даты» — выезд запрошен, но не назначен."], ["Объект", "Адрес, номер проекта, вид работ, заказчик и тип выезда."], ["Кто едет", "Дмитрий или Александр Ядыкин."], ["Запросили", "Когда Полина попросила выезд. Норма — назначить дату в течение 1 р.д."], ["Статус", "Где сейчас выезд. Красная плашка — нарушена норма: дата не назначена, материалов нет или они не переданы проектировщику."], ["ТЗ на сборе", "Сколько рабочих дней собирается ТЗ этого проекта. Берётся из вкладки «ТЗ». Красное — сверх нормы 5 р.д."], ["Действия", "Следующее действие по выезду. Кнопка меняется по статусу."]];
-    var bands=[["issue","Требуют действия"],["requested","Ждут даты"],["materials","Материалы: получить и передать"],["plan","Предстоящие"],["done","Готово"],["cancel","Отменено"]];
-    var body=bands.map(function(g) {
-      var list=rows.filter(v=>g[0]==="issue"?!!v.issue:!v.issue && matches(v,g[0]));
-      if(g[0]==="done") list.reverse();
-      if(!list.length)return "";
-      return '<tr class="vb-'+g[0]+'"><th colspan="8">'+g[1]+' · '+list.length+'</th></tr>'+list.map(function(v,i){
-        var action = v.state==="requested" && V.meta.driver ? "Назначить дату" :
-          v.state==="plan" && v.mine ? "Отметить выезд" : v.state==="occurred" && pos()==="ops" ? "Получить материалы" :
-          v.state==="received" && pos()==="ops" ? "Передать материалы" : "Открыть";
-        var detail=v.reason?(v.previous_day?'Было '+dm(v.previous_day)+' · ':'')+v.reason:v.handed_on?dm(v.handed_on):v.received_on?dm(v.received_on):"";
-        return '<tr><td>'+(i+1)+'</td><td>'+E(v.day?dm(v.day):"Нет даты")+'</td><td><b>'+E(v.address||v.object)+'</b><small>'+E(["№"+v.order_number,v.system,v.customer].filter(Boolean).join(" · "))+'</small><small>'+E(v.kind_label)+'</small></td><td>'+E(v.executor||"Не назначен")+'</td><td>'+dm(v.asked)+'<small>'+E(v.created_by)+'</small></td><td><b class="vz-state vs-'+E(v.state==='plan' && v.previous_day?'moved':v.state)+'">'+E(statusLabel(v))+'</b><small>'+E(detail)+'</small>'+(v.issue?'<strong>'+E(v.issue)+'</strong>':'')+'</td><td>'+((v.tz_days==null || ["done","cancel"].includes(v.state))?"—":'<span class="'+(v.tz_days>5?"vz-over":"")+'">'+v.tz_days+" р.д.</span>")+'</td><td><button class="btn ghost sm" data-vsel="'+v.id+'">'+action+'</button></td></tr>';
-      }).join("");
-    }).join("");
-    return '<div class="vz-scroll"><table class="vz-table"><thead><tr>'+headers.map(h=>'<th title="'+E(h[1])+'">'+h[0]+' <small>?</small></th>').join("")+'</tr></thead><tbody>'+body+'</tbody></table></div>';
+var visitStatus={
+ req:['Запрошен','#f8dcd8','#a5281b','Полина попросила выезд, даты ещё нет. Норма — назначить дату в течение 1 р.д.'],
+ plan:['Назначен','#e1eaf6','#1d4f9e','Дата и кто едет известны.'],
+ moved:['Перенесён','#f6ead0','#7a5300','Дату перенесли. Причина видна под меткой.'],
+ wait:['Был, ждём материалы','#f8e2cf','#8a4310','Выезд состоялся, у Полины материалов ещё нет. Норма — 1 р.д.'],
+ got:['Материалы у Полины','#ebe6f6','#3b2d66','Материалы получены. Передать проектировщику в тот же день.'],
+ sent:['Передано проектировщику','#d9efe0','#17653a','Готово: материалы ушли в проектирование.'],
+ cancel:['Отменён','#eceff3','#4a5566','Выезд не нужен или заказчик отказался.']
+};
+  function shortDay(day, weekday) {
+    const d = pd(day);
+    return d ? day.slice(8,10) + "." + day.slice(5,7) + (weekday ? " (" + WD[d.getDay()] + ")" : "") : "—";
   }
+  function personColor(name) {
+    if (/дмитри/i.test(name)) return "#2f7d55";
+    if (/ядыкин/i.test(name)) return "#c0466e";
+    return color(name);
+  }
+  function person(name) {
+    return name ? '<span class="pers"><span class="av" style="background:'+personColor(name)+'">'+E(name[0])+'</span>'+E(name)+'</span>' : '<span class="pl r">не назначен</span>';
+  }
+  function row(v,i,group) {
+    const key = {requested:"req",plan:v.previous_day?"moved":"plan",occurred:"wait",received:"got",done:"sent",cancel:"cancel"}[v.state];
+    const st=visitStatus[key] || [statusLabel(v),"#eceff3","#4a5566",""];
+    const d=pd(v.day), age=v.tz_days;
+    const dateCell=d ? '<span class="dd"><b>'+d.getDate()+'</b><span>'+MON_S[d.getMonth()]+', '+WD[d.getDay()]+'</span></span>'+(v.day===today()?'<span class="pl b">сегодня</span>':'') : '<span class="dd none"><b>нет даты</b><span>с '+shortDay(v.asked)+'</span></span>';
+    let detail="";
+    if(key==="moved") detail="было "+shortDay(v.previous_day)+" · "+(v.reason||"");
+    if(key==="cancel") detail=v.reason||"";
+    if(key==="sent" && v.handed_on) detail=shortDay(v.handed_on,true);
+    if(key==="got" && v.received_on) detail="получено "+shortDay(v.received_on,true);
+    const tz=age==null || ["done","cancel"].includes(v.state) ? '<span class="sb">—</span>' :
+      '<span class="days '+(age>5?'r':'g')+'">'+E(age)+'</span><span class="pl '+(age>5?'r':'g')+'">'+(age>5?'сверх нормы '+(age-5):'в норме')+'</span>';
+    let acts="";
+    function button(label,op,cls) {
+      return '<button type="button" class="'+cls+'" data-vrow="'+v.id+'" data-op="'+op+'">'+label+'</button>';
+    }
+    if(key==="req" && V.meta.driver) acts+=button("Назначить дату","edit","b sm bl");
+    if(v.state==="plan" && v.executor_id===meId()) acts+=button("Выезд состоялся","occurred","b sm bl");
+    if(v.state==="plan" && V.meta.driver) acts+=button("Перенести","edit","b sm");
+    if(key==="wait" && pos()==="ops") acts+=button("Материалы получены","materials","b sm gr");
+    if(key==="got" && pos()==="ops") acts+=button("Передала проектировщику","done","b sm gr");
+    if(pos()==="ops" && !["done","cancel"].includes(v.state)) acts+=button("отменить","cancel","ex");
+    const cells=[
+      '<span class="nb">'+(i+1)+'</span>',dateCell,
+      '<button class="nm" data-vsel="'+v.id+'">'+E(v.address||v.object||"Открыть выезд")+'</button><span class="ob">'+E([v.order_number?"№"+v.order_number:"",v.system,v.customer].filter(Boolean).join(" · "))+'</span><span class="who">'+E(v.kind_label)+'</span>',
+      person(v.executor),'<span class="dt">'+shortDay(v.asked,true)+'</span><span class="sb">'+E(v.created_by?"запросила "+v.created_by:"")+'</span>',
+      '<span class="chip" style="background:'+st[1]+';color:'+st[2]+'" tabindex="0" data-visit-tip="'+E(st[3])+'">'+E(st[0])+'</span>'+(detail?'<span class="sb">'+E(detail)+'</span>':'')+(v.issue?'<span class="pl r">'+E(v.issue)+'</span>':''),
+      tz,acts||'<span class="sb">—</span>'
+    ];
+    return '<div class="tr '+group+(i%2?' z':'')+'">'+cells.map((cell,n)=>'<span class="c'+(n===7?' acts':'')+'">'+cell+'</span>').join("")+'</div>';
+  }
+function band(c,t){var s='';for(var j=0;j<8;j++)s+='<span class="c"></span>';return '<div class="tr grp '+c+'">'+s+'<span class="gl">'+t+'</span></div>';}
+
+  function groups() {
+    const headers=["№","Дата выезда","Объект","Кто едет","Запросили","Статус","ТЗ на сборе","Действия"];
+    const tips={"Дата выезда": "Когда едут на объект. «Нет даты» — выезд запрошен, но не назначен.", "Объект": "Адрес, номер проекта, вид работ, заказчик и тип выезда.", "Кто едет": "Дмитрий или Александр Ядыкин.", "Запросили": "Когда Полина попросила выезд. Норма — назначить дату в течение 1 р.д.", "Статус": "Где сейчас выезд. Красная плашка — нарушена норма: дата не назначена, материалов нет или они не переданы проектировщику.", "ТЗ на сборе": "Сколько рабочих дней собирается ТЗ этого проекта. Берётся из вкладки «ТЗ». Красное — сверх нормы 5 р.д.", "Действия": "Следующее действие по выезду. Кнопка меняется по статусу."};
+    let html='<div class="tr hd">'+headers.map((h,i)=>'<span class="c'+(tips[h]?' hq':'')+'" tabindex="0" data-visit-tip="'+E(tips[h]||"")+'">'+h+(i===2?'<small>адрес · проект · заказчик</small>':i===6?'<small>р.д.</small>':'')+'</span>').join("")+'</div>';
+    const rows=shown().filter(v=>matches(v,V.tab));
+    let i=0;
+    for(const [key,cls,title,note] of [["issue","r","Требуют действия","нарушена норма — сначала эти"],["requested","o","Ждут даты","Полина запросила выезд"],["materials","v","Материалы: получить и передать","выезд был"],["plan","bu","Предстоящие","по дате выезда"],["done","gr","Готово","материалы у проектировщика"],["cancel","g","Отменено",""]]) {
+      const list=rows.filter(v=>key==="issue"?v.issue:!v.issue && matches(v,key)).sort((a,b)=>(a.day||"").localeCompare(b.day||"")*(key==="done"?-1:1));
+      if(!list.length) continue;
+      html+=band(cls,title+' · '+list.length+' <small>'+note+'</small>');
+      for(const v of list) html+=row(v,i++,cls);
+    }
+    return html+(rows.length?"":'<div class="empty">Ничего нет.</div>');
+  }
+function kpi(c,l,v,d){return '<div class="kpi" style="background:'+c+'"><span class="lb">'+l+'</span><b>'+v+'</b><span class="description">'+d+'</span></div>';}
+
   function summary() {
-    var handed = V.data?.summary?.handed || {};
-    var cards=[["Выездов за месяц",shown().filter(v=>v.day && v.state!=="cancel").length],["Ждут даты",tabCount("requested")],["Материалы не у проектировщика",tabCount("materials")],["Передано проектировщику",V.who ? (handed[V.who] || 0) : Object.values(handed).reduce((a,b)=>a+b,0)]];
-    return '<div class="vz-sum">'+cards.map((a,i)=>'<div class="vz-st"><small>'+a[0]+'</small><b>'+a[1]+'</b><small class="vz-kpi-note">'+E(["Без даты: "+tabCount("requested"),"Назначить в течение 1 р.д.","Получить за 1 р.д. · передать в день получения","По дате фактической передачи"][i])+'</small></div>').join("")+'</div>';
+    const rows=items(), dated=rows.filter(v=>v.day && v.state!=="cancel"), req=rows.filter(v=>v.state==="requested");
+    const late=req.filter(v=>v.issue).length;
+    const inMonth=["январе","феврале","марте","апреле","мае","июне","июле","августе","сентябре","октябре","ноябре","декабре"][Number(V.month.slice(5))-1];
+    const handed=Object.values(V.data?.summary?.handed||{}).reduce((a,b)=>a+b,0);
+    return kpi("#5b84c4","Выездов в "+inMonth,dated.length+" <small>выполнено "+dated.filter(v=>["occurred","received","done"].includes(v.state)).length+"</small>","Плюс запрошено без даты: "+req.length+".")+
+      kpi("#c0564d","Ждут даты",req.length+(late?" <small>просрочено "+late+"</small>":""),"Полина запросила, дату не назначили. Норма — 1 р.д. Пока даты нет, ТЗ стоит.")+
+      kpi("#d08a4e","Материалы не у проектировщика",rows.filter(v=>matches(v,"materials")).length,"Выезд был, но материалы ещё не дошли до проектирования. Норма — 1 р.д. после выезда.")+
+      kpi("#4f8a68","Передано проектировщику",handed,"В "+inMonth+". Перенесено выездов: "+rows.filter(v=>v.state==="plan" && v.previous_day).length+".");
   }
   function chips() {
-    var a = items(), cnt = {}, names = {};
-    (V.meta?.people || []).forEach(p=>{cnt[p.id]=0; names[p.id]=p.name;});
-    a.forEach(function (v) { if (v.state === "cancel" || !v.executor_id) return; cnt[v.executor_id] = (cnt[v.executor_id] || 0) + 1; names[v.executor_id] = v.executor; });
-    var city = {};
-    ((V.meta && V.meta.cities) || []).forEach(function (c) { if (c.executor_id) city[c.executor_id] = c.city === "Санкт-Петербург" ? "СПб" : c.city; });
-    var all = a.filter(function (v) { return v.state !== "cancel"; }).length;
-    return '<button class="vz-chip' + (!V.who ? " on" : "") + '" data-vwho="">Все <small>' + all + "</small></button>"
-      + Object.keys(cnt).map(function (id) {
-        return '<button class="vz-chip' + (V.who === id ? " on" : "") + '" data-vwho="' + id + '">' + av(names[id]) + E(names[id] || "—") + (city[id] ? " · " + E(city[id]) : "") + " <small>" + cnt[id] + "</small></button>";
-      }).join("");
+    const people=new Map((V.meta?.people||[]).map(p=>[String(p.id),p.name]));
+    for(const v of items()) if(v.executor_id) people.set(String(v.executor_id),v.executor);
+    people.delete("");
+    return [["","Все"],...people].map(([id,name])=>'<button class="pch'+(V.who===id?' on':'')+'" data-vwho="'+E(id)+'">'+(id?'<span class="av" style="background:'+personColor(name)+'">'+E((name||"?")[0])+'</span>':'')+E(name)+' <span class="n">'+items().filter(v=>v.state!=="cancel" && (!id || String(v.executor_id)===id)).length+'</span></button>').join("");
   }
+
+  function clearTip() { root()?.querySelector(".visit-tip")?.remove(); }
+  function showTip(e) {
+    const node=e.target.closest?.("[data-visit-tip]");
+    if(!node || !root()?.contains(node) || !node.dataset.visitTip) return;
+    clearTip();
+    const tip=document.createElement("div");
+    tip.className="visit-tip"; tip.textContent=node.dataset.visitTip; tip.setAttribute("role","tooltip");
+    root().append(tip);
+    const box=node.getBoundingClientRect();
+    tip.style.left=Math.max(8,Math.min(innerWidth-tip.offsetWidth-8,box.left+(box.width-tip.offsetWidth)/2))+"px";
+    tip.style.top=(box.bottom+tip.offsetHeight+8<innerHeight?box.bottom+6:Math.max(8,box.top-tip.offsetHeight-6))+"px";
+  }
+  for(const event of ["mouseover","focusin"]) document.addEventListener(event,showTip);
+  for(const event of ["mouseout","focusout"]) document.addEventListener(event,e=>{
+    if(e.target.closest?.("[data-visit-tip]")) clearTip();
+  });
+  document.addEventListener("keydown",e=>{
+    if(e.key==="Escape" && root()?.offsetWidth && (V.quick||V.form||V.sel)) root().querySelector("[data-vclose]")?.click();
+  });
+  function quickDialog() {
+    const v=byId(V.sel), mode=V.quick;
+    const project=v?' · №'+E(v.order_number||v.kp_number||"—"):"";
+    const titles={request:"Запросить выезд",assign:"Назначить выезд",move:"Перенести выезд",materials:"Материалы с выезда"};
+    const submit={request:"Запросить",assign:"Назначить",move:"Перенести",materials:"Сохранить"};
+    let fields="", sub=v?E(v.address||v.object):"Запрос увидят Дмитрий и Александр. Норма — назначить дату в течение 1 р.д.";
+    if(mode==="request"){
+      const orders=window.DS?.orders?.()||[];
+      fields='<label class="fld"><span>Проект <i>*</i></span><select name="order" required><option value="">Выберите проект</option>'+orders.map(o=>'<option value="'+E(o.id)+'">'+E(o.label||o.number)+'</option>').join("")+'</select></label><label class="fld"><span>Адрес объекта <i>*</i></span><input name="address" required></label><button type="button" class="ex" data-vadvanced>Расширенная форма</button>';
+    } else if(mode==="materials"){
+      sub="Отметьте, какие материалы получила Полина.";
+      fields='<div class="cl">'+V.meta.materials.map(m=>'<label><input type="checkbox" name="material" value="'+E(m)+'">'+E(m)+'</label>').join("")+'</div>';
+    } else {
+      const day=pd(today()), choices=[];
+      for(let i=1;i<=3;i++){
+        do { day.setDate(day.getDate()+1); } while([0,6].includes(day.getDay()));
+        choices.push('<button type="button" class="op" data-field="day" data-value="'+iso(day)+'">+'+i+' р.д. <small>'+shortDay(iso(day),true)+'</small></button>');
+      }
+      fields='<label class="fld"><span>Дата выезда <i>*</i></span><span class="opts">'+choices.join("")+'</span><input name="day" type="date" min="'+today()+'" required></label>';
+      const options=mode==="assign"?V.meta.people.map(p=>[p.id,p.name]):["перенёс заказчик","заняты мы","нет доступа на объект","погода"].map(x=>[x,x]);
+      const name=mode==="assign"?"executor":"reason";
+      fields+='<div class="fld"><span>'+(mode==="assign"?"Кто едет":"Причина")+' <i>*</i></span><span class="opts">'+options.map(([value,label])=>'<button type="button" class="op" data-field="'+name+'" data-value="'+E(value)+'">'+E(label)+'</button>').join("")+'</span>'+(mode==="move"?'<input name="reason" required placeholder="Причина переноса">':'<input name="executor" type="hidden">')+'</div>';
+    }
+    return '<div class="ov"><form class="md" id="vzQuick" role="dialog" aria-modal="true" aria-labelledby="vzTitle"><div class="mh"><div><h3 id="vzTitle">'+titles[mode]+project+'</h3><p>'+sub+'</p></div><button type="button" class="x" data-vclose aria-label="Закрыть">×</button></div><div class="mb">'+fields+'<span class="err" role="alert"></span></div><div class="mf"><button type="button" class="b" data-vclose>Отмена</button><button class="b '+(mode==="materials"?"gr":"bl")+'">'+submit[mode]+'</button></div></form></div>';
+  }
+  document.addEventListener("submit",async function(e){
+    const form=e.target;
+    if(form.id!=="vzQuick" || !root()?.contains(form)) return;
+    e.preventDefault();
+    if(V.busy) return;
+    const f=new FormData(form), mode=V.quick;
+    const id=V.sel;
+    let path="", body;
+    const err=form.querySelector(".err");
+    if(mode==="request"){
+      body={order_id:Number(f.get("order")),kind:"survey",address:f.get("address").trim(),take:TAKE.survey.map(t=>({t}))};
+      if(!body.address){err.textContent="Укажите адрес объекта"; return;}
+    } else if(mode==="materials"){
+      path="/"+id+"/status"; body={status:"received",received_items:f.getAll("material")};
+      if(!body.received_items.length){err.textContent="Отметьте полученные материалы";return;}
+    } else {
+      path="/"+id+"/edit";body={day:f.get("day")};
+      if(mode==="assign"){
+        body.executor_id=Number(f.get("executor"));
+        if(!body.executor_id){err.textContent="Выберите исполнителя";return;}
+      } else body.reason=f.get("reason").trim();
+    }
+    V.busy=true;
+    try { const visit=await api(path,body); V.month=(visit.day||visit.asked).slice(0,7); V.quick=null; V.sel=0; put(visit); paint(); }
+    catch(error){err.textContent=String(error);}
+    finally {V.busy=false;}
+  });
 
   /* ---------- карточка ---------- */
   function folder(v) {
@@ -309,16 +432,17 @@
     var el = root();
     if (!el || el.style.display === "none") return;
     var y = +V.month.slice(0, 4), m = +V.month.slice(5, 7);
-    var dr = V.form ? formHtml() : drawer(byId(V.sel));
-    el.innerHTML = '<div class="ds dspage"><div class="head"><div><h1>Выезды</h1><p>Выезды для сбора ТЗ · дату и материалы ждём по одному рабочему дню. Передача проектировщику — в день получения.</p></div>'
-      + (pos()==="ops" ? '<button class="btn primary" data-vnew="1">+ Запросить выезд</button>' : "") + "</div>"
-      + (V.err && !V.form ? '<div class="vz-note bad" style="margin-bottom:12px">' + E(V.err) + "</div>" : "")
-      + summary()
-      + '<div class="vz-bar">' + chips() + '<div class="vz-month"><button data-vmon="-1" title="Предыдущий месяц">‹</button>' + (V.month < today().slice(0,7) ? "Архив · " : "") + MONTHS[m - 1] + " " + y + '<button data-vmon="1" title="Следующий месяц">›</button></div></div>'
-      + '<div class="vz-tabs">' + Object.entries(FILTERS).map(function (t) {
-        var n = tabCount(t[0]); return '<button class="' + (V.tab === t[0] ? "on" : "") + '" data-vtab="' + t[0] + '">' + t[1] + '<span class="' + (t[0] === "need" && n ? "bad" : "") + '">' + n + "</span></button>";
-      }).join("") + "</div>"
-      + '<div class="vz-wrap' + (dr ? " dr" : "") + '"><section class="vz-list">' + groups() + "</section>" + dr + "</div></div>";
+    var dr = V.quick ? "" : V.form ? formHtml() : drawer(byId(V.sel));
+    const colors=[["#fff","#1b3a5e"],["#f8dcd8","#a5281b"],["#fdeeed","#a5281b"],["#e1eaf6","#1d4f9e"],["#f8e2cf","#8a4310"],["#d9efe0","#17653a"],["#eceff3","#4a5566"]];
+    const buttons=Object.entries(FILTERS).map(([key,label],i)=>'<button class="ft'+(V.tab===key?' on':'')+'" data-vtab="'+key+'" style="background:'+colors[i][0]+';color:'+colors[i][1]+(i===0?';border-color:#c3ccd8':'')+'">'+label+' · '+tabCount(key)+'</button>').join("");
+    const td=today();
+    el.innerHTML='<div class="visit-register"><div class="visit-wrap"><div class="visit-top"><div><h1>Выезды</h1><div class="sub">Сегодня '+WD[pd(td).getDay()]+' '+shortDay(td)+' · выезды на объект для сбора ТЗ</div></div>'+
+      (pos()==="ops"?'<button class="b bl" data-vnew="1">+ Запросить выезд</button>':'')+'</div>'+
+      (V.err && !V.form?'<div role="alert">'+E(V.err)+'</div>':'')+
+      '<div class="intro">Выезд нужен, чтобы <b>собрать ТЗ</b>. Полина запрашивает выезд. Дмитрий или Александр назначают дату. После выезда материалы — в течение <b>1 р.д.</b> у Полины, в тот же день — у проектировщика. Пока материалов нет, ТЗ стоит, и дни на сборе идут.</div><div class="g4">'+summary()+'</div><div class="ppl">'+chips()+
+      '<span class="mon"><button data-vmon="-1" aria-label="Прошлый месяц">‹</button>'+(V.month<td.slice(0,7)?'Архив · ':'')+MONTHS[m-1]+' '+y+'<button data-vmon="1" aria-label="Следующий месяц">›</button></span></div>'+
+      '<div class="filters">'+buttons+'</div><div class="visit-card"><div class="tw"><div class="tb vyt">'+groups()+'</div></div><div class="foot"><span>Отменённые — фильтр «Отменено».</span></div></div></div>'+(V.quick?quickDialog():"")+'</div>'+
+      (dr?'<div class="visit-overlay ds" role="dialog" aria-modal="true" aria-label="Выезд">'+dr+'</div>':'');
     [["vzDrop", "vzFiles", "result"], ["vzPlanDrop", "vzPlanFiles", "plan"]].forEach(function (x) {
       var drop = document.getElementById(x[0]), inp = document.getElementById(x[1]);
       if (inp) inp.onchange = function () { sendFiles(inp.files, x[2]); };
@@ -363,7 +487,7 @@
   document.addEventListener("click", function (e) {
     var el = root();
     if (!el || !el.contains(e.target)) return;
-    var b = e.target.closest("[data-vfpdel],[data-vsel],[data-vwho],[data-vtab],[data-vmon],[data-vnew],[data-vclose],[data-vsave],[data-vedit],[data-vstatus],[data-vdel],[data-vfile],[data-vfdel],[data-vtakeadd]");
+    var b = e.target.closest("[data-field],[data-vadvanced],[data-vrow],[data-vfpdel],[data-vsel],[data-vwho],[data-vtab],[data-vmon],[data-vnew],[data-vclose],[data-vsave],[data-vedit],[data-vstatus],[data-vdel],[data-vfile],[data-vfdel],[data-vtakeadd]");
     if (!b) return;
     var d = b.dataset, v = byId(V.sel);
     if (d.vfdel != null) {
@@ -372,15 +496,35 @@
       api("/" + v.id + "/files/" + d.vfdel + "/delete", {}).then(function (nv) { put(nv); paint(); }, function (er) { toast(String(er)); });
       return;
     }
-    if (d.vsel != null) { V.sel = +d.vsel; V.form = null; V.err = ""; paint(); if(byId(V.sel)?.state==="requested" && V.meta.driver) el.querySelector("[data-vedit]")?.click(); return; }
+    if(d.field && V.quick){
+      const f=b.closest("form"); f.elements[d.field].value=d.value;
+      f.querySelectorAll('[data-field="'+d.field+'"]').forEach(x=>x.classList.toggle("on",x===b)); return;
+    }
+    if(d.vadvanced!=null){
+      const f=b.closest("form"); V.quick=null; openForm({order_id:Number(f.elements.order.value),address:f.elements.address.value}); paint();return;
+    }
+    if (d.vsel != null || d.vrow != null) {
+      V.sel=Number(d.vrow || d.vsel); V.form=null; V.err=""; V.quick=d.op==="edit"?(byId(V.sel).day?"move":"assign"):d.op==="materials"?"materials":null; paint();
+      if(V.quick) return;
+      else if(["cancel","occurred","done"].includes(d.op)) el.querySelector('[data-vstatus="'+d.op+'"]')?.click();
+      else if(d.op==="materials") el.querySelector('[name="vzReceived"]')?.focus();
+      return;
+    }
     if (d.vwho != null) { V.who = d.vwho; paint(); return; }
     if (d.vtab != null) { V.tab = d.vtab; paint(); return; }
     if (d.vmon != null) {
       var y = +V.month.slice(0, 4), m = +V.month.slice(5, 7) - 1 + (+d.vmon), dt = new Date(y, m, 1);
       V.month = iso(dt).slice(0, 7); V.data = null; V.sel = 0; V.form = null; load().then(paint); return;
     }
-    if (d.vnew != null) { V.err = ""; openForm({}); paint(); return; }
-    if (d.vclose != null) { V.sel = V.form && V.form.back || 0; V.form = null; V.err = ""; paint(); return; }
+    if (d.vnew != null) { V.err = ""; V.sel=0; V.form=null; V.quick="request"; paint();
+      if(window.DS?.ensureOrders) DS.ensureOrders().then(()=>{
+        const select=root()?.querySelector('#vzQuick select[name="order"]');
+        if(select && select.options.length===1) {
+          for(const o of DS.orders()) select.add(new Option(o.label||o.number,o.id));
+        }
+      }).catch(er=>toast(String(er)));
+      return; }
+    if (d.vclose != null) { if(V.busy)return; V.quick=null; V.sel = V.form && V.form.back || 0; V.form = null; V.err = ""; paint(); return; }
     if (d.vsave != null) { saveForm(); return; }
     if (d.vedit != null && v) { V.err = ""; openForm({ id: v.id, order_id: v.order_id, order_label: "№" + v.order_number + " · " + (v.customer || "") + " · " + (v.order_object || ""), kind: v.kind, object: v.object, system: v.system || "", city: v.city, address: v.address, day: v.day, tm: v.tm, executor_id: v.executor_id, auto: false, contact: v.contact, phone: v.phone, goal: v.goal, sup_total: v.sup_total }); V.sel = 0; V.form.back = v.id; paint(); return; }
     if (d.vstatus != null && v) {
