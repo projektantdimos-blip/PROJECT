@@ -1622,8 +1622,9 @@
         + zone("--zb:#dfc9c2;--zbg:#f9f5f3;--zh:#efe2dd;--zt:#5a3329;--zc:#a0675a", "Должники и риски", block4())
         + zone("--zb:#c4cfdc;--zbg:#f4f6f9;--zh:#e2e8ef;--zt:#2a3d53;--zc:#5a7391", "План на следующую неделю", block5())
         + zone("--zb:#d9d0bf;--zbg:#f8f6f2;--zh:#ece6db;--zt:#4a4030;--zc:#8c7a5b", "Мнение", loopBlock() + block6() + block7() + block8() + block9());
-      var period = dmyIso(report.week_start) + (report.cutoff ? " 15:00" : "") + " — " + dmyIso(report.week_end)
-        + (report.cutoff ? " 15:00 МСК" : "");
+      var closeTime = report.cutoff ? new Date(report.cutoff * 1000).toLocaleTimeString("ru-RU", {timeZone:"Europe/Moscow", hour:"2-digit", minute:"2-digit"}) : "";
+      var period = dmyIso(report.week_start) + (report.cutoff ? " " + (report.start_time || closeTime) : "") + " — " + dmyIso(report.week_end)
+        + (report.cutoff ? " " + closeTime + " МСК" : "");
       var head = '<div class="sr-head"><h1>' + E(report.person || report.title)
         + ' <span>(менеджер отдела продаж)</span></h1><span class="sr-period">Неделя <b>' + E(period) + '</b></span></div>'
         + '<div class="sr-save-line"><span class="sr-save-status" id="srStatus" role="status">' + (report.closed ? "Неделя закрыта · сохранённый отчёт" : report.closed_missing ? "Неделя закрыта · архивный снимок недоступен"

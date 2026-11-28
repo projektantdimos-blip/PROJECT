@@ -18,7 +18,7 @@
     var v = Object.fromEntries(parts.map(function (p) { return [p.type, p.value]; }));
     var day = new Date(Date.UTC(+v.year, +v.month - 1, +v.day));
     var weekday = day.getUTCDay();
-    day.setUTCDate(day.getUTCDate() - (weekday === 5 && +v.hour < 15 ? 7 : (weekday + 2) % 7));
+    day.setUTCDate(day.getUTCDate() - (weekday === 5 && +v.hour < 12 ? 7 : (weekday + 2) % 7));
     return day.toISOString().slice(0, 10);
   }
   function loadReport() {
