@@ -52,7 +52,7 @@ var ACTS={tz:['Позвонила','Написала','Получила данн
  cor:['Внесла в реестр','Передала Ивану','Отправила заказчику','Передала Александру','Позвонила','Написала','Другое'],
  app:['Позвонила','Написала','Получила замечания','Согласовали','Не дозвонилась','Другое'],
  hand:['Отметила «Работа сдана»','Другое']};
-var TERM=['Передала в проектирование','Отметила «Работа сдана»'];
+var TERM=['Передала в проектирование','Получила замечания','Отметила «Работа сдана»'];
 var MVWHY=['заказчик попросил','жду коллегу','не успела','другое'];
 var PROC={
  tz:{t:'ТЗ',c:'bu',steps:['Пришла предоплата по КП','Форма ТЗ заказчику — в тот же день','Сбор данных — до 5 р.д.','Проверка Ивана — 1 р.д.','Передача проектировщикам'],note:'6–10 р.д. на сборе — шаг каждый день. С 11-го р.д. ТЗ уходит на паузу: раз в неделю спрашиваем, актуально ли.'},
@@ -69,7 +69,7 @@ function doneForm(t){
   var h='<div class="fpart"><span class="sth'+(e.tried&&!e.a?' rq':'')+'">Что сделала *</span><span class="opts'+(e.tried&&!e.a?' need':'')+'">'+acts.map(function(a){return '<button type="button" class="op'+(e.a===a?' on':'')+'" data-da="'+a+'">'+a+'</button>';}).join('')+'</span></div>';
   if(TERM.indexOf(e.a)<0){
     h+='<div class="fpart"><span class="sth'+(e.tried&&(!e.s||!e.d)?' rq':'')+'">Следующий шаг и дата *</span><input type="text" id="dns" value="'+esc(e.s!=null?e.s:'')+'" placeholder="Например: позвонить заказчику по ТЗ" aria-label="Следующий шаг"><span class="opts'+(e.tried&&!e.d?' need':'')+'">'+nextOpts().map(function(o){return '<button type="button" class="op'+(e.d===o[0]?' on':'')+'" data-dd="'+o[0]+'">'+o[1]+' <small>'+dm(o[0])+'</small></button>';}).join('')+'<input type="date" id="dnd" class="dti" min="'+T0+'" value="'+(e.d&&nextOpts().every(function(o){return o[0]!==e.d;})?e.d:'')+'" aria-label="Другая дата шага"></span></div>';
-  } else h+='<div class="fpart"><span class="sb">'+(e.a==='Передала в проектирование'?'Откроется окно передачи: дата формы ТЗ и проверка Ивана.':'Александр получит задачу выставить счёт на остаток.')+'</span></div>';
+  } else h+='<div class="fpart"><span class="sb">'+(e.a==='Передала в проектирование'?'Откроется окно передачи: дата формы ТЗ и проверка Ивана.':e.a==='Получила замечания'?'Проект перейдёт на корректировку. Откроется новый раунд.':'Александр получит задачу выставить счёт на остаток.')+'</span></div>';
   h+='<div class="fbtn"><button type="button" class="b gr sm" data-dsave="'+t.key+'">Сохранить</button><button type="button" class="ex" data-dcancel>отмена</button></div>';
   return h;
 }

@@ -11,7 +11,7 @@ function paint(d){
   NOWM=mins(d.time);TZ=d.tz;QS=d.questions;COR=d.projects;INC=d.calls;MY=d.mine;FWD=d.forward;MSG=d.messages||[];
   CORREG.atCust=COR.filter(x=>x.dir==='app').length;DONE=[];MV={};movesToday=0;
   for(const e of d.events){
-    const dir=e.action==='Согласовали'?'app':e.action==='Отметила «Работа сдана»'?'hand':COR.find(x=>x.p===e.oid)?.dir||'tz';
+    const dir=(e.action==='Согласовали'||e.action==='Получила замечания')?'app':e.action==='Отметила «Работа сдана»'?'hand':COR.find(x=>x.p===e.oid)?.dir||'tz';
     const key=e.qid?'q'+e.qid:(dir==='tz'?'t':dir)+e.oid;
     if(e.action==='Перенесено'){MV[key]={d:e.due,why:e.reason};if(e.day===T0)movesToday++;}
     else {delete MV[key];if(e.day===T0){DONE=DONE.filter(x=>x.key!==key);DONE.push({key,p:e.oid,dir,a:e.action,d:e.due,s:e.step});}}

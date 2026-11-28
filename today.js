@@ -49,7 +49,7 @@
       S.rop = false;
       if (!el.querySelector("iframe[data-ops-day]") || S.uid !== C.me.id) {
         S.uid = C.me.id; S.d = null;
-        el.innerHTML = '<iframe data-ops-day title="Сегодня — Полина" src="ops_today.html?v=20261128a" style="display:block;width:100%;height:calc(100vh - 76px);min-height:440px;border:0"></iframe>';
+        el.innerHTML = '<iframe data-ops-day title="Сегодня — Полина" src="ops_today.html?v=20261128b" style="display:block;width:100%;height:calc(100vh - 76px);min-height:440px;border:0"></iframe>';
       }
       return;
     }
