@@ -34,7 +34,11 @@ function tasks(){
     if(r.stage==='new'){t.tags.push('new');t.tagt.push('новое из продаж');t.facts.push(['Предоплата по КП',r.kp+' · '+dmw(r.came)]);}
     t.facts.push(['На сборе ТЗ',d+' р.д. · норма 5']);
     if(r.stage==='check')t.facts.push(['У Ивана с',dmw(r.ivan)+' · норма 1 р.д.']);
-    if(r.stage==='visit'&&r.visit)t.facts.push(isToday(r.visit.d)?['Выезд','сегодня · '+r.visit.who]:['Выезд был',dmw(r.visit.d)+' · информации нет '+wd(pd(r.visit.d),TODAY)+' р.д.']);
+    if(r.stage==='visit'&&r.visit){
+      var v=r.visit;
+      var msg=v.state==="received"?"Материалы у Полины":v.state==="occurred"?"Ждём материалы":v.state==="done"?"Выполнен":isToday(v.d)?"Сегодня":isLate(v.d)?"Ожидает отметки исполнителя":"Назначен";
+      t.facts.push(["Выезд",msg+" · "+dmw(v.d)+(v.who?" · "+v.who:"")]);
+    }
     if(r.blk)t.facts.push(['Тормозит',r.blk]);
     L.push(t);
   });
@@ -87,13 +91,13 @@ function reason(t){
   if(t.due&&isLate(t.due)){var ex=t.dir!=='tz'?(r.why||''):(r.blk||'');return ['r','Шаг пропущен'+(ex?' · '+ex.charAt(0).toLowerCase()+ex.slice(1):'')];}
   if(t.dir!=='tz')return [r.tone||'n',r.why||''];
   var d=daysOf(r);
-  if(r.stage==='visit'&&r.visit&&!isToday(r.visit.d)&&!r.visit.info)return ['r','Выезд был '+dmw(r.visit.d)+', материалов нет '+wd(pd(r.visit.d),TODAY)+' р.д.'];
+  if(r.stage==='visit'&&r.visit&&r.visit.state==='occurred'&&isLate(r.visit.d)&&!r.visit.info)return ['r','Выезд был '+dmw(r.visit.d)+', материалов нет '+wd(pd(r.visit.d),TODAY)+' р.д.'];
   if(r.stage==='check'&&r.ivan){var n=wd(pd(r.ivan),TODAY);if(n>1)return ['o','Иван проверяет ТЗ '+n+' р.д. при норме 1'];}
   if(d>10)return ['n','ТЗ на паузе: собирается '+d+' р.д.'];
   if(d>5)return ['o','ТЗ собирается '+d+' р.д. при норме 5'];
   if(d===5)return ['o','Последний день нормы: 5-й р.д. сбора ТЗ'];
   if(r.stage==='new')return ['b','Пришла предоплата по КП '+r.kp+': форму ТЗ отправляем в тот же день'];
-  if(r.stage==='visit'&&r.visit&&isToday(r.visit.d))return ['b','Выезд сегодня, едет '+r.visit.who+'. Материалы — в тот же день'];
+  if(r.stage==='visit'&&r.visit&&r.visit.state==='plan'&&isToday(r.visit.d))return ['b','Выезд сегодня, едет '+r.visit.who+'. Материалы — в течение 1 р.д.'];
   if(r.stage==='check')return ['n','ТЗ у Ивана на проверке с '+dmw(r.ivan)];
   return ['n',r.blk?'Тормозит: '+r.blk.toLowerCase():'Шаг по плану на сегодня'];
 }
@@ -130,7 +134,7 @@ function fwdRow(f){
 }
 var TF='all',SUMOPEN=false;
 function waitM(f){var m=f.since===T0?NOWM-mins(f.st):(18*60-mins(f.st))+(NOWM-9*60)+(wd(pd(f.since),TODAY)-1)*540;return Math.max(0,m);}
-function myRow2(x){var me=x.from==='сама';return '<div class="my2'+(x.ok?' dn':'')+'"><div><button type="button" class="cb'+(x.ok?' on':'')+'" data-my="'+x.id+'" aria-label="Отметить выполненной">'+(x.ok?'✓':'')+'</button></div><div><span class="mt">'+esc(x.t)+'</span>'+(x.isNew&&!x.ok?'<span class="newp">новая от коллеги</span>':'')+'</div><div>'+(me?'<span class="sb">я сама</span>':'<span class="whoto sm"><span class="av" style="background:'+(AVC[x.from]||'#6b7686')+'">'+esc(x.from[0])+'</span>'+esc(x.from)+'</span>')+'</div><div>'+dueW(x.sd)+'</div></div>';}
+function myRow2(x){var me=x.from==='сама';if(x.visit && !x.ok)return '<div class="my2"><div>↗</div><div><a href="./index.html#/visits?v='+Number(x.visit)+'" target="_parent">'+esc(x.t)+'</a></div><div>Выезды</div><div>'+dueW(x.sd)+'</div></div>';return '<div class="my2'+(x.ok?' dn':'')+'"><div><button type="button" class="cb'+(x.ok?' on':'')+'" data-my="'+x.id+'" aria-label="Отметить выполненной">'+(x.ok?'✓':'')+'</button></div><div><span class="mt">'+esc(x.t)+'</span>'+(x.isNew&&!x.ok?'<span class="newp">новая от коллеги</span>':'')+'</div><div>'+(me?'<span class="sb">я сама</span>':'<span class="whoto sm"><span class="av" style="background:'+(AVC[x.from]||'#6b7686')+'">'+esc(x.from[0])+'</span>'+esc(x.from)+'</span>')+'</div><div>'+dueW(x.sd)+'</div></div>';}
 function renderToday(){
   var L=tasks(),open=L.filter(function(t){return !t.done;}),dn=L.filter(function(t){return t.done;});
   var b1=open.filter(function(t){return t.lvl===1;});

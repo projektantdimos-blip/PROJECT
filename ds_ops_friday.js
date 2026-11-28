@@ -1199,7 +1199,9 @@
         var legacy = D.visits.new.concat(D.visits.old).filter(function (other) { return other.oid === v.oid; }).length === 1;
         var sent = Object.hasOwn(M.answers, k + "sent") ? M.answers[k + "sent"] : legacy ? M.answers["q1:v" + v.oid + ":sent"] : "";
         var info;
-        if (!v.done && v.status === "plan") info = '<span class="fc n">ещё не выезжали</span>';
+        if (v.received_on) info = '<span class="fc g">получены ' + esc(dshort(v.received_on)) + "</span>";
+        else if (v.status === "occurred") info = '<span class="fc n">ждём материалы</span>';
+        else if (!v.done && ["requested","plan"].includes(v.status)) info = '<span class="fc n">ещё не выезжали</span>';
         else if (v.done) {
           var passed = sent;
           var dd = wd2(new Date((v.done_iso || v.day_iso) + "T12:00:00"), D.as_of ? new Date(D.as_of + "T12:00:00") : new Date());
@@ -1208,7 +1210,7 @@
           else info = '<span class="fc n">жду данные</span>';
         } else info = '<span class="fc n">—</span>';
         return '<div class="tr"><div class="pj"><b>' + esc(v.number) + "</b></div><div class=\"pc2\"><b>" + esc(v.customer) + '</b></div><div class="pw"><em>' + esc(v.works || "—")
-          + '</em></div><div class="cm dt1"><b>' + esc(v.asked) + '</b></div><div class="cm ov1c"><span class="na1">' + esc(v.who || "—") + '</span></div><div class="cm dt1"><b>' + esc(dshort(v.day_iso)) + "</b>" + (v.status === "plan" ? '<small class="ov1s">запланирован</small>' : "") + '</div><div class="cm ov1c">' + info + '</div><div class="an">' + (v.done ? df(k + "sent", sent, false) : '<span class="na">—</span>') + "</div></div>";
+          + '</em></div><div class="cm dt1"><b>' + esc(v.asked) + '</b></div><div class="cm ov1c"><span class="na1">' + esc(v.who || "—") + '</span></div><div class="cm dt1"><b>' + esc(dshort(v.day_iso)) + "</b>" + (v.status === "plan" ? '<small class="ov1s">запланирован</small>' : "") + '</div><div class="cm ov1c">' + info + '</div><div class="an">' + (v.handed_on ? esc(dshort(v.handed_on)) : v.done ? df(k + "sent", sent, false) : '<span class="na">—</span>') + "</div></div>";
       }).join("");
     };
     var visitTbl = (D.visits.new.length || D.visits.old.length)
