@@ -230,9 +230,12 @@
     return button(key === "next_contact" ? "next" : "expect", esc(text), r, "inl", 'title="Изменить дату"');
   }
   function prob(r) {
-    return '<div class="seg'+(r.pay_prob ? "" : " need")+'">'+[["low","низкая","v1"],["mid","средняя","v2"],["high","высокая","v3"]].map(([key, label, tone]) =>
-      '<button type="button" class="'+tone+(r.pay_prob === key ? " on" : "")+'" data-action="prob" data-id="'+r.id+
-      '" data-value="'+key+'" aria-pressed="'+(r.pay_prob === key)+'"'+(state.editable ? "" : " disabled")+'>'+label+'</button>').join("")+'</div>';
+    const labels = {low:"низкая", mid:"средняя", high:"высокая"}, tones = {low:"v1", mid:"v2", high:"v3"};
+    const tone = tones[r.pay_prob] || "need";
+    if (!state.editable) return '<span class="prob-select '+tone+'">'+esc(labels[r.pay_prob] || "Не указана")+'</span>';
+    return '<select class="prob-select '+tone+'" data-action="prob-select" data-id="'+r.id+'" aria-label="Вероятность продажи">'+
+      '<option value="">выбрать</option>'+Object.entries(labels).map(([key, label]) =>
+        '<option value="'+key+'"'+(r.pay_prob === key ? " selected" : "")+'>'+label+'</option>').join("")+'</select>';
   }
   function prefix(r, i) { return c(plain(i + 1, "nb")) + c(plain("№" + r.number, "kp")) + customer(r); }
   function advanceStatus(r, statusName, archive) {
@@ -280,9 +283,9 @@
   function kpRow(r, i) {
     const archive = r.status === "Отказ";
     const statusName = archive ? "Отказ" : r.status === "КП отправлено" ? r.status : "Ждём предоплату";
-    const actions = !state.editable ? "" : archive ? (r.order_id ? "" : button("restore", "Вернуть в работу", r)) :
+    const actions = !state.editable ? "" : button("edit-row", "Править", r, "rg-edit-row") + (archive ? (r.order_id ? "" : button("restore", "Вернуть в работу", r)) :
       button("transfer", "В оплаты", r, "", 'data-transfer title="Передать в реестр оплат"') +
-      (r.order_id ? "" : button("refuse", "Отказ", r, "rfo"));
+      (r.order_id ? "" : button("refuse", "Отказ", r, "rfo")));
     const latest = r.last_touch || r.comment;
     return prefix(r, i) + c(plain(dm(r.issued_date || r.created_date), "dt")) + c(plain(money(r.amount), "am") + (statusName === "Ждём предоплату" && r.adv_sum ? plain("Предоплата " + money(r.adv_sum)) : "")) +
       c(advanceStatus(r, statusName, archive)) +
@@ -414,8 +417,9 @@
   function edit(r, action, values, control) {
     return mutate("/commerce/registry/"+r.id, {action:action, ...values}, control);
   }
-  function dialog(title, content, submit) {
+  function dialog(title, content, submit, wide = false) {
     const modal = $("rgModal");
+    modal.classList.toggle("rg-wide", wide);
     modal.innerHTML = '<form><div class="mh"><h3 id="rgModalTitle">'+esc(title)+'</h3><button type="button" class="x" aria-label="Закрыть">×</button></div><div class="mb">'+content+
       '<span class="rg-error" role="status"></span></div><div class="mf"><button type="submit" class="b bl">Сохранить</button></div></form>';
     modal.querySelector(".x").onclick = () => modal.close();
@@ -445,6 +449,84 @@
     dialog("Итог звонка по КП "+r.number, '<label>Касание <select name="kind">'+["Звонок","Письмо","Мессенджер","Встреча"].map(k => '<option>'+k+'</option>').join("")+
       '</select></label><label>Итог<textarea name="note" maxlength="300"></textarea></label>'+promise+'<label>Следующий контакт <input class="mdate" name="next" type="date" required min="'+now+'" value="'+esc(r.next_contact >= now ? r.next_contact : "")+'"></label>', (f,b) =>
       edit(r,"touch",{kind:f.get("kind"),next_contact:f.get("next"),text:f.get("note"),pay_expect:f.get("promise")},b));
+  }
+  function editField(label, name, value, type = "text", attrs = "") {
+    return '<label>'+esc(label)+'<input name="'+name+'" type="'+type+'" value="'+esc(value)+'" '+attrs+'></label>';
+  }
+  function editRow(r) {
+    const statuses = ["Обращение","Сбор вводных","КП отправлено","Доки отправлены","В предоплате","В работе","В постоплате","Закрыто","Отказ"];
+    if (!statuses.includes(r.status)) statuses.unshift(r.status);
+    const reasons = refused.slice();
+    if (r.refuse_reason && !reasons.includes(r.refuse_reason)) reasons.unshift(r.refuse_reason);
+    const content = '<div class="rg-edit-grid">'+
+      editField("Заказчик", "customer", r.customer, "text", 'required maxlength="500"')+
+      editField("Объект", "object", r.object, "text", 'maxlength="500"')+
+      editField("Вид работ", "systems", r.systems, "text", 'placeholder="СПС.СОУЭ.ВПВ"')+
+      editField("Дата КП", "issued_date", r.issued_date || r.created_date, "date")+
+      editField("Сумма КП, ₽", "amount", r.amount, "number", 'min="0" step="0.01" required')+
+      editField("Предоплата, ₽", "adv_sum", r.adv_sum, "number", 'min="0" step="0.01"')+
+      '<label>Статус<select name="status">'+statuses.map(s => '<option'+(r.status === s ? " selected" : "")+'>'+esc(s)+'</option>').join("")+'</select></label>'+
+      '<label>Вероятность<select name="pay_prob"><option value="">Не указана</option>'+
+        [["low","низкая"],["mid","средняя"],["high","высокая"]].map(([key,label]) => '<option value="'+key+'"'+(r.pay_prob === key ? " selected" : "")+'>'+label+'</option>').join("")+'</select></label>'+
+      editField("Дата статуса", "status_date", r.status_date, "date")+
+      editField("Последний контакт", "last_contact", r.last_contact, "date")+
+      editField("Следующий контакт", "next_contact", r.next_contact, "date")+
+      editField("Ожидаемая оплата", "pay_expect", r.pay_expect, "date")+
+      '<label>Причина отказа<select name="refuse_reason"><option value="">—</option>'+reasons.map(reason =>
+        '<option'+(r.refuse_reason === reason ? " selected" : "")+'>'+esc(reason)+'</option>').join("")+'</select></label></div>'+
+      '<label>Комментарий к КП<textarea name="comment" maxlength="1000" rows="2">'+esc(r.comment)+'</textarea></label>'+
+      '<label>Итог / комментарий отказа<textarea name="refuse_note" maxlength="500" rows="2">'+esc(r.refuse_note)+'</textarea></label>'+
+      '<label>Личная заметка менеджера<textarea name="note" maxlength="1000" rows="2">'+esc(r.note)+'</textarea></label>'+
+      '<p class="stn">Постоплата рассчитывается автоматически. При выборе «В работе» CRM использует стандартный переход и может создать проектную задачу.</p>';
+    dialog("Править КП №"+r.number, content, (f, b) => saveRow(r, f, b), true);
+  }
+  async function saveRow(r, f, btn) {
+    const modal = $("rgModal"), issue = modal.querySelector(".rg-error");
+    const nextStatus = f.get("status"), statusDate = f.get("status_date"), nextContact = f.get("next_contact");
+    if (nextStatus === "Отказ" && !f.get("refuse_reason")) { issue.textContent = "Укажите причину отказа"; return; }
+    if (state.busy) return;
+    state.busy++;
+    btn.disabled = true;
+    issue.textContent = "";
+    renderUndo();
+    let statusSaved = false, infoSaved = false;
+    try {
+      if (nextStatus !== r.status || statusDate !== r.status_date) {
+        await send("/kp/"+r.id+"/status", {status:nextStatus, day:statusDate, next_contact:nextContact});
+        statusSaved = true;
+      }
+      const customer = f.get("customer").trim();
+      await send("/kp/"+r.id+"/edit", {
+        customer_id: customer === r.customer ? r.customer_id : 0,
+        customer_text: customer,
+        object: f.get("object").trim(),
+        systems: f.get("systems").split(/[.,;|]/).map(v => v.trim()).filter(Boolean),
+        issued_date: f.get("issued_date"),
+        status_date: statusDate,
+        amount: Number(f.get("amount") || 0),
+        adv_sum: Number(f.get("adv_sum") || 0),
+        pay_prob: f.get("pay_prob"),
+        last_contact: f.get("last_contact"),
+        next_contact: nextContact,
+        pay_expect: f.get("pay_expect"),
+        comment: f.get("comment").trim(),
+        refuse_reason: f.get("refuse_reason"),
+        refuse_note: f.get("refuse_note").trim()
+      });
+      infoSaved = true;
+      if (f.get("note") !== r.note) await send("/commerce/registry/"+r.id, {action:"note", text:f.get("note")});
+      modal.close();
+      await load();
+      status("КП сохранено");
+    } catch (error) {
+      const prefix = infoSaved ? "Основные данные сохранены, личная заметка не сохранена: " : statusSaved ? "Статус сохранён, остальные данные не сохранены: " : "";
+      issue.textContent = prefix + String(error);
+      status(issue.textContent, true);
+    } finally {
+      state.busy--;
+      btn.disabled = false;
+      renderUndo();
+    }
   }
   function advanceMenu(r) {
     const waiting = waitingAdvance(r), step = r.advance_step || 0;
@@ -503,6 +585,7 @@
     else if (action === "next" || action === "expect") changeDate(r, action === "next" ? "next_contact" : "pay_expect");
     else if (action === "due") dialog("Назначить срок оплаты", '<label>Срок оплаты <input class="mdate" name="date" type="date" required value="'+esc(r.due_manual ? r.due : "")+'"></label>',
       (f, btn) => edit(r, "due", {text:f.get("date")}, btn));
+    else if (action === "edit-row") editRow(r);
     else if (action === "prob") edit(r, "prob", {text:r.pay_prob === b.dataset.value ? "" : b.dataset.value}, b);
     else if (action === "refuse") dialog("Причина отказа", '<label>Причина <select name="reason" required><option value="">выбрать</option>'+
       refused.map(v => '<option>'+esc(v)+'</option>').join("")+'</select></label>', (f, btn) =>
@@ -531,6 +614,12 @@
   });
   document.addEventListener("change", e => {
     if (["rgDateMode","rgFrom","rgTo"].includes(e.target.id)) { render(); return; }
+    const probability = e.target.closest("[data-action=prob-select]");
+    if (probability) {
+      const r = state.rows.find(row => row.id === +probability.dataset.id);
+      if (r && state.editable) edit(r, "prob", {text:probability.value}, probability);
+      return;
+    }
     const input = e.target.closest("[data-note]");
     if (!input || !state.editable) return;
     const id = +input.dataset.note, text = input.value;

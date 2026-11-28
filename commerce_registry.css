@@ -307,3 +307,19 @@ textarea{min-height:76px;resize:vertical}
 .rg-quick-dates{display:flex;flex-wrap:wrap;gap:3px}
 .rg-quick-dates .b{display:flex;flex-direction:column;align-items:flex-start}
 .rg-quick-dates .rg-quick-on{background:#e1eaf6;border-color:#9cc0f0}
+
+
+/* Вероятность и полное редактирование строки КП. */
+.prob-select{display:block;width:100%;min-width:0;min-height:38px;padding:6px 8px;border:1.5px solid #c3cad5;border-radius:10px;background:#fff;color:#4a5566;font:inherit;font-size:11px;font-weight:700;text-align:center}
+span.prob-select{display:flex;align-items:center;justify-content:center}
+.prob-select.v1{border-color:#e3a9a4;background:#f8dcd8;color:#a5281b}
+.prob-select.v2{border-color:#dbc76b;background:#f7e8a6;color:#5e4500}
+.prob-select.v3{border-color:#8fc5a4;background:#d6efdf;color:#17653a}
+.prob-select.need{border-style:dashed;border-color:#d77a72;background:#fff8f6;color:#a5281b}
+#rgModal.rg-wide{width:min(920px,calc(100% - 24px))}
+#rgModal .rg-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
+#rgModal .rg-edit-grid label{min-width:0}
+#rgModal .rg-edit-grid :is(input,select){width:100%;min-width:0}
+#rgModal .rg-edit-grid input[type=number]{text-align:right}
+#rgModal .mb textarea{width:100%;resize:vertical}
+@media(max-width:600px){#rgModal .rg-edit-grid{grid-template-columns:minmax(0,1fr)}}
