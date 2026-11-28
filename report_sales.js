@@ -750,7 +750,8 @@
     var events = scope === "pre" ? [BASIS_EVENTS[0], BASIS_EVENTS[4]] : BASIS_EVENTS.slice(1);
     var current = {event: savedBasis.event || (row && row.ev), date: savedBasis.date || (row && row.base)};
     var customer = kp ? kp.customer : row && row.cells[2];
-    var codeList = String(kp && kp.systems || "").split("|");
+    var codeList = String(kp && kp.systems || "").split("|").filter(Boolean);
+    systems = Array.from(new Set((systems || []).concat(codeList)));
     var sale = kp ? (KV[id + "|sale_prob"] === undefined ? kp.sale_prob || "" : KV[id + "|sale_prob"]) : "";
     var canBasis = !kp || Boolean(row || savedBasis.date);
     var dialog = document.createElement("dialog");
@@ -816,7 +817,7 @@
         if (advance !== Number(kp.adv_sum)) body.adv_sum = advance;
         if (values.get("prob") !== sale) body.sale_prob = values.get("prob");
         var selected = values.getAll("systems");
-        if (selected.join("|") !== codeList.filter(Boolean).join("|")) body.systems = selected;
+        if (selected.length !== codeList.length || selected.some(code => !codeList.includes(code))) body.systems = selected;
       }
       if (canBasis && (!kp || values.get("event") !== current.event || values.get("date") !== current.date)) {
         body.pay_basis = JSON.stringify({event: values.get("event"), date: values.get("date")});
