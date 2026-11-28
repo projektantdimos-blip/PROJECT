@@ -48,7 +48,7 @@
   function plnw(n) { return plu(n, "новый должник", "новых должника", "новых должников"); }
   function sgn(v) { return v >= 0 ? "▲ +" + fmt(v) : "▼ −" + fmt(-v); }
   function p2(n) { return n < 10 ? "0" + n : "" + n; }
-  function todayD() { var d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+  function todayD() { var d = R && R.cutoff ? isoToD(R.as_of) || new Date() : new Date(); d.setHours(0, 0, 0, 0); return d; }
   function isoToD(s) { return s && s.length >= 10 ? new Date(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) : null; }
   function dmIso(s) { return s && s.length >= 10 ? s.slice(8, 10) + "." + s.slice(5, 7) : ""; }
   function dmyIso(s) { return s && s.length >= 10 ? s.slice(8, 10) + "." + s.slice(5, 7) + "." + s.slice(2, 4) : ""; }
@@ -362,7 +362,7 @@
   function ptxtQ(kpId) {
     var value = KV[kpId + "|sale_prob"] || "";
     var labels = {high: "Высокая", mid: "Средняя", low: "Низкая"};
-    return '<select class="sr-sale-prob" data-akp="' + kpId + '|sale_prob" data-tone="' + E(value) + '" aria-label="Вероятность продажи"' + dis()
+    return '<select class="sr-sale-prob" data-akp="' + kpId + '|sale_prob" data-tone="' + E(value) + '" aria-label="Вероятность продажи" title="' + E(labels[value] || "Укажите вероятность продажи") + '"' + dis()
       + '><option value="">Выбрать</option>' + Object.keys(labels).map(function (key) {
         return '<option value="' + key + '"' + (key === value ? " selected" : "") + '>' + labels[key] + "</option>";
       }).join("") + "</select>";
@@ -438,7 +438,8 @@
       var kindI = inputs.find(function (i) { return /:kind$/.test(i.key); }) || {};
       var noteI = inputs.find(function (i) { return /:note$/.test(i.key); }) || {};
       var kind = AV[kindI.key] !== undefined ? AV[kindI.key] : (kindI.v || "");
-      return '<div class="i r6"><span>' + E(r.cells[1]) + "</span>" + workCell(r.systems)
+      return '<div class="i r6"><span>' + E(r.cells[1]) + (r.payment_date ? '<small style="display:block">' +
+        E(dmIso(r.payment_date)) + (r.after_close ? " · Получен после закрытия" : "") + "</small>" : "") + "</span>" + workCell(r.systems)
         + '<span class="tc"><select class="tsel rq ' + (PTC[kind] || "") + '" data-ak="' + E(kindI.key) + '" aria-label="Тип оплаты"' + dis() + '><option value="">Выбрать тип</option>'
         + ["Предоплата", "Доплата", "Постоплата"].map(function (t) { return "<option" + (t === kind ? " selected" : "") + ">" + t + "</option>"; }).join("") + "</select></span>"
         + "<b>" + (r.amount == null ? E(r.cells[0]) : fmt(r.amount)) + '</b><input class="cmq" data-ak="' + E(noteI.key) + '" type="text" placeholder="Комментарий" aria-label="Комментарий к оплате" value="' + E(AV[noteI.key]) + '"' + dis() + "></div>";
@@ -511,7 +512,7 @@
       + '<div><div class="g3" style="margin-top:0"><input class="in rq" data-ak="s3:action" type="text" placeholder="Что делаю?" aria-label="Что делаю" value="' + E(AV["s3:action"]) + '"' + dis() + '><input class="in rq" data-ak="s3:date" type="date" aria-label="К какой дате" title="К какой дате" value="' + E(AV["s3:date"]) + '"' + dis() + "></div></div></div>";
     var chips = '<span>план <strong>' + fmt(plan) + '</strong></span><span>факт <strong id="sr-weekly-fact">' + fmt(fact)
       + '</strong></span><span><strong id="sr-weekly-percent">' + (plan ? pct + "%" : "—") + '</strong></span>';
-    return qa(3, "srb3", "Выполнение плана прошлой недели", chips, body);
+    return qa(3, "srb3", R.cutoff ? "Выполнение плана" : "Выполнение плана прошлой недели", chips, body);
   }
 
   // --------------------------------------------------------------- блок 4: Просроченные оплаты
@@ -896,7 +897,10 @@
   function recalc5() {
     var TODAY = isoToD(R.as_of) || todayD(), start = isoToD(WEEK);
     var nextMonday = start ? addBD(start, 6) : null;
-    var from = nextMonday ? isoOf(nextMonday) : "", to = nextMonday ? isoOf(addBD(nextMonday, 4)) : "";
+    var nextStart = isoToD(R.week_end);
+    var from = R.cutoff && nextStart ? isoOf(nextStart) : nextMonday ? isoOf(nextMonday) : "";
+    if (R.cutoff && nextStart) nextStart.setDate(nextStart.getDate() + 6);
+    var to = R.cutoff && nextStart ? isoOf(nextStart) : nextMonday ? isoOf(addBD(nextMonday, 4)) : "";
     var mv = (item("s7").moved || []).slice(), ms = mv.reduce(function (total, r) { return total + r.sum; }, 0);
     var s1 = 0, c1 = 0, pt = 0, pv = 0;
     document.querySelectorAll(".sr #srgp1 .gr[data-t]").forEach(function (r) {
@@ -1584,10 +1588,12 @@
         + zone("--zb:#dfc9c2;--zbg:#f9f5f3;--zh:#efe2dd;--zt:#5a3329;--zc:#a0675a", "Должники и риски", block4())
         + zone("--zb:#c4cfdc;--zbg:#f4f6f9;--zh:#e2e8ef;--zt:#2a3d53;--zc:#5a7391", "План на следующую неделю", block5())
         + zone("--zb:#d9d0bf;--zbg:#f8f6f2;--zh:#ece6db;--zt:#4a4030;--zc:#8c7a5b", "Мнение", loopBlock() + block6() + block7() + block8() + block9());
-      var period = dmyIso(report.week_start) + " — " + dmyIso(report.week_end);
+      var period = dmyIso(report.week_start) + (report.cutoff ? " 15:00" : "") + " — " + dmyIso(report.week_end)
+        + (report.cutoff ? " 15:00 МСК" : "");
       var head = '<div class="sr-head"><h1>' + E(report.person || report.title)
         + ' <span>(менеджер отдела продаж)</span></h1><span class="sr-period">Неделя <b>' + E(period) + '</b></span></div>'
-        + '<div class="sr-save-line"><span class="sr-save-status" id="srStatus" role="status">' + (RO ? "Только чтение" : "Изменения сохраняются автоматически") + '</span><button type="button" data-sr-retry="all" id="srRetryAll" hidden>Повторить сохранение</button></div>'
+        + '<div class="sr-save-line"><span class="sr-save-status" id="srStatus" role="status">' + (report.closed ? "Неделя закрыта · сохранённый отчёт" : report.closed_missing ? "Неделя закрыта · архивный снимок недоступен"
+        : RO ? "Только чтение" : "Изменения сохраняются автоматически") + '</span><button type="button" data-sr-retry="all" id="srRetryAll" hidden>Повторить сохранение</button></div>'
         + sectionNav(Boolean((item("s12").inputs || []).length));
       bindEvents();
       setTimeout(function () {

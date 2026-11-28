@@ -12,8 +12,17 @@
   }
   function rpLeads(p) { return p === "owner" || p === "sales" || p === "ops" || p === "design"; }      /* руководители видят отчёты всех отделов (17.11, п.10) */
   var reportRequest = 0;
+  function reportStart(kind) {
+    if (kind !== "sales") return isoDay(monday());
+    var parts = new Intl.DateTimeFormat("en-CA", {timeZone:"Europe/Moscow", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", hourCycle:"h23"}).formatToParts(new Date());
+    var v = Object.fromEntries(parts.map(function (p) { return [p.type, p.value]; }));
+    var day = new Date(Date.UTC(+v.year, +v.month - 1, +v.day));
+    var weekday = day.getUTCDay();
+    day.setUTCDate(day.getUTCDate() - (weekday === 5 && +v.hour < 15 ? 7 : (weekday + 2) % 7));
+    return day.toISOString().slice(0, 10);
+  }
   function loadReport() {
-    if (!S.rp) S.rp = { kind: reportKind(), start: isoDay(monday()), data: null };
+    if (!S.rp) S.rp = { kind: reportKind(), start: reportStart(reportKind()), data: null };
     if (!rpLeads(pos())) S.rp.kind = reportKind();
     var state = S.rp, kind = state.kind, start = state.start, request = ++reportRequest;
     var ops = kind === "ops", design = kind === "design", key = ops ? "ops2" : design ? "design2" : "data";
@@ -310,7 +319,7 @@
     }
   });
   function reportToolbar(title, tabs) {
-    var current = S.rp.start === isoDay(monday());
+    var current = S.rp.start === reportStart(S.rp.kind);
     return '<div class="friday-report-menu"><div class="head"><h1>Пятничный созвон · ' + E(title) + '</h1>'
       + '<div class="friday-report-actions"><div class="seg" aria-label="Неделя отчёта">'
       + '<button type="button" data-rpnav="-1" aria-label="Предыдущая неделя">← Пред.</button>'
@@ -363,5 +372,5 @@
     setTimeout(function () { if (window.DSDesignFriday) window.DSDesignFriday.load(start, r); }, 0);
     return head + '<div id="dfr-mount"></div>';
   }
-  window.DSFriday = { loadReport: loadReport, reportScreen: reportScreen, downloadText: downloadText, rpSave: rpSave, rpFind: rpFind, rpCsv: rpCsv };
+  window.DSFriday = { reportStart: reportStart, loadReport: loadReport, reportScreen: reportScreen, downloadText: downloadText, rpSave: rpSave, rpFind: rpFind, rpCsv: rpCsv };
 })();

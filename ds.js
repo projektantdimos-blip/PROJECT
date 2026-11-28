@@ -1620,6 +1620,21 @@
     var stat = '<div class="panel pad" style="margin-bottom:16px">Последняя проверка: <b>' + when(r.last_run) + "</b>"
       + (r.error ? '<div class="err" style="margin-top:8px">Ошибка связи с 1С: ' + E(r.error) + "</div>" : "") + "</div>";
     var who = function (x) { return "<b>" + E(x.payer || "Плательщик не указан") + "</b>" + (x.inn ? ' <small class="sub">ИНН ' + E(x.inn) + "</small>" : ""); };
+    var ST = { ok: "Отмечено", skip: "Уже было отмечено", manual: "Разобрано вручную", ignored: "Не по задаче" };
+    var week = r.week, weekly = "";
+    if (week) {
+      var weekStatus = Object.assign({unmatched: "Не разобрано", amb: "Не разобрано", other: "Прочее поступление"}, ST);
+      var rubles = function (amount) { return amount.toLocaleString("ru-RU", {maximumFractionDigits: 2}) + " ₽"; };
+      weekly = '<section class="panel pad" aria-labelledby="onec-week-title" style="margin-bottom:16px">'
+        + '<h3 id="onec-week-title">Оплаты недели</h3><p class="sub">' + dmy(week.start) + ' — ' + dmy(week.end)
+        + ' · поступлений ' + week.items.length + ' · <b>Итого ' + rubles(week.total) + '</b></p>'
+        + '<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Дата</th><th>Плательщик</th><th>Сумма</th><th>Задача</th><th>Итог</th></tr></thead><tbody>'
+        + (week.items.map(function (x) {
+          return "<tr><td>" + dmy(x.date) + "</td><td>" + who(x) + '</td><td style="white-space:nowrap">' + rubles(x.amount)
+            + "</td><td>" + (x.num ? "№" + E(x.num) : "—") + "</td><td>" + E(weekStatus[x.status] || "—") + "</td></tr>";
+        }).join("") || '<tr><td colspan="5" class="note">За эту неделю поступлений пока нет</td></tr>')
+        + "</tbody></table></div></section>";
+    }
     var att = r.items.filter(function (x) { return x.status === "unmatched" || x.status === "amb"; });
     var fld = 'style="width:auto;max-width:100%;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink);font:inherit"';
     var form = function (x) {
@@ -1637,13 +1652,12 @@
     var oth = r.items.filter(function (x) { return x.status === "other"; });
     var other = oth.length ? '<details class="panel pad" style="margin-bottom:16px"><summary style="cursor:pointer"><b>Прочие поступления · ' + oth.length + '</b> <span class="sub">— плательщиков нет в базе заказчиков CRM (ТО, оборудование и т. п.). Если это оплата по задаче — отнесите вручную и впишите ИНН в карточку заказчика</span></summary>'
       + oth.map(form).join("") + "</details>" : "";
-    var ST = { ok: "Отмечено", skip: "Уже было отмечено", manual: "Разобрано вручную", ignored: "Не по задаче" };
     var done = r.items.filter(function (x) { return ST[x.status]; });
     var list = '<div class="panel"><table class="tbl"><tr><th style="width:100px">Дата</th><th>Плательщик</th><th style="width:130px">Сумма</th><th style="width:90px">Задача</th><th style="width:160px">Итог</th></tr>'
       + (done.map(function (x) {
         return "<tr><td>" + dmy(x.date) + "</td><td>" + who(x) + '<br><small class="sub">' + E(x.purpose) + "</small></td><td>" + money(x.amount) + "</td><td>" + (x.num ? "№" + E(x.num) + kpOfOrder(x.num) : "—") + "</td><td>" + ST[x.status] + (x.status === "manual" || x.status === "ignored" ? '<br><small class="sub">' + E(x.note) + "</small>" : "") + "</td></tr>";
       }).join("") || '<tr><td colspan="5" class="note">Пока ничего не учтено</td></tr>') + "</table></div>";
-    return stat + todo + other + list;
+    return weekly + stat + todo + other + list;
   }
   function kpOfOrder(num) {      // КП, из которого выросла задача (если реестр КП загружен)
     var k = (S.kp || []).filter(function (x) { return x.order_number && String(x.order_number) === String(num); })[0];
@@ -1910,8 +1924,12 @@
     if (d.prdel != null && t.hasAttribute("data-prdel")) { S.pd.splice(+d.prdel, 1); return paint(); }
     if (d.prreset != null && t.hasAttribute("data-prreset")) { S.pd = JSON.parse(JSON.stringify(S.price.items)); S.pdErr = ""; return paint(); }
     if (d.prsave != null && t.hasAttribute("data-prsave")) return savePrice();
-    if (d.rpkind) { S.rp.kind = d.rpkind; return loadReport().then(paint); }
-    if (d.rpnav != null && t.hasAttribute("data-rpnav")) { S.rp.start = isoDay(addDays(new Date(S.rp.start + "T00:00:00"), d.rpnav === "0" ? 0 : (+d.rpnav) * 7)); if (d.rpnav === "0") S.rp.start = isoDay(monday()); return loadReport().then(paint); }
+    if (d.rpkind) {
+      if (S.rp.start === window.DSFriday.reportStart(S.rp.kind)) S.rp.start = window.DSFriday.reportStart(d.rpkind);
+      S.rp.kind = d.rpkind;
+      return loadReport().then(paint);
+    }
+    if (d.rpnav != null && t.hasAttribute("data-rpnav")) { S.rp.start = isoDay(addDays(new Date(S.rp.start + "T00:00:00"), d.rpnav === "0" ? 0 : (+d.rpnav) * 7)); if (d.rpnav === "0") S.rp.start = window.DSFriday.reportStart(S.rp.kind); return loadReport().then(paint); }
     if (d.rppub != null && t.hasAttribute("data-rppub")) return act2(api("/reports/" + S.rp.kind + "/publish?start=" + S.rp.start, {}).then(function () { toast("Отчёт отправлен руководителю"); }), false);
     if (d.rpdl != null && t.hasAttribute("data-rpdl")) return downloadText("sozvon-" + S.rp.kind + "-" + S.rp.start + ".csv", rpCsv(S.rp.data), "text/csv;charset=utf-8");
     if (d.stnav != null && t.hasAttribute("data-stnav")) { S.st.month = shiftMonth(S.st.month, +d.stnav); return loadStats().then(paint); }
