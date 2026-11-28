@@ -359,21 +359,22 @@
     var el = document.querySelector('.sr .nq[data-nk="' + kpId + '"]');
     if (el) el.innerHTML = nin(kpId, open);
   }
-  function ptxtQ(kpId) {
+  function ptxtQ(kpId, registryProb) {
     var value = KV[kpId + "|sale_prob"] || "";
     var labels = {high: "Высокая", mid: "Средняя", low: "Низкая"};
-    return '<select class="sr-sale-prob" data-akp="' + kpId + '|sale_prob" data-tone="' + E(value) + '" aria-label="Вероятность продажи" title="' + E(labels[value] || "Укажите вероятность продажи") + '"' + dis()
-      + '><option value="">Выбрать</option>' + Object.keys(labels).map(function (key) {
+    var fallback = labels[registryProb] || "Выбрать";
+    return '<span class="sr-prob-field" data-tone="' + E(value || registryProb) + '"><span aria-hidden="true">' + E(labels[value] || fallback) + '</span><select class="sr-sale-prob" data-fallback="' + E(registryProb || "") + '" data-akp="' + kpId + '|sale_prob" data-tone="' + E(value) + '" aria-label="Вероятность продажи" title="' + E(labels[value] || "Укажите вероятность продажи") + '"' + dis()
+      + '><option value="">'+ E(fallback) +'</option>' + Object.keys(labels).map(function (key) {
         return '<option value="' + key + '"' + (key === value ? " selected" : "") + '>' + labels[key] + "</option>";
-      }).join("") + "</select>";
+      }).join("") + "</select></span>";
   }
   function rowQ(r) {
     var kpId = r.kp;
     var lc = r.last_bd == null ? 99 : r.last_bd;
     var lq = lc >= 99 ? '<span class="lq r">—</span>' : '<span class="lq' + (lc >= 3 ? " r" : "") + '">' + (lc === 0 ? "сегодня" : lc + " р.д.") + "</span>";
     var customer = E(r.cells[1]);
-    return '<div class="i r6"><span class="nm1">' + (RO ? customer : '<button type="button" class="sr-kp-link" data-sr-card="' + kpId + '">' + customer + '</button>') + '</span>' + workCell(r.systems)
-      + '<div class="rt">' + ptxtQ(kpId) + lq + ncell(kpId) + "<b>" + fmt(num(r.amt)) + "</b></div>"
+    return '<div class="i r6"><span class="nm1">' + (RO ? customer : '<button type="button" class="sr-kp-link" data-sr-card="' + kpId + '">' + customer + '<small>Изменить</small></button>') + '</span>' + workCell(r.systems)
+      + '<div class="rt">' + ptxtQ(kpId, r.registry_prob) + lq + ncell(kpId) + "<b>" + fmt(num(r.amt)) + "</b></div>"
       + '<input class="cmq" data-ak="s1:kp' + kpId + ':note" type="text" placeholder="Комментарий" aria-label="Комментарий к запросу" value="' + E(AV["s1:kp" + kpId + ":note"]) + '"' + dis() + "></div>";
   }
   function laneRows(items, body, total) {
@@ -399,7 +400,7 @@
 
     function r1(list2) {
       return '<div class="r1 cap1"><span>Заказчик</span><span>Вид работ</span><b>Сумма</b></div>' + list2.map(function (r) {
-        return '<div class="r1"><span>' + E(r.customer || r.cells[1]) + "</span>" + workCell(r.systems, "vt") + "<b>" + fmt(num(r.amt != null ? r.amt : r.cells[2])) + "</b></div>";
+        return '<div class="r1"><span>' + (!RO && r.kp ? '<button type="button" class="sr-kp-link" data-sr-card="'+r.kp+'">'+E(r.customer || r.cells[1])+'<small>Изменить КП</small></button>' : E(r.customer || r.cells[1])) + "</span>" + workCell(r.systems, "vt") + "<b>" + fmt(num(r.amt != null ? r.amt : r.cells[2])) + "</b></div>";
       }).join("") + '<div class="tt1"><span>Итого</span><span>' + fmt(list2.reduce(function (s, r) { return s + num(r.amt != null ? r.amt : r.cells[2]); }, 0)) + "</span></div>";
     }
     var dicts = R.dicts || {};
@@ -421,7 +422,7 @@
 
     var body = ac3("", "Запросы", rows.length, cmpSpan(s1.cmp, totalS, plr), lane, true)
       + '<div class="pair">' + ac3("ok", "Продано", sold.length, fmt(soldSum) + " ₽", sold.length ? r1(sold) : '<div class="sr-empty">Нет продаж</div>', false)
-      + ac3("red", "Отказ", refs.length, fmt(refSum) + " ₽", refs.length ? r1(refs.map(function (r) { return { customer: r.cells[1], sv: r.cells[3], systems: r.systems, amt: r.cells[2] }; })) : '<div class="sr-empty">Нет отказов</div>', false) + "</div>" + fin;
+      + ac3("red", "Отказ", refs.length, fmt(refSum) + " ₽", refs.length ? r1(refs.map(function (r) { return { kp: r.kp, customer: r.cells[1], sv: r.cells[3], systems: r.systems, amt: r.cells[2] }; })) : '<div class="sr-empty">Нет отказов</div>', false) + "</div>" + fin;
     var chips = '<span><strong>' + totalN + "</strong> " + plr(totalN) + "</span><span><strong>" + fmt(totalS) + "</strong></span>"
       + (sold.length ? '<span class="g">продано <strong>' + sold.length + " · " + fmt(soldSum) + "</strong></span>" : "")
       + (refs.length ? '<span class="r">отказ <strong>' + refs.length + "</strong></span>" : "");
@@ -438,7 +439,7 @@
       var kindI = inputs.find(function (i) { return /:kind$/.test(i.key); }) || {};
       var noteI = inputs.find(function (i) { return /:note$/.test(i.key); }) || {};
       var kind = AV[kindI.key] !== undefined ? AV[kindI.key] : (kindI.v || "");
-      return '<div class="i r6"><span>' + E(r.cells[1]) + (r.payment_date ? '<small style="display:block">' +
+      return '<div class="i r6"><span>' + (!RO && r.kp ? '<button class="sr-kp-link" type="button" data-sr-card="'+r.kp+'">'+E(r.cells[1])+'<small>Изменить КП</small></button>' : E(r.cells[1]) + (!r.kp && !RO ? "<small>Без привязки к КП</small>" : "")) + (r.payment_date ? '<small style="display:block">' +
         E(dmIso(r.payment_date)) + (r.after_close ? " · Получен после закрытия" : "") + "</small>" : "") + "</span>" + workCell(r.systems)
         + '<span class="tc"><select class="tsel rq ' + (PTC[kind] || "") + '" data-ak="' + E(kindI.key) + '" aria-label="Тип оплаты"' + dis() + '><option value="">Выбрать тип</option>'
         + ["Предоплата", "Доплата", "Постоплата"].map(function (t) { return "<option" + (t === kind ? " selected" : "") + ">" + t + "</option>"; }).join("") + "</select></span>"
@@ -756,7 +757,10 @@
     dialog.className = "sr-basis-dialog";
     dialog.innerHTML = '<form><header><h2>' + (kp ? "Карточка КП" : "Основание оплаты") + '</h2><p>' + E(customer)
       + '</p></header><div class="sr-basis-body">'
-      + (kp ? '<label>Вероятность продажи<select name="prob">' + [["", "Выбрать"], ["low", "Низкая"], ["mid", "Средняя"], ["high", "Высокая"]].map(function (v) {
+      + (kp ? '<label>Заказчик<input name="customer" required maxlength="500" value="'+E(kp.customer || "")+'"></label>'
+        + '<label>Сумма КП, ₽<input type="number" name="amount" min="0" step="0.01" required value="'+E(String(kp.amount))+'"></label>'
+        + '<label>Аванс по КП, ₽<input type="number" name="advance" min="0" step="0.01" required value="'+E(String(kp.adv_sum))+'"></label>'
+        + '<label>Вероятность продажи<select name="prob">' + [["", "Выбрать"], ["low", "Низкая"], ["mid", "Средняя"], ["high", "Высокая"]].map(function (v) {
         return '<option value="' + v[0] + '"' + (v[0] === sale ? " selected" : "") + '>' + v[1] + '</option>';
       }).join("") + '</select></label><fieldset><legend>Вид работ</legend>' + systems.map(function (code) {
         return '<label><input type="checkbox" name="systems" value="' + E(code) + '"' + (codeList.includes(code) ? " checked" : "") + '>' + E(code) + '</label>';
@@ -768,9 +772,22 @@
       + '<button type="submit" class="sr-mock-btn">Сохранить</button></footer></form>';
     var form = dialog.querySelector("form");
     function persist(body) {
+      if (RO || (R.cutoff && Date.now() >= R.cutoff * 1000)) {
+        dialog.querySelector("[role=alert]").textContent = "Неделя закрыта. Обновите отчёт.";
+        return;
+      }
       var buttons = dialog.querySelectorAll("button");
       buttons.forEach(function (b) { b.disabled = true; });
-      var saving = kp ? MPBC.call("/../ds/kp/" + id + "/edit", {body: body}).then(function () { return true; }, function () { return false; })
+      var saving = kp ? (async function () {
+        if (Object.prototype.hasOwnProperty.call(body, "customer_text")) {
+          var customers = await MPBC.call("/../ds/customers");
+          var matches = customers.filter(function (c) { return c.name === body.customer_text; });
+          if (matches.length > 1) throw new Error("Найдено несколько заказчиков с таким именем.");
+          body.customer_id = matches.length ? matches[0].id : 0;
+        }
+        await MPBC.call("/../ds/kp/" + id + "/edit", {body:body});
+        return true;
+      })().catch(function () { return false; })
         : saveKp(id, "pay_basis", body.pay_basis);
       saving.then(function (saved) {
         if (!saved) {
@@ -780,14 +797,27 @@
         }
         dialog.close();
         var reportRoot = button.closest("#report-app") || button.closest(".sr");
-        var refresh = reportRoot && reportRoot.querySelector("[data-rpref]");
+        var refresh = (reportRoot && reportRoot.querySelector("[data-rpref]")) || document.querySelector("[data-rpref]");
         if (refresh) refresh.click();
       });
     }
     form.onsubmit = function (e) {
       e.preventDefault();
       var values = new FormData(form), body = {};
-      if (kp) { body.sale_prob = values.get("prob"); body.systems = values.getAll("systems"); }
+      if (kp) {
+        var customerName = values.get("customer").trim();
+        var amount = Number(values.get("amount")), advance = Number(values.get("advance"));
+        if (!customerName || advance > amount) {
+          dialog.querySelector("[role=alert]").textContent = "Укажите заказчика и аванс в пределах суммы КП.";
+          return;
+        }
+        if (customerName !== (kp.customer || "")) { body.customer_text = customerName; body.customer_id = 0; }
+        if (amount !== Number(kp.amount)) body.amount = amount;
+        if (advance !== Number(kp.adv_sum)) body.adv_sum = advance;
+        if (values.get("prob") !== sale) body.sale_prob = values.get("prob");
+        var selected = values.getAll("systems");
+        if (selected.join("|") !== codeList.filter(Boolean).join("|")) body.systems = selected;
+      }
       if (canBasis && (!kp || values.get("event") !== current.event || values.get("date") !== current.date)) {
         body.pay_basis = JSON.stringify({event: values.get("event"), date: values.get("date")});
       }
@@ -1440,7 +1470,10 @@
         pill.querySelector(".sb4").textContent = dmIso(t.value) || "дата?";
       }
       if (t.dataset.akp != null) {
-        if (t.classList.contains("sr-sale-prob")) t.dataset.tone = t.value;
+        if (t.classList.contains("sr-sale-prob")) {
+          t.parentElement.dataset.tone = t.value || t.dataset.fallback;
+          t.previousElementSibling.textContent = t.options[t.selectedIndex].textContent;
+        }
         var p = t.dataset.akp.split("|");
         saveKp(p[0], p[1], t.value);
         if (t.classList.contains("bk")) {

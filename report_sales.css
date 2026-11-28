@@ -1180,3 +1180,11 @@
 :root[data-theme="dark"] .ds .sr .cmq { background:#171f31 !important; }
 .ds .sr .dpill.debt { background:#f4cbc7 !important; color:#8a2a22 !important; border:1px solid #e3a9a4 !important; }
 :root[data-theme="dark"] .ds .sr .dpill.debt { background:#55211c !important; color:#ecb5b1 !important; border:1px solid #b04036 !important; }
+
+.ds .sr .sr-prob-field {position:relative;display:block;min-width:0;border:1px solid var(--blue-bd);border-radius:7px;padding:4px 1px;text-align:center;color:var(--ink);background:var(--surface);font-size:12px;font-weight:700}
+.ds .sr .sr-prob-field[data-tone=high]{background:#d5eee0;color:#205c3e}
+.ds .sr .sr-prob-field[data-tone=mid]{background:#fbefce;color:#724a09}
+.ds .sr .sr-prob-field[data-tone=low]{background:#edf0f3;color:#424e62}
+.ds .sr .sr-prob-field:focus-within{outline:2px solid #4387d0}
+.ds .sr .sr-prob-field select.sr-sale-prob{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.ds .sr .sr-kp-link small{display:block;font-size:11px}
